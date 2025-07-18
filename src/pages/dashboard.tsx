@@ -725,7 +725,7 @@ export default function Dashboard() {
         </div>
 
         {/* User Profile */}
-        <div className="absolute bottom-0 left-0 right-0 p-6 border-t">
+        <div className="absolute bottom-0 left-0 w-64 p-6 border-t">
           <div className="flex items-center space-x-3 mb-3">
             <Avatar className="h-8 w-8">
               <AvatarImage src={user?.user_metadata?.avatar_url} />
@@ -740,7 +740,7 @@ export default function Dashboard() {
               <p className="text-xs text-muted-foreground truncate">
                 {user?.email}
               </p>
-              <p className="text-xs text-muted-foreground truncate">
+              <p className="text-xs text-muted-foreground truncate font-bold">
                 {currentUser?.role?.name || 'No role assigned'}
               </p>
             </div>
