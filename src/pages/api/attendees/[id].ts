@@ -35,19 +35,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           return res.status(404).json({ error: 'Attendee not found' });
         }
 
-        // Log the view action
-        await prisma.log.create({
-          data: {
-            userId: user.id,
-            attendeeId: attendee.id,
-            action: 'view',
-            details: { 
-              type: 'attendee_detail',
-              firstName: attendee.firstName,
-              lastName: attendee.lastName
-            }
-          }
+        // Log the view action (defensive check)
+        const existingUser = await prisma.user.findUnique({
+          where: { id: user.id }
         });
+        
+        if (existingUser) {
+          await prisma.log.create({
+            data: {
+              userId: user.id,
+              attendeeId: attendee.id,
+              action: 'view',
+              details: { 
+                type: 'attendee_detail',
+                firstName: attendee.firstName,
+                lastName: attendee.lastName
+              }
+            }
+          });
+        }
 
         return res.status(200).json(attendee);
 
@@ -111,25 +117,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         }
 
-        // Log the update action
-        await prisma.log.create({
-          data: {
-            userId: user.id,
-            attendeeId: updatedAttendee.id,
-            action: 'update',
-            details: { 
-              type: 'attendee',
-              firstName: updatedAttendee.firstName,
-              lastName: updatedAttendee.lastName,
-              changes: {
-                firstName: firstName !== existingAttendee.firstName,
-                lastName: lastName !== existingAttendee.lastName,
-                barcodeNumber: barcodeNumber !== existingAttendee.barcodeNumber,
-                photoUrl: photoUrl !== existingAttendee.photoUrl
+        // Log the update action (defensive check)
+        const existingUserForUpdate = await prisma.user.findUnique({
+          where: { id: user.id }
+        });
+        
+        if (existingUserForUpdate) {
+          await prisma.log.create({
+            data: {
+              userId: user.id,
+              attendeeId: updatedAttendee.id,
+              action: 'update',
+              details: { 
+                type: 'attendee',
+                firstName: updatedAttendee.firstName,
+                lastName: updatedAttendee.lastName,
+                changes: {
+                  firstName: firstName !== existingAttendee.firstName,
+                  lastName: lastName !== existingAttendee.lastName,
+                  barcodeNumber: barcodeNumber !== existingAttendee.barcodeNumber,
+                  photoUrl: photoUrl !== existingAttendee.photoUrl
+                }
               }
             }
-          }
-        });
+          });
+        }
 
         return res.status(200).json(updatedAttendee);
 
@@ -148,19 +160,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           where: { id }
         });
 
-        // Log the delete action
-        await prisma.log.create({
-          data: {
-            userId: user.id,
-            action: 'delete',
-            details: { 
-              type: 'attendee',
-              firstName: attendeeToDelete.firstName,
-              lastName: attendeeToDelete.lastName,
-              barcodeNumber: attendeeToDelete.barcodeNumber
-            }
-          }
+        // Log the delete action (defensive check)
+        const existingUserForDelete = await prisma.user.findUnique({
+          where: { id: user.id }
         });
+        
+        if (existingUserForDelete) {
+          await prisma.log.create({
+            data: {
+              userId: user.id,
+              action: 'delete',
+              details: { 
+                type: 'attendee',
+                firstName: attendeeToDelete.firstName,
+                lastName: attendeeToDelete.lastName,
+                barcodeNumber: attendeeToDelete.barcodeNumber
+              }
+            }
+          });
+        }
 
         return res.status(200).json({ message: 'Attendee deleted successfully' });
 

@@ -84,22 +84,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const switchboardResult = await switchboardResponse.json();
 
-    // Log the print action
-    await prisma.log.create({
-      data: {
-        userId: user.id,
-        attendeeId: attendee.id,
-        action: 'print',
-        details: { 
-          type: 'credential',
-          firstName: attendee.firstName,
-          lastName: attendee.lastName,
-          barcodeNumber: attendee.barcodeNumber,
-          switchboardJobId: switchboardResult.job_id || switchboardResult.id,
-          imageUrl: switchboardResult.url || switchboardResult.image_url
-        }
-      }
+    // Log the print action (defensive check)
+    const existingUser = await prisma.user.findUnique({
+      where: { id: user.id }
     });
+    
+    if (existingUser) {
+      await prisma.log.create({
+        data: {
+          userId: user.id,
+          attendeeId: attendee.id,
+          action: 'print',
+          details: { 
+            type: 'credential',
+            firstName: attendee.firstName,
+            lastName: attendee.lastName,
+            barcodeNumber: attendee.barcodeNumber,
+            switchboardJobId: switchboardResult.job_id || switchboardResult.id,
+            imageUrl: switchboardResult.url || switchboardResult.image_url
+          }
+        }
+      });
+    }
 
     return res.status(200).json({
       success: true,

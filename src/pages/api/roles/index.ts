@@ -28,14 +28,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         });
 
-        // Log the view action
-        await prisma.log.create({
-          data: {
-            userId: user.id,
-            action: 'view',
-            details: { type: 'roles_list', count: roles.length }
-          }
+        // Log the view action (defensive check)
+        const existingUser = await prisma.user.findUnique({
+          where: { id: user.id }
         });
+        
+        if (existingUser) {
+          await prisma.log.create({
+            data: {
+              userId: user.id,
+              action: 'view',
+              details: { type: 'roles_list', count: roles.length }
+            }
+          });
+        }
 
         return res.status(200).json(roles);
 
@@ -70,18 +76,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         });
 
-        // Log the create action
-        await prisma.log.create({
-          data: {
-            userId: user.id,
-            action: 'create',
-            details: { 
-              type: 'role',
-              roleName: newRole.name,
-              permissions: Object.keys(permissions)
-            }
-          }
+        // Log the create action (defensive check)
+        const existingUserForCreate = await prisma.user.findUnique({
+          where: { id: user.id }
         });
+        
+        if (existingUserForCreate) {
+          await prisma.log.create({
+            data: {
+              userId: user.id,
+              action: 'create',
+              details: { 
+                type: 'role',
+                roleName: newRole.name,
+                permissions: Object.keys(permissions)
+              }
+            }
+          });
+        }
 
         return res.status(201).json(newRole);
 

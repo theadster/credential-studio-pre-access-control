@@ -28,14 +28,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         });
 
-        // Log the view action
-        await prisma.log.create({
-          data: {
-            userId: user.id,
-            action: 'view',
-            details: { type: 'attendees_list', count: attendees.length }
-          }
+        // Log the view action (defensive check)
+        const existingUser = await prisma.user.findUnique({
+          where: { id: user.id }
         });
+        
+        if (existingUser) {
+          await prisma.log.create({
+            data: {
+              userId: user.id,
+              action: 'view',
+              details: { type: 'attendees_list', count: attendees.length }
+            }
+          });
+        }
 
         return res.status(200).json(attendees);
 
@@ -77,20 +83,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         });
 
-        // Log the create action
-        await prisma.log.create({
-          data: {
-            userId: user.id,
-            attendeeId: newAttendee.id,
-            action: 'create',
-            details: { 
-              type: 'attendee',
-              firstName: newAttendee.firstName,
-              lastName: newAttendee.lastName,
-              barcodeNumber: newAttendee.barcodeNumber
-            }
-          }
+        // Log the create action (defensive check)
+        const existingUserForCreate = await prisma.user.findUnique({
+          where: { id: user.id }
         });
+        
+        if (existingUserForCreate) {
+          await prisma.log.create({
+            data: {
+              userId: user.id,
+              attendeeId: newAttendee.id,
+              action: 'create',
+              details: { 
+                type: 'attendee',
+                firstName: newAttendee.firstName,
+                lastName: newAttendee.lastName,
+                barcodeNumber: newAttendee.barcodeNumber
+              }
+            }
+          });
+        }
 
         return res.status(201).json(newAttendee);
 

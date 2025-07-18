@@ -60,18 +60,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         });
 
-        // Log the create action
-        await prisma.log.create({
-          data: {
-            userId: user.id,
-            action: 'create',
-            details: { 
-              type: 'custom_field',
-              fieldName: newCustomField.fieldName,
-              fieldType: newCustomField.fieldType
-            }
-          }
+        // Log the create action (defensive check)
+        const existingUser = await prisma.user.findUnique({
+          where: { id: user.id }
         });
+        
+        if (existingUser) {
+          await prisma.log.create({
+            data: {
+              userId: user.id,
+              action: 'create',
+              details: { 
+                type: 'custom_field',
+                fieldName: newCustomField.fieldName,
+                fieldType: newCustomField.fieldType
+              }
+            }
+          });
+        }
 
         return res.status(201).json(newCustomField);
 
