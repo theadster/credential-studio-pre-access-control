@@ -1,6 +1,6 @@
-# Codev Template
+# EventCredentialPro
 
-This is a Codev template project that includes:
+This is a comprehensive event credential management application that includes:
 
 1. Next.js with Pages Router
 2. Tailwind CSS Framework
@@ -8,9 +8,15 @@ This is a Codev template project that includes:
 
 ## Features
 
-- **Next.js Pages Router**: Utilizes the traditional routing system of Next.js for easy navigation and page management.
-- **Tailwind CSS**: A utility-first CSS framework that provides low-level utility classes to build custom designs quickly and efficiently.
-- **Context API**: Implements React's Context API for efficient global state management.
+- **Event Credential Management**: Complete CRUD operations for attendee records with custom fields and photo uploads
+- **User Authentication**: Secure authentication system with role-based access control using Supabase
+- **Role Management**: Granular permissions and role management for different user types
+- **Event Configuration**: Comprehensive event settings including barcode generation and custom fields
+- **Photo Integration**: Seamless photo uploads with Cloudinary widget integration
+- **Professional Printing**: High-quality credential printing with Switchboard Canvas API
+- **Activity Logging**: Full audit trail of all user actions and system changes
+- **Beautiful UI**: Modern, responsive design with Framer Motion animations and shadcn/ui components
+- **Database Integration**: Prisma ORM with Supabase PostgreSQL database
 
 ## Getting Started
 

@@ -381,7 +381,7 @@ export default function Dashboard() {
         <div className="p-6">
           <div className="flex items-center space-x-2 mb-8">
             <CreditCard className="h-8 w-8 text-primary" />
-            <span className="text-xl font-bold">EventCreds</span>
+            <span className="text-xl font-bold">EventCredentialPro</span>
           </div>
           
           {/* Event Banner */}
