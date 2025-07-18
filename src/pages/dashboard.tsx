@@ -27,7 +27,8 @@ import {
   Clock,
   BarChart3,
   Printer,
-  AlertTriangle
+  AlertTriangle,
+  Mail
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -52,6 +53,7 @@ interface User {
     name: string;
     permissions: any;
   } | null;
+  isInvited?: boolean;
   createdAt: string;
 }
 
@@ -124,6 +126,7 @@ export default function Dashboard() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [initializingRoles, setInitializingRoles] = useState(false);
   const [showEventSettingsForm, setShowEventSettingsForm] = useState(false);
+  const [invitingUser, setInvitingUser] = useState<string | null>(null);
 
   // Get current user's role information
   useEffect(() => {
@@ -611,6 +614,42 @@ export default function Dashboard() {
     }
   };
 
+  const handleInviteUser = async (userId: string) => {
+    setInvitingUser(userId);
+    try {
+      const response = await fetch('/api/invitations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to create invitation');
+      }
+
+      const result = await response.json();
+      
+      // Copy invitation URL to clipboard
+      await navigator.clipboard.writeText(result.invitationUrl);
+      
+      toast({
+        title: "Invitation Created",
+        description: "Invitation link has been copied to your clipboard. Share it with the user to complete their registration.",
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
+    } finally {
+      setInvitingUser(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex min-h-screen bg-background items-center justify-center">
@@ -1041,6 +1080,21 @@ export default function Dashboard() {
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center space-x-2">
+                              {user.isInvited && (
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => handleInviteUser(user.id)}
+                                  disabled={invitingUser === user.id}
+                                  className="text-blue-600"
+                                >
+                                  {invitingUser === user.id ? (
+                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                                  ) : (
+                                    <Mail className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              )}
                               <Button 
                                 variant="ghost" 
                                 size="sm"

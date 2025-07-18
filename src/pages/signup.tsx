@@ -1,5 +1,5 @@
 import { useFormik } from 'formik';
-import React, { useContext, useState } from 'react';
+import React, { useContext, useState, useEffect } from 'react';
 import * as Yup from 'yup';
 import { useRouter } from 'next/navigation';
 import { AuthContext } from '@/contexts/AuthContext';
@@ -18,21 +18,103 @@ const SignUpPage = () => {
   const { initializing, signUp } = useContext(AuthContext);
   const [showPw, setShowPw] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [invitationToken, setInvitationToken] = useState<string | null>(null);
+  const [invitationData, setInvitationData] = useState<any>(null);
+  const [validatingInvitation, setValidatingInvitation] = useState(false);
   const { toast } = useToast();
+
+  // Check for invitation token in URL
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('invitation');
+    if (token) {
+      setInvitationToken(token);
+      validateInvitation(token);
+    }
+  }, []);
+
+  const validateInvitation = async (token: string) => {
+    setValidatingInvitation(true);
+    try {
+      const response = await fetch(`/api/invitations/validate?token=${token}`);
+      const data = await response.json();
+      
+      if (response.ok && data.valid) {
+        setInvitationData(data.user);
+        formik.setFieldValue('email', data.user.email);
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Invalid Invitation",
+          description: data.error || "This invitation link is invalid or has expired.",
+        });
+        router.push('/signup');
+      }
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to validate invitation.",
+      });
+      router.push('/signup');
+    } finally {
+      setValidatingInvitation(false);
+    }
+  };
 
   const handleSignUp = async (e: any) => {
     e.preventDefault();
     setIsLoading(true);
     try {
       const { email, password } = formik.values;
-      await signUp(email, password);
+      
+      // Create Supabase auth user
+      const { data, error } = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      }).then(res => res.json());
+
+      if (error) {
+        throw new Error(error);
+      }
+
+      // If this is an invitation signup, complete the invitation process
+      if (invitationToken && data.user) {
+        const completeResponse = await fetch('/api/invitations/complete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token: invitationToken,
+            supabaseUserId: data.user.id
+          })
+        });
+
+        if (!completeResponse.ok) {
+          const errorData = await completeResponse.json();
+          throw new Error(errorData.error || 'Failed to complete invitation');
+        }
+
+        toast({
+          title: "Success",
+          description: "Your account has been created successfully! You can now log in.",
+        });
+      } else {
+        // Regular signup
+        await signUp(email, password);
+        toast({
+          title: "Success",
+          description: "Sign up successful! Please login to continue.",
+        });
+      }
+
       router.push('/login');
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
       toast({
         variant: "destructive",
         title: "Sign up failed",
-        description: "Please try again.",
+        description: error.message || "Please try again.",
       });
     } finally {
       setIsLoading(false);
@@ -72,104 +154,130 @@ const SignUpPage = () => {
 
         <Card className="w-full md:w-[440px]" onKeyDown={handleKeyPress}>
           <CardHeader>
-            <CardTitle className="text-center">Sign up</CardTitle>
+            <CardTitle className="text-center">
+              {invitationToken ? 'Complete Your Invitation' : 'Sign up'}
+            </CardTitle>
+            {invitationData && (
+              <div className="text-center text-sm text-muted-foreground">
+                You've been invited to join as <span className="font-semibold">{invitationData.role?.name || 'User'}</span>
+              </div>
+            )}
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSignUp}>
-              <div className="flex flex-col gap-6">
-                <div className="flex flex-col gap-4">
-                  <GoogleButton />
-                  <Button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      router.push('/magic-link-login');
-                    }}
-                    variant="outline"
-                  >
-                    Continue with Magic Link
-                  </Button>
+            {validatingInvitation ? (
+              <div className="flex justify-center items-center py-8">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                  <p className="text-muted-foreground">Validating invitation...</p>
                 </div>
-
-                <div className="flex items-center w-full">
-                  <Separator className="flex-1" />
-                  <span className="mx-4 text-muted-foreground text-sm font-semibold whitespace-nowrap">or</span>
-                  <Separator className="flex-1" />
-                </div>
-
+              </div>
+            ) : (
+              <form onSubmit={handleSignUp}>
                 <div className="flex flex-col gap-6">
-                  <p className="text-center text-sm text-muted-foreground">Enter your details</p>
-                  <div className="flex flex-col gap-4">
-                    <div className="flex flex-col gap-2">
-                      <Label htmlFor="email">Email</Label>
-                      <Input
-                        id="email"
-                        name="email"
-                        type="email"
-                        placeholder="Enter your email"
-                        value={formik.values.email}
-                        onChange={formik.handleChange}
-                        onBlur={formik.handleBlur}
-                      />
-                      {formik.touched.email && formik.errors.email && (
-                        <p className="text-destructive text-xs">{formik.errors.email}</p>
-                      )}
-                    </div>
+                  {!invitationToken && (
+                    <>
+                      <div className="flex flex-col gap-4">
+                        <GoogleButton />
+                        <Button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            router.push('/magic-link-login');
+                          }}
+                          variant="outline"
+                        >
+                          Continue with Magic Link
+                        </Button>
+                      </div>
 
-                    <div className="flex flex-col gap-2">
-                      <Label htmlFor="password">Password</Label>
-                      <div className="relative">
+                      <div className="flex items-center w-full">
+                        <Separator className="flex-1" />
+                        <span className="mx-4 text-muted-foreground text-sm font-semibold whitespace-nowrap">or</span>
+                        <Separator className="flex-1" />
+                      </div>
+                    </>
+                  )}
+
+                  <div className="flex flex-col gap-6">
+                    <p className="text-center text-sm text-muted-foreground">
+                      {invitationToken ? 'Set your password to complete registration' : 'Enter your details'}
+                    </p>
+                    <div className="flex flex-col gap-4">
+                      <div className="flex flex-col gap-2">
+                        <Label htmlFor="email">Email</Label>
                         <Input
-                          id="password"
-                          name="password"
-                          type={showPw ? 'text' : 'password'}
-                          placeholder="Enter your password"
-                          value={formik.values.password}
+                          id="email"
+                          name="email"
+                          type="email"
+                          placeholder="Enter your email"
+                          value={formik.values.email}
                           onChange={formik.handleChange}
                           onBlur={formik.handleBlur}
+                          disabled={!!invitationToken}
+                          className={invitationToken ? "bg-muted" : ""}
                         />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                          onClick={() => setShowPw(!showPw)}
-                        >
-                          {showPw
-                            ? <FaEye className="text-muted-foreground" />
-                            : <FaEyeSlash className="text-muted-foreground" />
-                          }
-                        </Button>
+                        {formik.touched.email && formik.errors.email && (
+                          <p className="text-destructive text-xs">{formik.errors.email}</p>
+                        )}
                       </div>
-                      {formik.touched.password && formik.errors.password && (
-                        <p className="text-destructive text-xs">{formik.errors.password}</p>
+
+                      <div className="flex flex-col gap-2">
+                        <Label htmlFor="password">Password</Label>
+                        <div className="relative">
+                          <Input
+                            id="password"
+                            name="password"
+                            type={showPw ? 'text' : 'password'}
+                            placeholder="Enter your password"
+                            value={formik.values.password}
+                            onChange={formik.handleChange}
+                            onBlur={formik.handleBlur}
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                            onClick={() => setShowPw(!showPw)}
+                          >
+                            {showPw
+                              ? <FaEye className="text-muted-foreground" />
+                              : <FaEyeSlash className="text-muted-foreground" />
+                            }
+                          </Button>
+                        </div>
+                        {formik.touched.password && formik.errors.password && (
+                          <p className="text-destructive text-xs">{formik.errors.password}</p>
+                        )}
+                      </div>
+
+                      {!invitationToken && (
+                        <div className="flex justify-end mt-2 text-sm">
+                          <div className="flex items-center gap-1.5 text-muted-foreground">
+                            <span>Already have an account?</span>
+                            <Button
+                              type="button"
+                              variant="link"
+                              className="p-0"
+                              onClick={() => router.push('/login')}
+                            >
+                              Log in
+                            </Button>
+                          </div>
+                        </div>
                       )}
                     </div>
-
-                    <div className="flex justify-end mt-2 text-sm">
-                      <div className="flex items-center gap-1.5 text-muted-foreground">
-                        <span>Already have an account?</span>
-                        <Button
-                          type="button"
-                          variant="link"
-                          className="p-0"
-                          onClick={() => router.push('/login')}
-                        >
-                          Log in
-                        </Button>
-                      </div>
-                    </div>
                   </div>
+                  <Button
+                    type="submit"
+                    className="w-full"
+                    disabled={isLoading || initializing || !formik.values.email || !formik.values.password || !formik.isValid}
+                    onClick={handleSignUp}
+                  >
+                    {invitationToken ? 'Complete Registration' : 'Sign Up'}
+                  </Button>
                 </div>
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={isLoading || initializing || !formik.values.email || !formik.values.password || !formik.isValid}
-                  onClick={handleSignUp}
-                >
-                  Sign Up
-                </Button>
-              </div>
-            </form>
+              </form>
+            )}
           </CardContent>
         </Card>
       </div>
