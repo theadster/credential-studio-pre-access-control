@@ -40,6 +40,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import AttendeeForm from "@/components/AttendeeForm";
 import UserForm from "@/components/UserForm";
+import EventSettingsForm from "@/components/EventSettingsForm";
 import { hasPermission, canAccessTab, canManageUser } from "@/lib/permissions";
 
 interface User {
@@ -119,6 +120,7 @@ export default function Dashboard() {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [initializingRoles, setInitializingRoles] = useState(false);
+  const [showEventSettingsForm, setShowEventSettingsForm] = useState(false);
 
   // Get current user's role information
   useEffect(() => {
@@ -483,6 +485,45 @@ export default function Dashboard() {
     }
   };
 
+  // Event Settings Functions
+  const handleSaveEventSettings = async (settingsData: any) => {
+    try {
+      const url = eventSettings 
+        ? `/api/event-settings`
+        : '/api/event-settings';
+      
+      const method = eventSettings ? 'PUT' : 'POST';
+      
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(settingsData),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to save event settings');
+      }
+
+      const savedSettings = await response.json();
+      setEventSettings(savedSettings);
+
+      toast({
+        title: "Success",
+        description: eventSettings ? "Event settings updated successfully!" : "Event settings created successfully!",
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
+      throw error;
+    }
+  };
+
   // User Management Functions
   const handleSaveUser = async (userData: any) => {
     try {
@@ -717,6 +758,12 @@ export default function Dashboard() {
                 <Button onClick={() => setShowUserForm(true)}>
                   <UserPlus className="mr-2 h-4 w-4" />
                   Add User
+                </Button>
+              )}
+              {activeTab === "settings" && (
+                <Button onClick={() => setShowEventSettingsForm(true)}>
+                  <Settings className="mr-2 h-4 w-4" />
+                  {eventSettings ? "Edit Settings" : "Create Settings"}
                 </Button>
               )}
             </div>
@@ -1132,161 +1179,123 @@ export default function Dashboard() {
             </div>
           )}
 
-          {activeTab === "settings" && eventSettings && (
+          {activeTab === "settings" && (
             <div className="space-y-6">
-              <Tabs defaultValue="general" className="w-full">
-                <TabsList>
-                  <TabsTrigger value="general">General</TabsTrigger>
-                  <TabsTrigger value="barcode">Barcode Settings</TabsTrigger>
-                  <TabsTrigger value="integrations">Integrations</TabsTrigger>
-                  <TabsTrigger value="custom-fields">Custom Fields</TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="general" className="space-y-6">
-                  <Card className="glass-effect border-0">
-                    <CardHeader>
-                      <CardTitle>Event Information</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <Label htmlFor="eventName">Event Name</Label>
-                          <Input id="eventName" value={eventSettings.eventName} />
+              {!eventSettings ? (
+                <Alert>
+                  <Settings className="h-4 w-4" />
+                  <AlertDescription>
+                    No event settings have been configured yet. Create your event settings to get started.
+                    <Button 
+                      className="ml-4" 
+                      size="sm"
+                      onClick={() => setShowEventSettingsForm(true)}
+                    >
+                      <Settings className="mr-2 h-4 w-4" />
+                      Create Event Settings
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <div className="space-y-6">
+                  {/* Event Settings Summary Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <Card className="glass-effect border-0 hover:shadow-lg transition-shadow">
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Event Details</CardTitle>
+                        <div className="p-2 rounded-lg bg-primary/10">
+                          <Calendar className="h-4 w-4 text-primary" />
                         </div>
-                        <div>
-                          <Label htmlFor="eventDate">Event Date</Label>
-                          <Input id="eventDate" type="date" value={eventSettings.eventDate} />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-lg font-bold">{eventSettings.eventName}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {new Date(eventSettings.eventDate).toLocaleDateString()} • {eventSettings.eventLocation}
                         </div>
-                        <div>
-                          <Label htmlFor="eventLocation">Location</Label>
-                          <Input id="eventLocation" value={eventSettings.eventLocation} />
+                      </CardContent>
+                    </Card>
+                    <Card className="glass-effect border-0 hover:shadow-lg transition-shadow">
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Barcode Settings</CardTitle>
+                        <div className="p-2 rounded-lg bg-success/10">
+                          <CreditCard className="h-4 w-4 text-success" />
                         </div>
-                        <div>
-                          <Label htmlFor="timeZone">Time Zone</Label>
-                          <Select value={eventSettings.timeZone}>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="America/Los_Angeles">Pacific Time</SelectItem>
-                              <SelectItem value="America/New_York">Eastern Time</SelectItem>
-                              <SelectItem value="America/Chicago">Central Time</SelectItem>
-                            </SelectContent>
-                          </Select>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-lg font-bold">{eventSettings.barcodeType}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {eventSettings.barcodeLength} characters • {eventSettings.barcodeUnique ? 'Unique' : 'Non-unique'}
                         </div>
-                      </div>
-                      <div>
-                        <Label htmlFor="bannerImage">Banner Image URL</Label>
-                        <Input id="bannerImage" value={eventSettings.bannerImageUrl || ""} />
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
+                      </CardContent>
+                    </Card>
+                    <Card className="glass-effect border-0 hover:shadow-lg transition-shadow">
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Custom Fields</CardTitle>
+                        <div className="p-2 rounded-lg bg-info/10">
+                          <Plus className="h-4 w-4 text-info" />
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-lg font-bold">{eventSettings.customFields?.length || 0}</div>
+                        <div className="text-sm text-muted-foreground">
+                          Additional data fields
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
 
-                <TabsContent value="barcode" className="space-y-6">
+                  {/* Quick Actions */}
                   <Card className="glass-effect border-0">
                     <CardHeader>
-                      <CardTitle>Barcode Configuration</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <Label htmlFor="barcodeType">Barcode Type</Label>
-                          <Select value={eventSettings.barcodeType}>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="numerical">Numerical</SelectItem>
-                              <SelectItem value="alphanumerical">Alphanumerical</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <Label htmlFor="barcodeLength">Barcode Length</Label>
-                          <Input id="barcodeLength" type="number" value={eventSettings.barcodeLength} />
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Switch id="barcodeUnique" checked={eventSettings.barcodeUnique} />
-                        <Label htmlFor="barcodeUnique">Ensure unique barcodes</Label>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-
-                <TabsContent value="integrations" className="space-y-6">
-                  <Card className="glass-effect border-0">
-                    <CardHeader>
-                      <CardTitle>Cloudinary Settings</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <Label htmlFor="cloudName">Cloud Name</Label>
-                          <Input id="cloudName" placeholder="your-cloud-name" />
-                        </div>
-                        <div>
-                          <Label htmlFor="uploadPreset">Upload Preset</Label>
-                          <Input id="uploadPreset" placeholder="your-upload-preset" />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="glass-effect border-0">
-                    <CardHeader>
-                      <CardTitle>Switchboard Canvas Settings</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <Label htmlFor="switchboardApiKey">API Key</Label>
-                          <Input id="switchboardApiKey" type="password" placeholder="your-api-key" />
-                        </div>
-                        <div>
-                          <Label htmlFor="templateId">Template ID</Label>
-                          <Input id="templateId" placeholder="your-template-id" />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-
-                <TabsContent value="custom-fields" className="space-y-6">
-                  <Card className="glass-effect border-0">
-                    <CardHeader>
-                      <CardTitle>Custom Fields</CardTitle>
-                      <Button size="sm">
-                        <Plus className="mr-2 h-4 w-4" />
-                        Add Field
-                      </Button>
+                      <CardTitle>Event Configuration</CardTitle>
+                      <CardDescription>
+                        Manage your event settings, barcode configuration, and integrations
+                      </CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <div className="space-y-4">
-                        {eventSettings.customFields.map((field: any) => (
-                          <div key={field.id} className="flex items-center space-x-4 p-4 border rounded-lg">
-                            <div className="flex-1">
-                              <div className="font-medium">{field.fieldName}</div>
-                              <div className="text-sm text-muted-foreground">
-                                Type: {field.fieldType} • {field.required ? "Required" : "Optional"}
-                              </div>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <Button variant="ghost" size="sm">
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="sm" className="text-destructive">
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="font-medium">Current Configuration</h3>
+                          <p className="text-sm text-muted-foreground">
+                            Last updated {new Date(eventSettings.updatedAt || eventSettings.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <Button onClick={() => setShowEventSettingsForm(true)}>
+                          <Edit className="mr-2 h-4 w-4" />
+                          Edit Settings
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>
-                </TabsContent>
-              </Tabs>
+
+                  {/* Custom Fields Overview */}
+                  {eventSettings.customFields && eventSettings.customFields.length > 0 && (
+                    <Card className="glass-effect border-0">
+                      <CardHeader>
+                        <CardTitle>Custom Fields</CardTitle>
+                        <CardDescription>
+                          Additional fields configured for attendee data collection
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-3">
+                          {eventSettings.customFields.map((field: any) => (
+                            <div key={field.id} className="flex items-center justify-between p-3 border rounded-lg">
+                              <div className="flex-1">
+                                <div className="flex items-center space-x-2">
+                                  <span className="font-medium">{field.fieldName}</span>
+                                  <Badge variant="outline">{field.fieldType}</Badge>
+                                  {field.required && <Badge variant="secondary">Required</Badge>}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -1370,6 +1379,14 @@ export default function Dashboard() {
         onSave={handleSaveUser}
         user={editingUser}
         roles={roles}
+      />
+
+      {/* Event Settings Form Modal */}
+      <EventSettingsForm
+        isOpen={showEventSettingsForm}
+        onClose={() => setShowEventSettingsForm(false)}
+        onSave={handleSaveEventSettings}
+        eventSettings={eventSettings}
       />
     </div>
   );
