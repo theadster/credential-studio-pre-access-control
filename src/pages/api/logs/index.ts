@@ -15,7 +15,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     switch (req.method) {
       case 'GET':
-        const { page = '1', limit = '50', action, userId: filterUserId } = req.query;
+        const { page = '1', limit = '50', action: actionFilter, userId: filterUserId } = req.query;
         
         const pageNum = parseInt(page as string);
         const limitNum = parseInt(limit as string);
@@ -23,11 +23,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         // Build where clause
         const where: any = {};
-        if (action && action !== 'all') {
-          where.action = action;
+        if (actionFilter && actionFilter !== 'all') {
+          where.action = actionFilter as string;
         }
         if (filterUserId && filterUserId !== 'all') {
-          where.userId = filterUserId;
+          where.userId = filterUserId as string;
         }
 
         const [logs, totalCount] = await Promise.all([
