@@ -122,6 +122,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       case 'PUT':
         // Update event settings
         const updateData = req.body;
+        const { customFields, ...eventSettingsData } = updateData;
         
         // Get existing settings
         const currentSettings = await prisma.eventSettings.findFirst();
@@ -129,11 +130,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           return res.status(404).json({ error: 'Event settings not found. Create them first.' });
         }
 
+        // Handle custom fields separately if they exist
+        let customFieldsUpdate = {};
+        if (customFields && Array.isArray(customFields)) {
+          // Delete existing custom fields and create new ones
+          customFieldsUpdate = {
+            customFields: {
+              deleteMany: {},
+              create: customFields.map((field: any, index: number) => ({
+                fieldName: field.fieldName,
+                fieldType: field.fieldType,
+                fieldOptions: field.fieldOptions || null,
+                required: field.required || false,
+                order: field.order || index + 1
+              }))
+            }
+          };
+        }
+
         const updatedEventSettings = await prisma.eventSettings.update({
           where: { id: currentSettings.id },
           data: {
-            ...updateData,
-            eventDate: updateData.eventDate ? new Date(updateData.eventDate) : undefined
+            ...eventSettingsData,
+            eventDate: eventSettingsData.eventDate ? new Date(eventSettingsData.eventDate) : undefined,
+            ...customFieldsUpdate
           },
           include: {
             customFields: {
