@@ -26,7 +26,8 @@ import {
   MapPin,
   Clock,
   BarChart3,
-  Printer
+  Printer,
+  AlertTriangle
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -36,8 +37,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import AttendeeForm from "@/components/AttendeeForm";
 import UserForm from "@/components/UserForm";
+import { hasPermission, canAccessTab, canManageUser } from "@/lib/permissions";
 
 interface User {
   id: string;
@@ -114,6 +117,28 @@ export default function Dashboard() {
   const [printingAttendee, setPrintingAttendee] = useState<string | null>(null);
   const [showUserForm, setShowUserForm] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [initializingRoles, setInitializingRoles] = useState(false);
+
+  // Get current user's role information
+  useEffect(() => {
+    const getCurrentUser = async () => {
+      try {
+        const response = await fetch('/api/users');
+        if (response.ok) {
+          const usersData = await response.json();
+          const currentUserData = usersData.find((u: User) => u.email === user?.email);
+          setCurrentUser(currentUserData || null);
+        }
+      } catch (error) {
+        console.error('Error loading current user:', error);
+      }
+    };
+
+    if (user?.email) {
+      getCurrentUser();
+    }
+  }, [user?.email, users]);
 
   // Load real data from APIs
   useEffect(() => {
@@ -418,6 +443,43 @@ export default function Dashboard() {
       });
     } finally {
       setPrintingAttendee(null);
+    }
+  };
+
+  // Role Management Functions
+  const handleInitializeRoles = async () => {
+    setInitializingRoles(true);
+    try {
+      const response = await fetch('/api/roles/initialize', {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to initialize roles');
+      }
+
+      const result = await response.json();
+      
+      // Reload roles data
+      const rolesResponse = await fetch('/api/roles');
+      if (rolesResponse.ok) {
+        const rolesData = await rolesResponse.json();
+        setRoles(Array.isArray(rolesData) ? rolesData : []);
+      }
+
+      toast({
+        title: "Success",
+        description: "Roles initialized successfully!",
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
+    } finally {
+      setInitializingRoles(false);
     }
   };
 
@@ -929,34 +991,144 @@ export default function Dashboard() {
 
           {activeTab === "roles" && (
             <div className="space-y-6">
-              {/* Roles Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {roles.map((role) => (
-                  <Card key={role.id} className="glass-effect border-0 hover:shadow-lg transition-shadow">
-                    <CardHeader>
-                      <CardTitle className="flex items-center justify-between">
-                        {role.name}
-                        <Button variant="ghost" size="sm">
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                      </CardTitle>
-                      <CardDescription>{role.description}</CardDescription>
+              {/* Role Initialization Alert */}
+              {roles.length === 0 && (
+                <Alert>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    No roles have been configured yet. Initialize the default role system to get started.
+                    <Button 
+                      className="ml-4" 
+                      size="sm"
+                      onClick={handleInitializeRoles}
+                      disabled={initializingRoles}
+                    >
+                      {initializingRoles ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          Initializing...
+                        </>
+                      ) : (
+                        <>
+                          <Shield className="mr-2 h-4 w-4" />
+                          Initialize Roles
+                        </>
+                      )}
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {/* Role Statistics */}
+              {roles.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                  <Card className="glass-effect border-0 hover:shadow-lg transition-shadow">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Total Roles</CardTitle>
+                      <div className="p-2 rounded-lg bg-primary/10">
+                        <Shield className="h-4 w-4 text-primary" />
+                      </div>
                     </CardHeader>
                     <CardContent>
-                      <div className="space-y-2">
-                        <div className="text-sm font-medium">Permissions:</div>
-                        <div className="flex flex-wrap gap-1">
-                          {Object.keys(role.permissions).map((permission) => (
-                            <Badge key={permission} variant="outline" className="text-xs">
-                              {permission}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
+                      <div className="text-2xl font-bold text-primary">{roles.length}</div>
                     </CardContent>
                   </Card>
-                ))}
-              </div>
+                  <Card className="glass-effect border-0 hover:shadow-lg transition-shadow">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Active Users</CardTitle>
+                      <div className="p-2 rounded-lg bg-success/10">
+                        <Users className="h-4 w-4 text-success" />
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-success">{users.filter(u => u.role).length}</div>
+                    </CardContent>
+                  </Card>
+                  <Card className="glass-effect border-0 hover:shadow-lg transition-shadow">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Unassigned Users</CardTitle>
+                      <div className="p-2 rounded-lg bg-warning/10">
+                        <AlertTriangle className="h-4 w-4 text-warning" />
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-warning">{users.filter(u => !u.role).length}</div>
+                    </CardContent>
+                  </Card>
+                  <Card className="glass-effect border-0 hover:shadow-lg transition-shadow">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Permission Levels</CardTitle>
+                      <div className="p-2 rounded-lg bg-info/10">
+                        <Settings className="h-4 w-4 text-info" />
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-info">4</div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {/* Roles Grid */}
+              {roles.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {roles.map((role) => (
+                    <Card key={role.id} className="glass-effect border-0 hover:shadow-lg transition-shadow">
+                      <CardHeader>
+                        <CardTitle className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <Shield className="h-5 w-5 text-primary" />
+                            <span>{role.name}</span>
+                          </div>
+                          <Badge variant="outline" className="text-xs">
+                            {users.filter(u => u.role?.id === role.id).length} users
+                          </Badge>
+                        </CardTitle>
+                        <CardDescription>{role.description}</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          <div>
+                            <div className="text-sm font-medium mb-2">Permissions:</div>
+                            <div className="space-y-2">
+                              {Object.entries(role.permissions).map(([resource, perms]: [string, any]) => (
+                                <div key={resource} className="flex items-center justify-between p-2 bg-muted/50 rounded">
+                                  <span className="text-sm font-medium capitalize">{resource}</span>
+                                  <div className="flex flex-wrap gap-1">
+                                    {typeof perms === 'object' && perms !== null ? (
+                                      Object.entries(perms).map(([action, allowed]: [string, any]) => (
+                                        allowed && (
+                                          <Badge key={action} variant="secondary" className="text-xs">
+                                            {action}
+                                          </Badge>
+                                        )
+                                      ))
+                                    ) : (
+                                      <Badge variant="secondary" className="text-xs">
+                                        {String(perms)}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between pt-2 border-t">
+                            <span className="text-xs text-muted-foreground">
+                              Created {new Date(role.createdAt).toLocaleDateString()}
+                            </span>
+                            {hasPermission(currentUser?.role, 'roles', 'update') && (
+                              <Button variant="ghost" size="sm">
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
