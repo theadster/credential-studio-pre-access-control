@@ -614,6 +614,33 @@ export default function Dashboard() {
     }
   };
 
+  const copyToClipboard = async (text: string): Promise<boolean> => {
+    try {
+      // Try modern clipboard API first
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } else {
+        // Fallback for older browsers or non-secure contexts
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        
+        const successful = document.execCommand('copy');
+        document.body.removeChild(textArea);
+        return successful;
+      }
+    } catch (error) {
+      console.error('Failed to copy to clipboard:', error);
+      return false;
+    }
+  };
+
   const handleInviteUser = async (userId: string) => {
     setInvitingUser(userId);
     try {
@@ -633,12 +660,21 @@ export default function Dashboard() {
       const result = await response.json();
       
       // Copy invitation URL to clipboard
-      await navigator.clipboard.writeText(result.invitationUrl);
+      const copySuccess = await copyToClipboard(result.invitationUrl);
       
-      toast({
-        title: "Invitation Created",
-        description: "Invitation link has been copied to your clipboard. Share it with the user to complete their registration.",
-      });
+      if (copySuccess) {
+        toast({
+          title: "Invitation Created",
+          description: "Invitation link has been copied to your clipboard. Share it with the user to complete their registration.",
+        });
+      } else {
+        // Show the URL in the toast if copying failed
+        toast({
+          title: "Invitation Created",
+          description: `Please copy this invitation link manually: ${result.invitationUrl}`,
+          duration: 10000, // Show longer so user can copy
+        });
+      }
     } catch (error: any) {
       toast({
         variant: "destructive",
