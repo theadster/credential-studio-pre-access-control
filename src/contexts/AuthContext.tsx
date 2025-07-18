@@ -60,7 +60,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const createUser = async (user: User) => {
     try {
       const { data, error } = await supabase
-        .from('User')
+        .from('users')
         .select('id')
         .eq('id', user.id)
         .maybeSingle();
@@ -69,10 +69,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
       if (!data) {
         const { error: insertError } = await supabase
-          .from('User')
+          .from('users')
           .insert({
             id: user.id,
             email: user.email,
+            name: user.user_metadata?.full_name || user.email?.split('@')[0] || null,
           });
         if (insertError) {
           throw insertError;
