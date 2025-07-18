@@ -264,7 +264,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                         id="bannerImageUrl"
                         value={formData.bannerImageUrl || ""}
                         onChange={(e) => handleInputChange("bannerImageUrl", e.target.value)}
-                        placeholder="https://example.com/banner.jpg"
+                        placeholder="https://images.unsplash.com/photo-1540575467063-178a50c2df87?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80"
                       />
                     </div>
                   </div>
