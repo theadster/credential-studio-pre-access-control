@@ -77,6 +77,7 @@ interface EventSettings {
   id: string;
   eventName: string;
   eventDate: string;
+  eventTime?: string;
   eventLocation: string;
   timeZone: string;
   barcodeType: string;
@@ -644,6 +645,12 @@ export default function Dashboard() {
                 <div className="flex items-center text-xs text-muted-foreground mt-1">
                   <Calendar className="h-3 w-3 mr-1" />
                   {new Date(eventSettings.eventDate).toLocaleDateString()}
+                  {eventSettings.eventTime && (
+                    <>
+                      <Clock className="h-3 w-3 ml-2 mr-1" />
+                      {eventSettings.eventTime}
+                    </>
+                  )}
                 </div>
                 <div className="flex items-center text-xs text-muted-foreground">
                   <MapPin className="h-3 w-3 mr-1" />

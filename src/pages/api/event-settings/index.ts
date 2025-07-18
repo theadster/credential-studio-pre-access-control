@@ -48,6 +48,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const {
           eventName,
           eventDate,
+          eventTime,
           eventLocation,
           timeZone,
           barcodeType,
@@ -76,6 +77,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           data: {
             eventName,
             eventDate: new Date(eventDate),
+            eventTime,
             eventLocation,
             timeZone,
             barcodeType: barcodeType || 'alphanumerical',

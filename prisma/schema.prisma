@@ -41,6 +41,7 @@ model EventSettings {
   id                    String   @id @default(cuid())
   eventName             String
   eventDate             DateTime
+  eventTime             String?
   eventLocation         String
   timeZone              String
   barcodeType           String   // "numerical" or "alphanumerical"

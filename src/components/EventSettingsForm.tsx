@@ -25,6 +25,7 @@ interface EventSettings {
   id?: string;
   eventName: string;
   eventDate: string;
+  eventTime?: string;
   eventLocation: string;
   timeZone: string;
   barcodeType: string;
@@ -91,9 +92,11 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
 
   useEffect(() => {
     if (eventSettings) {
+      const eventDateTime = eventSettings.eventDate ? new Date(eventSettings.eventDate) : null;
       setFormData({
         ...eventSettings,
-        eventDate: eventSettings.eventDate ? new Date(eventSettings.eventDate).toISOString().split('T')[0] : ""
+        eventDate: eventDateTime ? eventDateTime.toISOString().split('T')[0] : "",
+        eventTime: eventSettings.eventTime || (eventDateTime ? eventDateTime.toTimeString().slice(0, 5) : "")
       });
       setCustomFields(eventSettings.customFields || []);
     } else {
@@ -101,6 +104,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
       setFormData({
         eventName: "",
         eventDate: "",
+        eventTime: "",
         eventLocation: "",
         timeZone: "America/Los_Angeles",
         barcodeType: "alphanumerical",
@@ -232,17 +236,17 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                       />
                     </div>
                   </div>
-                  <div>
-                    <Label htmlFor="eventLocation">Event Location *</Label>
-                    <Input
-                      id="eventLocation"
-                      value={formData.eventLocation}
-                      onChange={(e) => handleInputChange("eventLocation", e.target.value)}
-                      placeholder="Enter event location"
-                      required
-                    />
-                  </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="eventTime">Event Time</Label>
+                      <Input
+                        id="eventTime"
+                        type="time"
+                        value={formData.eventTime || ""}
+                        onChange={(e) => handleInputChange("eventTime", e.target.value)}
+                        placeholder="Select event time"
+                      />
+                    </div>
                     <div>
                       <Label htmlFor="timeZone">Time Zone</Label>
                       <Select value={formData.timeZone} onValueChange={(value) => handleInputChange("timeZone", value)}>
@@ -258,15 +262,25 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                         </SelectContent>
                       </Select>
                     </div>
-                    <div>
-                      <Label htmlFor="bannerImageUrl">Banner Image URL</Label>
-                      <Input
-                        id="bannerImageUrl"
-                        value={formData.bannerImageUrl || ""}
-                        onChange={(e) => handleInputChange("bannerImageUrl", e.target.value)}
-                        placeholder="https://images.unsplash.com/photo-1540575467063-178a50c2df87?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80"
-                      />
-                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="eventLocation">Event Location *</Label>
+                    <Input
+                      id="eventLocation"
+                      value={formData.eventLocation}
+                      onChange={(e) => handleInputChange("eventLocation", e.target.value)}
+                      placeholder="Enter event location"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="bannerImageUrl">Banner Image URL</Label>
+                    <Input
+                      id="bannerImageUrl"
+                      value={formData.bannerImageUrl || ""}
+                      onChange={(e) => handleInputChange("bannerImageUrl", e.target.value)}
+                      placeholder="https://images.unsplash.com/photo-1540575467063-178a50c2df87?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80"
+                    />
                   </div>
                 </CardContent>
               </Card>
