@@ -36,13 +36,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(200).json(users);
 
       case 'POST':
-        const { email, name, roleId } = req.body;
+        const { email, name, roleId, password } = req.body;
 
-        if (!email) {
-          return res.status(400).json({ error: 'Email is required' });
+        if (!email || !password) {
+          return res.status(400).json({ error: 'Email and password are required' });
         }
 
-        // Check if user already exists
+        // Check if user already exists in our database
         const existingUser = await prisma.user.findUnique({
           where: { email }
         });
@@ -62,12 +62,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         }
 
-        // Note: This creates a user record in our database, but doesn't create
-        // an actual Supabase auth user. In a real implementation, you'd want to
-        // invite the user via Supabase Auth or handle user creation differently.
+        // Create user in Supabase Auth using admin API
+        const { data: authData, error: signUpError } = await supabase.auth.admin.createUser({
+          email,
+          password,
+          email_confirm: true,
+          user_metadata: {
+            full_name: name
+          }
+        });
+
+        if (signUpError) {
+          console.error('Supabase auth error:', signUpError);
+          return res.status(400).json({ error: signUpError.message });
+        }
+
+        if (!authData.user) {
+          return res.status(400).json({ error: 'Failed to create user in Supabase' });
+        }
+
+        // Create user in our database
         const newUser = await prisma.user.create({
           data: {
-            id: `temp_${Date.now()}`, // Temporary ID until Supabase user is created
+            id: authData.user.id,
             email,
             name,
             roleId
@@ -93,8 +110,112 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         return res.status(201).json(newUser);
 
+      case 'PUT':
+        const { id, name: updateName, roleId: updateRoleId } = req.body;
+
+        if (!id) {
+          return res.status(400).json({ error: 'User ID is required' });
+        }
+
+        // Validate role if provided
+        if (updateRoleId) {
+          const role = await prisma.role.findUnique({
+            where: { id: updateRoleId }
+          });
+
+          if (!role) {
+            return res.status(400).json({ error: 'Invalid role ID' });
+          }
+        }
+
+        // Update user in our database
+        const updatedUser = await prisma.user.update({
+          where: { id },
+          data: {
+            name: updateName,
+            roleId: updateRoleId
+          },
+          include: {
+            role: true
+          }
+        });
+
+        // Update user metadata in Supabase if name changed
+        if (updateName) {
+          await supabase.auth.admin.updateUserById(id, {
+            user_metadata: {
+              full_name: updateName
+            }
+          });
+        }
+
+        // Log the update action
+        await prisma.log.create({
+          data: {
+            userId: user.id,
+            action: 'update',
+            details: { 
+              type: 'user',
+              email: updatedUser.email,
+              name: updatedUser.name,
+              roleId: updatedUser.roleId
+            }
+          }
+        });
+
+        return res.status(200).json(updatedUser);
+
+      case 'DELETE':
+        const { id: deleteId } = req.body;
+
+        if (!deleteId) {
+          return res.status(400).json({ error: 'User ID is required' });
+        }
+
+        // Don't allow deleting yourself
+        if (deleteId === user.id) {
+          return res.status(400).json({ error: 'Cannot delete your own account' });
+        }
+
+        // Get user info before deletion for logging
+        const userToDelete = await prisma.user.findUnique({
+          where: { id: deleteId }
+        });
+
+        if (!userToDelete) {
+          return res.status(404).json({ error: 'User not found' });
+        }
+
+        // Delete user from our database first
+        await prisma.user.delete({
+          where: { id: deleteId }
+        });
+
+        // Delete user from Supabase Auth
+        const { error: deleteError } = await supabase.auth.admin.deleteUser(deleteId);
+        
+        if (deleteError) {
+          console.error('Error deleting user from Supabase:', deleteError);
+          // Note: User is already deleted from our DB, so we continue
+        }
+
+        // Log the delete action
+        await prisma.log.create({
+          data: {
+            userId: user.id,
+            action: 'delete',
+            details: { 
+              type: 'user',
+              email: userToDelete.email,
+              name: userToDelete.name
+            }
+          }
+        });
+
+        return res.status(200).json({ message: 'User deleted successfully' });
+
       default:
-        res.setHeader('Allow', ['GET', 'POST']);
+        res.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']);
         return res.status(405).json({ error: `Method ${req.method} not allowed` });
     }
   } catch (error) {

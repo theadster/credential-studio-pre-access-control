@@ -37,6 +37,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
 import AttendeeForm from "@/components/AttendeeForm";
+import UserForm from "@/components/UserForm";
 
 interface User {
   id: string;
@@ -111,9 +112,56 @@ export default function Dashboard() {
   const [showAttendeeForm, setShowAttendeeForm] = useState(false);
   const [editingAttendee, setEditingAttendee] = useState<Attendee | null>(null);
   const [printingAttendee, setPrintingAttendee] = useState<string | null>(null);
+  const [showUserForm, setShowUserForm] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
 
-  // Mock data for demonstration
+  // Load real data from APIs
   useEffect(() => {
+    const loadData = async () => {
+      try {
+        // Load users
+        const usersResponse = await fetch('/api/users');
+        if (usersResponse.ok) {
+          const usersData = await usersResponse.json();
+          setUsers(usersData);
+        }
+
+        // Load roles
+        const rolesResponse = await fetch('/api/roles');
+        if (rolesResponse.ok) {
+          const rolesData = await rolesResponse.json();
+          setRoles(rolesData);
+        }
+
+        // Load attendees
+        const attendeesResponse = await fetch('/api/attendees');
+        if (attendeesResponse.ok) {
+          const attendeesData = await attendeesResponse.json();
+          setAttendees(attendeesData);
+        }
+
+        // Load event settings
+        const settingsResponse = await fetch('/api/event-settings');
+        if (settingsResponse.ok) {
+          const settingsData = await settingsResponse.json();
+          setEventSettings(settingsData);
+        }
+
+        // Load logs
+        const logsResponse = await fetch('/api/logs');
+        if (logsResponse.ok) {
+          const logsData = await logsResponse.json();
+          setLogs(logsData);
+        }
+      } catch (error) {
+        console.error('Error loading data:', error);
+        // Fall back to mock data if API fails
+        loadMockData();
+      } finally {
+        setLoading(false);
+      }
+    };
+
     const loadMockData = () => {
       // Mock users
       setUsers([
@@ -240,7 +288,7 @@ export default function Dashboard() {
       setLoading(false);
     };
 
-    loadMockData();
+    loadData();
   }, []);
 
   const filteredAttendees = attendees.filter(attendee =>
@@ -360,6 +408,88 @@ export default function Dashboard() {
       });
     } finally {
       setPrintingAttendee(null);
+    }
+  };
+
+  // User Management Functions
+  const handleSaveUser = async (userData: any) => {
+    try {
+      const url = editingUser 
+        ? `/api/users`
+        : '/api/users';
+      
+      const method = editingUser ? 'PUT' : 'POST';
+      
+      const requestData = editingUser 
+        ? { id: editingUser.id, ...userData }
+        : userData;
+      
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to save user');
+      }
+
+      const savedUser = await response.json();
+
+      if (editingUser) {
+        setUsers(prev => prev.map(u => u.id === editingUser.id ? savedUser : u));
+        toast({
+          title: "Success",
+          description: "User updated successfully!",
+        });
+      } else {
+        setUsers(prev => [savedUser, ...prev]);
+        toast({
+          title: "Success",
+          description: "User created successfully!",
+        });
+      }
+
+      setEditingUser(null);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
+      throw error;
+    }
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    try {
+      const response = await fetch('/api/users', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id: userId }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to delete user');
+      }
+
+      setUsers(prev => prev.filter(u => u.id !== userId));
+      toast({
+        title: "Success",
+        description: "User deleted successfully!",
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
     }
   };
 
@@ -512,7 +642,7 @@ export default function Dashboard() {
                 </Button>
               )}
               {activeTab === "users" && (
-                <Button>
+                <Button onClick={() => setShowUserForm(true)}>
                   <UserPlus className="mr-2 h-4 w-4" />
                   Add User
                 </Button>
@@ -758,10 +888,22 @@ export default function Dashboard() {
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center space-x-2">
-                              <Button variant="ghost" size="sm">
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => {
+                                  setEditingUser(user);
+                                  setShowUserForm(true);
+                                }}
+                              >
                                 <Edit className="h-4 w-4" />
                               </Button>
-                              <Button variant="ghost" size="sm" className="text-destructive">
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="text-destructive"
+                                onClick={() => handleDeleteUser(user.id)}
+                              >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </div>
@@ -1034,6 +1176,18 @@ export default function Dashboard() {
         attendee={editingAttendee}
         customFields={eventSettings?.customFields || []}
         eventSettings={eventSettings}
+      />
+
+      {/* User Form Modal */}
+      <UserForm
+        isOpen={showUserForm}
+        onClose={() => {
+          setShowUserForm(false);
+          setEditingUser(null);
+        }}
+        onSave={handleSaveUser}
+        user={editingUser}
+        roles={roles}
       />
     </div>
   );
