@@ -6,151 +6,68 @@
   --mode: light;
 }
 
-/* Modern Sleek Theme */
+/* Theme: blue */
 @layer base {
   :root {
-    /* Modern Sleek Color Palette - Light Mode */
-    --background: 240 10% 98%;
-    --foreground: 240 10% 8%;
-    --card: 240 10% 100%;
-    --card-foreground: 240 10% 8%;
-    --popover: 240 10% 100%;
-    --popover-foreground: 240 10% 8%;
-    --primary: 234 89% 74%;
-    --primary-foreground: 240 10% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 234 89% 74%;
-    --chart-1: 234 89% 74%;
-    --chart-2: 142 76% 36%;
-    --chart-3: 346 87% 43%;
-    --chart-4: 35 91% 65%;
-    --chart-5: 263 70% 50%;
-    --radius: 0.75rem;
-    
-    /* Custom modern colors */
-    --gradient-start: 234 89% 74%;
-    --gradient-end: 142 76% 36%;
-    --surface: 240 10% 99%;
-    --surface-variant: 240 6% 93%;
-    --outline: 240 5% 84%;
-    --outline-variant: 240 4% 88%;
-    --success: 142 76% 36%;
-    --warning: 35 91% 65%;
-    --info: 234 89% 74%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --radius: 0.5rem
   }
-  
   .dark {
-    /* Dark mode with sophisticated grays and vibrant accents */
-    --background: 240 10% 4%;
-    --foreground: 240 5% 96%;
-    --card: 240 10% 6%;
-    --card-foreground: 240 5% 96%;
-    --popover: 240 10% 6%;
-    --popover-foreground: 240 5% 96%;
-    --primary: 234 89% 74%;
-    --primary-foreground: 240 10% 4%;
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 240 5% 96%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
-    --accent-foreground: 240 5% 96%;
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
     --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 85.7% 97.3%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 234 89% 74%;
-    --chart-1: 234 89% 74%;
-    --chart-2: 142 76% 36%;
-    --chart-3: 346 87% 43%;
-    --chart-4: 35 91% 65%;
-    --chart-5: 263 70% 50%;
-    
-    /* Custom dark mode colors */
-    --gradient-start: 234 89% 74%;
-    --gradient-end: 142 76% 36%;
-    --surface: 240 10% 5%;
-    --surface-variant: 240 6% 12%;
-    --outline: 240 5% 22%;
-    --outline-variant: 240 4% 18%;
-    --success: 142 76% 36%;
-    --warning: 35 91% 65%;
-    --info: 234 89% 74%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.3% 48%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    --radius: 0.5rem
   }
 }
-
 @layer base {
   * {
     @apply border-border;
   }
   body {
     @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1;
-  }
-}
-
-/* Modern gradient utilities */
-@layer utilities {
-  .gradient-primary {
-    background: linear-gradient(135deg, hsl(var(--gradient-start)), hsl(var(--gradient-end)));
-  }
-  
-  .gradient-text {
-    background: linear-gradient(135deg, hsl(var(--gradient-start)), hsl(var(--gradient-end)));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-  
-  .glass-effect {
-    background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-  }
-  
-  .dark .glass-effect {
-    background: rgba(0, 0, 0, 0.2);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-  }
-  
-  .surface {
-    background-color: hsl(var(--surface));
-  }
-  
-  .surface-variant {
-    background-color: hsl(var(--surface-variant));
-  }
-  
-  .text-success {
-    color: hsl(var(--success));
-  }
-  
-  .text-warning {
-    color: hsl(var(--warning));
-  }
-  
-  .text-info {
-    color: hsl(var(--info));
-  }
-  
-  .bg-success {
-    background-color: hsl(var(--success));
-  }
-  
-  .bg-warning {
-    background-color: hsl(var(--warning));
-  }
-  
-  .bg-info {
-    background-color: hsl(var(--info));
   }
 }
