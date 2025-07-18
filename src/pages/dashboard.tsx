@@ -735,10 +735,13 @@ export default function Dashboard() {
             </Avatar>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">
-                {user?.user_metadata?.full_name || user?.email?.split('@')[0]}
+                {currentUser?.name || user?.user_metadata?.full_name || user?.email?.split('@')[0]}
               </p>
               <p className="text-xs text-muted-foreground truncate">
                 {user?.email}
+              </p>
+              <p className="text-xs text-muted-foreground truncate">
+                {currentUser?.role?.name || 'No role assigned'}
               </p>
             </div>
           </div>
