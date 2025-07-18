@@ -615,30 +615,56 @@ export default function Dashboard() {
   };
 
   const copyToClipboard = async (text: string): Promise<boolean> => {
+    // Try modern clipboard API first
     try {
-      // Try modern clipboard API first
       if (navigator.clipboard && window.isSecureContext) {
         await navigator.clipboard.writeText(text);
         return true;
-      } else {
-        // Fallback for older browsers or non-secure contexts
-        const textArea = document.createElement('textarea');
-        textArea.value = text;
-        textArea.style.position = 'fixed';
-        textArea.style.left = '-999999px';
-        textArea.style.top = '-999999px';
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-        
-        const successful = document.execCommand('copy');
-        document.body.removeChild(textArea);
-        return successful;
       }
     } catch (error) {
-      console.error('Failed to copy to clipboard:', error);
-      return false;
+      console.warn('Modern clipboard API failed, trying fallback:', error);
     }
+
+    // Fallback method for older browsers or when modern API fails
+    try {
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      textArea.style.top = '-999999px';
+      textArea.style.opacity = '0';
+      textArea.style.pointerEvents = 'none';
+      textArea.setAttribute('readonly', '');
+      textArea.setAttribute('contenteditable', 'true');
+      
+      document.body.appendChild(textArea);
+      
+      // For mobile devices
+      if (navigator.userAgent.match(/ipad|ipod|iphone/i)) {
+        textArea.contentEditable = 'true';
+        textArea.readOnly = false;
+        const range = document.createRange();
+        range.selectNodeContents(textArea);
+        const selection = window.getSelection();
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+        textArea.setSelectionRange(0, 999999);
+      } else {
+        textArea.select();
+        textArea.setSelectionRange(0, 999999);
+      }
+      
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textArea);
+      
+      if (successful) {
+        return true;
+      }
+    } catch (fallbackError) {
+      console.warn('Fallback clipboard method failed:', fallbackError);
+    }
+
+    return false;
   };
 
   const handleInviteUser = async (userId: string) => {
