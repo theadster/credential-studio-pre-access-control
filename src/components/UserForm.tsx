@@ -171,13 +171,15 @@ export default function UserForm({ isOpen, onClose, onSave, user, roles }: UserF
               <SelectTrigger>
                 <SelectValue placeholder="Select a role" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="max-w-[380px]">
                 {roles.map((role) => (
-                  <SelectItem key={role.id} value={role.id}>
-                    <div className="flex flex-col">
-                      <span className="font-medium">{role.name}</span>
+                  <SelectItem key={role.id} value={role.id} className="max-w-[380px]">
+                    <div className="flex flex-col w-full">
+                      <span className="font-medium truncate">{role.name}</span>
                       {role.description && (
-                        <span className="text-xs text-muted-foreground">{role.description}</span>
+                        <span className="text-xs text-muted-foreground break-words whitespace-normal leading-tight">
+                          {role.description}
+                        </span>
                       )}
                     </div>
                   </SelectItem>
