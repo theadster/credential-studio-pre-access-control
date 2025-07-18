@@ -81,7 +81,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Create the default roles
-    const createdRoles = [];
+    const createdRoles: any[] = [];
     for (const roleData of DEFAULT_ROLES) {
       const role = await prisma.role.create({
         data: roleData
@@ -101,7 +101,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           action: 'create',
           details: { 
             type: 'roles_initialization',
-            rolesCreated: createdRoles.map(r => r.name)
+            rolesCreated: createdRoles.map((r: any) => r.name)
           }
         }
       });
