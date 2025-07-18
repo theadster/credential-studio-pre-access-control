@@ -92,11 +92,30 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
 
   useEffect(() => {
     if (eventSettings) {
-      const eventDateTime = eventSettings.eventDate ? new Date(eventSettings.eventDate) : null;
+      // Parse the date more carefully to avoid timezone issues
+      let parsedDate = "";
+      let parsedTime = "";
+      
+      if (eventSettings.eventDate) {
+        // If eventDate is already a date string (YYYY-MM-DD), use it directly
+        if (typeof eventSettings.eventDate === 'string' && eventSettings.eventDate.includes('-') && !eventSettings.eventDate.includes('T')) {
+          parsedDate = eventSettings.eventDate;
+        } else {
+          // Otherwise, parse as Date and extract date part
+          const eventDateTime = new Date(eventSettings.eventDate);
+          parsedDate = eventDateTime.toISOString().split('T')[0];
+        }
+      }
+      
+      // Handle time separately
+      if (eventSettings.eventTime) {
+        parsedTime = eventSettings.eventTime;
+      }
+      
       setFormData({
         ...eventSettings,
-        eventDate: eventDateTime ? eventDateTime.toISOString().split('T')[0] : "",
-        eventTime: eventSettings.eventTime || (eventDateTime ? eventDateTime.toTimeString().slice(0, 5) : "")
+        eventDate: parsedDate,
+        eventTime: parsedTime
       });
       setCustomFields(eventSettings.customFields || []);
     } else {

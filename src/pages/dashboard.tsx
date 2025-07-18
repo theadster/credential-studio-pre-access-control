@@ -644,11 +644,19 @@ export default function Dashboard() {
                 <h3 className="font-semibold text-sm">{eventSettings.eventName}</h3>
                 <div className="flex items-center text-xs text-muted-foreground mt-1">
                   <Calendar className="h-3 w-3 mr-1" />
-                  {new Date(eventSettings.eventDate).toLocaleDateString()}
+                  {new Date(eventSettings.eventDate).toLocaleDateString('en-US', { 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })}
                   {eventSettings.eventTime && (
                     <>
                       <Clock className="h-3 w-3 ml-2 mr-1" />
-                      {eventSettings.eventTime}
+                      {new Date(`2000-01-01T${eventSettings.eventTime}`).toLocaleTimeString('en-US', {
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        hour12: true
+                      })}
                     </>
                   )}
                 </div>
@@ -1221,7 +1229,11 @@ export default function Dashboard() {
                       <CardContent>
                         <div className="text-lg font-bold">{eventSettings.eventName}</div>
                         <div className="text-sm text-muted-foreground">
-                          {new Date(eventSettings.eventDate).toLocaleDateString()} • {eventSettings.eventLocation}
+                          {new Date(eventSettings.eventDate).toLocaleDateString('en-US', { 
+                            year: 'numeric', 
+                            month: 'long', 
+                            day: 'numeric' 
+                          })} • {eventSettings.eventLocation}
                         </div>
                       </CardContent>
                     </Card>
