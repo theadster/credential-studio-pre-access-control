@@ -1,4 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
+import { randomUUID } from 'crypto';
 import prisma from '@/lib/prisma';
 import { createClient } from '@/util/supabase/api';
 
@@ -68,9 +69,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         }
 
-        // Create user in our database with a temporary ID
+        // Create user in our database with a proper UUID
         // The user will need to sign up separately to get a real Supabase auth account
-        const tempId = `invited_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const tempId = randomUUID();
         
         const newUser = await prisma.user.create({
           data: {
