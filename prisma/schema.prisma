@@ -107,7 +107,7 @@ model AttendeeCustomFieldValue {
 
 model Log {
   id         String   @id @default(cuid())
-  userId     String
+  userId     String   @db.Uuid
   attendeeId String?
   action     String   // "create", "update", "delete", "view", "print"
   details    Json?    // Store additional details as JSON
