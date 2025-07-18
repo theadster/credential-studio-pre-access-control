@@ -640,29 +640,41 @@ export default function Dashboard() {
                 alt={eventSettings.eventName}
                 className="w-full h-24 object-cover rounded-lg"
               />
-              <div className="mt-2">
-                <h3 className="font-semibold text-sm">{eventSettings.eventName}</h3>
-                <div className="flex items-center text-xs text-muted-foreground mt-1">
-                  <Calendar className="h-3 w-3 mr-1" />
-                  {new Date(eventSettings.eventDate).toLocaleDateString('en-US', { 
-                    year: 'numeric', 
-                    month: 'long', 
-                    day: 'numeric' 
-                  })}
-                  {eventSettings.eventTime && (
-                    <>
-                      <Clock className="h-3 w-3 ml-2 mr-1" />
+              <div className="mt-3 text-center">
+                <h3 className="font-bold text-lg leading-tight break-words hyphens-auto" 
+                    style={{
+                      fontSize: 'clamp(0.875rem, 4vw, 1.125rem)',
+                      lineHeight: '1.2'
+                    }}>
+                  {eventSettings.eventName}
+                </h3>
+                <div className="flex items-center justify-center text-xs text-muted-foreground mt-2">
+                  <Calendar className="h-3 w-3 mr-1 flex-shrink-0" />
+                  <span className="truncate">
+                    {new Date(eventSettings.eventDate).toLocaleDateString('en-US', { 
+                      year: 'numeric', 
+                      month: 'long', 
+                      day: 'numeric' 
+                    })}
+                  </span>
+                </div>
+                {eventSettings.eventTime && (
+                  <div className="flex items-center justify-center text-xs text-muted-foreground mt-1">
+                    <Clock className="h-3 w-3 mr-1 flex-shrink-0" />
+                    <span>
                       {new Date(`2000-01-01T${eventSettings.eventTime}`).toLocaleTimeString('en-US', {
                         hour: 'numeric',
                         minute: '2-digit',
                         hour12: true
                       })}
-                    </>
-                  )}
-                </div>
-                <div className="flex items-center text-xs text-muted-foreground">
-                  <MapPin className="h-3 w-3 mr-1" />
-                  {eventSettings.eventLocation}
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center justify-center text-xs text-muted-foreground mt-1">
+                  <MapPin className="h-3 w-3 mr-1 flex-shrink-0" />
+                  <span className="truncate">
+                    {eventSettings.eventLocation}
+                  </span>
                 </div>
               </div>
             </div>
