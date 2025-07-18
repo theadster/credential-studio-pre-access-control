@@ -49,10 +49,10 @@ export default function Home() {
         <link rel="icon" href="/favicon.ico" />
       </Head>
       
-      <div className="bg-gradient-to-br from-background via-background to-muted min-h-screen">
+      <div className="bg-gradient-to-br from-background via-surface to-surface-variant min-h-screen">
         {/* Navigation */}
         <motion.nav 
-          className="border-b bg-background/80 backdrop-blur-sm sticky top-0 z-50"
+          className="border-b glass-effect sticky top-0 z-50"
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
@@ -88,7 +88,7 @@ export default function Home() {
             </motion.div>
             
             <motion.h1 
-              className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent"
+              className="text-5xl md:text-7xl font-bold mb-6 gradient-text"
               variants={fadeInUp}
             >
               Event Credentials
@@ -195,9 +195,11 @@ export default function Home() {
               }
             ].map((feature, index) => (
               <motion.div key={index} variants={scaleIn}>
-                <Card className="h-full hover:shadow-lg transition-shadow border-0 bg-card/50 backdrop-blur-sm">
+                <Card className="h-full hover:shadow-xl hover:shadow-primary/10 transition-all duration-300 border-0 glass-effect group">
                   <CardHeader>
-                    <feature.icon className="h-12 w-12 text-primary mb-4" />
+                    <div className="p-3 rounded-xl bg-primary/10 w-fit mb-4 group-hover:bg-primary/20 transition-colors">
+                      <feature.icon className="h-8 w-8 text-primary" />
+                    </div>
                     <CardTitle className="text-xl">{feature.title}</CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -259,34 +261,37 @@ export default function Home() {
         </section>
 
         {/* CTA Section */}
-        <section className="container mx-auto px-4 py-20">
-          <motion.div 
-            className="text-center max-w-3xl mx-auto"
-            initial={{ opacity: 0, y: 40 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.8 }}
-          >
-            <h2 className="text-4xl font-bold mb-6">Ready to Get Started?</h2>
-            <p className="text-xl text-muted-foreground mb-8">
-              Join thousands of event organizers who trust EventCredentialPro for their credential management needs.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link href="/signup">
-                <Button size="lg" className="group">
-                  <Zap className="mr-2 h-4 w-4" />
-                  Create Your Event
-                  <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
-                </Button>
-              </Link>
-              <Link href="/login">
-                <Button size="lg" variant="outline">
-                  <Cloud className="mr-2 h-4 w-4" />
-                  Access Dashboard
-                </Button>
-              </Link>
-            </div>
-          </motion.div>
+        <section className="relative py-20 overflow-hidden">
+          <div className="absolute inset-0 gradient-primary opacity-5"></div>
+          <div className="container mx-auto px-4 relative">
+            <motion.div 
+              className="text-center max-w-3xl mx-auto"
+              initial={{ opacity: 0, y: 40 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.8 }}
+            >
+              <h2 className="text-4xl font-bold mb-6">Ready to Get Started?</h2>
+              <p className="text-xl text-muted-foreground mb-8">
+                Join thousands of event organizers who trust EventCredentialPro for their credential management needs.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <Link href="/signup">
+                  <Button size="lg" className="group shadow-lg hover:shadow-xl transition-shadow">
+                    <Zap className="mr-2 h-4 w-4" />
+                    Create Your Event
+                    <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                  </Button>
+                </Link>
+                <Link href="/login">
+                  <Button size="lg" variant="outline" className="glass-effect">
+                    <Cloud className="mr-2 h-4 w-4" />
+                    Access Dashboard
+                  </Button>
+                </Link>
+              </div>
+            </motion.div>
+          </div>
         </section>
 
         {/* Footer */}

@@ -375,9 +375,9 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex min-h-screen bg-gradient-to-br from-background via-surface to-surface-variant">
       {/* Sidebar */}
-      <aside className="w-64 border-r bg-card">
+      <aside className="w-64 border-r glass-effect">
         <div className="p-6">
           <div className="flex items-center space-x-2 mb-8">
             <CreditCard className="h-8 w-8 text-primary" />
@@ -550,46 +550,54 @@ export default function Dashboard() {
 
               {/* Stats Cards */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <Card>
+                <Card className="glass-effect border-0 hover:shadow-lg transition-shadow">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Total Attendees</CardTitle>
-                    <Users className="h-4 w-4 text-muted-foreground" />
+                    <div className="p-2 rounded-lg bg-primary/10">
+                      <Users className="h-4 w-4 text-primary" />
+                    </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">{attendees.length}</div>
+                    <div className="text-2xl font-bold text-primary">{attendees.length}</div>
                   </CardContent>
                 </Card>
-                <Card>
+                <Card className="glass-effect border-0 hover:shadow-lg transition-shadow">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Credentials Printed</CardTitle>
-                    <CreditCard className="h-4 w-4 text-muted-foreground" />
+                    <div className="p-2 rounded-lg bg-success/10">
+                      <CreditCard className="h-4 w-4 text-success" />
+                    </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">0</div>
+                    <div className="text-2xl font-bold text-success">0</div>
                   </CardContent>
                 </Card>
-                <Card>
+                <Card className="glass-effect border-0 hover:shadow-lg transition-shadow">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Photos Uploaded</CardTitle>
-                    <Upload className="h-4 w-4 text-muted-foreground" />
+                    <div className="p-2 rounded-lg bg-info/10">
+                      <Upload className="h-4 w-4 text-info" />
+                    </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">{attendees.filter(a => a.photoUrl).length}</div>
+                    <div className="text-2xl font-bold text-info">{attendees.filter(a => a.photoUrl).length}</div>
                   </CardContent>
                 </Card>
-                <Card>
+                <Card className="glass-effect border-0 hover:shadow-lg transition-shadow">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Recent Activity</CardTitle>
-                    <Activity className="h-4 w-4 text-muted-foreground" />
+                    <div className="p-2 rounded-lg bg-warning/10">
+                      <Activity className="h-4 w-4 text-warning" />
+                    </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">{logs.length}</div>
+                    <div className="text-2xl font-bold text-warning">{logs.length}</div>
                   </CardContent>
                 </Card>
               </div>
 
               {/* Attendees Table */}
-              <Card>
+              <Card className="glass-effect border-0">
                 <CardHeader>
                   <CardTitle>Attendees</CardTitle>
                 </CardHeader>
@@ -708,7 +716,7 @@ export default function Dashboard() {
               </div>
 
               {/* Users Table */}
-              <Card>
+              <Card className="glass-effect border-0">
                 <CardHeader>
                   <CardTitle>System Users</CardTitle>
                 </CardHeader>
@@ -772,7 +780,7 @@ export default function Dashboard() {
               {/* Roles Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {roles.map((role) => (
-                  <Card key={role.id}>
+                  <Card key={role.id} className="glass-effect border-0 hover:shadow-lg transition-shadow">
                     <CardHeader>
                       <CardTitle className="flex items-center justify-between">
                         {role.name}
@@ -811,7 +819,7 @@ export default function Dashboard() {
                 </TabsList>
                 
                 <TabsContent value="general" className="space-y-6">
-                  <Card>
+                  <Card className="glass-effect border-0">
                     <CardHeader>
                       <CardTitle>Event Information</CardTitle>
                     </CardHeader>
@@ -852,7 +860,7 @@ export default function Dashboard() {
                 </TabsContent>
 
                 <TabsContent value="barcode" className="space-y-6">
-                  <Card>
+                  <Card className="glass-effect border-0">
                     <CardHeader>
                       <CardTitle>Barcode Configuration</CardTitle>
                     </CardHeader>
@@ -884,7 +892,7 @@ export default function Dashboard() {
                 </TabsContent>
 
                 <TabsContent value="integrations" className="space-y-6">
-                  <Card>
+                  <Card className="glass-effect border-0">
                     <CardHeader>
                       <CardTitle>Cloudinary Settings</CardTitle>
                     </CardHeader>
@@ -902,7 +910,7 @@ export default function Dashboard() {
                     </CardContent>
                   </Card>
 
-                  <Card>
+                  <Card className="glass-effect border-0">
                     <CardHeader>
                       <CardTitle>Switchboard Canvas Settings</CardTitle>
                     </CardHeader>
@@ -922,7 +930,7 @@ export default function Dashboard() {
                 </TabsContent>
 
                 <TabsContent value="custom-fields" className="space-y-6">
-                  <Card>
+                  <Card className="glass-effect border-0">
                     <CardHeader>
                       <CardTitle>Custom Fields</CardTitle>
                       <Button size="sm">
@@ -961,7 +969,7 @@ export default function Dashboard() {
           {activeTab === "logs" && (
             <div className="space-y-6">
               {/* Logs Table */}
-              <Card>
+              <Card className="glass-effect border-0">
                 <CardHeader>
                   <CardTitle>Activity Logs</CardTitle>
                 </CardHeader>
