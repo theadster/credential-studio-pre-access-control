@@ -24,14 +24,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         });
 
-        // Log the view action
-        await prisma.log.create({
-          data: {
-            userId: user.id,
-            action: 'view',
-            details: { type: 'users_list', count: users.length }
-          }
+        // Log the view action - only if user exists in our database
+        const existingPrismaUser = await prisma.user.findUnique({
+          where: { id: user.id }
         });
+        
+        if (existingPrismaUser) {
+          await prisma.log.create({
+            data: {
+              userId: user.id,
+              action: 'view',
+              details: { type: 'users_list', count: users.length }
+            }
+          });
+        }
 
         return res.status(200).json(users);
 
@@ -94,19 +100,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         });
 
-        // Log the create action
-        await prisma.log.create({
-          data: {
-            userId: user.id,
-            action: 'create',
-            details: { 
-              type: 'user',
-              email: newUser.email,
-              name: newUser.name,
-              roleId: newUser.roleId
-            }
-          }
+        // Log the create action - only if user exists in our database
+        const existingPrismaUserForCreate = await prisma.user.findUnique({
+          where: { id: user.id }
         });
+        
+        if (existingPrismaUserForCreate) {
+          await prisma.log.create({
+            data: {
+              userId: user.id,
+              action: 'create',
+              details: { 
+                type: 'user',
+                email: newUser.email,
+                name: newUser.name,
+                roleId: newUser.roleId
+              }
+            }
+          });
+        }
 
         return res.status(201).json(newUser);
 
@@ -149,19 +161,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           });
         }
 
-        // Log the update action
-        await prisma.log.create({
-          data: {
-            userId: user.id,
-            action: 'update',
-            details: { 
-              type: 'user',
-              email: updatedUser.email,
-              name: updatedUser.name,
-              roleId: updatedUser.roleId
-            }
-          }
+        // Log the update action - only if user exists in our database
+        const existingPrismaUserForUpdate = await prisma.user.findUnique({
+          where: { id: user.id }
         });
+        
+        if (existingPrismaUserForUpdate) {
+          await prisma.log.create({
+            data: {
+              userId: user.id,
+              action: 'update',
+              details: { 
+                type: 'user',
+                email: updatedUser.email,
+                name: updatedUser.name,
+                roleId: updatedUser.roleId
+              }
+            }
+          });
+        }
 
         return res.status(200).json(updatedUser);
 
@@ -199,18 +217,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           // Note: User is already deleted from our DB, so we continue
         }
 
-        // Log the delete action
-        await prisma.log.create({
-          data: {
-            userId: user.id,
-            action: 'delete',
-            details: { 
-              type: 'user',
-              email: userToDelete.email,
-              name: userToDelete.name
-            }
-          }
+        // Log the delete action - only if user exists in our database
+        const existingPrismaUserForDelete = await prisma.user.findUnique({
+          where: { id: user.id }
         });
+        
+        if (existingPrismaUserForDelete) {
+          await prisma.log.create({
+            data: {
+              userId: user.id,
+              action: 'delete',
+              details: { 
+                type: 'user',
+                email: userToDelete.email,
+                name: userToDelete.name
+              }
+            }
+          });
+        }
 
         return res.status(200).json({ message: 'User deleted successfully' });
 

@@ -123,21 +123,27 @@ export default function Dashboard() {
         const usersResponse = await fetch('/api/users');
         if (usersResponse.ok) {
           const usersData = await usersResponse.json();
-          setUsers(usersData);
+          setUsers(Array.isArray(usersData) ? usersData : []);
+        } else {
+          setUsers([]);
         }
 
         // Load roles
         const rolesResponse = await fetch('/api/roles');
         if (rolesResponse.ok) {
           const rolesData = await rolesResponse.json();
-          setRoles(rolesData);
+          setRoles(Array.isArray(rolesData) ? rolesData : []);
+        } else {
+          setRoles([]);
         }
 
         // Load attendees
         const attendeesResponse = await fetch('/api/attendees');
         if (attendeesResponse.ok) {
           const attendeesData = await attendeesResponse.json();
-          setAttendees(attendeesData);
+          setAttendees(Array.isArray(attendeesData) ? attendeesData : []);
+        } else {
+          setAttendees([]);
         }
 
         // Load event settings
@@ -145,13 +151,17 @@ export default function Dashboard() {
         if (settingsResponse.ok) {
           const settingsData = await settingsResponse.json();
           setEventSettings(settingsData);
+        } else {
+          setEventSettings(null);
         }
 
         // Load logs
         const logsResponse = await fetch('/api/logs');
         if (logsResponse.ok) {
           const logsData = await logsResponse.json();
-          setLogs(logsData);
+          setLogs(Array.isArray(logsData) ? logsData : []);
+        } else {
+          setLogs([]);
         }
       } catch (error) {
         console.error('Error loading data:', error);

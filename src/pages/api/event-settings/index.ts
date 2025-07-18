@@ -26,14 +26,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         });
 
-        // Log the view action
-        await prisma.log.create({
-          data: {
-            userId: user.id,
-            action: 'view',
-            details: { type: 'event_settings' }
-          }
+        // Log the view action - only if user exists in our database
+        const existingPrismaUser = await prisma.user.findUnique({
+          where: { id: user.id }
         });
+        
+        if (existingPrismaUser) {
+          await prisma.log.create({
+            data: {
+              userId: user.id,
+              action: 'view',
+              details: { type: 'event_settings' }
+            }
+          });
+        }
 
         return res.status(200).json(eventSettings);
 
@@ -92,18 +98,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         });
 
-        // Log the create action
-        await prisma.log.create({
-          data: {
-            userId: user.id,
-            action: 'create',
-            details: { 
-              type: 'event_settings',
-              eventName: newEventSettings.eventName,
-              eventDate: newEventSettings.eventDate
-            }
-          }
+        // Log the create action - only if user exists in our database
+        const existingPrismaUserForCreate = await prisma.user.findUnique({
+          where: { id: user.id }
         });
+        
+        if (existingPrismaUserForCreate) {
+          await prisma.log.create({
+            data: {
+              userId: user.id,
+              action: 'create',
+              details: { 
+                type: 'event_settings',
+                eventName: newEventSettings.eventName,
+                eventDate: newEventSettings.eventDate
+              }
+            }
+          });
+        }
 
         return res.status(201).json(newEventSettings);
 
@@ -132,18 +144,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         });
 
-        // Log the update action
-        await prisma.log.create({
-          data: {
-            userId: user.id,
-            action: 'update',
-            details: { 
-              type: 'event_settings',
-              eventName: updatedEventSettings.eventName,
-              changes: Object.keys(updateData)
-            }
-          }
+        // Log the update action - only if user exists in our database
+        const existingPrismaUserForUpdate = await prisma.user.findUnique({
+          where: { id: user.id }
         });
+        
+        if (existingPrismaUserForUpdate) {
+          await prisma.log.create({
+            data: {
+              userId: user.id,
+              action: 'update',
+              details: { 
+                type: 'event_settings',
+                eventName: updatedEventSettings.eventName,
+                changes: Object.keys(updateData)
+              }
+            }
+          });
+        }
 
         return res.status(200).json(updatedEventSettings);
 
