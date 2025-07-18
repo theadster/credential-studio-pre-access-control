@@ -42,10 +42,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(200).json(users);
 
       case 'POST':
-        const { email, name, roleId, password } = req.body;
+        const { email, name, roleId } = req.body;
 
-        if (!email || !password) {
-          return res.status(400).json({ error: 'Email and password are required' });
+        if (!email || !name) {
+          return res.status(400).json({ error: 'Email and name are required' });
         }
 
         // Check if user already exists in our database
@@ -68,32 +68,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         }
 
-        // Create user in Supabase Auth using admin API
-        const { data: authData, error: signUpError } = await supabase.auth.admin.createUser({
-          email,
-          password,
-          email_confirm: true,
-          user_metadata: {
-            full_name: name
-          }
-        });
-
-        if (signUpError) {
-          console.error('Supabase auth error:', signUpError);
-          return res.status(400).json({ error: signUpError.message });
-        }
-
-        if (!authData.user) {
-          return res.status(400).json({ error: 'Failed to create user in Supabase' });
-        }
-
-        // Create user in our database
+        // Create user in our database with a temporary ID
+        // The user will need to sign up separately to get a real Supabase auth account
+        const tempId = `invited_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
         const newUser = await prisma.user.create({
           data: {
-            id: authData.user.id,
+            id: tempId,
             email,
             name,
-            roleId
+            roleId,
+            isInvited: true // Flag to indicate this is an invited user who hasn't signed up yet
           },
           include: {
             role: true
@@ -111,7 +96,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               userId: user.id,
               action: 'create',
               details: { 
-                type: 'user',
+                type: 'user_invitation',
                 email: newUser.email,
                 name: newUser.name,
                 roleId: newUser.roleId
@@ -152,14 +137,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         });
 
-        // Update user metadata in Supabase if name changed
-        if (updateName) {
-          await supabase.auth.admin.updateUserById(id, {
-            user_metadata: {
-              full_name: updateName
-            }
-          });
-        }
+        // Note: For invited users with temporary IDs, we only update our database
+        // Real Supabase users will have their metadata updated when they sign in
 
         // Log the update action - only if user exists in our database
         const existingPrismaUserForUpdate = await prisma.user.findUnique({
@@ -204,18 +183,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           return res.status(404).json({ error: 'User not found' });
         }
 
-        // Delete user from our database first
+        // Delete user from our database
         await prisma.user.delete({
           where: { id: deleteId }
         });
 
-        // Delete user from Supabase Auth
-        const { error: deleteError } = await supabase.auth.admin.deleteUser(deleteId);
-        
-        if (deleteError) {
-          console.error('Error deleting user from Supabase:', deleteError);
-          // Note: User is already deleted from our DB, so we continue
-        }
+        // Note: For invited users with temporary IDs, we only delete from our database
+        // Real Supabase users would need to be handled separately if needed
 
         // Log the delete action - only if user exists in our database
         const existingPrismaUserForDelete = await prisma.user.findUnique({

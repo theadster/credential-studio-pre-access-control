@@ -14,6 +14,7 @@ model User {
   email     String   @unique
   name      String?
   roleId    String?
+  isInvited Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
