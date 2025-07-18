@@ -36,8 +36,10 @@ interface EventSettings {
   cloudinaryUploadPreset?: string;
   switchboardApiKey?: string;
   switchboardTemplateId?: string;
-  bannerImageUrl?: string;
+  bannerImageUrl?: string | null;
   customFields?: CustomField[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface EventSettingsFormProps {

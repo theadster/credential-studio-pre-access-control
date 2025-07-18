@@ -84,6 +84,8 @@ interface EventSettings {
   barcodeUnique: boolean;
   bannerImageUrl: string | null;
   customFields: any[];
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface Log {
@@ -299,7 +301,9 @@ export default function Dashboard() {
             required: false,
             order: 2
           }
-        ]
+        ],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       });
 
       // Mock logs
