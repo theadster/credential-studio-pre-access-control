@@ -54,6 +54,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // Generate invitation URL
         const invitationUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/signup?invitation=${invitationToken}`;
 
+        // Log the invitation creation (defensive check)
+        const existingUser = await prisma.user.findUnique({
+          where: { id: user.id }
+        });
+        
+        if (existingUser) {
+          await prisma.log.create({
+            data: {
+              userId: user.id,
+              action: 'create',
+              details: { 
+                type: 'invitation',
+                invitedUserEmail: invitedUser.email,
+                invitedUserName: invitedUser.name,
+                expiresAt: expiresAt.toISOString()
+              }
+            }
+          });
+        }
+
         return res.status(201).json({
           invitation,
           invitationUrl

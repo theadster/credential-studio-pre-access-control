@@ -116,6 +116,19 @@ export default function Dashboard() {
   const [attendees, setAttendees] = useState<Attendee[]>([]);
   const [eventSettings, setEventSettings] = useState<EventSettings | null>(null);
   const [logs, setLogs] = useState<Log[]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [logsPagination, setLogsPagination] = useState({
+    page: 1,
+    limit: 50,
+    totalCount: 0,
+    totalPages: 0,
+    hasNext: false,
+    hasPrev: false
+  });
+  const [logsFilters, setLogsFilters] = useState({
+    action: 'all',
+    userId: 'all'
+  });
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedRole, setSelectedRole] = useState<string>("all");
@@ -215,14 +228,8 @@ export default function Dashboard() {
           setEventSettings(null);
         }
 
-        // Load logs
-        const logsResponse = await fetch('/api/logs');
-        if (logsResponse.ok) {
-          const logsData = await logsResponse.json();
-          setLogs(Array.isArray(logsData) ? logsData : []);
-        } else {
-          setLogs([]);
-        }
+        // Load logs with pagination
+        await loadLogs();
       } catch (error) {
         console.error('Error loading data:', error);
         // Fall back to mock data if API fails
@@ -811,6 +818,106 @@ export default function Dashboard() {
       setInvitingUser(null);
     }
   };
+
+  // Logs Functions
+  const loadLogs = async (page = 1, filters = logsFilters) => {
+    setLogsLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: logsPagination.limit.toString(),
+        action: filters.action,
+        userId: filters.userId
+      });
+
+      const response = await fetch(`/api/logs?${params}`);
+      if (response.ok) {
+        const data = await response.json();
+        setLogs(data.logs || []);
+        setLogsPagination(data.pagination || {
+          page: 1,
+          limit: 50,
+          totalCount: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false
+        });
+      } else {
+        setLogs([]);
+      }
+    } catch (error) {
+      console.error('Error loading logs:', error);
+      setLogs([]);
+    } finally {
+      setLogsLoading(false);
+    }
+  };
+
+  const handleLogsFilterChange = async (newFilters: typeof logsFilters) => {
+    setLogsFilters(newFilters);
+    await loadLogs(1, newFilters);
+  };
+
+  const handleLogsPageChange = async (newPage: number) => {
+    await loadLogs(newPage, logsFilters);
+  };
+
+  const exportLogs = async () => {
+    try {
+      const params = new URLSearchParams({
+        action: logsFilters.action,
+        userId: logsFilters.userId,
+        export: 'true'
+      });
+
+      const response = await fetch(`/api/logs?${params}`);
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Convert logs to CSV
+        const csvContent = [
+          ['Date', 'Time', 'Action', 'User', 'Target', 'Details'].join(','),
+          ...data.logs.map((log: Log) => [
+            new Date(log.createdAt).toLocaleDateString(),
+            new Date(log.createdAt).toLocaleTimeString(),
+            log.action,
+            log.user.name || log.user.email,
+            log.attendee ? `${log.attendee.firstName} ${log.attendee.lastName}` : (log.details?.type || 'System'),
+            JSON.stringify(log.details || {}).replace(/"/g, '""')
+          ].join(','))
+        ].join('\n');
+
+        // Download CSV
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `activity-logs-${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+
+        toast({
+          title: "Export Complete",
+          description: "Activity logs have been exported successfully.",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Export Failed",
+        description: error.message,
+      });
+    }
+  };
+
+  // Load logs when filters change or tab becomes active
+  useEffect(() => {
+    if (activeTab === 'logs' && canAccessTab(currentUser?.role, 'logs')) {
+      loadLogs();
+    }
+  }, [activeTab, currentUser?.role]);
 
   if (loading) {
     return (
@@ -1658,54 +1765,270 @@ export default function Dashboard() {
 
           {activeTab === "logs" && (
             <div className="space-y-6">
+              {/* Logs Filters and Actions */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <Select 
+                    value={logsFilters.action} 
+                    onValueChange={(value) => handleLogsFilterChange({ ...logsFilters, action: value })}
+                  >
+                    <SelectTrigger className="w-48">
+                      <SelectValue placeholder="Filter by action" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Actions</SelectItem>
+                      <SelectItem value="create">Create</SelectItem>
+                      <SelectItem value="update">Update</SelectItem>
+                      <SelectItem value="delete">Delete</SelectItem>
+                      <SelectItem value="view">View</SelectItem>
+                      <SelectItem value="print">Print</SelectItem>
+                      <SelectItem value="login">Login</SelectItem>
+                      <SelectItem value="logout">Logout</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select 
+                    value={logsFilters.userId} 
+                    onValueChange={(value) => handleLogsFilterChange({ ...logsFilters, userId: value })}
+                  >
+                    <SelectTrigger className="w-48">
+                      <SelectValue placeholder="Filter by user" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Users</SelectItem>
+                      {users.map((user) => (
+                        <SelectItem key={user.id} value={user.id}>
+                          {user.name || user.email.split('@')[0]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Button variant="outline" onClick={exportLogs}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Export
+                  </Button>
+                  <Button variant="outline" onClick={() => loadLogs(1, logsFilters)}>
+                    <Activity className="mr-2 h-4 w-4" />
+                    Refresh
+                  </Button>
+                </div>
+              </div>
+
+              {/* Activity Statistics */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <Card className="glass-effect border-0 hover:shadow-lg transition-shadow">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Activities</CardTitle>
+                    <div className="p-2 rounded-lg bg-primary/10">
+                      <Activity className="h-4 w-4 text-primary" />
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-primary">{logsPagination.totalCount}</div>
+                  </CardContent>
+                </Card>
+                <Card className="glass-effect border-0 hover:shadow-lg transition-shadow">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Today's Activities</CardTitle>
+                    <div className="p-2 rounded-lg bg-success/10">
+                      <Calendar className="h-4 w-4 text-success" />
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-success">
+                      {logs.filter(log => {
+                        const logDate = new Date(log.createdAt).toDateString();
+                        const today = new Date().toDateString();
+                        return logDate === today;
+                      }).length}
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card className="glass-effect border-0 hover:shadow-lg transition-shadow">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Active Users</CardTitle>
+                    <div className="p-2 rounded-lg bg-info/10">
+                      <Users className="h-4 w-4 text-info" />
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-info">
+                      {new Set(logs.map(log => log.user.email)).size}
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card className="glass-effect border-0 hover:shadow-lg transition-shadow">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Most Common Action</CardTitle>
+                    <div className="p-2 rounded-lg bg-warning/10">
+                      <BarChart3 className="h-4 w-4 text-warning" />
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-warning">
+                      {(() => {
+                        const actionCounts = logs.reduce((acc: any, log) => {
+                          acc[log.action] = (acc[log.action] || 0) + 1;
+                          return acc;
+                        }, {});
+                        const mostCommon = Object.entries(actionCounts).sort(([,a]: any, [,b]: any) => b - a)[0];
+                        return mostCommon ? mostCommon[0] : 'N/A';
+                      })()}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
               {/* Logs Table */}
               <Card className="glass-effect border-0">
                 <CardHeader>
-                  <CardTitle>Activity Logs</CardTitle>
+                  <CardTitle className="flex items-center justify-between">
+                    <span>Activity Logs</span>
+                    {logsLoading && (
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                    )}
+                  </CardTitle>
+                  <CardDescription>
+                    Showing {logs.length} of {logsPagination.totalCount} activities
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Action</TableHead>
-                        <TableHead>User</TableHead>
-                        <TableHead>Target</TableHead>
-                        <TableHead>Time</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {logs.map((log) => (
-                        <TableRow key={log.id}>
-                          <TableCell>
-                            <Badge variant={
-                              log.action === "create" ? "default" :
-                              log.action === "update" ? "secondary" :
-                              log.action === "delete" ? "destructive" :
-                              "outline"
-                            }>
-                              {log.action}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div>
-                              <div className="font-medium">{log.user.name || log.user.email.split('@')[0]}</div>
-                              <div className="text-sm text-muted-foreground">{log.user.email}</div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            {log.attendee ? (
-                              `${log.attendee.firstName} ${log.attendee.lastName}`
-                            ) : (
-                              log.details?.type || "System"
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {new Date(log.createdAt).toLocaleString()}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                  {logsLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                      <span className="ml-2 text-muted-foreground">Loading activity logs...</span>
+                    </div>
+                  ) : logs.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Activity className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-muted-foreground mb-2">No Activity Found</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {logsFilters.action !== 'all' || logsFilters.userId !== 'all' 
+                          ? 'No activities match your current filters.' 
+                          : 'No activities have been recorded yet.'}
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Action</TableHead>
+                            <TableHead>User</TableHead>
+                            <TableHead>Target</TableHead>
+                            <TableHead>Details</TableHead>
+                            <TableHead>Time</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {logs.map((log) => (
+                            <TableRow key={log.id}>
+                              <TableCell>
+                                <Badge variant={
+                                  log.action === "create" ? "default" :
+                                  log.action === "update" ? "secondary" :
+                                  log.action === "delete" ? "destructive" :
+                                  log.action === "view" ? "outline" :
+                                  log.action === "print" ? "default" :
+                                  "outline"
+                                }>
+                                  {log.action.charAt(0).toUpperCase() + log.action.slice(1)}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center space-x-2">
+                                  <Avatar className="h-6 w-6">
+                                    <AvatarFallback className="text-xs">
+                                      {(log.user.name || log.user.email).charAt(0).toUpperCase()}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <div>
+                                    <div className="font-medium text-sm">{log.user.name || log.user.email.split('@')[0]}</div>
+                                    <div className="text-xs text-muted-foreground">{log.user.email}</div>
+                                  </div>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="text-sm">
+                                  {log.attendee ? (
+                                    <div>
+                                      <div className="font-medium">{log.attendee.firstName} {log.attendee.lastName}</div>
+                                      <div className="text-xs text-muted-foreground">Attendee</div>
+                                    </div>
+                                  ) : (
+                                    <div>
+                                      <div className="font-medium">{log.details?.type || "System"}</div>
+                                      <div className="text-xs text-muted-foreground">
+                                        {log.details?.firstName && log.details?.lastName 
+                                          ? `${log.details.firstName} ${log.details.lastName}`
+                                          : 'System Operation'
+                                        }
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="text-sm text-muted-foreground max-w-xs">
+                                  {log.details?.changes && Object.keys(log.details.changes).length > 0 && (
+                                    <div className="text-xs">
+                                      Changed: {Object.entries(log.details.changes)
+                                        .filter(([, changed]) => changed)
+                                        .map(([field]) => field)
+                                        .join(', ')
+                                      }
+                                    </div>
+                                  )}
+                                  {log.details?.count && (
+                                    <div className="text-xs">Count: {log.details.count}</div>
+                                  )}
+                                  {log.details?.barcodeNumber && (
+                                    <div className="text-xs">Barcode: {log.details.barcodeNumber}</div>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="text-sm">
+                                  <div>{new Date(log.createdAt).toLocaleDateString()}</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {new Date(log.createdAt).toLocaleTimeString()}
+                                  </div>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+
+                      {/* Pagination */}
+                      {logsPagination.totalPages > 1 && (
+                        <div className="flex items-center justify-between mt-6">
+                          <div className="text-sm text-muted-foreground">
+                            Page {logsPagination.page} of {logsPagination.totalPages}
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleLogsPageChange(logsPagination.page - 1)}
+                              disabled={!logsPagination.hasPrev || logsLoading}
+                            >
+                              Previous
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleLogsPageChange(logsPagination.page + 1)}
+                              disabled={!logsPagination.hasNext || logsLoading}
+                            >
+                              Next
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </CardContent>
               </Card>
             </div>
