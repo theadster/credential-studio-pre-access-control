@@ -42,6 +42,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import AttendeeForm from "@/components/AttendeeForm";
 import UserForm from "@/components/UserForm";
 import EventSettingsForm from "@/components/EventSettingsForm";
+import RoleForm from "@/components/RoleForm";
 import { hasPermission, canAccessTab, canManageUser } from "@/lib/permissions";
 
 interface User {
@@ -127,6 +128,8 @@ export default function Dashboard() {
   const [initializingRoles, setInitializingRoles] = useState(false);
   const [showEventSettingsForm, setShowEventSettingsForm] = useState(false);
   const [invitingUser, setInvitingUser] = useState<string | null>(null);
+  const [showRoleForm, setShowRoleForm] = useState(false);
+  const [editingRole, setEditingRole] = useState<Role | null>(null);
 
   // Get current user's role information
   useEffect(() => {
@@ -490,6 +493,79 @@ export default function Dashboard() {
       });
     } finally {
       setInitializingRoles(false);
+    }
+  };
+
+  const handleSaveRole = async (roleData: any) => {
+    try {
+      const url = editingRole 
+        ? `/api/roles/${editingRole.id}`
+        : '/api/roles';
+      
+      const method = editingRole ? 'PUT' : 'POST';
+      
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(roleData),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to save role');
+      }
+
+      const savedRole = await response.json();
+
+      if (editingRole) {
+        setRoles(prev => prev.map(r => r.id === editingRole.id ? savedRole : r));
+        toast({
+          title: "Success",
+          description: "Role updated successfully!",
+        });
+      } else {
+        setRoles(prev => [savedRole, ...prev]);
+        toast({
+          title: "Success",
+          description: "Role created successfully!",
+        });
+      }
+
+      setEditingRole(null);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
+      throw error;
+    }
+  };
+
+  const handleDeleteRole = async (roleId: string) => {
+    try {
+      const response = await fetch(`/api/roles/${roleId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to delete role');
+      }
+
+      setRoles(prev => prev.filter(r => r.id !== roleId));
+      toast({
+        title: "Success",
+        description: "Role deleted successfully!",
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
     }
   };
 
@@ -893,6 +969,12 @@ export default function Dashboard() {
                 <Button onClick={() => setShowUserForm(true)}>
                   <UserPlus className="mr-2 h-4 w-4" />
                   Add User
+                </Button>
+              )}
+              {activeTab === "roles" && hasPermission(currentUser?.role, 'roles', 'create') && (
+                <Button onClick={() => setShowRoleForm(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Role
                 </Button>
               )}
               {activeTab === "settings" && (
@@ -1314,11 +1396,30 @@ export default function Dashboard() {
                             <span className="text-xs text-muted-foreground">
                               Created {new Date(role.createdAt).toLocaleDateString()}
                             </span>
-                            {hasPermission(currentUser?.role, 'roles', 'update') && (
-                              <Button variant="ghost" size="sm">
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                            )}
+                            <div className="flex items-center space-x-2">
+                              {hasPermission(currentUser?.role, 'roles', 'update') && (
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => {
+                                    setEditingRole(role);
+                                    setShowRoleForm(true);
+                                  }}
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                              )}
+                              {hasPermission(currentUser?.role, 'roles', 'delete') && role.name !== 'Super Administrator' && (
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  className="text-destructive"
+                                  onClick={() => handleDeleteRole(role.id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </CardContent>
@@ -1541,6 +1642,17 @@ export default function Dashboard() {
         onClose={() => setShowEventSettingsForm(false)}
         onSave={handleSaveEventSettings}
         eventSettings={eventSettings}
+      />
+
+      {/* Role Form Modal */}
+      <RoleForm
+        isOpen={showRoleForm}
+        onClose={() => {
+          setShowRoleForm(false);
+          setEditingRole(null);
+        }}
+        onSave={handleSaveRole}
+        role={editingRole}
       />
     </div>
   );
