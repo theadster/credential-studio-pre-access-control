@@ -856,8 +856,10 @@ export default function Dashboard() {
                       // Handle date properly to avoid timezone issues
                       const dateValue = eventSettings.eventDate;
                       
+                      if (!dateValue) return 'No date set';
+                      
                       // Convert to string if it's not already
-                      const dateStr = typeof dateValue === 'string' ? dateValue : dateValue.toString();
+                      const dateStr = typeof dateValue === 'string' ? dateValue : String(dateValue);
                       
                       // Extract just the date part if it's an ISO string
                       let datePart = dateStr;
@@ -1544,8 +1546,10 @@ export default function Dashboard() {
                             // Handle date properly to avoid timezone issues
                             const dateValue = eventSettings.eventDate;
                             
+                            if (!dateValue) return 'No date set';
+                            
                             // Convert to string if it's not already
-                            const dateStr = typeof dateValue === 'string' ? dateValue : dateValue.toString();
+                            const dateStr = typeof dateValue === 'string' ? dateValue : String(dateValue);
                             
                             // Extract just the date part if it's an ISO string
                             let datePart = dateStr;
