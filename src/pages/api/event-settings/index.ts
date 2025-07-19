@@ -74,21 +74,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
 
         // Handle date properly to avoid timezone issues
-        let parsedEventDate;
+        let createParsedEventDate;
         if (eventDate) {
           if (typeof eventDate === 'string' && eventDate.includes('-') && !eventDate.includes('T')) {
             // If it's a date string (YYYY-MM-DD), parse it as local date to avoid UTC conversion
             const [year, month, day] = eventDate.split('-').map(Number);
-            parsedEventDate = new Date(year, month - 1, day);
+            createParsedEventDate = new Date(year, month - 1, day);
           } else {
-            parsedEventDate = new Date(eventDate);
+            createParsedEventDate = new Date(eventDate);
           }
         }
 
         const newEventSettings = await prisma.eventSettings.create({
           data: {
             eventName,
-            eventDate: parsedEventDate,
+            eventDate: createParsedEventDate,
             eventTime,
             eventLocation,
             timeZone,
@@ -163,14 +163,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
 
         // Handle date properly to avoid timezone issues
-        let parsedEventDate;
+        let updateParsedEventDate;
         if (eventSettingsData.eventDate) {
           if (typeof eventSettingsData.eventDate === 'string' && eventSettingsData.eventDate.includes('-') && !eventSettingsData.eventDate.includes('T')) {
             // If it's a date string (YYYY-MM-DD), parse it as local date to avoid UTC conversion
             const [year, month, day] = eventSettingsData.eventDate.split('-').map(Number);
-            parsedEventDate = new Date(year, month - 1, day);
+            updateParsedEventDate = new Date(year, month - 1, day);
           } else {
-            parsedEventDate = new Date(eventSettingsData.eventDate);
+            updateParsedEventDate = new Date(eventSettingsData.eventDate);
           }
         }
 
@@ -178,7 +178,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           where: { id: currentSettings.id },
           data: {
             ...eventSettingsData,
-            eventDate: parsedEventDate,
+            eventDate: updateParsedEventDate,
             ...customFieldsUpdate
           },
           include: {
