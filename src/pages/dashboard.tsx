@@ -156,21 +156,24 @@ export default function Dashboard() {
   useEffect(() => {
     const getCurrentUser = async () => {
       try {
-        const response = await fetch('/api/users');
+        const response = await fetch('/api/profile');
         if (response.ok) {
-          const usersData = await response.json();
-          const currentUserData = usersData.find((u: User) => u.email === user?.email);
-          setCurrentUser(currentUserData || null);
+          const currentUserData = await response.json();
+          setCurrentUser(currentUserData);
+        } else {
+          console.error('Failed to fetch user profile:', response.status);
+          setCurrentUser(null);
         }
       } catch (error) {
         console.error('Error loading current user:', error);
+        setCurrentUser(null);
       }
     };
 
-    if (user?.email) {
+    if (user?.id) {
       getCurrentUser();
     }
-  }, [user?.email, users]);
+  }, [user?.id]);
 
   // Load real data from APIs
   useEffect(() => {
