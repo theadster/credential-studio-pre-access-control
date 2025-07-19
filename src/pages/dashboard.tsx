@@ -853,31 +853,28 @@ export default function Dashboard() {
                   <Calendar className="h-3 w-3 mr-1 flex-shrink-0" />
                   <span className="truncate">
                     {(() => {
-                      // Handle date string properly with timezone consideration
-                      const dateStr = eventSettings.eventDate;
-                      const timeZone = eventSettings.timeZone || 'America/Los_Angeles';
+                      // Handle date properly to avoid timezone issues
+                      const dateValue = eventSettings.eventDate;
                       
-                      if (dateStr.includes('-') && !dateStr.includes('T')) {
-                        // If it's a date string (YYYY-MM-DD), parse it as local date
-                        const [year, month, day] = dateStr.split('-').map(Number);
-                        const localDate = new Date(year, month - 1, day);
-                        
-                        // Format the date in the event's timezone
-                        return localDate.toLocaleDateString('en-US', { 
-                          year: 'numeric', 
-                          month: 'long', 
-                          day: 'numeric',
-                          timeZone: timeZone
-                        });
-                      } else {
-                        // Parse as Date and format in the event's timezone
-                        return new Date(dateStr).toLocaleDateString('en-US', { 
-                          year: 'numeric', 
-                          month: 'long', 
-                          day: 'numeric',
-                          timeZone: timeZone
-                        });
+                      // Convert to string if it's not already
+                      const dateStr = typeof dateValue === 'string' ? dateValue : dateValue.toString();
+                      
+                      // Extract just the date part if it's an ISO string
+                      let datePart = dateStr;
+                      if (dateStr.includes('T')) {
+                        datePart = dateStr.split('T')[0];
                       }
+                      
+                      // Parse as local date to avoid timezone conversion issues
+                      const [year, month, day] = datePart.split('-').map(Number);
+                      const localDate = new Date(year, month - 1, day);
+                      
+                      // Format the date without timezone conversion
+                      return localDate.toLocaleDateString('en-US', { 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric'
+                      });
                     })()}
                   </span>
                 </div>
@@ -1544,31 +1541,28 @@ export default function Dashboard() {
                         <div className="text-lg font-bold">{eventSettings.eventName}</div>
                         <div className="text-sm text-muted-foreground">
                           {(() => {
-                            // Handle date string properly with timezone consideration
-                            const dateStr = eventSettings.eventDate;
-                            const timeZone = eventSettings.timeZone || 'America/Los_Angeles';
+                            // Handle date properly to avoid timezone issues
+                            const dateValue = eventSettings.eventDate;
                             
-                            if (dateStr.includes('-') && !dateStr.includes('T')) {
-                              // If it's a date string (YYYY-MM-DD), parse it as local date
-                              const [year, month, day] = dateStr.split('-').map(Number);
-                              const localDate = new Date(year, month - 1, day);
-                              
-                              // Format the date in the event's timezone
-                              return localDate.toLocaleDateString('en-US', { 
-                                year: 'numeric', 
-                                month: 'long', 
-                                day: 'numeric',
-                                timeZone: timeZone
-                              });
-                            } else {
-                              // Parse as Date and format in the event's timezone
-                              return new Date(dateStr).toLocaleDateString('en-US', { 
-                                year: 'numeric', 
-                                month: 'long', 
-                                day: 'numeric',
-                                timeZone: timeZone
-                              });
+                            // Convert to string if it's not already
+                            const dateStr = typeof dateValue === 'string' ? dateValue : dateValue.toString();
+                            
+                            // Extract just the date part if it's an ISO string
+                            let datePart = dateStr;
+                            if (dateStr.includes('T')) {
+                              datePart = dateStr.split('T')[0];
                             }
+                            
+                            // Parse as local date to avoid timezone conversion issues
+                            const [year, month, day] = datePart.split('-').map(Number);
+                            const localDate = new Date(year, month - 1, day);
+                            
+                            // Format the date without timezone conversion
+                            return localDate.toLocaleDateString('en-US', { 
+                              year: 'numeric', 
+                              month: 'long', 
+                              day: 'numeric'
+                            });
                           })()} • {eventSettings.eventLocation}
                         </div>
                       </CardContent>
