@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
 import { createClient } from '@/util/supabase/api';
+import { generateInternalFieldName } from '@/util/string';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const supabase = createClient(req, res);
@@ -49,10 +50,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           fieldOrder = lastField ? lastField.order + 1 : 1;
         }
 
+        // Generate internal field name
+        const internalFieldName = generateInternalFieldName(fieldName);
+
         const newCustomField = await prisma.customField.create({
           data: {
             eventSettingsId,
             fieldName,
+            internalFieldName,
             fieldType,
             fieldOptions: fieldOptions || null,
             required: required || false,

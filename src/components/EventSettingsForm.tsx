@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, Edit, Save, X, GripVertical } from "lucide-react";
+import { generateInternalFieldName } from "@/util/string";
 import { useToast } from "@/components/ui/use-toast";
 import {
   DndContext,
@@ -34,6 +35,7 @@ import { CSS } from '@dnd-kit/utilities';
 interface CustomField {
   id?: string;
   fieldName: string;
+  internalFieldName?: string;
   fieldType: string;
   fieldOptions?: any;
   required: boolean;
@@ -136,6 +138,11 @@ function SortableCustomField({ field, onEdit, onDelete }: SortableCustomFieldPro
             <Badge variant="outline">{field.fieldType}</Badge>
             {field.required && <Badge variant="secondary">Required</Badge>}
           </div>
+          {field.internalFieldName && (
+            <div className="text-xs text-muted-foreground mt-1">
+              Internal: {field.internalFieldName}
+            </div>
+          )}
         </div>
       </div>
       <div className="flex items-center space-x-2">
@@ -695,6 +702,11 @@ function CustomFieldForm({ field, onSave, onCancel }: CustomFieldFormProps) {
               placeholder="Enter field name"
               required
             />
+            {fieldData.fieldName && (
+              <div className="text-xs text-muted-foreground mt-1">
+                Internal name: {generateInternalFieldName(fieldData.fieldName)}
+              </div>
+            )}
           </div>
 
           <div>

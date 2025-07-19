@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
 import { createClient } from '@/util/supabase/api';
+import { generateInternalFieldName } from '@/util/string';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const supabase = createClient(req, res);
@@ -153,6 +154,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               deleteMany: {},
               create: customFields.map((field: any, index: number) => ({
                 fieldName: field.fieldName,
+                internalFieldName: generateInternalFieldName(field.fieldName),
                 fieldType: field.fieldType,
                 fieldOptions: field.fieldOptions || null,
                 required: field.required || false,

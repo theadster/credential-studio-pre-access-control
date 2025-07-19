@@ -81,15 +81,16 @@ model EventSettings {
 }
 
 model CustomField {
-  id              String   @id @default(cuid())
-  eventSettingsId String
-  fieldName       String
-  fieldType       String   // "text", "number", "date", "select", "checkbox"
-  fieldOptions    Json?    // For select fields, store options as JSON
-  required        Boolean  @default(false)
-  order           Int
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                String   @id @default(cuid())
+  eventSettingsId   String
+  fieldName         String
+  internalFieldName String
+  fieldType         String   // "text", "number", "date", "select", "checkbox"
+  fieldOptions      Json?    // For select fields, store options as JSON
+  required          Boolean  @default(false)
+  order             Int
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   eventSettings EventSettings @relation(fields: [eventSettingsId], references: [id], onDelete: Cascade)
   attendeeCustomFieldValues AttendeeCustomFieldValue[]
