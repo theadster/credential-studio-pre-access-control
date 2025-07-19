@@ -132,8 +132,8 @@ export default function Dashboard() {
   const [editingRole, setEditingRole] = useState<Role | null>(null);
 
   // Get available tabs for current user
-  const getAvailableTabs = () => {
-    const tabs = [];
+  const getAvailableTabs = (): string[] => {
+    const tabs: string[] = [];
     if (canAccessTab(currentUser?.role, 'attendees')) tabs.push('attendees');
     if (canAccessTab(currentUser?.role, 'users')) tabs.push('users');
     if (canAccessTab(currentUser?.role, 'roles')) tabs.push('roles');
