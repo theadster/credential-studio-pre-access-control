@@ -424,15 +424,17 @@ export default function AttendeeForm({
                 <CardTitle className="text-lg">Additional Information</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {customFields.map((field) => (
-                  <div key={field.id}>
-                    <Label htmlFor={field.id}>
-                      {field.fieldName}
-                      {field.required && ' *'}
-                    </Label>
-                    {renderCustomField(field)}
-                  </div>
-                ))}
+                {customFields
+                  .sort((a, b) => a.order - b.order)
+                  .map((field) => (
+                    <div key={field.id}>
+                      <Label htmlFor={field.id}>
+                        {field.fieldName}
+                        {field.required && ' *'}
+                      </Label>
+                      {renderCustomField(field)}
+                    </div>
+                  ))}
               </CardContent>
             </Card>
           )}

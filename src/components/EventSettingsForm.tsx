@@ -9,8 +9,27 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, Edit, Save, X } from "lucide-react";
+import { Plus, Trash2, Edit, Save, X, GripVertical } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import {
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 interface CustomField {
   id?: string;
@@ -72,6 +91,76 @@ const TIME_ZONES = [
   { value: "Australia/Sydney", label: "AEST" }
 ];
 
+// Sortable Custom Field Component
+interface SortableCustomFieldProps {
+  field: CustomField;
+  onEdit: (field: CustomField) => void;
+  onDelete: (fieldId: string) => void;
+}
+
+function SortableCustomField({ field, onEdit, onDelete }: SortableCustomFieldProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: field.id! });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center justify-between p-3 border rounded-lg bg-background ${
+        isDragging ? 'shadow-lg' : ''
+      }`}
+    >
+      <div className="flex items-center space-x-3 flex-1">
+        <div
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded"
+        >
+          <GripVertical className="h-4 w-4 text-muted-foreground" />
+        </div>
+        <div className="flex-1">
+          <div className="flex items-center space-x-2">
+            <span className="font-medium">{field.fieldName}</span>
+            <Badge variant="outline">{field.fieldType}</Badge>
+            {field.required && <Badge variant="secondary">Required</Badge>}
+          </div>
+        </div>
+      </div>
+      <div className="flex items-center space-x-2">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => onEdit(field)}
+        >
+          <Edit className="h-4 w-4" />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="text-destructive"
+          onClick={() => onDelete(field.id!)}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettings }: EventSettingsFormProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -89,6 +178,14 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
   const [editingField, setEditingField] = useState<CustomField | null>(null);
   const [showFieldForm, setShowFieldForm] = useState(false);
+
+  // Drag and drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   useEffect(() => {
     if (eventSettings) {
@@ -203,6 +300,27 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
 
   const handleDeleteCustomField = (fieldId: string) => {
     setCustomFields(prev => prev.filter(f => f.id !== fieldId));
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      setCustomFields((items) => {
+        const oldIndex = items.findIndex((item) => item.id === active.id);
+        const newIndex = items.findIndex((item) => item.id === over.id);
+
+        const newItems = arrayMove(items, oldIndex, newIndex);
+        
+        // Update order values
+        const updatedItems = newItems.map((item, index) => ({
+          ...item,
+          order: index + 1
+        }));
+
+        return updatedItems;
+      });
+    }
   };
 
   return (
@@ -449,38 +567,29 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                       No custom fields configured. Click "Add Field" to create one.
                     </div>
                   ) : (
-                    <div className="space-y-3">
-                      {customFields.map((field) => (
-                        <div key={field.id} className="flex items-center justify-between p-3 border rounded-lg">
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-2">
-                              <span className="font-medium">{field.fieldName}</span>
-                              <Badge variant="outline">{field.fieldType}</Badge>
-                              {field.required && <Badge variant="secondary">Required</Badge>}
-                            </div>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleEditCustomField(field)}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="text-destructive"
-                              onClick={() => handleDeleteCustomField(field.id!)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={handleDragEnd}
+                    >
+                      <SortableContext
+                        items={customFields.map(field => field.id!)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        <div className="space-y-3">
+                          {customFields
+                            .sort((a, b) => a.order - b.order)
+                            .map((field) => (
+                              <SortableCustomField
+                                key={field.id}
+                                field={field}
+                                onEdit={handleEditCustomField}
+                                onDelete={handleDeleteCustomField}
+                              />
+                            ))}
                         </div>
-                      ))}
-                    </div>
+                      </SortableContext>
+                    </DndContext>
                   )}
                 </CardContent>
               </Card>
