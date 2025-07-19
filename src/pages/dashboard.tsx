@@ -852,11 +852,27 @@ export default function Dashboard() {
                 <div className="flex items-center justify-center text-xs text-muted-foreground mt-2">
                   <Calendar className="h-3 w-3 mr-1 flex-shrink-0" />
                   <span className="truncate">
-                    {new Date(eventSettings.eventDate).toLocaleDateString('en-US', { 
-                      year: 'numeric', 
-                      month: 'long', 
-                      day: 'numeric' 
-                    })}
+                    {(() => {
+                      // Handle date string properly to avoid timezone issues
+                      const dateStr = eventSettings.eventDate;
+                      if (dateStr.includes('-') && !dateStr.includes('T')) {
+                        // If it's a date string (YYYY-MM-DD), parse it as local date
+                        const [year, month, day] = dateStr.split('-').map(Number);
+                        const localDate = new Date(year, month - 1, day);
+                        return localDate.toLocaleDateString('en-US', { 
+                          year: 'numeric', 
+                          month: 'long', 
+                          day: 'numeric' 
+                        });
+                      } else {
+                        // Otherwise, parse normally
+                        return new Date(dateStr).toLocaleDateString('en-US', { 
+                          year: 'numeric', 
+                          month: 'long', 
+                          day: 'numeric' 
+                        });
+                      }
+                    })()}
                   </span>
                 </div>
                 {eventSettings.eventTime && (
@@ -1507,11 +1523,27 @@ export default function Dashboard() {
                       <CardContent>
                         <div className="text-lg font-bold">{eventSettings.eventName}</div>
                         <div className="text-sm text-muted-foreground">
-                          {new Date(eventSettings.eventDate).toLocaleDateString('en-US', { 
-                            year: 'numeric', 
-                            month: 'long', 
-                            day: 'numeric' 
-                          })} • {eventSettings.eventLocation}
+                          {(() => {
+                            // Handle date string properly to avoid timezone issues
+                            const dateStr = eventSettings.eventDate;
+                            if (dateStr.includes('-') && !dateStr.includes('T')) {
+                              // If it's a date string (YYYY-MM-DD), parse it as local date
+                              const [year, month, day] = dateStr.split('-').map(Number);
+                              const localDate = new Date(year, month - 1, day);
+                              return localDate.toLocaleDateString('en-US', { 
+                                year: 'numeric', 
+                                month: 'long', 
+                                day: 'numeric' 
+                              });
+                            } else {
+                              // Otherwise, parse normally
+                              return new Date(dateStr).toLocaleDateString('en-US', { 
+                                year: 'numeric', 
+                                month: 'long', 
+                                day: 'numeric' 
+                              });
+                            }
+                          })()} • {eventSettings.eventLocation}
                         </div>
                       </CardContent>
                     </Card>
