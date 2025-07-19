@@ -73,10 +73,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           return res.status(400).json({ error: 'Event settings already exist. Use PUT to update.' });
         }
 
+        // Handle date properly to avoid timezone issues
+        let parsedEventDate;
+        if (eventDate) {
+          if (typeof eventDate === 'string' && eventDate.includes('-') && !eventDate.includes('T')) {
+            // If it's a date string (YYYY-MM-DD), parse it as local date to avoid UTC conversion
+            const [year, month, day] = eventDate.split('-').map(Number);
+            parsedEventDate = new Date(year, month - 1, day);
+          } else {
+            parsedEventDate = new Date(eventDate);
+          }
+        }
+
         const newEventSettings = await prisma.eventSettings.create({
           data: {
             eventName,
-            eventDate: new Date(eventDate),
+            eventDate: parsedEventDate,
             eventTime,
             eventLocation,
             timeZone,
@@ -150,11 +162,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           };
         }
 
+        // Handle date properly to avoid timezone issues
+        let parsedEventDate;
+        if (eventSettingsData.eventDate) {
+          if (typeof eventSettingsData.eventDate === 'string' && eventSettingsData.eventDate.includes('-') && !eventSettingsData.eventDate.includes('T')) {
+            // If it's a date string (YYYY-MM-DD), parse it as local date to avoid UTC conversion
+            const [year, month, day] = eventSettingsData.eventDate.split('-').map(Number);
+            parsedEventDate = new Date(year, month - 1, day);
+          } else {
+            parsedEventDate = new Date(eventSettingsData.eventDate);
+          }
+        }
+
         const updatedEventSettings = await prisma.eventSettings.update({
           where: { id: currentSettings.id },
           data: {
             ...eventSettingsData,
-            eventDate: eventSettingsData.eventDate ? new Date(eventSettingsData.eventDate) : undefined,
+            eventDate: parsedEventDate,
             ...customFieldsUpdate
           },
           include: {
