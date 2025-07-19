@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
 import { createClient } from '@/util/supabase/api';
+import { checkApiPermission } from '@/lib/permissions';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const supabase = createClient(req, res);
@@ -15,6 +16,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     switch (req.method) {
       case 'GET':
+        // Check read permission for attendees
+        const readPermission = await checkApiPermission(user.id, 'attendees', 'read', prisma);
+        if (!readPermission.hasPermission) {
+          return res.status(403).json({ error: 'Insufficient permissions to view attendees' });
+        }
+
         const attendees = await prisma.attendee.findMany({
           include: {
             customFieldValues: {
@@ -28,12 +35,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         });
 
-        // Log the view action (defensive check)
-        const existingUser = await prisma.user.findUnique({
-          where: { id: user.id }
-        });
-        
-        if (existingUser) {
+        // Log the view action
+        if (readPermission.user) {
           await prisma.log.create({
             data: {
               userId: user.id,
@@ -46,6 +49,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(200).json(attendees);
 
       case 'POST':
+        // Check create permission for attendees
+        const createPermission = await checkApiPermission(user.id, 'attendees', 'create', prisma);
+        if (!createPermission.hasPermission) {
+          return res.status(403).json({ error: 'Insufficient permissions to create attendees' });
+        }
+
         const { firstName, lastName, barcodeNumber, photoUrl, customFieldValues } = req.body;
 
         if (!firstName || !lastName || !barcodeNumber) {
@@ -83,12 +92,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         });
 
-        // Log the create action (defensive check)
-        const existingUserForCreate = await prisma.user.findUnique({
-          where: { id: user.id }
-        });
-        
-        if (existingUserForCreate) {
+        // Log the create action
+        if (createPermission.user) {
           await prisma.log.create({
             data: {
               userId: user.id,

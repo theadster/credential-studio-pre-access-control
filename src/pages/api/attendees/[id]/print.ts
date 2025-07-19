@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
 import { createClient } from '@/util/supabase/api';
+import { checkApiPermission } from '@/lib/permissions';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const supabase = createClient(req, res);
@@ -23,6 +24,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    // Check print permission for attendees
+    const printPermission = await checkApiPermission(user.id, 'attendees', 'print', prisma);
+    if (!printPermission.hasPermission) {
+      return res.status(403).json({ error: 'Insufficient permissions to print credentials' });
+    }
+
     // Get attendee details
     const attendee = await prisma.attendee.findUnique({
       where: { id },

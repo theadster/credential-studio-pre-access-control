@@ -131,6 +131,27 @@ export default function Dashboard() {
   const [showRoleForm, setShowRoleForm] = useState(false);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
 
+  // Get available tabs for current user
+  const getAvailableTabs = () => {
+    const tabs = [];
+    if (canAccessTab(currentUser?.role, 'attendees')) tabs.push('attendees');
+    if (canAccessTab(currentUser?.role, 'users')) tabs.push('users');
+    if (canAccessTab(currentUser?.role, 'roles')) tabs.push('roles');
+    if (canAccessTab(currentUser?.role, 'settings')) tabs.push('settings');
+    if (canAccessTab(currentUser?.role, 'logs')) tabs.push('logs');
+    return tabs;
+  };
+
+  // Redirect to first available tab if current tab is not accessible
+  useEffect(() => {
+    if (currentUser?.role) {
+      const availableTabs = getAvailableTabs();
+      if (availableTabs.length > 0 && !availableTabs.includes(activeTab)) {
+        setActiveTab(availableTabs[0]);
+      }
+    }
+  }, [currentUser?.role, activeTab]);
+
   // Get current user's role information
   useEffect(() => {
     const getCurrentUser = async () => {
@@ -858,46 +879,56 @@ export default function Dashboard() {
           )}
 
           <nav className="space-y-2">
-            <Button
-              variant={activeTab === "attendees" ? "default" : "ghost"}
-              className="w-full justify-start"
-              onClick={() => setActiveTab("attendees")}
-            >
-              <Users className="mr-2 h-4 w-4" />
-              Attendees
-            </Button>
-            <Button
-              variant={activeTab === "users" ? "default" : "ghost"}
-              className="w-full justify-start"
-              onClick={() => setActiveTab("users")}
-            >
-              <Shield className="mr-2 h-4 w-4" />
-              User Management
-            </Button>
-            <Button
-              variant={activeTab === "roles" ? "default" : "ghost"}
-              className="w-full justify-start"
-              onClick={() => setActiveTab("roles")}
-            >
-              <Shield className="mr-2 h-4 w-4" />
-              Roles
-            </Button>
-            <Button
-              variant={activeTab === "settings" ? "default" : "ghost"}
-              className="w-full justify-start"
-              onClick={() => setActiveTab("settings")}
-            >
-              <Settings className="mr-2 h-4 w-4" />
-              Event Settings
-            </Button>
-            <Button
-              variant={activeTab === "logs" ? "default" : "ghost"}
-              className="w-full justify-start"
-              onClick={() => setActiveTab("logs")}
-            >
-              <Activity className="mr-2 h-4 w-4" />
-              Activity Logs
-            </Button>
+            {canAccessTab(currentUser?.role, 'attendees') && (
+              <Button
+                variant={activeTab === "attendees" ? "default" : "ghost"}
+                className="w-full justify-start"
+                onClick={() => setActiveTab("attendees")}
+              >
+                <Users className="mr-2 h-4 w-4" />
+                Attendees
+              </Button>
+            )}
+            {canAccessTab(currentUser?.role, 'users') && (
+              <Button
+                variant={activeTab === "users" ? "default" : "ghost"}
+                className="w-full justify-start"
+                onClick={() => setActiveTab("users")}
+              >
+                <Shield className="mr-2 h-4 w-4" />
+                User Management
+              </Button>
+            )}
+            {canAccessTab(currentUser?.role, 'roles') && (
+              <Button
+                variant={activeTab === "roles" ? "default" : "ghost"}
+                className="w-full justify-start"
+                onClick={() => setActiveTab("roles")}
+              >
+                <Shield className="mr-2 h-4 w-4" />
+                Roles
+              </Button>
+            )}
+            {canAccessTab(currentUser?.role, 'settings') && (
+              <Button
+                variant={activeTab === "settings" ? "default" : "ghost"}
+                className="w-full justify-start"
+                onClick={() => setActiveTab("settings")}
+              >
+                <Settings className="mr-2 h-4 w-4" />
+                Event Settings
+              </Button>
+            )}
+            {canAccessTab(currentUser?.role, 'logs') && (
+              <Button
+                variant={activeTab === "logs" ? "default" : "ghost"}
+                className="w-full justify-start"
+                onClick={() => setActiveTab("logs")}
+              >
+                <Activity className="mr-2 h-4 w-4" />
+                Activity Logs
+              </Button>
+            )}
           </nav>
         </div>
 
@@ -959,13 +990,13 @@ export default function Dashboard() {
               <Button variant="outline" size="sm">
                 <Bell className="h-4 w-4" />
               </Button>
-              {activeTab === "attendees" && (
+              {activeTab === "attendees" && hasPermission(currentUser?.role, 'attendees', 'create') && (
                 <Button onClick={() => setShowAttendeeForm(true)}>
                   <Plus className="mr-2 h-4 w-4" />
                   Add Attendee
                 </Button>
               )}
-              {activeTab === "users" && (
+              {activeTab === "users" && hasPermission(currentUser?.role, 'users', 'create') && (
                 <Button onClick={() => setShowUserForm(true)}>
                   <UserPlus className="mr-2 h-4 w-4" />
                   Add User
@@ -977,7 +1008,7 @@ export default function Dashboard() {
                   Add Role
                 </Button>
               )}
-              {activeTab === "settings" && (
+              {activeTab === "settings" && hasPermission(currentUser?.role, 'eventSettings', 'update') && (
                 <Button onClick={() => setShowEventSettingsForm(true)}>
                   <Settings className="mr-2 h-4 w-4" />
                   {eventSettings ? "Edit Settings" : "Create Settings"}
@@ -1102,46 +1133,54 @@ export default function Dashboard() {
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center space-x-2">
-                              <Button 
-                                variant="ghost" 
-                                size="sm"
-                                onClick={() => {
-                                  setEditingAttendee(attendee);
-                                  setShowAttendeeForm(true);
-                                }}
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="sm"
-                                onClick={() => {
-                                  setEditingAttendee(attendee);
-                                  setShowAttendeeForm(true);
-                                }}
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="sm"
-                                onClick={() => handlePrintCredential(attendee.id)}
-                                disabled={printingAttendee === attendee.id}
-                              >
-                                {printingAttendee === attendee.id ? (
-                                  <Printer className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <CreditCard className="h-4 w-4" />
-                                )}
-                              </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                className="text-destructive"
-                                onClick={() => handleDeleteAttendee(attendee.id)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                              {hasPermission(currentUser?.role, 'attendees', 'read') && (
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => {
+                                    setEditingAttendee(attendee);
+                                    setShowAttendeeForm(true);
+                                  }}
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                              )}
+                              {hasPermission(currentUser?.role, 'attendees', 'update') && (
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => {
+                                    setEditingAttendee(attendee);
+                                    setShowAttendeeForm(true);
+                                  }}
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                              )}
+                              {hasPermission(currentUser?.role, 'attendees', 'print') && (
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => handlePrintCredential(attendee.id)}
+                                  disabled={printingAttendee === attendee.id}
+                                >
+                                  {printingAttendee === attendee.id ? (
+                                    <Printer className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <CreditCard className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              )}
+                              {hasPermission(currentUser?.role, 'attendees', 'delete') && (
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="text-destructive"
+                                  onClick={() => handleDeleteAttendee(attendee.id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              )}
                             </div>
                           </TableCell>
                         </TableRow>
@@ -1224,7 +1263,7 @@ export default function Dashboard() {
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center space-x-2">
-                              {user.isInvited && (
+                              {user.isInvited && hasPermission(currentUser?.role, 'users', 'create') && (
                                 <Button 
                                   variant="ghost" 
                                   size="sm"
@@ -1239,24 +1278,28 @@ export default function Dashboard() {
                                   )}
                                 </Button>
                               )}
-                              <Button 
-                                variant="ghost" 
-                                size="sm"
-                                onClick={() => {
-                                  setEditingUser(user);
-                                  setShowUserForm(true);
-                                }}
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                className="text-destructive"
-                                onClick={() => handleDeleteUser(user.id)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                              {hasPermission(currentUser?.role, 'users', 'update') && canManageUser(currentUser?.role, user.role) && (
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => {
+                                    setEditingUser(user);
+                                    setShowUserForm(true);
+                                  }}
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                              )}
+                              {hasPermission(currentUser?.role, 'users', 'delete') && canManageUser(currentUser?.role, user.role) && (
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="text-destructive"
+                                  onClick={() => handleDeleteUser(user.id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              )}
                             </div>
                           </TableCell>
                         </TableRow>

@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
 import { createClient } from '@/util/supabase/api';
+import { checkApiPermission } from '@/lib/permissions';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const supabase = createClient(req, res);
@@ -20,6 +21,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     switch (req.method) {
       case 'GET':
+        // Check read permission for attendees
+        const readPermission = await checkApiPermission(user.id, 'attendees', 'read', prisma);
+        if (!readPermission.hasPermission) {
+          return res.status(403).json({ error: 'Insufficient permissions to view attendee details' });
+        }
+
         const attendee = await prisma.attendee.findUnique({
           where: { id },
           include: {
@@ -35,12 +42,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           return res.status(404).json({ error: 'Attendee not found' });
         }
 
-        // Log the view action (defensive check)
-        const existingUser = await prisma.user.findUnique({
-          where: { id: user.id }
-        });
-        
-        if (existingUser) {
+        // Log the view action
+        if (readPermission.user) {
           await prisma.log.create({
             data: {
               userId: user.id,
@@ -58,6 +61,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(200).json(attendee);
 
       case 'PUT':
+        // Check update permission for attendees
+        const updatePermission = await checkApiPermission(user.id, 'attendees', 'update', prisma);
+        if (!updatePermission.hasPermission) {
+          return res.status(403).json({ error: 'Insufficient permissions to update attendees' });
+        }
+
         const { firstName, lastName, barcodeNumber, photoUrl, customFieldValues } = req.body;
 
         // Check if attendee exists
@@ -117,12 +126,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         }
 
-        // Log the update action (defensive check)
-        const existingUserForUpdate = await prisma.user.findUnique({
-          where: { id: user.id }
-        });
-        
-        if (existingUserForUpdate) {
+        // Log the update action
+        if (updatePermission.user) {
           await prisma.log.create({
             data: {
               userId: user.id,
@@ -146,6 +151,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(200).json(updatedAttendee);
 
       case 'DELETE':
+        // Check delete permission for attendees
+        const deletePermission = await checkApiPermission(user.id, 'attendees', 'delete', prisma);
+        if (!deletePermission.hasPermission) {
+          return res.status(403).json({ error: 'Insufficient permissions to delete attendees' });
+        }
+
         // Check if attendee exists
         const attendeeToDelete = await prisma.attendee.findUnique({
           where: { id }
@@ -160,12 +171,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           where: { id }
         });
 
-        // Log the delete action (defensive check)
-        const existingUserForDelete = await prisma.user.findUnique({
-          where: { id: user.id }
-        });
-        
-        if (existingUserForDelete) {
+        // Log the delete action
+        if (deletePermission.user) {
           await prisma.log.create({
             data: {
               userId: user.id,

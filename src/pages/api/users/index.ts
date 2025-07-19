@@ -2,6 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { randomUUID } from 'crypto';
 import prisma from '@/lib/prisma';
 import { createClient } from '@/util/supabase/api';
+import { checkApiPermission } from '@/lib/permissions';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const supabase = createClient(req, res);
@@ -16,6 +17,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     switch (req.method) {
       case 'GET':
+        // Check read permission for users
+        const readPermission = await checkApiPermission(user.id, 'users', 'read', prisma);
+        if (!readPermission.hasPermission) {
+          return res.status(403).json({ error: 'Insufficient permissions to view users' });
+        }
+
         const users = await prisma.user.findMany({
           include: {
             role: true
@@ -25,12 +32,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         });
 
-        // Log the view action - only if user exists in our database
-        const existingPrismaUser = await prisma.user.findUnique({
-          where: { id: user.id }
-        });
-        
-        if (existingPrismaUser) {
+        // Log the view action
+        if (readPermission.user) {
           await prisma.log.create({
             data: {
               userId: user.id,
@@ -43,6 +46,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(200).json(users);
 
       case 'POST':
+        // Check create permission for users
+        const createPermission = await checkApiPermission(user.id, 'users', 'create', prisma);
+        if (!createPermission.hasPermission) {
+          return res.status(403).json({ error: 'Insufficient permissions to create users' });
+        }
+
         const { email, name, roleId } = req.body;
 
         if (!email || !name) {
@@ -86,12 +95,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         });
 
-        // Log the create action - only if user exists in our database
-        const existingPrismaUserForCreate = await prisma.user.findUnique({
-          where: { id: user.id }
-        });
-        
-        if (existingPrismaUserForCreate) {
+        // Log the create action
+        if (createPermission.user) {
           await prisma.log.create({
             data: {
               userId: user.id,
@@ -109,6 +114,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(201).json(newUser);
 
       case 'PUT':
+        // Check update permission for users
+        const updatePermission = await checkApiPermission(user.id, 'users', 'update', prisma);
+        if (!updatePermission.hasPermission) {
+          return res.status(403).json({ error: 'Insufficient permissions to update users' });
+        }
+
         const { id, name: updateName, roleId: updateRoleId } = req.body;
 
         if (!id) {
@@ -138,15 +149,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         });
 
-        // Note: For invited users with temporary IDs, we only update our database
-        // Real Supabase users will have their metadata updated when they sign in
-
-        // Log the update action - only if user exists in our database
-        const existingPrismaUserForUpdate = await prisma.user.findUnique({
-          where: { id: user.id }
-        });
-        
-        if (existingPrismaUserForUpdate) {
+        // Log the update action
+        if (updatePermission.user) {
           await prisma.log.create({
             data: {
               userId: user.id,
@@ -164,6 +168,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(200).json(updatedUser);
 
       case 'DELETE':
+        // Check delete permission for users
+        const deletePermission = await checkApiPermission(user.id, 'users', 'delete', prisma);
+        if (!deletePermission.hasPermission) {
+          return res.status(403).json({ error: 'Insufficient permissions to delete users' });
+        }
+
         const { id: deleteId } = req.body;
 
         if (!deleteId) {
@@ -189,15 +199,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           where: { id: deleteId }
         });
 
-        // Note: For invited users with temporary IDs, we only delete from our database
-        // Real Supabase users would need to be handled separately if needed
-
-        // Log the delete action - only if user exists in our database
-        const existingPrismaUserForDelete = await prisma.user.findUnique({
-          where: { id: user.id }
-        });
-        
-        if (existingPrismaUserForDelete) {
+        // Log the delete action
+        if (deletePermission.user) {
           await prisma.log.create({
             data: {
               userId: user.id,

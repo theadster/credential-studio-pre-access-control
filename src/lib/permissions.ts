@@ -81,3 +81,28 @@ export function canManageUser(currentUserRole: any, targetUserRole: any): boolea
   // Others cannot manage users
   return currentLevel > targetLevel && currentLevel >= 3;
 }
+
+// Helper function to check permissions for API endpoints
+export async function checkApiPermission(
+  userId: string,
+  resource: keyof UserPermissions,
+  action: keyof Permission,
+  prisma: any
+): Promise<{ hasPermission: boolean; user?: any; role?: any }> {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { role: true }
+    });
+
+    if (!user || !user.role) {
+      return { hasPermission: false };
+    }
+
+    const permission = hasPermission(user.role, resource, action);
+    return { hasPermission: permission, user, role: user.role };
+  } catch (error) {
+    console.error('Error checking API permission:', error);
+    return { hasPermission: false };
+  }
+}
