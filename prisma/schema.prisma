@@ -84,7 +84,7 @@ model CustomField {
   id                String   @id @default(cuid())
   eventSettingsId   String
   fieldName         String
-  internalFieldName String
+  internalFieldName String?
   fieldType         String   // "text", "number", "date", "select", "checkbox"
   fieldOptions      Json?    // For select fields, store options as JSON
   required          Boolean  @default(false)

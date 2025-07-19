@@ -17,7 +17,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     switch (req.method) {
       case 'GET':
         // Get the first (and should be only) event settings record
-        const eventSettings = await prisma.eventSettings.findFirst({
+        let eventSettings = await prisma.eventSettings.findFirst({
           include: {
             customFields: {
               orderBy: {
@@ -26,6 +26,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             }
           }
         });
+
+        // Generate internal field names for existing custom fields that don't have them
+        if (eventSettings?.customFields) {
+          const fieldsToUpdate = eventSettings.customFields.filter(field => !field.internalFieldName);
+          
+          if (fieldsToUpdate.length > 0) {
+            await prisma.$transaction(
+              fieldsToUpdate.map(field =>
+                prisma.customField.update({
+                  where: { id: field.id },
+                  data: { internalFieldName: generateInternalFieldName(field.fieldName) }
+                })
+              )
+            );
+
+            // Refetch the updated event settings
+            eventSettings = await prisma.eventSettings.findFirst({
+              include: {
+                customFields: {
+                  orderBy: {
+                    order: 'asc'
+                  }
+                }
+              }
+            });
+          }
+        }
 
         // Log the view action - only if user exists in our database
         const existingPrismaUser = await prisma.user.findUnique({

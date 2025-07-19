@@ -16,11 +16,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     switch (req.method) {
       case 'GET':
-        const customFields = await prisma.customField.findMany({
+        let customFields = await prisma.customField.findMany({
           orderBy: {
             order: 'asc'
           }
         });
+
+        // Generate internal field names for existing records that don't have them
+        const fieldsToUpdate = customFields.filter(field => !field.internalFieldName);
+        
+        if (fieldsToUpdate.length > 0) {
+          await prisma.$transaction(
+            fieldsToUpdate.map(field =>
+              prisma.customField.update({
+                where: { id: field.id },
+                data: { internalFieldName: generateInternalFieldName(field.fieldName) }
+              })
+            )
+          );
+
+          // Refetch the updated fields
+          customFields = await prisma.customField.findMany({
+            orderBy: {
+              order: 'asc'
+            }
+          });
+        }
 
         return res.status(200).json(customFields);
 
