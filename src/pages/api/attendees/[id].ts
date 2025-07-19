@@ -108,23 +108,61 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
 
         // Update custom field values if provided
-        if (customFieldValues) {
+        if (customFieldValues && Array.isArray(customFieldValues)) {
+          // Validate that all custom field IDs exist
+          const customFieldIds = customFieldValues.map((cfv: any) => cfv.customFieldId);
+          const existingCustomFields = await prisma.customField.findMany({
+            where: {
+              id: {
+                in: customFieldIds
+              }
+            },
+            select: { id: true }
+          });
+
+          const existingCustomFieldIds = existingCustomFields.map(cf => cf.id);
+          const invalidCustomFieldIds = customFieldIds.filter(id => !existingCustomFieldIds.includes(id));
+
+          if (invalidCustomFieldIds.length > 0) {
+            console.error('Invalid custom field IDs:', invalidCustomFieldIds);
+            return res.status(400).json({ 
+              error: 'Some custom fields no longer exist. Please refresh the page and try again.',
+              invalidIds: invalidCustomFieldIds
+            });
+          }
+
           // Delete existing custom field values
           await prisma.attendeeCustomFieldValue.deleteMany({
             where: { attendeeId: id }
           });
 
-          // Create new custom field values
-          if (customFieldValues.length > 0) {
+          // Create new custom field values (only for non-empty values)
+          const validCustomFieldValues = customFieldValues.filter((cfv: any) => 
+            cfv.customFieldId && cfv.value !== null && cfv.value !== undefined && cfv.value !== ''
+          );
+
+          if (validCustomFieldValues.length > 0) {
             await prisma.attendeeCustomFieldValue.createMany({
-              data: customFieldValues.map((cfv: any) => ({
+              data: validCustomFieldValues.map((cfv: any) => ({
                 attendeeId: id,
                 customFieldId: cfv.customFieldId,
-                value: cfv.value
+                value: String(cfv.value)
               }))
             });
           }
         }
+
+        // Fetch the final updated attendee with all custom field values
+        const finalAttendee = await prisma.attendee.findUnique({
+          where: { id },
+          include: {
+            customFieldValues: {
+              include: {
+                customField: true
+              }
+            }
+          }
+        });
 
         // Log the update action
         if (updatePermission.user) {
@@ -141,14 +179,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                   firstName: firstName !== existingAttendee.firstName,
                   lastName: lastName !== existingAttendee.lastName,
                   barcodeNumber: barcodeNumber !== existingAttendee.barcodeNumber,
-                  photoUrl: photoUrl !== existingAttendee.photoUrl
+                  photoUrl: photoUrl !== existingAttendee.photoUrl,
+                  customFieldValues: customFieldValues && customFieldValues.length > 0
                 }
               }
             }
           });
         }
 
-        return res.status(200).json(updatedAttendee);
+        return res.status(200).json(finalAttendee);
 
       case 'DELETE':
         // Check delete permission for attendees

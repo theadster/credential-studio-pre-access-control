@@ -382,6 +382,19 @@ export default function Dashboard() {
     return matchesSearch && matchesRole;
   });
 
+  // Function to refresh event settings and custom fields
+  const refreshEventSettings = async () => {
+    try {
+      const settingsResponse = await fetch('/api/event-settings');
+      if (settingsResponse.ok) {
+        const settingsData = await settingsResponse.json();
+        setEventSettings(settingsData);
+      }
+    } catch (error) {
+      console.error('Error refreshing event settings:', error);
+    }
+  };
+
   // API Functions
   const handleSaveAttendee = async (attendeeData: any) => {
     try {
@@ -1136,7 +1149,10 @@ export default function Dashboard() {
                 <Bell className="h-4 w-4" />
               </Button>
               {activeTab === "attendees" && hasPermission(currentUser?.role, 'attendees', 'create') && (
-                <Button onClick={() => setShowAttendeeForm(true)}>
+                <Button onClick={async () => {
+                  await refreshEventSettings();
+                  setShowAttendeeForm(true);
+                }}>
                   <Plus className="mr-2 h-4 w-4" />
                   Add Attendee
                 </Button>
@@ -1282,7 +1298,8 @@ export default function Dashboard() {
                                 <Button 
                                   variant="ghost" 
                                   size="sm"
-                                  onClick={() => {
+                                  onClick={async () => {
+                                    await refreshEventSettings();
                                     setEditingAttendee(attendee);
                                     setShowAttendeeForm(true);
                                   }}
@@ -1294,7 +1311,8 @@ export default function Dashboard() {
                                 <Button 
                                   variant="ghost" 
                                   size="sm"
-                                  onClick={() => {
+                                  onClick={async () => {
+                                    await refreshEventSettings();
                                     setEditingAttendee(attendee);
                                     setShowAttendeeForm(true);
                                   }}

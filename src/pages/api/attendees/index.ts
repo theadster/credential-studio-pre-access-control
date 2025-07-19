@@ -70,6 +70,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           return res.status(400).json({ error: 'Barcode number already exists' });
         }
 
+        // Validate custom field IDs if provided
+        if (customFieldValues && Array.isArray(customFieldValues) && customFieldValues.length > 0) {
+          const customFieldIds = customFieldValues.map((cfv: any) => cfv.customFieldId);
+          const existingCustomFields = await prisma.customField.findMany({
+            where: {
+              id: {
+                in: customFieldIds
+              }
+            },
+            select: { id: true }
+          });
+
+          const existingCustomFieldIds = existingCustomFields.map(cf => cf.id);
+          const invalidCustomFieldIds = customFieldIds.filter(id => !existingCustomFieldIds.includes(id));
+
+          if (invalidCustomFieldIds.length > 0) {
+            console.error('Invalid custom field IDs:', invalidCustomFieldIds);
+            return res.status(400).json({ 
+              error: 'Some custom fields no longer exist. Please refresh the page and try again.',
+              invalidIds: invalidCustomFieldIds
+            });
+          }
+        }
+
+        // Filter out empty custom field values
+        const validCustomFieldValues = customFieldValues?.filter((cfv: any) => 
+          cfv.customFieldId && cfv.value !== null && cfv.value !== undefined && cfv.value !== ''
+        ) || [];
+
         const newAttendee = await prisma.attendee.create({
           data: {
             firstName,
@@ -77,10 +106,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             barcodeNumber,
             photoUrl,
             customFieldValues: {
-              create: customFieldValues?.map((cfv: any) => ({
+              create: validCustomFieldValues.map((cfv: any) => ({
                 customFieldId: cfv.customFieldId,
-                value: cfv.value
-              })) || []
+                value: String(cfv.value)
+              }))
             }
           },
           include: {
