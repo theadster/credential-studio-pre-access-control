@@ -309,7 +309,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
     setCustomFields(prev => prev.filter(f => f.id !== fieldId));
   };
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
 
     if (over && active.id !== over.id) {
@@ -324,6 +324,32 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
           ...item,
           order: index + 1
         }));
+
+        // If all fields have real IDs (not temp IDs), save the reorder immediately
+        const hasOnlyRealIds = updatedItems.every(item => item.id && !item.id.startsWith('temp_'));
+        
+        if (hasOnlyRealIds) {
+          // Save the reorder to the database immediately
+          const fieldOrders = updatedItems.map(item => ({
+            id: item.id,
+            order: item.order
+          }));
+
+          fetch('/api/custom-fields/reorder', {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ fieldOrders }),
+          }).catch(error => {
+            console.error('Error saving field order:', error);
+            toast({
+              variant: "destructive",
+              title: "Error",
+              description: "Failed to save field order. Please try again.",
+            });
+          });
+        }
 
         return updatedItems;
       });

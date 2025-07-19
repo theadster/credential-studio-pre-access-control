@@ -167,7 +167,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const { customFields, ...eventSettingsData } = updateData;
         
         // Get existing settings
-        const currentSettings = await prisma.eventSettings.findFirst();
+        const currentSettings = await prisma.eventSettings.findFirst({
+          include: {
+            customFields: {
+              orderBy: {
+                order: 'asc'
+              }
+            }
+          }
+        });
         if (!currentSettings) {
           return res.status(404).json({ error: 'Event settings not found. Create them first.' });
         }
@@ -175,20 +183,40 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // Handle custom fields separately if they exist
         let customFieldsUpdate = {};
         if (customFields && Array.isArray(customFields)) {
-          // Delete existing custom fields and create new ones
-          customFieldsUpdate = {
-            customFields: {
-              deleteMany: {},
-              create: customFields.map((field: any, index: number) => ({
-                fieldName: field.fieldName,
-                internalFieldName: generateInternalFieldName(field.fieldName),
-                fieldType: field.fieldType,
-                fieldOptions: field.fieldOptions || null,
-                required: field.required || false,
-                order: field.order || index + 1
-              }))
-            }
-          };
+          // Check if this is just a reorder operation (all fields have existing IDs and only order changed)
+          const existingFieldIds = currentSettings.customFields.map(f => f.id);
+          const incomingFieldIds = customFields.filter(f => f.id && !f.id.startsWith('temp_')).map(f => f.id);
+          
+          const isReorderOnly = customFields.length === currentSettings.customFields.length &&
+            customFields.every(field => field.id && !field.id.startsWith('temp_') && existingFieldIds.includes(field.id)) &&
+            incomingFieldIds.length === existingFieldIds.length;
+
+          if (isReorderOnly) {
+            // This is just a reorder operation - update order values only
+            await prisma.$transaction(
+              customFields.map((field: any) =>
+                prisma.customField.update({
+                  where: { id: field.id },
+                  data: { order: field.order }
+                })
+              )
+            );
+          } else {
+            // This involves actual field changes - delete and recreate
+            customFieldsUpdate = {
+              customFields: {
+                deleteMany: {},
+                create: customFields.map((field: any, index: number) => ({
+                  fieldName: field.fieldName,
+                  internalFieldName: field.internalFieldName || generateInternalFieldName(field.fieldName),
+                  fieldType: field.fieldType,
+                  fieldOptions: field.fieldOptions || null,
+                  required: field.required || false,
+                  order: field.order || index + 1
+                }))
+              }
+            };
+          }
         }
 
         // Handle date properly to avoid timezone issues
