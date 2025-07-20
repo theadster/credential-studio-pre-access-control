@@ -183,26 +183,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // Handle custom fields separately if they exist
         let customFieldsUpdate = {};
         if (customFields && Array.isArray(customFields)) {
-          // Check if this is just a reorder operation (all fields have existing IDs and only order changed)
           const existingFieldIds = currentSettings.customFields.map(f => f.id);
           const incomingFieldIds = customFields.filter(f => f.id && !f.id.startsWith('temp_')).map(f => f.id);
           
-          const isReorderOnly = customFields.length === currentSettings.customFields.length &&
-            customFields.every(field => field.id && !field.id.startsWith('temp_') && existingFieldIds.includes(field.id)) &&
-            incomingFieldIds.length === existingFieldIds.length;
-
-          if (isReorderOnly) {
-            // This is just a reorder operation - update order values only
-            await prisma.$transaction(
-              customFields.map((field: any) =>
-                prisma.customField.update({
-                  where: { id: field.id },
-                  data: { order: field.order }
-                })
-              )
-            );
-          } else {
-            // This involves actual field changes - delete and recreate
+          // Separate existing fields from new fields
+          const existingFields = customFields.filter(f => f.id && !f.id.startsWith('temp_'));
+          const newFields = customFields.filter(f => !f.id || f.id.startsWith('temp_'));
+          
+          // Check if any existing fields were deleted
+          const deletedFieldIds = existingFieldIds.filter(id => !incomingFieldIds.includes(id));
+          
+          // Check if any existing fields were modified (excluding order changes)
+          const modifiedFields = existingFields.filter(incomingField => {
+            const existingField = currentSettings.customFields.find(f => f.id === incomingField.id);
+            if (!existingField) return false;
+            
+            return existingField.fieldName !== incomingField.fieldName ||
+                   existingField.fieldType !== incomingField.fieldType ||
+                   existingField.required !== incomingField.required ||
+                   JSON.stringify(existingField.fieldOptions) !== JSON.stringify(incomingField.fieldOptions);
+          });
+          
+          // If there are deletions or modifications, we need to use the delete/recreate approach
+          if (deletedFieldIds.length > 0 || modifiedFields.length > 0) {
             customFieldsUpdate = {
               customFields: {
                 deleteMany: {},
@@ -216,6 +219,41 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 }))
               }
             };
+          } else {
+            // Only additions and/or reordering - handle incrementally
+            const operations = [];
+            
+            // Update order for existing fields
+            for (const field of existingFields) {
+              operations.push(
+                prisma.customField.update({
+                  where: { id: field.id },
+                  data: { order: field.order }
+                })
+              );
+            }
+            
+            // Create new fields
+            for (const field of newFields) {
+              operations.push(
+                prisma.customField.create({
+                  data: {
+                    eventSettingsId: currentSettings.id,
+                    fieldName: field.fieldName,
+                    internalFieldName: field.internalFieldName || generateInternalFieldName(field.fieldName),
+                    fieldType: field.fieldType,
+                    fieldOptions: field.fieldOptions || null,
+                    required: field.required || false,
+                    order: field.order || customFields.length
+                  }
+                })
+              );
+            }
+            
+            // Execute all operations in a transaction
+            if (operations.length > 0) {
+              await prisma.$transaction(operations);
+            }
           }
         }
 
