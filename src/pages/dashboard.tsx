@@ -1060,7 +1060,7 @@ export default function Dashboard() {
             {canAccessTab(currentUser?.role, 'attendees') && (
               <Button
                 variant={activeTab === "attendees" ? "default" : "ghost"}
-                className="w-full justify-start"
+                className="w-full justify-start text-base"
                 onClick={() => setActiveTab("attendees")}
               >
                 <Users className="mr-2 h-4 w-4" />
@@ -1070,7 +1070,7 @@ export default function Dashboard() {
             {canAccessTab(currentUser?.role, 'users') && (
               <Button
                 variant={activeTab === "users" ? "default" : "ghost"}
-                className="w-full justify-start"
+                className="w-full justify-start text-base"
                 onClick={() => setActiveTab("users")}
               >
                 <Shield className="mr-2 h-4 w-4" />
@@ -1080,7 +1080,7 @@ export default function Dashboard() {
             {canAccessTab(currentUser?.role, 'roles') && (
               <Button
                 variant={activeTab === "roles" ? "default" : "ghost"}
-                className="w-full justify-start"
+                className="w-full justify-start text-base"
                 onClick={() => setActiveTab("roles")}
               >
                 <Shield className="mr-2 h-4 w-4" />
@@ -1090,7 +1090,7 @@ export default function Dashboard() {
             {canAccessTab(currentUser?.role, 'settings') && (
               <Button
                 variant={activeTab === "settings" ? "default" : "ghost"}
-                className="w-full justify-start"
+                className="w-full justify-start text-base"
                 onClick={() => setActiveTab("settings")}
               >
                 <Settings className="mr-2 h-4 w-4" />
@@ -1100,7 +1100,7 @@ export default function Dashboard() {
             {canAccessTab(currentUser?.role, 'logs') && (
               <Button
                 variant={activeTab === "logs" ? "default" : "ghost"}
-                className="w-full justify-start"
+                className="w-full justify-start text-base"
                 onClick={() => setActiveTab("logs")}
               >
                 <Activity className="mr-2 h-4 w-4" />
