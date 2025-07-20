@@ -725,43 +725,113 @@ function CustomFieldForm({ field, onSave, onCancel }: CustomFieldFormProps) {
     setSelectOptions(prev => prev.filter((_, i) => i !== index));
   };
 
+  // Get placeholder text based on field type
+  const getPlaceholderText = (type: string) => {
+    switch (type) {
+      case "text":
+        return "e.g., Company Name, Job Title";
+      case "number":
+        return "e.g., Age, Years of Experience";
+      case "email":
+        return "e.g., Work Email, Personal Email";
+      case "date":
+        return "e.g., Birth Date, Start Date";
+      case "url":
+        return "e.g., LinkedIn Profile, Website";
+      case "select":
+        return "e.g., Department, T-Shirt Size";
+      case "checkbox":
+        return "e.g., Newsletter Subscription, Terms Agreement";
+      case "boolean":
+        return "e.g., VIP Status, First Time Attendee";
+      case "textarea":
+        return "e.g., Bio, Special Requirements";
+      default:
+        return "Enter field name";
+    }
+  };
+
+  // Get icon for field type
+  const getFieldIcon = (type: string) => {
+    switch (type) {
+      case "text":
+        return "📝";
+      case "number":
+        return "🔢";
+      case "email":
+        return "📧";
+      case "date":
+        return "📅";
+      case "url":
+        return "🔗";
+      case "select":
+        return "📋";
+      case "checkbox":
+        return "☑️";
+      case "boolean":
+        return "🔘";
+      case "textarea":
+        return "📄";
+      default:
+        return "📝";
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-background p-6 rounded-lg max-w-md w-full mx-4">
-        <h3 className="text-lg font-semibold mb-4">
-          {field?.id ? "Edit Custom Field" : "Add Custom Field"}
-        </h3>
+      <div className="bg-background p-6 rounded-lg max-w-lg w-full mx-4 shadow-xl">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-xl font-semibold flex items-center gap-2">
+            ⚙️ {field?.id ? "Edit Custom Field" : "Add Custom Field"}
+          </h3>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={onCancel}
+            className="h-8 w-8 p-0"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
         
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <Label htmlFor="fieldName">Field Name *</Label>
+            <Label htmlFor="fieldName" className="flex items-center gap-2 text-sm font-medium mb-2">
+              🏷️ Field Name *
+            </Label>
             <Input
               id="fieldName"
               value={fieldData.fieldName}
               onChange={(e) => setFieldData(prev => ({ ...prev, fieldName: e.target.value }))}
-              placeholder="Enter field name"
+              placeholder={getPlaceholderText(fieldData.fieldType)}
               required
+              className="h-10"
             />
             {fieldData.fieldName && (
-              <div className="text-xs text-muted-foreground mt-1">
-                Internal name: {generateInternalFieldName(fieldData.fieldName)}
+              <div className="text-xs text-muted-foreground mt-2 p-2 bg-muted/50 rounded">
+                <span className="font-medium">Internal name:</span> {generateInternalFieldName(fieldData.fieldName)}
               </div>
             )}
           </div>
 
           <div>
-            <Label htmlFor="fieldType">Field Type</Label>
+            <Label htmlFor="fieldType" className="flex items-center gap-2 text-sm font-medium mb-2">
+              🎯 Field Type
+            </Label>
             <Select 
               value={fieldData.fieldType} 
               onValueChange={(value) => setFieldData(prev => ({ ...prev, fieldType: value }))}
             >
-              <SelectTrigger>
+              <SelectTrigger className="h-10">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {FIELD_TYPES.map((type) => (
                   <SelectItem key={type.value} value={type.value}>
-                    {type.label}
+                    <span className="flex items-center gap-2">
+                      {getFieldIcon(type.value)} {type.label}
+                    </span>
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -770,26 +840,36 @@ function CustomFieldForm({ field, onSave, onCancel }: CustomFieldFormProps) {
 
           {fieldData.fieldType === "select" && (
             <div>
-              <Label>Select Options</Label>
+              <Label className="flex items-center gap-2 text-sm font-medium mb-2">
+                📋 Select Options
+              </Label>
               <div className="space-y-2">
                 {selectOptions.map((option, index) => (
                   <div key={index} className="flex items-center space-x-2">
                     <Input
                       value={option}
                       onChange={(e) => updateSelectOption(index, e.target.value)}
-                      placeholder={`Option ${index + 1}`}
+                      placeholder={`Option ${index + 1} (e.g., ${index === 0 ? 'Small' : index === 1 ? 'Medium' : 'Large'})`}
+                      className="h-9"
                     />
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
                       onClick={() => removeSelectOption(index)}
+                      className="h-9 w-9 p-0 text-destructive hover:text-destructive"
                     >
                       <X className="h-4 w-4" />
                     </Button>
                   </div>
                 ))}
-                <Button type="button" variant="outline" size="sm" onClick={addSelectOption}>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={addSelectOption}
+                  className="h-9"
+                >
                   <Plus className="mr-2 h-4 w-4" />
                   Add Option
                 </Button>
@@ -797,20 +877,23 @@ function CustomFieldForm({ field, onSave, onCancel }: CustomFieldFormProps) {
             </div>
           )}
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-3 p-3 bg-muted/30 rounded-lg">
             <Switch
               id="required"
               checked={fieldData.required}
               onCheckedChange={(checked) => setFieldData(prev => ({ ...prev, required: checked }))}
             />
-            <Label htmlFor="required">Required field</Label>
+            <Label htmlFor="required" className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+              ⚠️ Required field
+            </Label>
           </div>
 
-          <div className="flex justify-end space-x-2 pt-4">
-            <Button type="button" variant="outline" onClick={onCancel}>
+          <div className="flex justify-end space-x-3 pt-4 border-t">
+            <Button type="button" variant="outline" onClick={onCancel} className="h-10">
               Cancel
             </Button>
-            <Button type="submit">
+            <Button type="submit" className="h-10">
+              <Save className="mr-2 h-4 w-4" />
               {field?.id ? "Update Field" : "Add Field"}
             </Button>
           </div>
