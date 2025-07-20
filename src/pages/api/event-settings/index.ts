@@ -221,7 +221,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             };
           } else {
             // Only additions and/or reordering - handle incrementally
-            const operations = [];
+            const operations: any[] = [];
             
             // Update order for existing fields
             for (const field of existingFields) {
