@@ -481,7 +481,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                       <Select value={formData.barcodeType} onValueChange={(value) => handleInputChange("barcodeType", value)}>
                         <SelectTrigger>
                           <SelectValue>
-                            {getBarcodeTypeDisplay(formData.barcodeType)}
+                            {formData.barcodeType ? getBarcodeTypeDisplay(formData.barcodeType) : "Select barcode type"}
                           </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
