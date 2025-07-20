@@ -56,24 +56,27 @@ model Role {
 }
 
 model EventSettings {
-  id                    String   @id @default(cuid())
-  eventName             String
-  eventDate             DateTime
-  eventTime             String?
-  eventLocation         String
-  timeZone              String
-  barcodeType           String   // "numerical" or "alphanumerical"
-  barcodeLength         Int
-  barcodeUnique         Boolean
-  cloudinaryCloudName   String?
-  cloudinaryApiKey      String?
-  cloudinaryApiSecret   String?
-  cloudinaryUploadPreset String?
-  switchboardApiKey     String?
-  switchboardTemplateId String?
-  bannerImageUrl        String?
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id                           String   @id @default(cuid())
+  eventName                    String
+  eventDate                    DateTime
+  eventTime                    String?
+  eventLocation                String
+  timeZone                     String
+  barcodeType                  String   // "numerical" or "alphanumerical"
+  barcodeLength                Int
+  barcodeUnique                Boolean
+  cloudinaryEnabled            Boolean? @default(false)
+  cloudinaryCloudName          String?
+  cloudinaryApiKey             String?
+  cloudinaryApiSecret          String?
+  cloudinaryUploadPreset       String?
+  cloudinaryAutoOptimize       Boolean? @default(false)
+  cloudinaryGenerateThumbnails Boolean? @default(false)
+  switchboardApiKey            String?
+  switchboardTemplateId        String?
+  bannerImageUrl               String?
+  createdAt                    DateTime @default(now())
+  updatedAt                    DateTime @updatedAt
 
   customFields CustomField[]
 

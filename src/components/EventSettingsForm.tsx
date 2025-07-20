@@ -52,10 +52,13 @@ interface EventSettings {
   barcodeType: string;
   barcodeLength: number;
   barcodeUnique: boolean;
+  cloudinaryEnabled?: boolean;
   cloudinaryCloudName?: string;
   cloudinaryApiKey?: string;
   cloudinaryApiSecret?: string;
   cloudinaryUploadPreset?: string;
+  cloudinaryAutoOptimize?: boolean;
+  cloudinaryGenerateThumbnails?: boolean;
   switchboardApiKey?: string;
   switchboardTemplateId?: string;
   bannerImageUrl?: string | null;
@@ -517,51 +520,144 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
             <TabsContent value="integrations" className="space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>Cloudinary Settings</CardTitle>
-                  <CardDescription>Configure photo upload settings</CardDescription>
+                  <CardTitle className="flex items-center gap-2">
+                    <Settings className="h-5 w-5" />
+                    Cloudinary Integration
+                  </CardTitle>
+                  <CardDescription>Configure Cloudinary for image uploads and management</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="cloudinaryCloudName">Cloud Name</Label>
-                      <Input
-                        id="cloudinaryCloudName"
-                        value={formData.cloudinaryCloudName || ""}
-                        onChange={(e) => handleInputChange("cloudinaryCloudName", e.target.value)}
-                        placeholder="your-cloud-name"
-                      />
+                <CardContent className="space-y-6">
+                  {/* Enable Cloudinary Toggle */}
+                  <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/50">
+                    <div className="space-y-1">
+                      <Label htmlFor="cloudinary-enabled" className="text-base font-medium">
+                        Enable Cloudinary Integration
+                      </Label>
+                      <p className="text-sm text-muted-foreground">
+                        Allow image uploads and management through Cloudinary
+                      </p>
                     </div>
-                    <div>
-                      <Label htmlFor="cloudinaryUploadPreset">Upload Preset</Label>
-                      <Input
-                        id="cloudinaryUploadPreset"
-                        value={formData.cloudinaryUploadPreset || ""}
-                        onChange={(e) => handleInputChange("cloudinaryUploadPreset", e.target.value)}
-                        placeholder="your-upload-preset"
-                      />
-                    </div>
+                    <Switch
+                      id="cloudinary-enabled"
+                      checked={formData.cloudinaryEnabled || false}
+                      onCheckedChange={(checked) => handleInputChange("cloudinaryEnabled", checked)}
+                    />
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="cloudinaryApiKey">API Key</Label>
-                      <Input
-                        id="cloudinaryApiKey"
-                        value={formData.cloudinaryApiKey || ""}
-                        onChange={(e) => handleInputChange("cloudinaryApiKey", e.target.value)}
-                        placeholder="your-api-key"
-                      />
+                  
+                  {formData.cloudinaryEnabled && (
+                    <div className="space-y-6">
+                      {/* API Credentials Section */}
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <Settings className="h-4 w-4" />
+                          <h4 className="text-sm font-semibold">API Credentials</h4>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="cloudinaryCloudName" className="text-sm font-medium">
+                              Cloud Name
+                            </Label>
+                            <Input
+                              id="cloudinaryCloudName"
+                              value={formData.cloudinaryCloudName || ""}
+                              onChange={(e) => handleInputChange("cloudinaryCloudName", e.target.value)}
+                              placeholder="your-cloud-name"
+                              className="h-10"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              Found in your Cloudinary dashboard
+                            </p>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor="cloudinaryApiKey" className="text-sm font-medium">
+                              API Key
+                            </Label>
+                            <Input
+                              id="cloudinaryApiKey"
+                              value={formData.cloudinaryApiKey || ""}
+                              onChange={(e) => handleInputChange("cloudinaryApiKey", e.target.value)}
+                              placeholder="123456789012345"
+                              className="h-10"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              Your Cloudinary API key
+                            </p>
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label htmlFor="cloudinaryApiSecret" className="text-sm font-medium">
+                            API Secret
+                          </Label>
+                          <Input
+                            id="cloudinaryApiSecret"
+                            type="password"
+                            value={formData.cloudinaryApiSecret || ""}
+                            onChange={(e) => handleInputChange("cloudinaryApiSecret", e.target.value)}
+                            placeholder="••••••••••••••••••••••••••••"
+                            className="h-10"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Keep this secret secure and never share it publicly
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Upload Settings Section */}
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <Settings className="h-4 w-4" />
+                          <h4 className="text-sm font-semibold">Upload Settings</h4>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="flex items-center justify-between p-3 border rounded-lg">
+                            <div className="space-y-1">
+                              <Label className="text-sm font-medium">Auto-optimize images</Label>
+                              <p className="text-xs text-muted-foreground">
+                                Automatically optimize uploaded images
+                              </p>
+                            </div>
+                            <Switch
+                              checked={formData.cloudinaryAutoOptimize || false}
+                              onCheckedChange={(checked) => handleInputChange("cloudinaryAutoOptimize", checked)}
+                            />
+                          </div>
+                          
+                          <div className="flex items-center justify-between p-3 border rounded-lg">
+                            <div className="space-y-1">
+                              <Label className="text-sm font-medium">Generate thumbnails</Label>
+                              <p className="text-xs text-muted-foreground">
+                                Create thumbnail versions of images
+                              </p>
+                            </div>
+                            <Switch
+                              checked={formData.cloudinaryGenerateThumbnails || false}
+                              onCheckedChange={(checked) => handleInputChange("cloudinaryGenerateThumbnails", checked)}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Connection Status */}
+                      <div className="p-4 border rounded-lg bg-green-50 dark:bg-green-950/20">
+                        <div className="flex items-center gap-2">
+                          <div className="h-2 w-2 bg-green-500 rounded-full"></div>
+                          <span className="text-sm font-medium text-green-700 dark:text-green-400">
+                            Connection Status
+                          </span>
+                        </div>
+                        <p className="text-sm text-green-600 dark:text-green-500 mt-1">
+                          {formData.cloudinaryCloudName && formData.cloudinaryApiKey && formData.cloudinaryApiSecret
+                            ? "Ready to connect - credentials provided"
+                            : "Waiting for credentials to be configured"
+                          }
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <Label htmlFor="cloudinaryApiSecret">API Secret</Label>
-                      <Input
-                        id="cloudinaryApiSecret"
-                        type="password"
-                        value={formData.cloudinaryApiSecret || ""}
-                        onChange={(e) => handleInputChange("cloudinaryApiSecret", e.target.value)}
-                        placeholder="your-api-secret"
-                      />
-                    </div>
-                  </div>
+                  )}
                 </CardContent>
               </Card>
 
