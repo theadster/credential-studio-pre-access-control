@@ -480,9 +480,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                       <Label htmlFor="barcodeType">Barcode Type</Label>
                       <Select value={formData.barcodeType} onValueChange={(value) => handleInputChange("barcodeType", value)}>
                         <SelectTrigger>
-                          <SelectValue>
-                            {formData.barcodeType ? getBarcodeTypeDisplay(formData.barcodeType) : "Select barcode type"}
-                          </SelectValue>
+                          <SelectValue placeholder="Select barcode type" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="numerical">Numerical (0-9)</SelectItem>
