@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, Edit, Save, X, GripVertical } from "lucide-react";
+import { Plus, Trash2, Edit, Save, X, GripVertical, Type, Hash, Mail, Calendar, Link, List, CheckSquare, ToggleLeft, FileText, Settings } from "lucide-react";
 import { generateInternalFieldName } from "@/util/string";
 import { useToast } from "@/components/ui/use-toast";
 import {
@@ -755,25 +755,25 @@ function CustomFieldForm({ field, onSave, onCancel }: CustomFieldFormProps) {
   const getFieldIcon = (type: string) => {
     switch (type) {
       case "text":
-        return "📝";
+        return <Type className="h-4 w-4" />;
       case "number":
-        return "🔢";
+        return <Hash className="h-4 w-4" />;
       case "email":
-        return "📧";
+        return <Mail className="h-4 w-4" />;
       case "date":
-        return "📅";
+        return <Calendar className="h-4 w-4" />;
       case "url":
-        return "🔗";
+        return <Link className="h-4 w-4" />;
       case "select":
-        return "📋";
+        return <List className="h-4 w-4" />;
       case "checkbox":
-        return "☑️";
+        return <CheckSquare className="h-4 w-4" />;
       case "boolean":
-        return "🔘";
+        return <ToggleLeft className="h-4 w-4" />;
       case "textarea":
-        return "📄";
+        return <FileText className="h-4 w-4" />;
       default:
-        return "📝";
+        return <Type className="h-4 w-4" />;
     }
   };
 
@@ -782,7 +782,8 @@ function CustomFieldForm({ field, onSave, onCancel }: CustomFieldFormProps) {
       <div className="bg-background p-6 rounded-lg max-w-lg w-full mx-4 shadow-xl">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-xl font-semibold flex items-center gap-2">
-            ⚙️ {field?.id ? "Edit Custom Field" : "Add Custom Field"}
+            <Settings className="h-5 w-5" />
+            {field?.id ? "Edit Custom Field" : "Add Custom Field"}
           </h3>
           <Button
             type="button"
@@ -798,7 +799,8 @@ function CustomFieldForm({ field, onSave, onCancel }: CustomFieldFormProps) {
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <Label htmlFor="fieldName" className="flex items-center gap-2 text-sm font-medium mb-2">
-              🏷️ Field Name *
+              <Type className="h-4 w-4" />
+              Field Name *
             </Label>
             <Input
               id="fieldName"
@@ -817,7 +819,8 @@ function CustomFieldForm({ field, onSave, onCancel }: CustomFieldFormProps) {
 
           <div>
             <Label htmlFor="fieldType" className="flex items-center gap-2 text-sm font-medium mb-2">
-              🎯 Field Type
+              <Settings className="h-4 w-4" />
+              Field Type
             </Label>
             <Select 
               value={fieldData.fieldType} 
@@ -841,7 +844,8 @@ function CustomFieldForm({ field, onSave, onCancel }: CustomFieldFormProps) {
           {fieldData.fieldType === "select" && (
             <div>
               <Label className="flex items-center gap-2 text-sm font-medium mb-2">
-                📋 Select Options
+                <List className="h-4 w-4" />
+                Select Options
               </Label>
               <div className="space-y-2">
                 {selectOptions.map((option, index) => (
@@ -884,7 +888,8 @@ function CustomFieldForm({ field, onSave, onCancel }: CustomFieldFormProps) {
               onCheckedChange={(checked) => setFieldData(prev => ({ ...prev, required: checked }))}
             />
             <Label htmlFor="required" className="flex items-center gap-2 text-sm font-medium cursor-pointer">
-              ⚠️ Required field
+              <CheckSquare className="h-4 w-4" />
+              Required field
             </Label>
           </div>
 
