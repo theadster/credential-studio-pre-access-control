@@ -132,6 +132,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedRole, setSelectedRole] = useState<string>("all");
+  const [customFieldFilters, setCustomFieldFilters] = useState<Record<string, string>>({});
   const [showAttendeeForm, setShowAttendeeForm] = useState(false);
   const [editingAttendee, setEditingAttendee] = useState<Attendee | null>(null);
   const [printingAttendee, setPrintingAttendee] = useState<string | null>(null);
@@ -370,10 +371,29 @@ export default function Dashboard() {
     loadData();
   }, []);
 
-  const filteredAttendees = attendees.filter(attendee =>
-    `${attendee.firstName} ${attendee.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    attendee.barcodeNumber.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Enhanced filtering function for attendees including custom fields
+  const filteredAttendees = attendees.filter(attendee => {
+    // Basic search in name and barcode
+    const basicMatch = `${attendee.firstName} ${attendee.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      attendee.barcodeNumber.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    // Search in custom field values
+    const customFieldMatch = attendee.customFieldValues?.some((cfv: any) => 
+      cfv.value && cfv.value.toLowerCase().includes(searchTerm.toLowerCase())
+    ) || false;
+    
+    const searchMatch = basicMatch || customFieldMatch;
+    
+    // Apply custom field filters
+    const customFieldFilterMatch = Object.entries(customFieldFilters).every(([fieldId, filterValue]) => {
+      if (!filterValue || filterValue === 'all') return true;
+      
+      const attendeeFieldValue = attendee.customFieldValues?.find((cfv: any) => cfv.customFieldId === fieldId);
+      return attendeeFieldValue?.value?.toLowerCase().includes(filterValue.toLowerCase()) || false;
+    });
+    
+    return searchMatch && customFieldFilterMatch;
+  });
 
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -1182,28 +1202,80 @@ export default function Dashboard() {
           {activeTab === "attendees" && (
             <div className="space-y-6">
               {/* Search and Filters */}
-              <div className="flex items-center space-x-4">
-                <div className="relative flex-1 max-w-sm">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search attendees..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
+              <div className="space-y-4">
+                <div className="flex items-center space-x-4">
+                  <div className="relative flex-1 max-w-sm">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search attendees..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  <Button variant="outline">
+                    <Filter className="mr-2 h-4 w-4" />
+                    Filter
+                  </Button>
+                  <Button variant="outline">
+                    <Download className="mr-2 h-4 w-4" />
+                    Export
+                  </Button>
+                  <Button variant="outline">
+                    <Upload className="mr-2 h-4 w-4" />
+                    Import
+                  </Button>
                 </div>
-                <Button variant="outline">
-                  <Filter className="mr-2 h-4 w-4" />
-                  Filter
-                </Button>
-                <Button variant="outline">
-                  <Download className="mr-2 h-4 w-4" />
-                  Export
-                </Button>
-                <Button variant="outline">
-                  <Upload className="mr-2 h-4 w-4" />
-                  Import
-                </Button>
+
+                {/* Custom Field Filters */}
+                {eventSettings?.customFields && eventSettings.customFields.length > 0 && (
+                  <div className="flex items-center space-x-4 flex-wrap">
+                    <span className="text-sm font-medium text-muted-foreground">Filter by:</span>
+                    {eventSettings.customFields
+                      .sort((a: any, b: any) => a.order - b.order)
+                      .map((field: any) => (
+                        <Select
+                          key={field.id}
+                          value={customFieldFilters[field.id] || 'all'}
+                          onValueChange={(value) => 
+                            setCustomFieldFilters(prev => ({
+                              ...prev,
+                              [field.id]: value
+                            }))
+                          }
+                        >
+                          <SelectTrigger className="w-48">
+                            <SelectValue placeholder={`Filter by ${field.fieldName}`} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All {field.fieldName}</SelectItem>
+                            {/* Get unique values for this field from attendees */}
+                            {Array.from(new Set(
+                              attendees
+                                .map(attendee => 
+                                  attendee.customFieldValues?.find((cfv: any) => cfv.customFieldId === field.id)?.value
+                                )
+                                .filter(Boolean)
+                            )).map((value: any) => (
+                              <SelectItem key={value} value={value}>
+                                {value}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ))}
+                    {Object.keys(customFieldFilters).length > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setCustomFieldFilters({})}
+                        className="text-muted-foreground"
+                      >
+                        Clear Filters
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Stats Cards */}
@@ -1271,83 +1343,107 @@ export default function Dashboard() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredAttendees.map((attendee) => (
-                        <TableRow key={attendee.id}>
-                          <TableCell>
-                            <Avatar className="h-8 w-8">
-                              <AvatarImage src={attendee.photoUrl || undefined} />
-                              <AvatarFallback>
-                                {attendee.firstName.charAt(0)}{attendee.lastName.charAt(0)}
-                              </AvatarFallback>
-                            </Avatar>
-                          </TableCell>
-                          <TableCell>
-                            <div>
-                              <div className="font-medium">{attendee.firstName} {attendee.lastName}</div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{attendee.barcodeNumber}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            {new Date(attendee.createdAt).toLocaleDateString()}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center space-x-2">
-                              {hasPermission(currentUser?.role, 'attendees', 'read') && (
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm"
-                                  onClick={async () => {
-                                    await refreshEventSettings();
-                                    setEditingAttendee(attendee);
-                                    setShowAttendeeForm(true);
-                                  }}
-                                >
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                              )}
-                              {hasPermission(currentUser?.role, 'attendees', 'update') && (
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm"
-                                  onClick={async () => {
-                                    await refreshEventSettings();
-                                    setEditingAttendee(attendee);
-                                    setShowAttendeeForm(true);
-                                  }}
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                              )}
-                              {hasPermission(currentUser?.role, 'attendees', 'print') && (
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm"
-                                  onClick={() => handlePrintCredential(attendee.id)}
-                                  disabled={printingAttendee === attendee.id}
-                                >
-                                  {printingAttendee === attendee.id ? (
-                                    <Printer className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <CreditCard className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              )}
-                              {hasPermission(currentUser?.role, 'attendees', 'delete') && (
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm" 
-                                  className="text-destructive"
-                                  onClick={() => handleDeleteAttendee(attendee.id)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {filteredAttendees.map((attendee) => {
+                        // Get custom field values for this attendee, sorted by field order
+                        const customFieldsWithValues = eventSettings?.customFields
+                          ?.sort((a: any, b: any) => a.order - b.order)
+                          ?.map((field: any) => {
+                            const value = attendee.customFieldValues?.find((cfv: any) => cfv.customFieldId === field.id);
+                            return {
+                              fieldName: field.fieldName,
+                              value: value?.value || null
+                            };
+                          })
+                          ?.filter((field: any) => field.value) || [];
+
+                        return (
+                          <TableRow key={attendee.id}>
+                            <TableCell>
+                              <Avatar className="h-8 w-8">
+                                <AvatarImage src={attendee.photoUrl || undefined} />
+                                <AvatarFallback>
+                                  {attendee.firstName.charAt(0)}{attendee.lastName.charAt(0)}
+                                </AvatarFallback>
+                              </Avatar>
+                            </TableCell>
+                            <TableCell>
+                              <div>
+                                <div className="font-medium">{attendee.firstName} {attendee.lastName}</div>
+                                {/* Display custom fields under the name */}
+                                {customFieldsWithValues.length > 0 && (
+                                  <div className="mt-1 space-y-1">
+                                    {customFieldsWithValues.map((field: any, index: number) => (
+                                      <div key={index} className="text-xs text-muted-foreground">
+                                        <span className="font-medium">{field.fieldName}:</span> {field.value}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{attendee.barcodeNumber}</Badge>
+                            </TableCell>
+                            <TableCell>
+                              {new Date(attendee.createdAt).toLocaleDateString()}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center space-x-2">
+                                {hasPermission(currentUser?.role, 'attendees', 'read') && (
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm"
+                                    onClick={async () => {
+                                      await refreshEventSettings();
+                                      setEditingAttendee(attendee);
+                                      setShowAttendeeForm(true);
+                                    }}
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                )}
+                                {hasPermission(currentUser?.role, 'attendees', 'update') && (
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm"
+                                    onClick={async () => {
+                                      await refreshEventSettings();
+                                      setEditingAttendee(attendee);
+                                      setShowAttendeeForm(true);
+                                    }}
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                )}
+                                {hasPermission(currentUser?.role, 'attendees', 'print') && (
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm"
+                                    onClick={() => handlePrintCredential(attendee.id)}
+                                    disabled={printingAttendee === attendee.id}
+                                  >
+                                    {printingAttendee === attendee.id ? (
+                                      <Printer className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <CreditCard className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                )}
+                                {hasPermission(currentUser?.role, 'attendees', 'delete') && (
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="text-destructive"
+                                    onClick={() => handleDeleteAttendee(attendee.id)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </CardContent>
