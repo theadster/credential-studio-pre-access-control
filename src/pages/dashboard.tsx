@@ -1067,6 +1067,16 @@ export default function Dashboard() {
                 Attendees
               </Button>
             )}
+            {canAccessTab(currentUser?.role, 'settings') && (
+              <Button
+                variant={activeTab === "settings" ? "default" : "ghost"}
+                className="w-full justify-start text-base"
+                onClick={() => setActiveTab("settings")}
+              >
+                <Settings className="mr-2 h-4 w-4" />
+                Event Settings
+              </Button>
+            )}
             {canAccessTab(currentUser?.role, 'users') && (
               <Button
                 variant={activeTab === "users" ? "default" : "ghost"}
@@ -1085,16 +1095,6 @@ export default function Dashboard() {
               >
                 <Shield className="mr-2 h-4 w-4" />
                 Roles
-              </Button>
-            )}
-            {canAccessTab(currentUser?.role, 'settings') && (
-              <Button
-                variant={activeTab === "settings" ? "default" : "ghost"}
-                className="w-full justify-start text-base"
-                onClick={() => setActiveTab("settings")}
-              >
-                <Settings className="mr-2 h-4 w-4" />
-                Event Settings
               </Button>
             )}
             {canAccessTab(currentUser?.role, 'logs') && (
