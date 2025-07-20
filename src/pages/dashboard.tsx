@@ -1349,9 +1349,20 @@ export default function Dashboard() {
                           ?.sort((a: any, b: any) => a.order - b.order)
                           ?.map((field: any) => {
                             const value = attendee.customFieldValues?.find((cfv: any) => cfv.customFieldId === field.id);
+                            let displayValue = value?.value || null;
+                            
+                            // Format display value based on field type
+                            if (displayValue && field.fieldType === 'boolean') {
+                              displayValue = displayValue === 'yes' ? 'Yes' : 'No';
+                            } else if (displayValue && field.fieldType === 'url') {
+                              // For URLs, show a clickable link
+                              displayValue = displayValue;
+                            }
+                            
                             return {
                               fieldName: field.fieldName,
-                              value: value?.value || null
+                              fieldType: field.fieldType,
+                              value: displayValue
                             };
                           })
                           ?.filter((field: any) => field.value) || [];
@@ -1374,7 +1385,19 @@ export default function Dashboard() {
                                   <div className="mt-1 space-y-1">
                                     {customFieldsWithValues.map((field: any, index: number) => (
                                       <div key={index} className="text-xs text-muted-foreground">
-                                        <span className="font-medium">{field.fieldName}:</span> {field.value}
+                                        <span className="font-medium">{field.fieldName}:</span>{' '}
+                                        {field.fieldType === 'url' ? (
+                                          <a 
+                                            href={field.value} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="text-blue-600 hover:text-blue-800 underline"
+                                          >
+                                            {field.value}
+                                          </a>
+                                        ) : (
+                                          field.value
+                                        )}
                                       </div>
                                     ))}
                                   </div>

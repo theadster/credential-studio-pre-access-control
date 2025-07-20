@@ -6,6 +6,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/components/ui/use-toast';
@@ -241,6 +242,40 @@ export default function AttendeeForm({
           />
         );
 
+      case 'email':
+        return (
+          <Input
+            type="email"
+            value={value}
+            onChange={(e) => setFormData(prev => ({
+              ...prev,
+              customFieldValues: {
+                ...prev.customFieldValues,
+                [field.id]: e.target.value
+              }
+            }))}
+            placeholder="Enter email address"
+            required={field.required}
+          />
+        );
+
+      case 'url':
+        return (
+          <Input
+            type="url"
+            value={value}
+            onChange={(e) => setFormData(prev => ({
+              ...prev,
+              customFieldValues: {
+                ...prev.customFieldValues,
+                [field.id]: e.target.value
+              }
+            }))}
+            placeholder="https://example.com"
+            required={field.required}
+          />
+        );
+
       case 'date':
         return (
           <Input
@@ -296,6 +331,23 @@ export default function AttendeeForm({
               }))}
             />
             <Label>{field.fieldName}</Label>
+          </div>
+        );
+
+      case 'boolean':
+        return (
+          <div className="flex items-center space-x-2">
+            <Switch
+              checked={value === 'yes'}
+              onCheckedChange={(checked) => setFormData(prev => ({
+                ...prev,
+                customFieldValues: {
+                  ...prev.customFieldValues,
+                  [field.id]: checked ? 'yes' : 'no'
+                }
+              }))}
+            />
+            <Label>{value === 'yes' ? 'Yes' : 'No'}</Label>
           </div>
         );
 

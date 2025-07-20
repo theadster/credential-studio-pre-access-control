@@ -76,8 +76,10 @@ const FIELD_TYPES = [
   { value: "number", label: "Number" },
   { value: "email", label: "Email" },
   { value: "date", label: "Date" },
+  { value: "url", label: "URL/Link" },
   { value: "select", label: "Select" },
   { value: "checkbox", label: "Checkbox" },
+  { value: "boolean", label: "Yes/No Switch" },
   { value: "textarea", label: "Textarea" }
 ];
 
