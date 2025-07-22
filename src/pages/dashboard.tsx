@@ -1379,7 +1379,7 @@ export default function Dashboard() {
                             </TableCell>
                             <TableCell>
                               <div>
-                                <div className="font-medium">{attendee.firstName} {attendee.lastName}</div>
+                                <div className="font-medium text-lg">{attendee.firstName} {attendee.lastName}</div>
                                 {/* Display custom fields under the name */}
                                 {customFieldsWithValues.length > 0 && (
                                   <div className="mt-1">
