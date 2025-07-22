@@ -152,10 +152,14 @@ export default function AttendeeForm({
         widgetConfig.croppingAspectRatio = croppingAspectRatio;
       }
 
-      // Disable skip crop button if configured
+      // Configure skip crop button behavior according to Cloudinary documentation
       if (eventSettings.cloudinaryDisableSkipCrop) {
+        // Disable the skip crop button and force cropping
+        widgetConfig.showSkipCropButton = false;
         widgetConfig.croppingValidateMinSize = true;
-        widgetConfig.croppingShowBackButton = false;
+      } else {
+        // Allow skipping crop (default behavior)
+        widgetConfig.showSkipCropButton = true;
       }
 
       window.cloudinary.openUploadWidget(
