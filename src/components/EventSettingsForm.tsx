@@ -59,6 +59,8 @@ interface EventSettings {
   cloudinaryUploadPreset?: string;
   cloudinaryAutoOptimize?: boolean;
   cloudinaryGenerateThumbnails?: boolean;
+  cloudinaryDisableSkipCrop?: boolean;
+  cloudinaryCropAspectRatio?: string;
   switchboardApiKey?: string;
   switchboardTemplateId?: string;
   bannerImageUrl?: string | null;
@@ -655,6 +657,56 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                               checked={formData.cloudinaryGenerateThumbnails || false}
                               onCheckedChange={(checked) => handleInputChange("cloudinaryGenerateThumbnails", checked)}
                             />
+                          </div>
+                        </div>
+                        
+                        {/* Crop Settings */}
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-2">
+                            <Settings className="h-4 w-4" />
+                            <h4 className="text-sm font-semibold">Crop Settings</h4>
+                          </div>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="flex items-center justify-between p-3 border rounded-lg">
+                              <div className="space-y-1">
+                                <Label className="text-sm font-medium">Disable "Skip Crop" button</Label>
+                                <p className="text-xs text-muted-foreground">
+                                  Force users to crop their images before uploading
+                                </p>
+                              </div>
+                              <Switch
+                                checked={formData.cloudinaryDisableSkipCrop || false}
+                                onCheckedChange={(checked) => handleInputChange("cloudinaryDisableSkipCrop", checked)}
+                              />
+                            </div>
+                            
+                            <div className="space-y-2">
+                              <Label htmlFor="cloudinaryCropAspectRatio" className="text-sm font-medium">
+                                Crop Aspect Ratio
+                              </Label>
+                              <Select 
+                                value={formData.cloudinaryCropAspectRatio || "1"} 
+                                onValueChange={(value) => handleInputChange("cloudinaryCropAspectRatio", value)}
+                              >
+                                <SelectTrigger className="h-10">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="1">Square (1:1)</SelectItem>
+                                  <SelectItem value="1.33">Landscape (4:3)</SelectItem>
+                                  <SelectItem value="0.75">Portrait (3:4)</SelectItem>
+                                  <SelectItem value="1.78">Widescreen (16:9)</SelectItem>
+                                  <SelectItem value="0.56">Vertical (9:16)</SelectItem>
+                                  <SelectItem value="1.5">Photo (3:2)</SelectItem>
+                                  <SelectItem value="0.67">Photo Portrait (2:3)</SelectItem>
+                                  <SelectItem value="free">Free Form</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <p className="text-xs text-muted-foreground">
+                                Set the required aspect ratio for cropped images
+                              </p>
+                            </div>
                           </div>
                         </div>
                       </div>

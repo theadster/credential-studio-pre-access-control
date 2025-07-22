@@ -72,6 +72,8 @@ model EventSettings {
   cloudinaryUploadPreset       String?
   cloudinaryAutoOptimize       Boolean? @default(false)
   cloudinaryGenerateThumbnails Boolean? @default(false)
+  cloudinaryDisableSkipCrop    Boolean? @default(false)
+  cloudinaryCropAspectRatio    String?  @default("1")
   switchboardApiKey            String?
   switchboardTemplateId        String?
   bannerImageUrl               String?

@@ -105,42 +105,61 @@ export default function AttendeeForm({
 
     if (window.cloudinary) {
       setIsCloudinaryOpen(true);
-      window.cloudinary.openUploadWidget(
-        {
-          cloudName: eventSettings.cloudinaryCloudName,
-          uploadPreset: eventSettings.cloudinaryUploadPreset,
-          sources: ['local', 'camera'],
-          multiple: false,
-          cropping: true,
-          croppingAspectRatio: 1,
-          croppingShowDimensions: true,
-          croppingCoordinatesMode: 'custom',
-          folder: 'attendee-photos',
-          clientAllowedFormats: ['jpg', 'jpeg', 'png'],
-          maxFileSize: 5000000, // 5MB
-          maxImageWidth: 800,
-          maxImageHeight: 800,
-          theme: 'minimal',
-          styles: {
-            palette: {
-              window: "#FFFFFF",
-              windowBorder: "#90A0B3",
-              tabIcon: "#8B5CF6",
-              menuIcons: "#5A616A",
-              textDark: "#000000",
-              textLight: "#FFFFFF",
-              link: "#8B5CF6",
-              action: "#8B5CF6",
-              inactiveTabIcon: "#0E2F5A",
-              error: "#F44235",
-              inProgress: "#8B5CF6",
-              complete: "#20B832",
-              sourceBg: "#E4EBF1"
-            }
-          },
-          showAdvancedOptions: false,
-          showPoweredBy: false
+      // Configure crop aspect ratio
+      let croppingAspectRatio = 1; // Default to square
+      if (eventSettings.cloudinaryCropAspectRatio && eventSettings.cloudinaryCropAspectRatio !== 'free') {
+        croppingAspectRatio = parseFloat(eventSettings.cloudinaryCropAspectRatio);
+      }
+
+      // Build widget configuration
+      const widgetConfig: any = {
+        cloudName: eventSettings.cloudinaryCloudName,
+        uploadPreset: eventSettings.cloudinaryUploadPreset,
+        sources: ['local', 'camera'],
+        multiple: false,
+        cropping: true,
+        croppingShowDimensions: true,
+        croppingCoordinatesMode: 'custom',
+        folder: 'attendee-photos',
+        clientAllowedFormats: ['jpg', 'jpeg', 'png'],
+        maxFileSize: 5000000, // 5MB
+        maxImageWidth: 800,
+        maxImageHeight: 800,
+        theme: 'minimal',
+        styles: {
+          palette: {
+            window: "#FFFFFF",
+            windowBorder: "#90A0B3",
+            tabIcon: "#8B5CF6",
+            menuIcons: "#5A616A",
+            textDark: "#000000",
+            textLight: "#FFFFFF",
+            link: "#8B5CF6",
+            action: "#8B5CF6",
+            inactiveTabIcon: "#0E2F5A",
+            error: "#F44235",
+            inProgress: "#8B5CF6",
+            complete: "#20B832",
+            sourceBg: "#E4EBF1"
+          }
         },
+        showAdvancedOptions: false,
+        showPoweredBy: false
+      };
+
+      // Set crop aspect ratio (only if not free form)
+      if (eventSettings.cloudinaryCropAspectRatio !== 'free') {
+        widgetConfig.croppingAspectRatio = croppingAspectRatio;
+      }
+
+      // Disable skip crop button if configured
+      if (eventSettings.cloudinaryDisableSkipCrop) {
+        widgetConfig.croppingValidateMinSize = true;
+        widgetConfig.croppingShowBackButton = false;
+      }
+
+      window.cloudinary.openUploadWidget(
+        widgetConfig,
         (error: any, result: any) => {
           setIsCloudinaryOpen(false);
           if (!error && result && result.event === 'success') {
