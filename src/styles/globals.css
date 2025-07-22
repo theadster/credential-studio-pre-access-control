@@ -74,6 +74,7 @@
 
 /* Cloudinary Widget Z-Index Fix */
 @layer utilities {
+  /* Base z-index for Cloudinary widget elements */
   .cloudinary-widget-overlay,
   .cloudinary-widget,
   .cloudinary-widget iframe,
@@ -81,18 +82,35 @@
   .cloudinary-widget .cloudinary-widget-modal,
   #cloudinary-overlay,
   #cloudinary-widget {
-    z-index: 99999 !important;
+    z-index: 999999 !important;
+    pointer-events: auto !important;
   }
   
-  /* Ensure Cloudinary widget appears above all modals and dialogs */
+  /* Ensure Radix portals have lower z-index */
   [data-radix-portal] {
-    z-index: 50;
+    z-index: 50 !important;
   }
   
-  [data-radix-portal] .cloudinary-widget-overlay,
-  [data-radix-portal] .cloudinary-widget,
-  [data-radix-portal] #cloudinary-overlay,
-  [data-radix-portal] #cloudinary-widget {
-    z-index: 99999 !important;
+  /* When Cloudinary widget is open, disable pointer events on background */
+  .cloudinary-widget-open [data-radix-portal] {
+    pointer-events: none !important;
+  }
+  
+  /* But ensure Cloudinary widget itself remains clickable */
+  .cloudinary-widget-open .cloudinary-widget-overlay,
+  .cloudinary-widget-open .cloudinary-widget,
+  .cloudinary-widget-open #cloudinary-overlay,
+  .cloudinary-widget-open #cloudinary-widget,
+  .cloudinary-widget-open .cloudinary-widget *,
+  .cloudinary-widget-open #cloudinary-widget * {
+    pointer-events: auto !important;
+    z-index: 999999 !important;
+  }
+  
+  /* Ensure widget iframe is always on top and clickable */
+  .cloudinary-widget iframe,
+  #cloudinary-widget iframe {
+    z-index: 1000000 !important;
+    pointer-events: auto !important;
   }
 }

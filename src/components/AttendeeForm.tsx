@@ -103,26 +103,71 @@ export default function AttendeeForm({
     }
 
     if (window.cloudinary) {
-      // Add high z-index styles to ensure widget appears on top
+      // Create comprehensive styles to ensure widget appears on top and is clickable
       const widgetStyles = document.createElement('style');
+      widgetStyles.id = 'cloudinary-widget-styles';
       widgetStyles.innerHTML = `
-        .cloudinary-widget-overlay {
-          z-index: 99999 !important;
+        /* Cloudinary widget overlay and container */
+        .cloudinary-widget-overlay,
+        #cloudinary-overlay {
+          z-index: 999999 !important;
+          position: fixed !important;
+          top: 0 !important;
+          left: 0 !important;
+          width: 100vw !important;
+          height: 100vh !important;
+          pointer-events: auto !important;
         }
-        .cloudinary-widget {
-          z-index: 100000 !important;
+        
+        /* Main widget container */
+        .cloudinary-widget,
+        #cloudinary-widget {
+          z-index: 1000000 !important;
+          position: fixed !important;
+          pointer-events: auto !important;
         }
-        .cloudinary-widget iframe {
-          z-index: 100001 !important;
+        
+        /* Widget iframe */
+        .cloudinary-widget iframe,
+        #cloudinary-widget iframe {
+          z-index: 1000001 !important;
+          pointer-events: auto !important;
         }
-        .cloudinary-widget .cloudinary-widget-overlay {
-          z-index: 99999 !important;
-        }
+        
+        /* Modal and content */
+        .cloudinary-widget-modal,
         .cloudinary-widget .cloudinary-widget-modal {
-          z-index: 100000 !important;
+          z-index: 1000002 !important;
+          pointer-events: auto !important;
+        }
+        
+        /* Ensure all child elements are clickable */
+        .cloudinary-widget *,
+        #cloudinary-widget * {
+          pointer-events: auto !important;
+        }
+        
+        /* Override any conflicting styles from Radix portals */
+        [data-radix-portal] {
+          z-index: 50 !important;
+        }
+        
+        /* Temporarily hide the dialog content when widget is open */
+        .cloudinary-widget-open [data-radix-portal] {
+          pointer-events: none !important;
+        }
+        
+        .cloudinary-widget-open .cloudinary-widget-overlay,
+        .cloudinary-widget-open .cloudinary-widget,
+        .cloudinary-widget-open #cloudinary-overlay,
+        .cloudinary-widget-open #cloudinary-widget {
+          pointer-events: auto !important;
         }
       `;
       document.head.appendChild(widgetStyles);
+
+      // Add class to body to indicate widget is open
+      document.body.classList.add('cloudinary-widget-open');
 
       window.cloudinary.openUploadWidget(
         {
@@ -161,8 +206,12 @@ export default function AttendeeForm({
           showPoweredBy: false
         },
         (error: any, result: any) => {
-          // Clean up the added styles
-          document.head.removeChild(widgetStyles);
+          // Clean up the added styles and body class
+          const styleElement = document.getElementById('cloudinary-widget-styles');
+          if (styleElement) {
+            document.head.removeChild(styleElement);
+          }
+          document.body.classList.remove('cloudinary-widget-open');
           
           if (!error && result && result.event === 'success') {
             setFormData(prev => ({ ...prev, photoUrl: result.info.secure_url }));
