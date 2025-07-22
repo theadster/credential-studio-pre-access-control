@@ -1382,24 +1382,37 @@ export default function Dashboard() {
                                 <div className="font-medium">{attendee.firstName} {attendee.lastName}</div>
                                 {/* Display custom fields under the name */}
                                 {customFieldsWithValues.length > 0 && (
-                                  <div className="mt-1 space-y-1">
-                                    {customFieldsWithValues.map((field: any, index: number) => (
-                                      <div key={index} className="text-xs text-muted-foreground">
-                                        <span className="font-medium">{field.fieldName}:</span>{' '}
-                                        {field.fieldType === 'url' ? (
-                                          <a 
-                                            href={field.value} 
-                                            target="_blank" 
-                                            rel="noopener noreferrer"
-                                            className="text-blue-600 hover:text-blue-800 underline"
-                                          >
-                                            {field.value}
-                                          </a>
-                                        ) : (
-                                          field.value
-                                        )}
-                                      </div>
-                                    ))}
+                                  <div className="mt-1">
+                                    {(() => {
+                                      // Determine grid columns based on number of fields
+                                      const fieldCount = customFieldsWithValues.length;
+                                      let gridCols = 'grid-cols-1';
+                                      if (fieldCount >= 2) gridCols = 'grid-cols-2';
+                                      if (fieldCount >= 4) gridCols = 'grid-cols-3';
+                                      if (fieldCount >= 6) gridCols = 'grid-cols-4';
+
+                                      return (
+                                        <div className={`grid ${gridCols} gap-x-4 gap-y-1`}>
+                                          {customFieldsWithValues.map((field: any, index: number) => (
+                                            <div key={index} className="text-xs text-muted-foreground">
+                                              <span className="font-medium">{field.fieldName}:</span>{' '}
+                                              {field.fieldType === 'url' ? (
+                                                <a 
+                                                  href={field.value} 
+                                                  target="_blank" 
+                                                  rel="noopener noreferrer"
+                                                  className="text-blue-600 hover:text-blue-800 underline"
+                                                >
+                                                  {field.value}
+                                                </a>
+                                              ) : (
+                                                field.value
+                                              )}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      );
+                                    })()}
                                   </div>
                                 )}
                               </div>
