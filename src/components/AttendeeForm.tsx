@@ -46,6 +46,7 @@ export default function AttendeeForm({
 }: AttendeeFormProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [isCloudinaryOpen, setIsCloudinaryOpen] = useState(false);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -103,72 +104,7 @@ export default function AttendeeForm({
     }
 
     if (window.cloudinary) {
-      // Create comprehensive styles to ensure widget appears on top and is clickable
-      const widgetStyles = document.createElement('style');
-      widgetStyles.id = 'cloudinary-widget-styles';
-      widgetStyles.innerHTML = `
-        /* Cloudinary widget overlay and container */
-        .cloudinary-widget-overlay,
-        #cloudinary-overlay {
-          z-index: 999999 !important;
-          position: fixed !important;
-          top: 0 !important;
-          left: 0 !important;
-          width: 100vw !important;
-          height: 100vh !important;
-          pointer-events: auto !important;
-        }
-        
-        /* Main widget container */
-        .cloudinary-widget,
-        #cloudinary-widget {
-          z-index: 1000000 !important;
-          position: fixed !important;
-          pointer-events: auto !important;
-        }
-        
-        /* Widget iframe */
-        .cloudinary-widget iframe,
-        #cloudinary-widget iframe {
-          z-index: 1000001 !important;
-          pointer-events: auto !important;
-        }
-        
-        /* Modal and content */
-        .cloudinary-widget-modal,
-        .cloudinary-widget .cloudinary-widget-modal {
-          z-index: 1000002 !important;
-          pointer-events: auto !important;
-        }
-        
-        /* Ensure all child elements are clickable */
-        .cloudinary-widget *,
-        #cloudinary-widget * {
-          pointer-events: auto !important;
-        }
-        
-        /* Override any conflicting styles from Radix portals */
-        [data-radix-portal] {
-          z-index: 50 !important;
-        }
-        
-        /* Temporarily hide the dialog content when widget is open */
-        .cloudinary-widget-open [data-radix-portal] {
-          pointer-events: none !important;
-        }
-        
-        .cloudinary-widget-open .cloudinary-widget-overlay,
-        .cloudinary-widget-open .cloudinary-widget,
-        .cloudinary-widget-open #cloudinary-overlay,
-        .cloudinary-widget-open #cloudinary-widget {
-          pointer-events: auto !important;
-        }
-      `;
-      document.head.appendChild(widgetStyles);
-
-      // Add class to body to indicate widget is open
-      document.body.classList.add('cloudinary-widget-open');
-
+      setIsCloudinaryOpen(true);
       window.cloudinary.openUploadWidget(
         {
           cloudName: eventSettings.cloudinaryCloudName,
@@ -206,13 +142,7 @@ export default function AttendeeForm({
           showPoweredBy: false
         },
         (error: any, result: any) => {
-          // Clean up the added styles and body class
-          const styleElement = document.getElementById('cloudinary-widget-styles');
-          if (styleElement) {
-            document.head.removeChild(styleElement);
-          }
-          document.body.classList.remove('cloudinary-widget-open');
-          
+          setIsCloudinaryOpen(false);
           if (!error && result && result.event === 'success') {
             setFormData(prev => ({ ...prev, photoUrl: result.info.secure_url }));
             toast({
@@ -220,11 +150,14 @@ export default function AttendeeForm({
               description: "Photo uploaded successfully!",
             });
           } else if (error) {
-            toast({
-              variant: "destructive",
-              title: "Upload Error",
-              description: error.message || "Failed to upload photo",
-            });
+            // Don't show an error toast if the user just closes the widget
+            if (result && result.event !== 'close') {
+              toast({
+                variant: "destructive",
+                title: "Upload Error",
+                description: error?.message || "Failed to upload photo",
+              });
+            }
           }
         }
       );
@@ -461,8 +394,16 @@ export default function AttendeeForm({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+    <Dialog open={isOpen} onOpenChange={onClose} modal={false}>
+      <DialogContent 
+        className="max-w-2xl max-h-[90vh] overflow-y-auto"
+        onInteractOutside={(e) => {
+          // Prevent closing the dialog when interacting with the Cloudinary widget
+          if (isCloudinaryOpen) {
+            e.preventDefault();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle>
             {attendee ? 'Edit Attendee' : 'Add New Attendee'}
