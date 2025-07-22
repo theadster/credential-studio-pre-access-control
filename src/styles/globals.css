@@ -71,3 +71,28 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Cloudinary Widget Z-Index Fix */
+@layer utilities {
+  .cloudinary-widget-overlay,
+  .cloudinary-widget,
+  .cloudinary-widget iframe,
+  .cloudinary-widget .cloudinary-widget-overlay,
+  .cloudinary-widget .cloudinary-widget-modal,
+  #cloudinary-overlay,
+  #cloudinary-widget {
+    z-index: 99999 !important;
+  }
+  
+  /* Ensure Cloudinary widget appears above all modals and dialogs */
+  [data-radix-portal] {
+    z-index: 50;
+  }
+  
+  [data-radix-portal] .cloudinary-widget-overlay,
+  [data-radix-portal] .cloudinary-widget,
+  [data-radix-portal] #cloudinary-overlay,
+  [data-radix-portal] #cloudinary-widget {
+    z-index: 99999 !important;
+  }
+}

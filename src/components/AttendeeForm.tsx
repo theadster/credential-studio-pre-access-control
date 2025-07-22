@@ -103,6 +103,27 @@ export default function AttendeeForm({
     }
 
     if (window.cloudinary) {
+      // Add high z-index styles to ensure widget appears on top
+      const widgetStyles = document.createElement('style');
+      widgetStyles.innerHTML = `
+        .cloudinary-widget-overlay {
+          z-index: 99999 !important;
+        }
+        .cloudinary-widget {
+          z-index: 100000 !important;
+        }
+        .cloudinary-widget iframe {
+          z-index: 100001 !important;
+        }
+        .cloudinary-widget .cloudinary-widget-overlay {
+          z-index: 99999 !important;
+        }
+        .cloudinary-widget .cloudinary-widget-modal {
+          z-index: 100000 !important;
+        }
+      `;
+      document.head.appendChild(widgetStyles);
+
       window.cloudinary.openUploadWidget(
         {
           cloudName: eventSettings.cloudinaryCloudName,
@@ -118,9 +139,31 @@ export default function AttendeeForm({
           maxFileSize: 5000000, // 5MB
           maxImageWidth: 800,
           maxImageHeight: 800,
-          theme: 'minimal'
+          theme: 'minimal',
+          styles: {
+            palette: {
+              window: "#FFFFFF",
+              windowBorder: "#90A0B3",
+              tabIcon: "#8B5CF6",
+              menuIcons: "#5A616A",
+              textDark: "#000000",
+              textLight: "#FFFFFF",
+              link: "#8B5CF6",
+              action: "#8B5CF6",
+              inactiveTabIcon: "#0E2F5A",
+              error: "#F44235",
+              inProgress: "#8B5CF6",
+              complete: "#20B832",
+              sourceBg: "#E4EBF1"
+            }
+          },
+          showAdvancedOptions: false,
+          showPoweredBy: false
         },
         (error: any, result: any) => {
+          // Clean up the added styles
+          document.head.removeChild(widgetStyles);
+          
           if (!error && result && result.event === 'success') {
             setFormData(prev => ({ ...prev, photoUrl: result.info.secure_url }));
             toast({
