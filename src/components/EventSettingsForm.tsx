@@ -587,21 +587,39 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                           </div>
                         </div>
                         
-                        <div className="space-y-2">
-                          <Label htmlFor="cloudinaryApiSecret" className="text-sm font-medium">
-                            API Secret
-                          </Label>
-                          <Input
-                            id="cloudinaryApiSecret"
-                            type="password"
-                            value={formData.cloudinaryApiSecret || ""}
-                            onChange={(e) => handleInputChange("cloudinaryApiSecret", e.target.value)}
-                            placeholder="••••••••••••••••••••••••••••"
-                            className="h-10"
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            Keep this secret secure and never share it publicly
-                          </p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="cloudinaryApiSecret" className="text-sm font-medium">
+                              API Secret
+                            </Label>
+                            <Input
+                              id="cloudinaryApiSecret"
+                              type="password"
+                              value={formData.cloudinaryApiSecret || ""}
+                              onChange={(e) => handleInputChange("cloudinaryApiSecret", e.target.value)}
+                              placeholder="••••••••••••••••••••••••••••"
+                              className="h-10"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              Keep this secret secure and never share it publicly
+                            </p>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor="cloudinaryUploadPreset" className="text-sm font-medium">
+                              Upload Preset
+                            </Label>
+                            <Input
+                              id="cloudinaryUploadPreset"
+                              value={formData.cloudinaryUploadPreset || ""}
+                              onChange={(e) => handleInputChange("cloudinaryUploadPreset", e.target.value)}
+                              placeholder="your-upload-preset"
+                              className="h-10"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              Create an unsigned upload preset in Cloudinary settings
+                            </p>
+                          </div>
                         </div>
                       </div>
 
@@ -650,9 +668,9 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                           </span>
                         </div>
                         <p className="text-sm text-green-600 dark:text-green-500 mt-1">
-                          {formData.cloudinaryCloudName && formData.cloudinaryApiKey && formData.cloudinaryApiSecret
-                            ? "Ready to connect - credentials provided"
-                            : "Waiting for credentials to be configured"
+                          {formData.cloudinaryCloudName && formData.cloudinaryApiKey && formData.cloudinaryApiSecret && formData.cloudinaryUploadPreset
+                            ? "Ready to upload - all credentials provided"
+                            : "Waiting for all credentials to be configured"
                           }
                         </p>
                       </div>
