@@ -1992,7 +1992,7 @@ export default function Dashboard() {
                         <div className="flex items-center justify-between pt-4 border-t">
                           <div>
                             <p className="text-sm text-muted-foreground">
-                              Last updated {new Date(eventSettings.updatedAt || eventSettings.createdAt).toLocaleDateString()}
+                              Last updated {new Date(eventSettings.updatedAt || eventSettings.createdAt).toLocaleDateString()} at {new Date(eventSettings.updatedAt || eventSettings.createdAt).toLocaleTimeString()}
                             </p>
                           </div>
                           <Button onClick={() => setShowEventSettingsForm(true)}>
