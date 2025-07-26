@@ -16,8 +16,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    // Check permissions
-    const hasPermission = await checkApiPermission(req, res, 'attendees', 'print');
+    // Get current user's role for permission checking
+    const currentUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      include: { role: true }
+    });
+
+    if (!currentUser?.role) {
+      return res.status(403).json({ error: 'No role assigned' });
+    }
+
+    // Check permissions manually since checkApiPermission expects different parameters
+    const userRole = currentUser.role;
+    const hasPermission = userRole.permissions?.attendees?.print || userRole.permissions?.all;
+    
     if (!hasPermission) {
       return res.status(403).json({ error: 'Insufficient permissions' });
     }
@@ -78,7 +90,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         '{{barcodeNumber}}': attendee.barcodeNumber || '',
         '{{photoUrl}}': attendee.photoUrl || '',
         '{{eventName}}': eventSettings.eventName || '',
-        '{{eventDate}}': eventSettings.eventDate || '',
+        '{{eventDate}}': eventSettings.eventDate ? eventSettings.eventDate.toISOString().split('T')[0] : '',
         '{{eventTime}}': eventSettings.eventTime || '',
         '{{eventLocation}}': eventSettings.eventLocation || '',
         '{{template_id}}': eventSettings.switchboardTemplateId || ''
