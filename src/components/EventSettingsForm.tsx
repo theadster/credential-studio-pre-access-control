@@ -201,18 +201,6 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
     })
   );
 
-  // Function to get display text for barcode type
-  const getBarcodeTypeDisplay = (value: string) => {
-    switch (value) {
-      case "numerical":
-        return "Numerical (0-9)";
-      case "alphanumerical":
-        return "Alphanumerical (A-Z, 0-9)";
-      default:
-        return "Select barcode type";
-    }
-  };
-
   useEffect(() => {
     if (eventSettings) {
       // Parse the date more carefully to avoid timezone issues
@@ -487,7 +475,11 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                       <Label htmlFor="barcodeType">Barcode Type</Label>
                       <Select value={formData.barcodeType} onValueChange={(value) => handleInputChange("barcodeType", value)}>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select barcode type" />
+                          <SelectValue>
+                            {formData.barcodeType === 'numerical'
+                              ? 'Numerical (0-9)'
+                              : 'Alphanumerical (A-Z, 0-9)'}
+                          </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="numerical">Numerical (0-9)</SelectItem>
