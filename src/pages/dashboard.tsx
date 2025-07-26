@@ -79,6 +79,7 @@ interface Attendee {
   credentialUrl?: string | null;
   credentialGeneratedAt?: string | null;
   createdAt: string;
+  updatedAt: string;
   customFieldValues: any[];
 }
 
@@ -308,6 +309,7 @@ export default function Dashboard() {
           barcodeNumber: "EVT001234",
           photoUrl: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150",
           createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
           customFieldValues: []
         },
         {
@@ -317,6 +319,7 @@ export default function Dashboard() {
           barcodeNumber: "EVT001235",
           photoUrl: "https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150",
           createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
           customFieldValues: []
         }
       ]);
@@ -510,10 +513,10 @@ export default function Dashboard() {
 
       const result = await response.json();
       
-      // Update the attendee in the local state with the new credential URL
+      // Update the attendee in the local state with the new credential URL and updated timestamp
       setAttendees(prev => prev.map(a => 
         a.id === attendeeId 
-          ? { ...a, credentialUrl: result.credentialUrl, credentialGeneratedAt: result.generatedAt }
+          ? { ...a, credentialUrl: result.credentialUrl, credentialGeneratedAt: result.generatedAt, updatedAt: new Date().toISOString() }
           : a
       ));
 
@@ -1025,6 +1028,34 @@ export default function Dashboard() {
     }
   };
 
+  // Function to determine credential status
+  const getCredentialStatus = (attendee: Attendee) => {
+    // If no credential exists, return null (no status to show)
+    if (!attendee.credentialUrl || !attendee.credentialGeneratedAt) {
+      return null;
+    }
+
+    const credentialGeneratedAt = new Date(attendee.credentialGeneratedAt);
+    const recordUpdatedAt = new Date(attendee.updatedAt);
+
+    // Since generating a credential also updates the record, we need to account for this
+    // We'll consider the credential "current" if it was generated within a reasonable time
+    // of the last record update (e.g., within 5 seconds to account for processing time)
+    const timeDifference = Math.abs(credentialGeneratedAt.getTime() - recordUpdatedAt.getTime());
+    const isCredentialFromSameUpdate = timeDifference <= 5000; // 5 seconds tolerance
+
+    if (isCredentialFromSameUpdate) {
+      // If the credential was generated as part of the same update, it's current
+      return 'current';
+    } else if (credentialGeneratedAt > recordUpdatedAt) {
+      // If credential was generated after the record was last updated, it's current
+      return 'current';
+    } else {
+      // If credential was generated before the record was last updated, it's outdated
+      return 'outdated';
+    }
+  };
+
   // Load logs when filters change or tab becomes active
   useEffect(() => {
     if (activeTab === 'logs' && canAccessTab(currentUser?.role, 'logs')) {
@@ -1419,6 +1450,7 @@ export default function Dashboard() {
                         <TableHead>Name</TableHead>
                         <TableHead>Barcode</TableHead>
                         <TableHead>Credential</TableHead>
+                        <TableHead>Status</TableHead>
                         <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -1515,6 +1547,32 @@ export default function Dashboard() {
                                     <Image className="h-5 w-5 text-gray-400" />
                                   </div>
                                 )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex justify-center">
+                                {(() => {
+                                  const status = getCredentialStatus(attendee);
+                                  if (status === 'current') {
+                                    return (
+                                      <span className="text-sm font-medium text-green-600">
+                                        Current
+                                      </span>
+                                    );
+                                  } else if (status === 'outdated') {
+                                    return (
+                                      <span className="text-sm font-medium text-red-600">
+                                        Outdated
+                                      </span>
+                                    );
+                                  } else {
+                                    return (
+                                      <span className="text-sm text-muted-foreground">
+                                        —
+                                      </span>
+                                    );
+                                  }
+                                })()}
                               </div>
                             </TableCell>
                             <TableCell>
