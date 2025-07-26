@@ -1410,7 +1410,7 @@ export default function Dashboard() {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-success">0</div>
+                    <div className="text-2xl font-bold text-success">{attendees.filter(attendee => attendee.credentialUrl).length}</div>
                   </CardContent>
                 </Card>
                 <Card className="glass-effect border-0 hover:shadow-lg transition-shadow">
