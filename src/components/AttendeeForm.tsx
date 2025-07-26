@@ -444,12 +444,19 @@ export default function AttendeeForm({
             </CardHeader>
             <CardContent>
               <div className="flex items-center space-x-4">
-                <Avatar className="h-20 w-20">
-                  <AvatarImage src={formData.photoUrl} />
-                  <AvatarFallback>
-                    {formData.firstName.charAt(0)}{formData.lastName.charAt(0)}
-                  </AvatarFallback>
-                </Avatar>
+                <div className="w-20 h-28 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden border">
+                  {formData.photoUrl ? (
+                    <img 
+                      src={formData.photoUrl} 
+                      alt="Attendee" 
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gray-200 flex items-center justify-center text-gray-600 font-medium text-sm">
+                      {formData.firstName.charAt(0)}{formData.lastName.charAt(0)}
+                    </div>
+                  )}
+                </div>
                 <div className="space-y-2">
                   <Button
                     type="button"
