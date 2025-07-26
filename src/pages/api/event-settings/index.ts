@@ -180,8 +180,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           return res.status(404).json({ error: 'Event settings not found. Create them first.' });
         }
 
+        // Handle date properly to avoid timezone issues
+        let updateParsedEventDate;
+        if (eventSettingsData.eventDate) {
+          if (typeof eventSettingsData.eventDate === 'string' && eventSettingsData.eventDate.includes('-') && !eventSettingsData.eventDate.includes('T')) {
+            // If it's a date string (YYYY-MM-DD), parse it as local date to avoid UTC conversion
+            const [year, month, day] = eventSettingsData.eventDate.split('-').map(Number);
+            updateParsedEventDate = new Date(year, month - 1, day);
+          } else {
+            updateParsedEventDate = new Date(eventSettingsData.eventDate);
+          }
+        }
+
         // Handle custom fields separately if they exist
         let customFieldsUpdate = {};
+        let useIncrementalUpdate = false;
+        
         if (customFields && Array.isArray(customFields)) {
           const existingFieldIds = currentSettings.customFields.map(f => f.id);
           const incomingFieldIds = customFields.filter(f => f.id && !f.id.startsWith('temp_')).map(f => f.id);
@@ -221,6 +235,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             };
           } else {
             // Only additions and/or reordering - handle incrementally
+            useIncrementalUpdate = true;
             const operations: any[] = [];
             
             // Update order for existing fields
@@ -257,24 +272,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         }
 
-        // Handle date properly to avoid timezone issues
-        let updateParsedEventDate;
-        if (eventSettingsData.eventDate) {
-          if (typeof eventSettingsData.eventDate === 'string' && eventSettingsData.eventDate.includes('-') && !eventSettingsData.eventDate.includes('T')) {
-            // If it's a date string (YYYY-MM-DD), parse it as local date to avoid UTC conversion
-            const [year, month, day] = eventSettingsData.eventDate.split('-').map(Number);
-            updateParsedEventDate = new Date(year, month - 1, day);
-          } else {
-            updateParsedEventDate = new Date(eventSettingsData.eventDate);
-          }
-        }
-
+        // Always update the EventSettings record to trigger the @updatedAt directive
         const updatedEventSettings = await prisma.eventSettings.update({
           where: { id: currentSettings.id },
           data: {
             ...eventSettingsData,
             eventDate: updateParsedEventDate,
-            ...customFieldsUpdate
+            // Force an update to trigger @updatedAt even if no main fields changed
+            updatedAt: new Date(),
+            // Only include custom fields update if we're not using incremental approach
+            ...(useIncrementalUpdate ? {} : customFieldsUpdate)
           },
           include: {
             customFields: {
@@ -304,19 +311,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           });
         }
 
-        // Ensure we return the most up-to-date record with the latest updatedAt timestamp
-        const finalEventSettings = await prisma.eventSettings.findUnique({
-          where: { id: currentSettings.id },
-          include: {
-            customFields: {
-              orderBy: {
-                order: 'asc'
-              }
-            }
-          }
-        });
-
-        return res.status(200).json(finalEventSettings);
+        return res.status(200).json(updatedEventSettings);
 
       default:
         res.setHeader('Allow', ['GET', 'POST', 'PUT']);
