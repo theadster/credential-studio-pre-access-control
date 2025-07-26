@@ -28,7 +28,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Check permissions manually since checkApiPermission expects different parameters
     const userRole = currentUser.role;
-    const hasPermission = userRole.permissions?.attendees?.print || userRole.permissions?.all;
+    const permissions = userRole.permissions as any;
+    const hasPermission = permissions?.attendees?.print || permissions?.all;
     
     if (!hasPermission) {
       return res.status(403).json({ error: 'Insufficient permissions' });
