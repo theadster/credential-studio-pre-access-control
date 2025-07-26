@@ -31,7 +31,7 @@ import {
   Mail,
   MoreHorizontal,
   FileImage,
-  Award
+  Image
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -1477,11 +1477,11 @@ export default function Dashboard() {
                                     className="p-1 rounded hover:bg-gray-100 transition-colors"
                                     title="View Credential"
                                   >
-                                    <Award className="h-5 w-5 text-purple-600" />
+                                    <Image className="h-5 w-5 text-purple-600" />
                                   </button>
                                 ) : (
                                   <div className="p-1" title="No Credential Generated">
-                                    <Award className="h-5 w-5 text-gray-400" />
+                                    <Image className="h-5 w-5 text-gray-400" />
                                   </div>
                                 )}
                               </div>
