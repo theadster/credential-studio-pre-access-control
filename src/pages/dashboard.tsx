@@ -28,12 +28,15 @@ import {
   BarChart3,
   Printer,
   AlertTriangle,
-  Mail
+  Mail,
+  MoreHorizontal,
+  FileImage
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
@@ -72,6 +75,8 @@ interface Attendee {
   lastName: string;
   barcodeNumber: string;
   photoUrl: string | null;
+  credentialUrl?: string | null;
+  credentialGeneratedAt?: string | null;
   createdAt: string;
   customFieldValues: any[];
 }
@@ -136,6 +141,7 @@ export default function Dashboard() {
   const [showAttendeeForm, setShowAttendeeForm] = useState(false);
   const [editingAttendee, setEditingAttendee] = useState<Attendee | null>(null);
   const [printingAttendee, setPrintingAttendee] = useState<string | null>(null);
+  const [generatingCredential, setGeneratingCredential] = useState<string | null>(null);
   const [showUserForm, setShowUserForm] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -486,6 +492,47 @@ export default function Dashboard() {
         title: "Error",
         description: error.message,
       });
+    }
+  };
+
+  const handleGenerateCredential = async (attendeeId: string) => {
+    setGeneratingCredential(attendeeId);
+    try {
+      const response = await fetch(`/api/attendees/${attendeeId}/generate-credential`, {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to generate credential');
+      }
+
+      const result = await response.json();
+      
+      // Update the attendee in the local state with the new credential URL
+      setAttendees(prev => prev.map(a => 
+        a.id === attendeeId 
+          ? { ...a, credentialUrl: result.credentialUrl, credentialGeneratedAt: result.generatedAt }
+          : a
+      ));
+
+      // Open the generated credential in a new tab
+      if (result.credentialUrl) {
+        window.open(result.credentialUrl, '_blank');
+      }
+
+      toast({
+        title: "Success",
+        description: "Credential generated successfully!",
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
+    } finally {
+      setGeneratingCredential(null);
     }
   };
 
@@ -1425,58 +1472,54 @@ export default function Dashboard() {
                               {new Date(attendee.createdAt).toLocaleDateString()}
                             </TableCell>
                             <TableCell>
-                              <div className="flex items-center space-x-2">
-                                {hasPermission(currentUser?.role, 'attendees', 'read') && (
-                                  <Button 
-                                    variant="ghost" 
-                                    size="sm"
-                                    onClick={async () => {
-                                      await refreshEventSettings();
-                                      setEditingAttendee(attendee);
-                                      setShowAttendeeForm(true);
-                                    }}
-                                  >
-                                    <Eye className="h-4 w-4" />
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm">
+                                    <MoreHorizontal className="h-4 w-4" />
                                   </Button>
-                                )}
-                                {hasPermission(currentUser?.role, 'attendees', 'update') && (
-                                  <Button 
-                                    variant="ghost" 
-                                    size="sm"
-                                    onClick={async () => {
-                                      await refreshEventSettings();
-                                      setEditingAttendee(attendee);
-                                      setShowAttendeeForm(true);
-                                    }}
-                                  >
-                                    <Edit className="h-4 w-4" />
-                                  </Button>
-                                )}
-                                {hasPermission(currentUser?.role, 'attendees', 'print') && (
-                                  <Button 
-                                    variant="ghost" 
-                                    size="sm"
-                                    onClick={() => handlePrintCredential(attendee.id)}
-                                    disabled={printingAttendee === attendee.id}
-                                  >
-                                    {printingAttendee === attendee.id ? (
-                                      <Printer className="h-4 w-4 animate-spin" />
-                                    ) : (
-                                      <CreditCard className="h-4 w-4" />
-                                    )}
-                                  </Button>
-                                )}
-                                {hasPermission(currentUser?.role, 'attendees', 'delete') && (
-                                  <Button 
-                                    variant="ghost" 
-                                    size="sm" 
-                                    className="text-destructive"
-                                    onClick={() => handleDeleteAttendee(attendee.id)}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                )}
-                              </div>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  {hasPermission(currentUser?.role, 'attendees', 'print') && (
+                                    <DropdownMenuItem
+                                      onClick={() => handleGenerateCredential(attendee.id)}
+                                      disabled={generatingCredential === attendee.id}
+                                    >
+                                      {generatingCredential === attendee.id ? (
+                                        <>
+                                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                                          Generating...
+                                        </>
+                                      ) : (
+                                        <>
+                                          <FileImage className="mr-2 h-4 w-4" />
+                                          Generate Credential
+                                        </>
+                                      )}
+                                    </DropdownMenuItem>
+                                  )}
+                                  {hasPermission(currentUser?.role, 'attendees', 'update') && (
+                                    <DropdownMenuItem
+                                      onClick={async () => {
+                                        await refreshEventSettings();
+                                        setEditingAttendee(attendee);
+                                        setShowAttendeeForm(true);
+                                      }}
+                                    >
+                                      <Edit className="mr-2 h-4 w-4" />
+                                      Edit
+                                    </DropdownMenuItem>
+                                  )}
+                                  {hasPermission(currentUser?.role, 'attendees', 'delete') && (
+                                    <DropdownMenuItem
+                                      onClick={() => handleDeleteAttendee(attendee.id)}
+                                      className="text-destructive"
+                                    >
+                                      <Trash2 className="mr-2 h-4 w-4" />
+                                      Delete
+                                    </DropdownMenuItem>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </TableCell>
                           </TableRow>
                         );

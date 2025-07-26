@@ -108,13 +108,15 @@ model CustomField {
 }
 
 model Attendee {
-  id            String   @id @default(cuid())
-  firstName     String
-  lastName      String
-  barcodeNumber String   @unique
-  photoUrl      String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id                    String   @id @default(cuid())
+  firstName             String
+  lastName              String
+  barcodeNumber         String   @unique
+  photoUrl              String?
+  credentialUrl         String?
+  credentialGeneratedAt DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   customFieldValues AttendeeCustomFieldValue[]
   logs              Log[]
