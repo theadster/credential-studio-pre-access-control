@@ -1555,13 +1555,13 @@ export default function Dashboard() {
                                   const status = getCredentialStatus(attendee);
                                   if (status === 'current') {
                                     return (
-                                      <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium uppercase bg-green-100 text-green-800 border border-green-200">
+                                      <span className="inline-flex items-center px-2 py-1 rounded-md text-sm font-medium uppercase bg-green-100 text-green-800 border border-green-200">
                                         CURRENT
                                       </span>
                                     );
                                   } else if (status === 'outdated') {
                                     return (
-                                      <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium uppercase bg-red-100 text-red-800 border border-red-200">
+                                      <span className="inline-flex items-center px-2 py-1 rounded-md text-sm font-medium uppercase bg-red-100 text-red-800 border border-red-200">
                                         OUTDATED
                                       </span>
                                     );
