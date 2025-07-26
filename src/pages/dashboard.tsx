@@ -658,6 +658,9 @@ export default function Dashboard() {
       const savedSettings = await response.json();
       setEventSettings(savedSettings);
 
+      // Refresh event settings to ensure we have the latest data
+      await refreshEventSettings();
+
       toast({
         title: "Success",
         description: eventSettings ? "Event settings updated successfully!" : "Event settings created successfully!",
@@ -1858,26 +1861,145 @@ export default function Dashboard() {
                     </Card>
                   </div>
 
-                  {/* Quick Actions */}
+                  {/* Current Configuration Details */}
                   <Card className="glass-effect border-0">
                     <CardHeader>
-                      <CardTitle>Event Configuration</CardTitle>
+                      <CardTitle>Current Configuration</CardTitle>
                       <CardDescription>
-                        Manage your event settings, barcode configuration, and integrations
+                        Detailed view of your current event settings and integrations
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <div className="flex items-center justify-between">
+                      <div className="space-y-6">
+                        {/* General Settings */}
                         <div>
-                          <h3 className="font-medium">Current Configuration</h3>
-                          <p className="text-sm text-muted-foreground">
-                            Last updated {new Date(eventSettings.updatedAt || eventSettings.createdAt).toLocaleDateString()}
-                          </p>
+                          <h4 className="font-medium mb-3 flex items-center gap-2">
+                            <Calendar className="h-4 w-4" />
+                            General Settings
+                          </h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                            <div>
+                              <span className="font-medium">Event Name:</span> {eventSettings.eventName || 'Not set'}
+                            </div>
+                            <div>
+                              <span className="font-medium">Event Date:</span> {eventSettings.eventDate ? (() => {
+                                const dateValue = eventSettings.eventDate;
+                                if (!dateValue) return 'No date set';
+                                const dateStr = typeof dateValue === 'string' ? dateValue : String(dateValue);
+                                let datePart = dateStr;
+                                if (dateStr.includes('T')) {
+                                  datePart = dateStr.split('T')[0];
+                                }
+                                const [year, month, day] = datePart.split('-').map(Number);
+                                const localDate = new Date(year, month - 1, day);
+                                return localDate.toLocaleDateString('en-US', { 
+                                  year: 'numeric', 
+                                  month: 'long', 
+                                  day: 'numeric'
+                                });
+                              })() : 'Not set'}
+                            </div>
+                            <div>
+                              <span className="font-medium">Event Time:</span> {eventSettings.eventTime ? (() => {
+                                const timeZone = eventSettings.timeZone || 'America/Los_Angeles';
+                                const timeStr = eventSettings.eventTime;
+                                const today = new Date();
+                                const [hours, minutes] = timeStr.split(':').map(Number);
+                                const eventDateTime = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes);
+                                return eventDateTime.toLocaleTimeString('en-US', {
+                                  hour: 'numeric',
+                                  minute: '2-digit',
+                                  hour12: true,
+                                  timeZone: timeZone
+                                });
+                              })() : 'Not set'}
+                            </div>
+                            <div>
+                              <span className="font-medium">Location:</span> {eventSettings.eventLocation || 'Not set'}
+                            </div>
+                            <div>
+                              <span className="font-medium">Time Zone:</span> {eventSettings.timeZone || 'Not set'}
+                            </div>
+                            <div>
+                              <span className="font-medium">Banner Image:</span> {eventSettings.bannerImageUrl ? 'Configured' : 'Not set'}
+                            </div>
+                          </div>
                         </div>
-                        <Button onClick={() => setShowEventSettingsForm(true)}>
-                          <Edit className="mr-2 h-4 w-4" />
-                          Edit Settings
-                        </Button>
+
+                        {/* Barcode Settings */}
+                        <div>
+                          <h4 className="font-medium mb-3 flex items-center gap-2">
+                            <CreditCard className="h-4 w-4" />
+                            Barcode Settings
+                          </h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                            <div>
+                              <span className="font-medium">Barcode Type:</span> {eventSettings.barcodeType === 'numerical' ? 'Numerical (0-9)' : eventSettings.barcodeType === 'alphanumerical' ? 'Alphanumerical (A-Z, 0-9)' : 'Not set'}
+                            </div>
+                            <div>
+                              <span className="font-medium">Barcode Length:</span> {eventSettings.barcodeLength || 'Not set'}
+                            </div>
+                            <div>
+                              <span className="font-medium">Unique Barcodes:</span> {eventSettings.barcodeUnique ? 'Yes' : 'No'}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Integration Status */}
+                        <div>
+                          <h4 className="font-medium mb-3 flex items-center gap-2">
+                            <Settings className="h-4 w-4" />
+                            Integrations
+                          </h4>
+                          <div className="space-y-3">
+                            {/* Cloudinary Status */}
+                            <div className="flex items-center justify-between p-3 border rounded-lg">
+                              <div className="flex items-center gap-3">
+                                <div className={`h-2 w-2 rounded-full ${(eventSettings as any).cloudinaryEnabled ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                                <div>
+                                  <div className="font-medium">Cloudinary Integration</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {(eventSettings as any).cloudinaryEnabled ? 'Active' : 'Disabled'}
+                                    {(eventSettings as any).cloudinaryEnabled && (eventSettings as any).cloudinaryCloudName && (eventSettings as any).cloudinaryApiKey && (eventSettings as any).cloudinaryUploadPreset ? ' - Fully Configured' : (eventSettings as any).cloudinaryEnabled ? ' - Incomplete Configuration' : ''}
+                                  </div>
+                                </div>
+                              </div>
+                              <Badge variant={(eventSettings as any).cloudinaryEnabled ? "default" : "secondary"}>
+                                {(eventSettings as any).cloudinaryEnabled ? 'Enabled' : 'Disabled'}
+                              </Badge>
+                            </div>
+
+                            {/* Switchboard Status */}
+                            <div className="flex items-center justify-between p-3 border rounded-lg">
+                              <div className="flex items-center gap-3">
+                                <div className={`h-2 w-2 rounded-full ${(eventSettings as any).switchboardEnabled ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                                <div>
+                                  <div className="font-medium">Switchboard Canvas Integration</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {(eventSettings as any).switchboardEnabled ? 'Active' : 'Disabled'}
+                                    {(eventSettings as any).switchboardEnabled && (eventSettings as any).switchboardApiEndpoint && (eventSettings as any).switchboardApiKey ? ' - Fully Configured' : (eventSettings as any).switchboardEnabled ? ' - Incomplete Configuration' : ''}
+                                  </div>
+                                </div>
+                              </div>
+                              <Badge variant={(eventSettings as any).switchboardEnabled ? "default" : "secondary"}>
+                                {(eventSettings as any).switchboardEnabled ? 'Enabled' : 'Disabled'}
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Action Button */}
+                        <div className="flex items-center justify-between pt-4 border-t">
+                          <div>
+                            <p className="text-sm text-muted-foreground">
+                              Last updated {new Date(eventSettings.updatedAt || eventSettings.createdAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <Button onClick={() => setShowEventSettingsForm(true)}>
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edit Settings
+                          </Button>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
