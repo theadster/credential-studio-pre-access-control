@@ -906,20 +906,70 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                         </div>
                       </div>
 
-                      {/* Connection Status */}
-                      <div className="p-4 border rounded-lg bg-green-50 dark:bg-green-950/20">
-                        <div className="flex items-center gap-2">
-                          <div className="h-2 w-2 bg-green-500 rounded-full"></div>
-                          <span className="text-sm font-medium text-green-700 dark:text-green-400">
-                            Integration Status
-                          </span>
+                      {/* Connection Status and Test */}
+                      <div className="space-y-4">
+                        <div className="p-4 border rounded-lg bg-green-50 dark:bg-green-950/20">
+                          <div className="flex items-center gap-2">
+                            <div className="h-2 w-2 bg-green-500 rounded-full"></div>
+                            <span className="text-sm font-medium text-green-700 dark:text-green-400">
+                              Integration Status
+                            </span>
+                          </div>
+                          <p className="text-sm text-green-600 dark:text-green-500 mt-1">
+                            {formData.switchboardApiEndpoint && formData.switchboardApiKey && formData.switchboardRequestBody
+                              ? "Ready to generate credentials - all configuration provided"
+                              : "Waiting for API endpoint, authentication, and request body configuration"
+                            }
+                          </p>
                         </div>
-                        <p className="text-sm text-green-600 dark:text-green-500 mt-1">
-                          {formData.switchboardApiEndpoint && formData.switchboardApiKey && formData.switchboardRequestBody
-                            ? "Ready to generate credentials - all configuration provided"
-                            : "Waiting for API endpoint, authentication, and request body configuration"
-                          }
-                        </p>
+                        
+                        {formData.switchboardApiEndpoint && formData.switchboardApiKey && (
+                          <div className="p-4 border rounded-lg">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <h5 className="text-sm font-medium">Test Connection</h5>
+                                <p className="text-xs text-muted-foreground">
+                                  Test your Switchboard Canvas API configuration
+                                </p>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={async () => {
+                                  try {
+                                    const response = await fetch('/api/switchboard/test', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' }
+                                    });
+                                    const result = await response.json();
+                                    
+                                    if (result.success) {
+                                      toast({
+                                        title: "Connection Successful",
+                                        description: "Switchboard Canvas API is responding correctly",
+                                      });
+                                    } else {
+                                      toast({
+                                        variant: "destructive",
+                                        title: "Connection Failed",
+                                        description: `API returned ${result.status}: ${JSON.stringify(result.response)}`,
+                                      });
+                                    }
+                                  } catch (error) {
+                                    toast({
+                                      variant: "destructive",
+                                      title: "Test Failed",
+                                      description: "Failed to test Switchboard Canvas connection",
+                                    });
+                                  }
+                                }}
+                              >
+                                Test Connection
+                              </Button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
