@@ -1482,12 +1482,19 @@ export default function Dashboard() {
                         return (
                           <TableRow key={attendee.id}>
                             <TableCell>
-                              <Avatar className="h-8 w-8">
-                                <AvatarImage src={attendee.photoUrl || undefined} />
-                                <AvatarFallback>
-                                  {attendee.firstName.charAt(0)}{attendee.lastName.charAt(0)}
-                                </AvatarFallback>
-                              </Avatar>
+                              <div className="relative w-16 h-12 bg-muted rounded overflow-hidden flex-shrink-0">
+                                {attendee.photoUrl ? (
+                                  <img 
+                                    src={attendee.photoUrl} 
+                                    alt={`${attendee.firstName} ${attendee.lastName}`}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full bg-muted flex items-center justify-center text-muted-foreground text-sm font-medium">
+                                    {attendee.firstName.charAt(0)}{attendee.lastName.charAt(0)}
+                                  </div>
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell>
                               <div>
