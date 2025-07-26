@@ -30,7 +30,8 @@ import {
   AlertTriangle,
   Mail,
   MoreHorizontal,
-  FileImage
+  FileImage,
+  Award
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -1386,7 +1387,7 @@ export default function Dashboard() {
                         <TableHead>Photo</TableHead>
                         <TableHead>Name</TableHead>
                         <TableHead>Barcode</TableHead>
-                        <TableHead>Created</TableHead>
+                        <TableHead>Credential</TableHead>
                         <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -1469,7 +1470,21 @@ export default function Dashboard() {
                               <Badge variant="outline">{attendee.barcodeNumber}</Badge>
                             </TableCell>
                             <TableCell>
-                              {new Date(attendee.createdAt).toLocaleDateString()}
+                              <div className="flex justify-center">
+                                {attendee.credentialUrl ? (
+                                  <button
+                                    onClick={() => window.open(attendee.credentialUrl, '_blank')}
+                                    className="p-1 rounded hover:bg-gray-100 transition-colors"
+                                    title="View Credential"
+                                  >
+                                    <Award className="h-5 w-5 text-purple-600" />
+                                  </button>
+                                ) : (
+                                  <div className="p-1" title="No Credential Generated">
+                                    <Award className="h-5 w-5 text-gray-400" />
+                                  </div>
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell>
                               <DropdownMenu>
