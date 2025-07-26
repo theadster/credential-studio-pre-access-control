@@ -537,6 +537,37 @@ export default function Dashboard() {
     }
   };
 
+  const handleClearCredential = async (attendeeId: string) => {
+    try {
+      const response = await fetch(`/api/attendees/${attendeeId}/clear-credential`, {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to clear credential');
+      }
+
+      // Update the attendee in the local state
+      setAttendees(prev => prev.map(a => 
+        a.id === attendeeId 
+          ? { ...a, credentialUrl: null, credentialGeneratedAt: null }
+          : a
+      ));
+
+      toast({
+        title: "Success",
+        description: "Credential cleared successfully!",
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
+    }
+  };
+
   const handlePrintCredential = async (attendeeId: string) => {
     setPrintingAttendee(attendeeId);
     try {
@@ -1510,6 +1541,14 @@ export default function Dashboard() {
                                           Generate Credential
                                         </>
                                       )}
+                                    </DropdownMenuItem>
+                                  )}
+                                  {hasPermission(currentUser?.role, 'attendees', 'print') && attendee.credentialUrl && (
+                                    <DropdownMenuItem
+                                      onClick={() => handleClearCredential(attendee.id)}
+                                    >
+                                      <Trash2 className="mr-2 h-4 w-4" />
+                                      Clear Credential
                                     </DropdownMenuItem>
                                   )}
                                   {hasPermission(currentUser?.role, 'attendees', 'update') && (
