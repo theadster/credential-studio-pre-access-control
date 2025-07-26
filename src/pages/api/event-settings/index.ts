@@ -304,7 +304,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           });
         }
 
-        return res.status(200).json(updatedEventSettings);
+        // Ensure we return the most up-to-date record with the latest updatedAt timestamp
+        const finalEventSettings = await prisma.eventSettings.findUnique({
+          where: { id: currentSettings.id },
+          include: {
+            customFields: {
+              orderBy: {
+                order: 'asc'
+              }
+            }
+          }
+        });
+
+        return res.status(200).json(finalEventSettings);
 
       default:
         res.setHeader('Allow', ['GET', 'POST', 'PUT']);

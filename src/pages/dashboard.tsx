@@ -655,10 +655,8 @@ export default function Dashboard() {
         throw new Error(error.error || 'Failed to save event settings');
       }
 
-      const savedSettings = await response.json();
-      setEventSettings(savedSettings);
-
-      // Refresh event settings to ensure we have the latest data
+      // Don't set the state immediately, instead refresh to get the latest data
+      // This ensures we get the updated `updatedAt` timestamp from the database
       await refreshEventSettings();
 
       toast({
