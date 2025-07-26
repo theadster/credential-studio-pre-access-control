@@ -113,33 +113,76 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const finalRequestBody = JSON.parse(bodyString);
 
       // Make the API call to Switchboard Canvas
-      const authHeaderType = eventSettings.switchboardAuthHeaderType || 'Bearer';
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        [authHeaderType]: eventSettings.switchboardApiKey
-      };
+      let switchboardResponse;
+      try {
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        };
 
-      const switchboardResponse = await fetch(eventSettings.switchboardApiEndpoint, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(finalRequestBody)
-      });
+        // Set the authentication header based on the configured type
+        const authHeaderType = eventSettings.switchboardAuthHeaderType || 'Bearer';
+        if (authHeaderType === 'Bearer') {
+          headers['Authorization'] = `Bearer ${eventSettings.switchboardApiKey}`;
+        } else {
+          headers[authHeaderType] = eventSettings.switchboardApiKey || '';
+        }
+
+        console.log('Making Switchboard API request to:', eventSettings.switchboardApiEndpoint);
+        console.log('Request headers:', { ...headers, [authHeaderType === 'Bearer' ? 'Authorization' : authHeaderType]: '[REDACTED]' });
+        console.log('Request body:', JSON.stringify(finalRequestBody, null, 2));
+
+        switchboardResponse = await fetch(eventSettings.switchboardApiEndpoint, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(finalRequestBody)
+        });
+
+        console.log('Switchboard API response status:', switchboardResponse.status);
+        console.log('Switchboard API response headers:', Object.fromEntries(switchboardResponse.headers.entries()));
+
+      } catch (fetchError) {
+        console.error('Fetch error:', fetchError);
+        return res.status(500).json({ error: 'Failed to connect to Switchboard Canvas API' });
+      }
 
       if (!switchboardResponse.ok) {
         const errorText = await switchboardResponse.text();
-        console.error('Switchboard API error:', errorText);
-        return res.status(500).json({ error: 'Failed to generate credential with Switchboard Canvas' });
+        console.error('Switchboard API error response:', {
+          status: switchboardResponse.status,
+          statusText: switchboardResponse.statusText,
+          body: errorText
+        });
+        return res.status(500).json({ 
+          error: 'Failed to generate credential with Switchboard Canvas',
+          details: `API returned ${switchboardResponse.status}: ${errorText}`
+        });
       }
 
-      const switchboardResult = await switchboardResponse.json();
+      let switchboardResult;
+      try {
+        switchboardResult = await switchboardResponse.json();
+        console.log('Switchboard API response data:', switchboardResult);
+      } catch (parseError) {
+        console.error('Failed to parse Switchboard response as JSON:', parseError);
+        return res.status(500).json({ error: 'Invalid response format from Switchboard Canvas' });
+      }
       
-      // Extract the credential URL from the response
-      // This may need to be adjusted based on Switchboard Canvas API response format
-      const credentialUrl = switchboardResult.url || switchboardResult.imageUrl || switchboardResult.downloadUrl;
+      // Extract the credential URL from the response - try multiple possible field names
+      const credentialUrl = switchboardResult.url || 
+                           switchboardResult.imageUrl || 
+                           switchboardResult.downloadUrl ||
+                           switchboardResult.credentialUrl ||
+                           switchboardResult.result?.url ||
+                           switchboardResult.data?.url ||
+                           switchboardResult.response?.url;
       
       if (!credentialUrl) {
-        console.error('No credential URL in Switchboard response:', switchboardResult);
-        return res.status(500).json({ error: 'No credential URL returned from Switchboard Canvas' });
+        console.error('No credential URL found in Switchboard response. Available fields:', Object.keys(switchboardResult));
+        return res.status(500).json({ 
+          error: 'No credential URL returned from Switchboard Canvas',
+          responseFields: Object.keys(switchboardResult),
+          response: switchboardResult
+        });
       }
 
       // Update the attendee record with the credential URL and timestamp
