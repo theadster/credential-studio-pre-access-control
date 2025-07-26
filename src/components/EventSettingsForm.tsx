@@ -61,7 +61,11 @@ interface EventSettings {
   cloudinaryGenerateThumbnails?: boolean;
   cloudinaryDisableSkipCrop?: boolean;
   cloudinaryCropAspectRatio?: string;
+  switchboardEnabled?: boolean;
+  switchboardApiEndpoint?: string;
+  switchboardAuthHeaderType?: string;
   switchboardApiKey?: string;
+  switchboardRequestBody?: string;
   switchboardTemplateId?: string;
   bannerImageUrl?: string | null;
   customFields?: CustomField[];
@@ -725,31 +729,200 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Switchboard Canvas Settings</CardTitle>
-                  <CardDescription>Configure credential printing integration</CardDescription>
+                  <CardTitle className="flex items-center gap-2">
+                    <Settings className="h-5 w-5" />
+                    Switchboard Canvas Integration
+                  </CardTitle>
+                  <CardDescription>Configure credential printing and generation through Switchboard Canvas</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="switchboardApiKey">API Key</Label>
-                      <Input
-                        id="switchboardApiKey"
-                        type="password"
-                        value={formData.switchboardApiKey || ""}
-                        onChange={(e) => handleInputChange("switchboardApiKey", e.target.value)}
-                        placeholder="your-switchboard-api-key"
-                      />
+                <CardContent className="space-y-6">
+                  {/* Enable Switchboard Toggle */}
+                  <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/50">
+                    <div className="space-y-1">
+                      <Label htmlFor="switchboard-enabled" className="text-base font-medium">
+                        Enable Switchboard Canvas Integration
+                      </Label>
+                      <p className="text-sm text-muted-foreground">
+                        Allow credential generation and printing through Switchboard Canvas
+                      </p>
                     </div>
-                    <div>
-                      <Label htmlFor="switchboardTemplateId">Template ID</Label>
-                      <Input
-                        id="switchboardTemplateId"
-                        value={formData.switchboardTemplateId || ""}
-                        onChange={(e) => handleInputChange("switchboardTemplateId", e.target.value)}
-                        placeholder="your-template-id"
-                      />
-                    </div>
+                    <Switch
+                      id="switchboard-enabled"
+                      checked={formData.switchboardEnabled || false}
+                      onCheckedChange={(checked) => handleInputChange("switchboardEnabled", checked)}
+                    />
                   </div>
+                  
+                  {formData.switchboardEnabled && (
+                    <div className="space-y-6">
+                      {/* API Configuration Section */}
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <Settings className="h-4 w-4" />
+                          <h4 className="text-sm font-semibold">API Configuration</h4>
+                        </div>
+                        
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="switchboardApiEndpoint" className="text-sm font-medium">
+                              Switchboard API Endpoint *
+                            </Label>
+                            <Input
+                              id="switchboardApiEndpoint"
+                              value={formData.switchboardApiEndpoint || ""}
+                              onChange={(e) => handleInputChange("switchboardApiEndpoint", e.target.value)}
+                              placeholder="https://api.switchboard.ai/v1/generate"
+                              className="h-10"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              The full URL endpoint for the Switchboard Canvas API
+                            </p>
+                          </div>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="switchboardAuthHeaderType" className="text-sm font-medium">
+                                Authentication Header Type
+                              </Label>
+                              <Select 
+                                value={formData.switchboardAuthHeaderType || "Bearer"} 
+                                onValueChange={(value) => handleInputChange("switchboardAuthHeaderType", value)}
+                              >
+                                <SelectTrigger className="h-10">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="Bearer">Bearer</SelectItem>
+                                  <SelectItem value="API-Key">API-Key</SelectItem>
+                                  <SelectItem value="Authorization">Authorization</SelectItem>
+                                  <SelectItem value="X-API-Key">X-API-Key</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <p className="text-xs text-muted-foreground">
+                                The type of authentication header to use
+                              </p>
+                            </div>
+                            
+                            <div className="space-y-2">
+                              <Label htmlFor="switchboardApiKey" className="text-sm font-medium">
+                                Authentication Value (API Key) *
+                              </Label>
+                              <Input
+                                id="switchboardApiKey"
+                                type="password"
+                                value={formData.switchboardApiKey || ""}
+                                onChange={(e) => handleInputChange("switchboardApiKey", e.target.value)}
+                                placeholder="your-switchboard-api-key"
+                                className="h-10"
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                Your Switchboard Canvas API key
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Request Configuration Section */}
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <Settings className="h-4 w-4" />
+                          <h4 className="text-sm font-semibold">Request Configuration</h4>
+                        </div>
+                        
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="switchboardRequestBody" className="text-sm font-medium">
+                              API Request Body (JSON) *
+                            </Label>
+                            <Textarea
+                              id="switchboardRequestBody"
+                              value={formData.switchboardRequestBody || ""}
+                              onChange={(e) => handleInputChange("switchboardRequestBody", e.target.value)}
+                              placeholder={`{
+  "template_id": "{{template_id}}",
+  "data": {
+    "firstName": "{{firstName}}",
+    "lastName": "{{lastName}}",
+    "barcodeNumber": "{{barcodeNumber}}",
+    "eventName": "{{eventName}}",
+    "eventDate": "{{eventDate}}",
+    "eventLocation": "{{eventLocation}}"
+  }
+}`}
+                              className="min-h-[200px] font-mono text-sm"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              The JSON payload to send to the Switchboard API. Use placeholders for dynamic data.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Placeholders Documentation */}
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4" />
+                          <h4 className="text-sm font-semibold">Available Placeholders</h4>
+                        </div>
+                        
+                        <div className="p-4 border rounded-lg bg-blue-50 dark:bg-blue-950/20">
+                          <p className="text-sm text-blue-800 dark:text-blue-200 mb-3">
+                            <strong>Placeholders</strong> are dynamic values that get replaced with actual attendee data when generating credentials. 
+                            Use the format <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{"{{placeholder_name}}"}</code> in your JSON request body.
+                          </p>
+                          
+                          <div className="space-y-3">
+                            <div>
+                              <h5 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">Standard Fields:</h5>
+                              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                                <code className="bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded">{"{{firstName}}"}</code>
+                                <code className="bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded">{"{{lastName}}"}</code>
+                                <code className="bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded">{"{{barcodeNumber}}"}</code>
+                                <code className="bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded">{"{{photoUrl}}"}</code>
+                                <code className="bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded">{"{{eventName}}"}</code>
+                                <code className="bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded">{"{{eventDate}}"}</code>
+                                <code className="bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded">{"{{eventTime}}"}</code>
+                                <code className="bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded">{"{{eventLocation}}"}</code>
+                                <code className="bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded">{"{{template_id}}"}</code>
+                              </div>
+                            </div>
+                            
+                            {customFields.length > 0 && (
+                              <div>
+                                <h5 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">Custom Fields:</h5>
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                                  {customFields
+                                    .sort((a, b) => a.order - b.order)
+                                    .map((field) => (
+                                      <code key={field.id} className="bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded">
+                                        {`{{${field.internalFieldName || generateInternalFieldName(field.fieldName)}}}`}
+                                      </code>
+                                    ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Connection Status */}
+                      <div className="p-4 border rounded-lg bg-green-50 dark:bg-green-950/20">
+                        <div className="flex items-center gap-2">
+                          <div className="h-2 w-2 bg-green-500 rounded-full"></div>
+                          <span className="text-sm font-medium text-green-700 dark:text-green-400">
+                            Integration Status
+                          </span>
+                        </div>
+                        <p className="text-sm text-green-600 dark:text-green-500 mt-1">
+                          {formData.switchboardApiEndpoint && formData.switchboardApiKey && formData.switchboardRequestBody
+                            ? "Ready to generate credentials - all configuration provided"
+                            : "Waiting for API endpoint, authentication, and request body configuration"
+                          }
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>

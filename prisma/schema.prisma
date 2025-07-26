@@ -74,7 +74,11 @@ model EventSettings {
   cloudinaryGenerateThumbnails Boolean? @default(false)
   cloudinaryDisableSkipCrop    Boolean? @default(false)
   cloudinaryCropAspectRatio    String?  @default("1")
+  switchboardEnabled           Boolean? @default(false)
+  switchboardApiEndpoint       String?
+  switchboardAuthHeaderType    String?  @default("Bearer")
   switchboardApiKey            String?
+  switchboardRequestBody       String?
   switchboardTemplateId        String?
   bannerImageUrl               String?
   createdAt                    DateTime @default(now())
