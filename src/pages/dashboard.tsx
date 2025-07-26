@@ -1473,7 +1473,7 @@ export default function Dashboard() {
                               <div className="flex justify-center">
                                 {attendee.credentialUrl ? (
                                   <button
-                                    onClick={() => window.open(attendee.credentialUrl, '_blank')}
+                                    onClick={() => attendee.credentialUrl && window.open(attendee.credentialUrl, '_blank')}
                                     className="p-1 rounded hover:bg-gray-100 transition-colors"
                                     title="View Credential"
                                   >
