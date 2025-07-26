@@ -168,13 +168,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
       
       // Extract the credential URL from the response - try multiple possible field names
-      const credentialUrl = switchboardResult.url || 
-                           switchboardResult.imageUrl || 
-                           switchboardResult.downloadUrl ||
-                           switchboardResult.credentialUrl ||
-                           switchboardResult.result?.url ||
-                           switchboardResult.data?.url ||
-                           switchboardResult.response?.url;
+      let credentialUrl = switchboardResult.url || 
+                         switchboardResult.imageUrl || 
+                         switchboardResult.downloadUrl ||
+                         switchboardResult.credentialUrl ||
+                         switchboardResult.result?.url ||
+                         switchboardResult.data?.url ||
+                         switchboardResult.response?.url;
+      
+      // Check for URL in sizes array (Switchboard Canvas specific structure)
+      if (!credentialUrl && switchboardResult.sizes && Array.isArray(switchboardResult.sizes)) {
+        for (const sizeItem of switchboardResult.sizes) {
+          if (sizeItem.url && typeof sizeItem.url === 'string') {
+            credentialUrl = sizeItem.url;
+            break;
+          }
+        }
+      }
       
       if (!credentialUrl) {
         console.error('No credential URL found in Switchboard response. Available fields:', Object.keys(switchboardResult));
