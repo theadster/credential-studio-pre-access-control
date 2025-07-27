@@ -1377,46 +1377,56 @@ export default function Dashboard() {
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 dark:from-blue-950/50 dark:to-blue-900/50 dark:border-blue-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium text-blue-700 dark:text-blue-300">Total Attendees</CardTitle>
+                    <CardTitle className="text-sm font-medium text-blue-700 dark:text-blue-300">Days Until Event</CardTitle>
                     <div className="p-2 rounded-lg bg-blue-500/20 dark:bg-blue-400/20">
-                      <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                      <Calendar className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">{attendees.length}</div>
+                    <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
+                      {eventSettings?.eventDate ? (() => {
+                        const eventDate = new Date(eventSettings.eventDate);
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        eventDate.setHours(0, 0, 0, 0);
+                        const diffTime = eventDate.getTime() - today.getTime();
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                        return diffDays >= 0 ? diffDays : 0;
+                      })() : '--'}
+                    </div>
                   </CardContent>
                 </Card>
                 <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200 dark:from-emerald-950/50 dark:to-emerald-900/50 dark:border-emerald-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Credentials Printed</CardTitle>
+                    <CardTitle className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Total Attendees</CardTitle>
                     <div className="p-2 rounded-lg bg-emerald-500/20 dark:bg-emerald-400/20">
-                      <IdCard className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                      <Users className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-emerald-900 dark:text-emerald-100">{attendees.filter(attendee => attendee.credentialUrl).length}</div>
+                    <div className="text-2xl font-bold text-emerald-900 dark:text-emerald-100">{attendees.length}</div>
                   </CardContent>
                 </Card>
                 <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200 dark:from-purple-950/50 dark:to-purple-900/50 dark:border-purple-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium text-purple-700 dark:text-purple-300">Photos Uploaded</CardTitle>
+                    <CardTitle className="text-sm font-medium text-purple-700 dark:text-purple-300">Credentials Printed</CardTitle>
                     <div className="p-2 rounded-lg bg-purple-500/20 dark:bg-purple-400/20">
-                      <Upload className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                      <IdCard className="h-4 w-4 text-purple-600 dark:text-purple-400" />
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-purple-900 dark:text-purple-100">{attendees.filter(a => a.photoUrl).length}</div>
+                    <div className="text-2xl font-bold text-purple-900 dark:text-purple-100">{attendees.filter(attendee => attendee.credentialUrl).length}</div>
                   </CardContent>
                 </Card>
                 <Card className="bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200 dark:from-amber-950/50 dark:to-amber-900/50 dark:border-amber-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium text-amber-700 dark:text-amber-300">Recent Activity</CardTitle>
+                    <CardTitle className="text-sm font-medium text-amber-700 dark:text-amber-300">Photos Uploaded</CardTitle>
                     <div className="p-2 rounded-lg bg-amber-500/20 dark:bg-amber-400/20">
-                      <Activity className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                      <Upload className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-amber-900 dark:text-amber-100">{logs.length}</div>
+                    <div className="text-2xl font-bold text-amber-900 dark:text-amber-100">{attendees.filter(a => a.photoUrl).length}</div>
                   </CardContent>
                 </Card>
               </div>
