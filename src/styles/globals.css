@@ -33,7 +33,17 @@
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
-    --radius: 0.5rem
+    --radius: 0.5rem;
+    
+    /* Complementary color palette for dashboard */
+    --success: 142 76% 36%;
+    --success-foreground: 355 100% 97%;
+    --info: 199 89% 48%;
+    --info-foreground: 210 20% 98%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 48 96% 89%;
+    --surface: 220 14.3% 97%;
+    --surface-variant: 220 14.3% 95%;
   }
   .dark {
     --background: 224 71.4% 4.1%;
@@ -60,7 +70,17 @@
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
-    --radius: 0.5rem
+    --radius: 0.5rem;
+    
+    /* Dark mode complementary colors */
+    --success: 142 76% 36%;
+    --success-foreground: 355 100% 97%;
+    --info: 199 89% 48%;
+    --info-foreground: 210 20% 98%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 48 96% 89%;
+    --surface: 215 27.9% 8%;
+    --surface-variant: 215 27.9% 12%;
   }
 }
 @layer base {
@@ -78,5 +98,17 @@
   #cloudinary-overlay,
   .cloudinary-widget {
     z-index: 99999 !important;
+  }
+  
+  /* Glass effect for cards */
+  .glass-effect {
+    backdrop-filter: blur(10px);
+    background: rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+  
+  .dark .glass-effect {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.1);
   }
 }
