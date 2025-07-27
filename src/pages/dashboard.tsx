@@ -1804,10 +1804,7 @@ export default function Dashboard() {
 
               {/* Attendees Table */}
               <Card className="glass-effect border-0">
-                <CardHeader>
-                  <CardTitle>Records</CardTitle>
-                </CardHeader>
-                <CardContent>
+                <CardContent className="pt-6">
                   <Table>
                     <TableHeader>
                       <TableRow>
