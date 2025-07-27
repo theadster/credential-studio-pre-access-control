@@ -1350,7 +1350,7 @@ export default function Dashboard() {
                     className="pl-10"
                   />
                 </div>
-                <Select value={photoFilter} onValueChange={setPhotoFilter}>
+                <Select value={photoFilter} onValueChange={(value) => setPhotoFilter(value as 'all' | 'with' | 'without')}>
                   <SelectTrigger className="w-48">
                     <SelectValue placeholder="Filter by photo" />
                   </SelectTrigger>
