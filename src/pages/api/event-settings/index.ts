@@ -222,21 +222,83 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                    JSON.stringify(existingField.fieldOptions) !== JSON.stringify(incomingField.fieldOptions);
           });
           
-          // If there are deletions or modifications, we need to use the delete/recreate approach
+          // If there are deletions or modifications, we need to handle them carefully to preserve data
           if (deletedFieldIds.length > 0 || modifiedFields.length > 0) {
-            customFieldsUpdate = {
-              customFields: {
-                deleteMany: {},
-                create: customFields.map((field: any, index: number) => ({
-                  fieldName: field.fieldName,
-                  internalFieldName: field.internalFieldName || generateInternalFieldName(field.fieldName),
-                  fieldType: field.fieldType,
-                  fieldOptions: field.fieldOptions || null,
-                  required: field.required || false,
-                  order: field.order || index + 1
-                }))
-              }
-            };
+            // We'll handle this with individual operations to preserve attendee data
+            const operations: any[] = [];
+            
+            // First, handle deletions (these will cascade delete attendee values)
+            if (deletedFieldIds.length > 0) {
+              operations.push(
+                prisma.customField.deleteMany({
+                  where: {
+                    id: { in: deletedFieldIds }
+                  }
+                })
+              );
+            }
+            
+            // Handle modifications - update existing fields without deleting them
+            for (const modifiedField of modifiedFields) {
+              operations.push(
+                prisma.customField.update({
+                  where: { id: modifiedField.id },
+                  data: {
+                    fieldName: modifiedField.fieldName,
+                    internalFieldName: modifiedField.internalFieldName || generateInternalFieldName(modifiedField.fieldName),
+                    fieldType: modifiedField.fieldType,
+                    fieldOptions: modifiedField.fieldOptions || null,
+                    required: modifiedField.required || false,
+                    order: modifiedField.order
+                  }
+                })
+              );
+            }
+            
+            // Handle new fields
+            const newFields = customFields.filter(f => !f.id || f.id.startsWith('temp_'));
+            for (const field of newFields) {
+              operations.push(
+                prisma.customField.create({
+                  data: {
+                    eventSettingsId: currentSettings.id,
+                    fieldName: field.fieldName,
+                    internalFieldName: field.internalFieldName || generateInternalFieldName(field.fieldName),
+                    fieldType: field.fieldType,
+                    fieldOptions: field.fieldOptions || null,
+                    required: field.required || false,
+                    order: field.order || customFields.length
+                  }
+                })
+              );
+            }
+            
+            // Handle order updates for unchanged existing fields
+            const unchangedFields = existingFields.filter(incomingField => {
+              const existingField = currentSettings.customFields.find(f => f.id === incomingField.id);
+              if (!existingField) return false;
+              
+              return existingField.fieldName === incomingField.fieldName &&
+                     existingField.fieldType === incomingField.fieldType &&
+                     existingField.required === incomingField.required &&
+                     JSON.stringify(existingField.fieldOptions) === JSON.stringify(incomingField.fieldOptions);
+            });
+            
+            for (const field of unchangedFields) {
+              operations.push(
+                prisma.customField.update({
+                  where: { id: field.id },
+                  data: { order: field.order }
+                })
+              );
+            }
+            
+            // Execute all operations in a transaction
+            if (operations.length > 0) {
+              await prisma.$transaction(operations);
+            }
+            
+            useIncrementalUpdate = true; // We handled everything manually
           } else {
             // Only additions and/or reordering - handle incrementally
             useIncrementalUpdate = true;
