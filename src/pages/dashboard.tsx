@@ -143,6 +143,22 @@ export default function Dashboard() {
   const [currentPage, setCurrentPage] = useState(1);
   const recordsPerPage = 50;
 
+  // Advanced Search State
+  const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
+  const [advancedSearchFilters, setAdvancedSearchFilters] = useState<{
+    firstName: string;
+    lastName: string;
+    barcode: string;
+    photoFilter: 'all' | 'with' | 'without';
+    customFields: { [key: string]: { value: string; searchEmpty: boolean } };
+  }>({
+    firstName: '',
+    lastName: '',
+    barcode: '',
+    photoFilter: 'all',
+    customFields: {}
+  });
+
   const [showAttendeeForm, setShowAttendeeForm] = useState(false);
   const [editingAttendee, setEditingAttendee] = useState<Attendee | null>(null);
   const [printingAttendee, setPrintingAttendee] = useState<string | null>(null);
@@ -386,21 +402,67 @@ export default function Dashboard() {
 
   // Enhanced filtering function for attendees including custom fields and photo filter
   const filteredAttendees = attendees.filter(attendee => {
-    // Basic search in name and barcode
-    const basicMatch = `${attendee.firstName} ${attendee.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      attendee.barcodeNumber.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    // Search in custom field values
-    const customFieldMatch = attendee.customFieldValues?.some((cfv: any) => 
-      cfv.value && cfv.value.toLowerCase().includes(searchTerm.toLowerCase())
-    ) || false;
-    
-    // Photo filter
-    const photoMatch = photoFilter === 'all' || 
-      (photoFilter === 'with' && attendee.photoUrl) ||
-      (photoFilter === 'without' && !attendee.photoUrl);
-    
-    return (basicMatch || customFieldMatch) && photoMatch;
+    // If advanced search is active, use advanced filters
+    if (showAdvancedSearch) {
+      // First Name filter
+      const firstNameMatch = !advancedSearchFilters.firstName || 
+        attendee.firstName.toLowerCase().includes(advancedSearchFilters.firstName.toLowerCase());
+      
+      // Last Name filter
+      const lastNameMatch = !advancedSearchFilters.lastName || 
+        attendee.lastName.toLowerCase().includes(advancedSearchFilters.lastName.toLowerCase());
+      
+      // Barcode filter
+      const barcodeMatch = !advancedSearchFilters.barcode || 
+        attendee.barcodeNumber.toLowerCase().includes(advancedSearchFilters.barcode.toLowerCase());
+      
+      // Photo filter
+      const photoMatch = advancedSearchFilters.photoFilter === 'all' || 
+        (advancedSearchFilters.photoFilter === 'with' && attendee.photoUrl) ||
+        (advancedSearchFilters.photoFilter === 'without' && !attendee.photoUrl);
+      
+      // Custom fields filter
+      const customFieldsMatch = Object.entries(advancedSearchFilters.customFields).every(([fieldId, filter]) => {
+        const attendeeValue = attendee.customFieldValues?.find((cfv: any) => cfv.customFieldId === fieldId);
+        const hasValue = attendeeValue?.value;
+        
+        // If searching for empty fields
+        if (filter.searchEmpty) {
+          return !hasValue;
+        }
+        
+        // If no filter value is set, include all
+        if (!filter.value) {
+          return true;
+        }
+        
+        // If attendee has no value for this field, exclude
+        if (!hasValue) {
+          return false;
+        }
+        
+        // Check if the value matches the filter
+        return attendeeValue.value.toLowerCase().includes(filter.value.toLowerCase());
+      });
+      
+      return firstNameMatch && lastNameMatch && barcodeMatch && photoMatch && customFieldsMatch;
+    } else {
+      // Use simple search
+      const basicMatch = `${attendee.firstName} ${attendee.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        attendee.barcodeNumber.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      // Search in custom field values
+      const customFieldMatch = attendee.customFieldValues?.some((cfv: any) => 
+        cfv.value && cfv.value.toLowerCase().includes(searchTerm.toLowerCase())
+      ) || false;
+      
+      // Photo filter
+      const photoMatch = photoFilter === 'all' || 
+        (photoFilter === 'with' && attendee.photoUrl) ||
+        (photoFilter === 'without' && !attendee.photoUrl);
+      
+      return (basicMatch || customFieldMatch) && photoMatch;
+    }
   });
 
   // Pagination logic for attendees
@@ -413,7 +475,92 @@ export default function Dashboard() {
   // Reset to first page when search term or photo filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, photoFilter]);
+  }, [searchTerm, photoFilter, showAdvancedSearch, advancedSearchFilters]);
+
+  // Initialize custom fields in advanced search when event settings change
+  useEffect(() => {
+    if (eventSettings?.customFields && showAdvancedSearch) {
+      const newCustomFields: { [key: string]: { value: string; searchEmpty: boolean } } = {};
+      eventSettings.customFields.forEach((field: any) => {
+        if (!advancedSearchFilters.customFields[field.id]) {
+          newCustomFields[field.id] = { value: '', searchEmpty: false };
+        }
+      });
+      
+      if (Object.keys(newCustomFields).length > 0) {
+        setAdvancedSearchFilters(prev => ({
+          ...prev,
+          customFields: { ...prev.customFields, ...newCustomFields }
+        }));
+      }
+    }
+  }, [eventSettings?.customFields, showAdvancedSearch]);
+
+  // Advanced search functions
+  const handleAdvancedSearchToggle = () => {
+    setShowAdvancedSearch(!showAdvancedSearch);
+    if (!showAdvancedSearch) {
+      // Initialize custom fields when opening advanced search
+      const customFields: { [key: string]: { value: string; searchEmpty: boolean } } = {};
+      eventSettings?.customFields?.forEach((field: any) => {
+        customFields[field.id] = { value: '', searchEmpty: false };
+      });
+      setAdvancedSearchFilters({
+        firstName: '',
+        lastName: '',
+        barcode: '',
+        photoFilter: 'all',
+        customFields
+      });
+    }
+  };
+
+  const handleAdvancedSearchChange = (field: string, value: string) => {
+    setAdvancedSearchFilters(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleCustomFieldSearchChange = (fieldId: string, value: string) => {
+    setAdvancedSearchFilters(prev => ({
+      ...prev,
+      customFields: {
+        ...prev.customFields,
+        [fieldId]: {
+          ...prev.customFields[fieldId],
+          value
+        }
+      }
+    }));
+  };
+
+  const handleCustomFieldEmptyToggle = (fieldId: string, searchEmpty: boolean) => {
+    setAdvancedSearchFilters(prev => ({
+      ...prev,
+      customFields: {
+        ...prev.customFields,
+        [fieldId]: {
+          ...prev.customFields[fieldId],
+          searchEmpty
+        }
+      }
+    }));
+  };
+
+  const clearAdvancedSearch = () => {
+    const customFields: { [key: string]: { value: string; searchEmpty: boolean } } = {};
+    eventSettings?.customFields?.forEach((field: any) => {
+      customFields[field.id] = { value: '', searchEmpty: false };
+    });
+    setAdvancedSearchFilters({
+      firstName: '',
+      lastName: '',
+      barcode: '',
+      photoFilter: 'all',
+      customFields
+    });
+  };
 
   // Pagination handlers
   const handlePageChange = (page: number) => {
@@ -1392,39 +1539,155 @@ export default function Dashboard() {
               </div>
 
               {/* Search and Actions */}
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center space-x-4">
-                  <div className="relative flex-1 max-w-sm">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search attendees..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10"
-                    />
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    {!showAdvancedSearch && (
+                      <>
+                        <div className="relative flex-1 max-w-sm">
+                          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            placeholder="Search attendees..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="pl-10"
+                          />
+                        </div>
+                        <Select value={photoFilter} onValueChange={(value) => setPhotoFilter(value as 'all' | 'with' | 'without')}>
+                          <SelectTrigger className="w-48">
+                            <SelectValue placeholder="Filter by photo" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Attendees</SelectItem>
+                            <SelectItem value="with">With Photo</SelectItem>
+                            <SelectItem value="without">Without Photo</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </>
+                    )}
                   </div>
-                  <Select value={photoFilter} onValueChange={(value) => setPhotoFilter(value as 'all' | 'with' | 'without')}>
-                    <SelectTrigger className="w-48">
-                      <SelectValue placeholder="Filter by photo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Attendees</SelectItem>
-                      <SelectItem value="with">With Photo</SelectItem>
-                      <SelectItem value="without">Without Photo</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <div className="flex items-center space-x-2">
+                    {hasPermission(currentUser?.role, 'attendees', 'create') && (
+                      <Button onClick={async () => {
+                        await refreshEventSettings();
+                        setShowAttendeeForm(true);
+                      }}>
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add Attendee
+                      </Button>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center space-x-2">
-                  {hasPermission(currentUser?.role, 'attendees', 'create') && (
-                    <Button onClick={async () => {
-                      await refreshEventSettings();
-                      setShowAttendeeForm(true);
-                    }}>
-                      <Plus className="mr-2 h-4 w-4" />
-                      Add Attendee
-                    </Button>
-                  )}
+
+                {/* Advanced Search Button */}
+                <div className="flex justify-start">
+                  <Button
+                    variant="outline"
+                    onClick={handleAdvancedSearchToggle}
+                    className="flex items-center space-x-2"
+                  >
+                    <Filter className="h-4 w-4" />
+                    <span>{showAdvancedSearch ? 'Simple Search' : 'Advanced Search'}</span>
+                  </Button>
                 </div>
+
+                {/* Advanced Search Form */}
+                {showAdvancedSearch && (
+                  <Card className="glass-effect border-0">
+                    <CardHeader>
+                      <CardTitle className="flex items-center justify-between">
+                        <span>Advanced Search</span>
+                        <Button variant="ghost" size="sm" onClick={clearAdvancedSearch}>
+                          Clear All
+                        </Button>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {/* Basic Fields */}
+                        <div className="space-y-2">
+                          <Label htmlFor="firstName">First Name</Label>
+                          <Input
+                            id="firstName"
+                            placeholder="Search by first name..."
+                            value={advancedSearchFilters.firstName}
+                            onChange={(e) => handleAdvancedSearchChange('firstName', e.target.value)}
+                          />
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label htmlFor="lastName">Last Name</Label>
+                          <Input
+                            id="lastName"
+                            placeholder="Search by last name..."
+                            value={advancedSearchFilters.lastName}
+                            onChange={(e) => handleAdvancedSearchChange('lastName', e.target.value)}
+                          />
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label htmlFor="barcode">Barcode</Label>
+                          <Input
+                            id="barcode"
+                            placeholder="Search by barcode..."
+                            value={advancedSearchFilters.barcode}
+                            onChange={(e) => handleAdvancedSearchChange('barcode', e.target.value)}
+                          />
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label htmlFor="photoFilter">Photo Status</Label>
+                          <Select 
+                            value={advancedSearchFilters.photoFilter} 
+                            onValueChange={(value) => handleAdvancedSearchChange('photoFilter', value)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Filter by photo" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">All Attendees</SelectItem>
+                              <SelectItem value="with">With Photo</SelectItem>
+                              <SelectItem value="without">Without Photo</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* Custom Fields */}
+                        {eventSettings?.customFields?.map((field: any) => (
+                          <div key={field.id} className="space-y-2">
+                            <Label htmlFor={`custom-${field.id}`}>
+                              {field.fieldName}
+                              {field.fieldType && (
+                                <Badge variant="outline" className="ml-2 text-xs">
+                                  {field.fieldType}
+                                </Badge>
+                              )}
+                            </Label>
+                            <div className="space-y-2">
+                              <Input
+                                id={`custom-${field.id}`}
+                                placeholder={`Search by ${field.fieldName.toLowerCase()}...`}
+                                value={advancedSearchFilters.customFields[field.id]?.value || ''}
+                                onChange={(e) => handleCustomFieldSearchChange(field.id, e.target.value)}
+                                disabled={advancedSearchFilters.customFields[field.id]?.searchEmpty}
+                              />
+                              <div className="flex items-center space-x-2">
+                                <Switch
+                                  id={`empty-${field.id}`}
+                                  checked={advancedSearchFilters.customFields[field.id]?.searchEmpty || false}
+                                  onCheckedChange={(checked) => handleCustomFieldEmptyToggle(field.id, checked)}
+                                />
+                                <Label htmlFor={`empty-${field.id}`} className="text-sm text-muted-foreground">
+                                  Search for empty {field.fieldName.toLowerCase()}
+                                </Label>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
 
               {/* Import/Export Actions */}
