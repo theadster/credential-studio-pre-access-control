@@ -1579,8 +1579,8 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* Advanced Search Button */}
-                <div className="flex justify-start">
+                {/* Advanced Search Button and Import/Export Buttons */}
+                <div className="flex justify-between items-center">
                   <Button
                     variant="outline"
                     onClick={handleAdvancedSearchToggle}
@@ -1589,6 +1589,17 @@ export default function Dashboard() {
                     <Filter className="h-4 w-4" />
                     <span>{showAdvancedSearch ? 'Simple Search' : 'Advanced Search'}</span>
                   </Button>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Button variant="outline">
+                      <Upload className="mr-2 h-4 w-4" />
+                      Import
+                    </Button>
+                    <Button variant="outline">
+                      <Download className="mr-2 h-4 w-4" />
+                      Export
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Advanced Search Form */}
@@ -1690,17 +1701,7 @@ export default function Dashboard() {
                 )}
               </div>
 
-              {/* Import/Export Actions */}
-              <div className="flex justify-end space-x-2 mb-6">
-                <Button variant="outline">
-                  <Upload className="mr-2 h-4 w-4" />
-                  Import
-                </Button>
-                <Button variant="outline">
-                  <Download className="mr-2 h-4 w-4" />
-                  Export
-                </Button>
-              </div>
+
 
               {/* Attendees Table */}
               <Card className="glass-effect border-0">
