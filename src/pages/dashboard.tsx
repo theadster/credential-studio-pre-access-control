@@ -1982,16 +1982,16 @@ export default function Dashboard() {
                 <div className="space-y-6">
                   {/* Event Settings Summary Cards */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <Card className="glass-effect border-0 hover:shadow-lg transition-shadow">
+                    <Card className="bg-gradient-to-br from-blue-50 to-indigo-100 border-blue-200 dark:from-blue-950/50 dark:to-indigo-900/50 dark:border-blue-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
                       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Event Details</CardTitle>
-                        <div className="p-2 rounded-lg bg-primary/10">
-                          <Calendar className="h-4 w-4 text-primary" />
+                        <CardTitle className="text-sm font-medium text-blue-700 dark:text-blue-300">Event Details</CardTitle>
+                        <div className="p-2 rounded-lg bg-blue-500/20 dark:bg-blue-400/20">
+                          <Calendar className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                         </div>
                       </CardHeader>
                       <CardContent>
-                        <div className="text-lg font-bold">{eventSettings.eventName}</div>
-                        <div className="text-sm text-muted-foreground">
+                        <div className="text-lg font-bold text-blue-900 dark:text-blue-100">{eventSettings.eventName}</div>
+                        <div className="text-sm text-blue-700 dark:text-blue-300">
                           {(() => {
                             // Handle date properly to avoid timezone issues
                             const dateValue = eventSettings.eventDate;
@@ -2021,30 +2021,30 @@ export default function Dashboard() {
                         </div>
                       </CardContent>
                     </Card>
-                    <Card className="glass-effect border-0 hover:shadow-lg transition-shadow">
+                    <Card className="bg-gradient-to-br from-emerald-50 to-teal-100 border-emerald-200 dark:from-emerald-950/50 dark:to-teal-900/50 dark:border-emerald-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
                       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Barcode Settings</CardTitle>
-                        <div className="p-2 rounded-lg bg-success/10">
-                          <CreditCard className="h-4 w-4 text-success" />
+                        <CardTitle className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Barcode Settings</CardTitle>
+                        <div className="p-2 rounded-lg bg-emerald-500/20 dark:bg-emerald-400/20">
+                          <CreditCard className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                         </div>
                       </CardHeader>
                       <CardContent>
-                        <div className="text-lg font-bold">{eventSettings.barcodeType}</div>
-                        <div className="text-sm text-muted-foreground">
+                        <div className="text-lg font-bold text-emerald-900 dark:text-emerald-100">{eventSettings.barcodeType}</div>
+                        <div className="text-sm text-emerald-700 dark:text-emerald-300">
                           {eventSettings.barcodeLength} characters • {eventSettings.barcodeUnique ? 'Unique' : 'Non-unique'}
                         </div>
                       </CardContent>
                     </Card>
-                    <Card className="glass-effect border-0 hover:shadow-lg transition-shadow">
+                    <Card className="bg-gradient-to-br from-purple-50 to-violet-100 border-purple-200 dark:from-purple-950/50 dark:to-violet-900/50 dark:border-purple-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
                       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Custom Fields</CardTitle>
-                        <div className="p-2 rounded-lg bg-info/10">
-                          <Plus className="h-4 w-4 text-info" />
+                        <CardTitle className="text-sm font-medium text-purple-700 dark:text-purple-300">Custom Fields</CardTitle>
+                        <div className="p-2 rounded-lg bg-purple-500/20 dark:bg-purple-400/20">
+                          <Plus className="h-4 w-4 text-purple-600 dark:text-purple-400" />
                         </div>
                       </CardHeader>
                       <CardContent>
-                        <div className="text-lg font-bold">{eventSettings.customFields?.length || 0}</div>
-                        <div className="text-sm text-muted-foreground">
+                        <div className="text-lg font-bold text-purple-900 dark:text-purple-100">{eventSettings.customFields?.length || 0}</div>
+                        <div className="text-sm text-purple-700 dark:text-purple-300">
                           Additional data fields
                         </div>
                       </CardContent>
