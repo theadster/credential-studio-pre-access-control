@@ -30,7 +30,8 @@ import {
   Mail,
   MoreHorizontal,
   FileImage,
-  Image
+  Image,
+  QrCode
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -2037,7 +2038,7 @@ export default function Dashboard() {
                       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Barcode Settings</CardTitle>
                         <div className="p-2 rounded-lg bg-emerald-500/20 dark:bg-emerald-400/20">
-                          <IdCard className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                          <QrCode className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                         </div>
                       </CardHeader>
                       <CardContent>
@@ -2131,7 +2132,7 @@ export default function Dashboard() {
                         {/* Barcode Settings */}
                         <div>
                           <h4 className="font-medium mb-3 flex items-center gap-2">
-                            <IdCard className="h-4 w-4" />
+                            <QrCode className="h-4 w-4" />
                             Barcode Settings
                           </h4>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
