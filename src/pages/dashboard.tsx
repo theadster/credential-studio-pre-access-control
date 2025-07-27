@@ -138,6 +138,7 @@ export default function Dashboard() {
   });
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [photoFilter, setPhotoFilter] = useState<'all' | 'with' | 'without'>('all');
   const [selectedRole, setSelectedRole] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const recordsPerPage = 50;
@@ -383,7 +384,7 @@ export default function Dashboard() {
     loadData();
   }, []);
 
-  // Enhanced filtering function for attendees including custom fields
+  // Enhanced filtering function for attendees including custom fields and photo filter
   const filteredAttendees = attendees.filter(attendee => {
     // Basic search in name and barcode
     const basicMatch = `${attendee.firstName} ${attendee.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -394,7 +395,12 @@ export default function Dashboard() {
       cfv.value && cfv.value.toLowerCase().includes(searchTerm.toLowerCase())
     ) || false;
     
-    return basicMatch || customFieldMatch;
+    // Photo filter
+    const photoMatch = photoFilter === 'all' || 
+      (photoFilter === 'with' && attendee.photoUrl) ||
+      (photoFilter === 'without' && !attendee.photoUrl);
+    
+    return (basicMatch || customFieldMatch) && photoMatch;
   });
 
   // Pagination logic for attendees
@@ -404,10 +410,10 @@ export default function Dashboard() {
   const endIndex = startIndex + recordsPerPage;
   const paginatedAttendees = filteredAttendees.slice(startIndex, endIndex);
 
-  // Reset to first page when search term changes
+  // Reset to first page when search term or photo filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm]);
+  }, [searchTerm, photoFilter]);
 
   // Pagination handlers
   const handlePageChange = (page: number) => {
@@ -1344,6 +1350,16 @@ export default function Dashboard() {
                     className="pl-10"
                   />
                 </div>
+                <Select value={photoFilter} onValueChange={setPhotoFilter}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue placeholder="Filter by photo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Attendees</SelectItem>
+                    <SelectItem value="with">With Photo</SelectItem>
+                    <SelectItem value="without">Without Photo</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Button variant="outline">
                   <Download className="mr-2 h-4 w-4" />
                   Export
