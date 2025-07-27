@@ -139,7 +139,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedRole, setSelectedRole] = useState<string>("all");
-  const [customFieldFilters, setCustomFieldFilters] = useState<Record<string, string>>({});
+
   const [showAttendeeForm, setShowAttendeeForm] = useState(false);
   const [editingAttendee, setEditingAttendee] = useState<Attendee | null>(null);
   const [printingAttendee, setPrintingAttendee] = useState<string | null>(null);
@@ -392,17 +392,7 @@ export default function Dashboard() {
       cfv.value && cfv.value.toLowerCase().includes(searchTerm.toLowerCase())
     ) || false;
     
-    const searchMatch = basicMatch || customFieldMatch;
-    
-    // Apply custom field filters
-    const customFieldFilterMatch = Object.entries(customFieldFilters).every(([fieldId, filterValue]) => {
-      if (!filterValue || filterValue === 'all') return true;
-      
-      const attendeeFieldValue = attendee.customFieldValues?.find((cfv: any) => cfv.customFieldId === fieldId);
-      return attendeeFieldValue?.value?.toLowerCase().includes(filterValue.toLowerCase()) || false;
-    });
-    
-    return searchMatch && customFieldFilterMatch;
+    return basicMatch || customFieldMatch;
   });
 
   const filteredUsers = users.filter(user => {
@@ -1312,81 +1302,25 @@ export default function Dashboard() {
           {/* Content based on active tab */}
           {activeTab === "attendees" && (
             <div className="space-y-6">
-              {/* Search and Filters */}
-              <div className="space-y-4">
-                <div className="flex items-center space-x-4">
-                  <div className="relative flex-1 max-w-sm">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search attendees..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
-                  <Button variant="outline">
-                    <Filter className="mr-2 h-4 w-4" />
-                    Filter
-                  </Button>
-                  <Button variant="outline">
-                    <Download className="mr-2 h-4 w-4" />
-                    Export
-                  </Button>
-                  <Button variant="outline">
-                    <Upload className="mr-2 h-4 w-4" />
-                    Import
-                  </Button>
+              {/* Search and Actions */}
+              <div className="flex items-center space-x-4">
+                <div className="relative flex-1 max-w-sm">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search attendees..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
                 </div>
-
-                {/* Custom Field Filters */}
-                {eventSettings?.customFields && eventSettings.customFields.length > 0 && (
-                  <div className="flex items-center space-x-4 flex-wrap">
-                    <span className="text-sm font-medium text-muted-foreground">Filter by:</span>
-                    {eventSettings.customFields
-                      .sort((a: any, b: any) => a.order - b.order)
-                      .map((field: any) => (
-                        <Select
-                          key={field.id}
-                          value={customFieldFilters[field.id] || 'all'}
-                          onValueChange={(value) => 
-                            setCustomFieldFilters(prev => ({
-                              ...prev,
-                              [field.id]: value
-                            }))
-                          }
-                        >
-                          <SelectTrigger className="w-48">
-                            <SelectValue placeholder={`Filter by ${field.fieldName}`} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All {field.fieldName}</SelectItem>
-                            {/* Get unique values for this field from attendees */}
-                            {Array.from(new Set(
-                              attendees
-                                .map(attendee => 
-                                  attendee.customFieldValues?.find((cfv: any) => cfv.customFieldId === field.id)?.value
-                                )
-                                .filter(Boolean)
-                            )).map((value: any) => (
-                              <SelectItem key={value} value={value}>
-                                {value}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ))}
-                    {Object.keys(customFieldFilters).length > 0 && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setCustomFieldFilters({})}
-                        className="text-muted-foreground"
-                      >
-                        Clear Filters
-                      </Button>
-                    )}
-                  </div>
-                )}
+                <Button variant="outline">
+                  <Download className="mr-2 h-4 w-4" />
+                  Export
+                </Button>
+                <Button variant="outline">
+                  <Upload className="mr-2 h-4 w-4" />
+                  Import
+                </Button>
               </div>
 
               {/* Stats Cards */}
