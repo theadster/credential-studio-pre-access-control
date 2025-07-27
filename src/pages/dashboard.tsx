@@ -1309,15 +1309,6 @@ export default function Dashboard() {
               </p>
             </div>
             <div className="flex items-center space-x-2">
-              {activeTab === "attendees" && hasPermission(currentUser?.role, 'attendees', 'create') && (
-                <Button onClick={async () => {
-                  await refreshEventSettings();
-                  setShowAttendeeForm(true);
-                }}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Attendee
-                </Button>
-              )}
               {activeTab === "users" && hasPermission(currentUser?.role, 'users', 'create') && (
                 <Button onClick={() => setShowUserForm(true)}>
                   <UserPlus className="mr-2 h-4 w-4" />
@@ -1342,37 +1333,6 @@ export default function Dashboard() {
           {/* Content based on active tab */}
           {activeTab === "attendees" && (
             <div className="space-y-6">
-              {/* Search and Actions */}
-              <div className="flex items-center space-x-4">
-                <div className="relative flex-1 max-w-sm">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search attendees..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-                <Select value={photoFilter} onValueChange={(value) => setPhotoFilter(value as 'all' | 'with' | 'without')}>
-                  <SelectTrigger className="w-48">
-                    <SelectValue placeholder="Filter by photo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Attendees</SelectItem>
-                    <SelectItem value="with">With Photo</SelectItem>
-                    <SelectItem value="without">Without Photo</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Button variant="outline">
-                  <Download className="mr-2 h-4 w-4" />
-                  Export
-                </Button>
-                <Button variant="outline">
-                  <Upload className="mr-2 h-4 w-4" />
-                  Import
-                </Button>
-              </div>
-
               {/* Stats Cards */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 dark:from-blue-950/50 dark:to-blue-900/50 dark:border-blue-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
@@ -1429,6 +1389,54 @@ export default function Dashboard() {
                     <div className="text-2xl font-bold text-amber-900 dark:text-amber-100">{attendees.filter(a => a.photoUrl).length}</div>
                   </CardContent>
                 </Card>
+              </div>
+
+              {/* Search and Actions */}
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center space-x-4">
+                  <div className="relative flex-1 max-w-sm">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search attendees..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  <Select value={photoFilter} onValueChange={(value) => setPhotoFilter(value as 'all' | 'with' | 'without')}>
+                    <SelectTrigger className="w-48">
+                      <SelectValue placeholder="Filter by photo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Attendees</SelectItem>
+                      <SelectItem value="with">With Photo</SelectItem>
+                      <SelectItem value="without">Without Photo</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center space-x-2">
+                  {hasPermission(currentUser?.role, 'attendees', 'create') && (
+                    <Button onClick={async () => {
+                      await refreshEventSettings();
+                      setShowAttendeeForm(true);
+                    }}>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add Attendee
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {/* Import/Export Actions */}
+              <div className="flex justify-end space-x-2 mb-6">
+                <Button variant="outline">
+                  <Upload className="mr-2 h-4 w-4" />
+                  Import
+                </Button>
+                <Button variant="outline">
+                  <Download className="mr-2 h-4 w-4" />
+                  Export
+                </Button>
               </div>
 
               {/* Attendees Table */}
