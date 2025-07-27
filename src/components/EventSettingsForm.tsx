@@ -148,6 +148,11 @@ function SortableCustomField({ field, onEdit, onDelete }: SortableCustomFieldPro
             <span className="font-medium">{field.fieldName}</span>
             <Badge variant="outline">{field.fieldType}</Badge>
             {field.required && <Badge variant="secondary">Required</Badge>}
+            {field.fieldType === "text" && field.fieldOptions?.uppercase && (
+              <Badge variant="outline" className="text-xs">
+                UPPERCASE
+              </Badge>
+            )}
           </div>
           {field.internalFieldName && (
             <div className="text-xs text-muted-foreground mt-1">
@@ -1086,9 +1091,17 @@ function CustomFieldForm({ field, onSave, onCancel }: CustomFieldFormProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
+    let fieldOptions = undefined;
+    
+    if (fieldData.fieldType === "select") {
+      fieldOptions = { options: selectOptions };
+    } else if (fieldData.fieldType === "text" && fieldData.fieldOptions?.uppercase) {
+      fieldOptions = { uppercase: true };
+    }
+    
     const finalFieldData = {
       ...fieldData,
-      fieldOptions: fieldData.fieldType === "select" ? { options: selectOptions } : undefined
+      fieldOptions
     };
 
     onSave(finalFieldData);
@@ -1259,6 +1272,26 @@ function CustomFieldForm({ field, onSave, onCancel }: CustomFieldFormProps) {
                   Add Option
                 </Button>
               </div>
+            </div>
+          )}
+
+          {fieldData.fieldType === "text" && (
+            <div className="flex items-center space-x-3 p-3 bg-muted/30 rounded-lg">
+              <Switch
+                id="uppercase"
+                checked={fieldData.fieldOptions?.uppercase || false}
+                onCheckedChange={(checked) => setFieldData(prev => ({ 
+                  ...prev, 
+                  fieldOptions: { 
+                    ...prev.fieldOptions, 
+                    uppercase: checked 
+                  } 
+                }))}
+              />
+              <Label htmlFor="uppercase" className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                <Type className="h-4 w-4" />
+                Convert to uppercase
+              </Label>
             </div>
           )}
 

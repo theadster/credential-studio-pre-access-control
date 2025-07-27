@@ -263,13 +263,20 @@ export default function AttendeeForm({
         return (
           <Input
             value={value}
-            onChange={(e) => setFormData(prev => ({
-              ...prev,
-              customFieldValues: {
-                ...prev.customFieldValues,
-                [field.id]: e.target.value
+            onChange={(e) => {
+              let inputValue = e.target.value;
+              // Apply uppercase transformation if enabled
+              if (field.fieldOptions?.uppercase) {
+                inputValue = inputValue.toUpperCase();
               }
-            }))}
+              setFormData(prev => ({
+                ...prev,
+                customFieldValues: {
+                  ...prev.customFieldValues,
+                  [field.id]: inputValue
+                }
+              }));
+            }}
             required={field.required}
           />
         );
