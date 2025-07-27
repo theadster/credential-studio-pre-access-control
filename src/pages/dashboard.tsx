@@ -452,6 +452,12 @@ export default function Dashboard() {
     }
   };
 
+  // Helper function to capitalize first letter
+  const capitalizeFirst = (str: string) => {
+    if (!str) return str;
+    return str.charAt(0).toUpperCase() + str.slice(1);
+  };
+
   // API Functions
   const handleSaveAttendee = async (attendeeData: any) => {
     try {
@@ -2042,7 +2048,7 @@ export default function Dashboard() {
                         </div>
                       </CardHeader>
                       <CardContent>
-                        <div className="text-lg font-bold text-emerald-900 dark:text-emerald-100">{eventSettings.barcodeType}</div>
+                        <div className="text-lg font-bold text-emerald-900 dark:text-emerald-100">{capitalizeFirst(eventSettings.barcodeType)}</div>
                         <div className="text-sm text-emerald-700 dark:text-emerald-300">
                           {eventSettings.barcodeLength} characters • {eventSettings.barcodeUnique ? 'Unique' : 'Non-unique'}
                         </div>
@@ -2137,7 +2143,7 @@ export default function Dashboard() {
                           </h4>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                             <div>
-                              <span className="font-medium">Barcode Type:</span> {eventSettings.barcodeType === 'numerical' ? 'Numerical (0-9)' : eventSettings.barcodeType === 'alphanumerical' ? 'Alphanumerical (A-Z, 0-9)' : 'Not set'}
+                              <span className="font-medium">Barcode Type:</span> {eventSettings.barcodeType === 'numerical' ? 'Numerical (0-9)' : eventSettings.barcodeType === 'alphanumerical' ? 'Alphanumerical (A-Z, 0-9)' : (capitalizeFirst(eventSettings.barcodeType) + ' (0-9, A-Z)') || 'Not set'}
                             </div>
                             <div>
                               <span className="font-medium">Barcode Length:</span> {eventSettings.barcodeLength || 'Not set'}
