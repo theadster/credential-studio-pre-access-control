@@ -515,6 +515,15 @@ export default function Dashboard() {
     }
   };
 
+  // Check if advanced search has any active filters
+  const hasAdvancedFilters = () => {
+    return advancedSearchFilters.firstName || 
+           advancedSearchFilters.lastName || 
+           advancedSearchFilters.barcode || 
+           advancedSearchFilters.photoFilter !== 'all' ||
+           Object.values(advancedSearchFilters.customFields).some(field => field.value || field.searchEmpty);
+  };
+
   const handleAdvancedSearchChange = (field: string, value: string) => {
     setAdvancedSearchFilters(prev => ({
       ...prev,
@@ -1565,6 +1574,25 @@ export default function Dashboard() {
                         </Select>
                       </>
                     )}
+                    {showAdvancedSearch && hasAdvancedFilters() && (
+                      <div className="flex items-center space-x-2">
+                        <Badge variant="secondary" className="flex items-center space-x-1">
+                          <Filter className="h-3 w-3" />
+                          <span>Advanced filters active</span>
+                        </Badge>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => {
+                            setShowAdvancedSearch(false);
+                            clearAdvancedSearch();
+                          }}
+                          className="text-muted-foreground hover:text-foreground"
+                        >
+                          Clear filters
+                        </Button>
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center space-x-2">
                     {hasPermission(currentUser?.role, 'attendees', 'create') && (
@@ -1581,14 +1609,148 @@ export default function Dashboard() {
 
                 {/* Advanced Search Button and Import/Export Buttons */}
                 <div className="flex justify-between items-center">
-                  <Button
-                    variant="outline"
-                    onClick={handleAdvancedSearchToggle}
-                    className="flex items-center space-x-2"
-                  >
-                    <Filter className="h-4 w-4" />
-                    <span>{showAdvancedSearch ? 'Simple Search' : 'Advanced Search'}</span>
-                  </Button>
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="flex items-center space-x-2"
+                        onClick={() => {
+                          // Initialize custom fields when opening advanced search
+                          if (!showAdvancedSearch) {
+                            const customFields: { [key: string]: { value: string; searchEmpty: boolean } } = {};
+                            eventSettings?.customFields?.forEach((field: any) => {
+                              customFields[field.id] = { value: '', searchEmpty: false };
+                            });
+                            if (Object.keys(advancedSearchFilters.customFields).length === 0) {
+                              setAdvancedSearchFilters(prev => ({
+                                ...prev,
+                                customFields
+                              }));
+                            }
+                          }
+                        }}
+                      >
+                        <Filter className="h-4 w-4" />
+                        <span>Advanced Search</span>
+                        {hasAdvancedFilters() && (
+                          <Badge variant="secondary" className="ml-1 h-5 w-5 p-0 flex items-center justify-center">
+                            <span className="text-xs">!</span>
+                          </Badge>
+                        )}
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle className="flex items-center justify-between">
+                          <span>Advanced Search</span>
+                          <Button variant="ghost" size="sm" onClick={clearAdvancedSearch}>
+                            Clear All
+                          </Button>
+                        </DialogTitle>
+                        <DialogDescription>
+                          Search attendees using multiple criteria. Leave fields empty to ignore them in the search.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {/* Basic Fields */}
+                          <div className="space-y-2">
+                            <Label htmlFor="firstName">First Name</Label>
+                            <Input
+                              id="firstName"
+                              placeholder="Search by first name..."
+                              value={advancedSearchFilters.firstName}
+                              onChange={(e) => handleAdvancedSearchChange('firstName', e.target.value)}
+                            />
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor="lastName">Last Name</Label>
+                            <Input
+                              id="lastName"
+                              placeholder="Search by last name..."
+                              value={advancedSearchFilters.lastName}
+                              onChange={(e) => handleAdvancedSearchChange('lastName', e.target.value)}
+                            />
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor="barcode">Barcode</Label>
+                            <Input
+                              id="barcode"
+                              placeholder="Search by barcode..."
+                              value={advancedSearchFilters.barcode}
+                              onChange={(e) => handleAdvancedSearchChange('barcode', e.target.value)}
+                            />
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor="photoFilter">Photo Status</Label>
+                            <Select 
+                              value={advancedSearchFilters.photoFilter} 
+                              onValueChange={(value) => handleAdvancedSearchChange('photoFilter', value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Filter by photo" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="all">All Attendees</SelectItem>
+                                <SelectItem value="with">With Photo</SelectItem>
+                                <SelectItem value="without">Without Photo</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {/* Custom Fields */}
+                          {eventSettings?.customFields?.map((field: any) => (
+                            <div key={field.id} className="space-y-2">
+                              <Label htmlFor={`custom-${field.id}`}>
+                                {field.fieldName}
+                                {field.fieldType && (
+                                  <Badge variant="outline" className="ml-2 text-xs">
+                                    {field.fieldType}
+                                  </Badge>
+                                )}
+                              </Label>
+                              <div className="space-y-2">
+                                <Input
+                                  id={`custom-${field.id}`}
+                                  placeholder={`Search by ${field.fieldName.toLowerCase()}...`}
+                                  value={advancedSearchFilters.customFields[field.id]?.value || ''}
+                                  onChange={(e) => handleCustomFieldSearchChange(field.id, e.target.value)}
+                                  disabled={advancedSearchFilters.customFields[field.id]?.searchEmpty}
+                                />
+                                <div className="flex items-center space-x-2">
+                                  <Switch
+                                    id={`empty-${field.id}`}
+                                    checked={advancedSearchFilters.customFields[field.id]?.searchEmpty || false}
+                                    onCheckedChange={(checked) => handleCustomFieldEmptyToggle(field.id, checked)}
+                                  />
+                                  <Label htmlFor={`empty-${field.id}`} className="text-sm text-muted-foreground">
+                                    Search for empty {field.fieldName.toLowerCase()}
+                                  </Label>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        
+                        {/* Apply Search Button */}
+                        <div className="flex justify-end space-x-2 pt-4 border-t">
+                          <DialogTrigger asChild>
+                            <Button variant="outline">
+                              Cancel
+                            </Button>
+                          </DialogTrigger>
+                          <DialogTrigger asChild>
+                            <Button onClick={() => setShowAdvancedSearch(true)}>
+                              Apply Search
+                            </Button>
+                          </DialogTrigger>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
                   
                   <div className="flex items-center space-x-2">
                     <Button variant="outline">
@@ -1601,104 +1763,6 @@ export default function Dashboard() {
                     </Button>
                   </div>
                 </div>
-
-                {/* Advanced Search Form */}
-                {showAdvancedSearch && (
-                  <Card className="glass-effect border-0">
-                    <CardHeader>
-                      <CardTitle className="flex items-center justify-between">
-                        <span>Advanced Search</span>
-                        <Button variant="ghost" size="sm" onClick={clearAdvancedSearch}>
-                          Clear All
-                        </Button>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {/* Basic Fields */}
-                        <div className="space-y-2">
-                          <Label htmlFor="firstName">First Name</Label>
-                          <Input
-                            id="firstName"
-                            placeholder="Search by first name..."
-                            value={advancedSearchFilters.firstName}
-                            onChange={(e) => handleAdvancedSearchChange('firstName', e.target.value)}
-                          />
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <Label htmlFor="lastName">Last Name</Label>
-                          <Input
-                            id="lastName"
-                            placeholder="Search by last name..."
-                            value={advancedSearchFilters.lastName}
-                            onChange={(e) => handleAdvancedSearchChange('lastName', e.target.value)}
-                          />
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <Label htmlFor="barcode">Barcode</Label>
-                          <Input
-                            id="barcode"
-                            placeholder="Search by barcode..."
-                            value={advancedSearchFilters.barcode}
-                            onChange={(e) => handleAdvancedSearchChange('barcode', e.target.value)}
-                          />
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <Label htmlFor="photoFilter">Photo Status</Label>
-                          <Select 
-                            value={advancedSearchFilters.photoFilter} 
-                            onValueChange={(value) => handleAdvancedSearchChange('photoFilter', value)}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Filter by photo" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="all">All Attendees</SelectItem>
-                              <SelectItem value="with">With Photo</SelectItem>
-                              <SelectItem value="without">Without Photo</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        {/* Custom Fields */}
-                        {eventSettings?.customFields?.map((field: any) => (
-                          <div key={field.id} className="space-y-2">
-                            <Label htmlFor={`custom-${field.id}`}>
-                              {field.fieldName}
-                              {field.fieldType && (
-                                <Badge variant="outline" className="ml-2 text-xs">
-                                  {field.fieldType}
-                                </Badge>
-                              )}
-                            </Label>
-                            <div className="space-y-2">
-                              <Input
-                                id={`custom-${field.id}`}
-                                placeholder={`Search by ${field.fieldName.toLowerCase()}...`}
-                                value={advancedSearchFilters.customFields[field.id]?.value || ''}
-                                onChange={(e) => handleCustomFieldSearchChange(field.id, e.target.value)}
-                                disabled={advancedSearchFilters.customFields[field.id]?.searchEmpty}
-                              />
-                              <div className="flex items-center space-x-2">
-                                <Switch
-                                  id={`empty-${field.id}`}
-                                  checked={advancedSearchFilters.customFields[field.id]?.searchEmpty || false}
-                                  onCheckedChange={(checked) => handleCustomFieldEmptyToggle(field.id, checked)}
-                                />
-                                <Label htmlFor={`empty-${field.id}`} className="text-sm text-muted-foreground">
-                                  Search for empty {field.fieldName.toLowerCase()}
-                                </Label>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
               </div>
 
 
