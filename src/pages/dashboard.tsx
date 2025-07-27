@@ -1432,7 +1432,19 @@ export default function Dashboard() {
                             </TableCell>
                             <TableCell>
                               <div>
-                                <div className="font-medium text-lg">{attendee.firstName} {attendee.lastName}</div>
+                                <button
+                                  onClick={async () => {
+                                    if (hasPermission(currentUser?.role, 'attendees', 'update')) {
+                                      await refreshEventSettings();
+                                      setEditingAttendee(attendee);
+                                      setShowAttendeeForm(true);
+                                    }
+                                  }}
+                                  className="text-left hover:text-primary transition-colors cursor-pointer"
+                                  disabled={!hasPermission(currentUser?.role, 'attendees', 'update')}
+                                >
+                                  <div className="font-medium text-lg hover:text-primary">{attendee.firstName} {attendee.lastName}</div>
+                                </button>
                                 {/* Display custom fields under the name */}
                                 {customFieldsWithValues.length > 0 && (
                                   <div className="mt-1">
