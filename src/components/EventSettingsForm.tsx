@@ -1091,7 +1091,7 @@ function CustomFieldForm({ field, onSave, onCancel }: CustomFieldFormProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    let fieldOptions = undefined;
+    let fieldOptions: any = undefined;
     
     if (fieldData.fieldType === "select") {
       fieldOptions = { options: selectOptions };
