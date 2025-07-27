@@ -1713,13 +1713,48 @@ export default function Dashboard() {
                                 )}
                               </Label>
                               <div className="space-y-2">
-                                <Input
-                                  id={`custom-${field.id}`}
-                                  placeholder={`Search by ${field.fieldName.toLowerCase()}...`}
-                                  value={advancedSearchFilters.customFields[field.id]?.value || ''}
-                                  onChange={(e) => handleCustomFieldSearchChange(field.id, e.target.value)}
-                                  disabled={advancedSearchFilters.customFields[field.id]?.searchEmpty}
-                                />
+                                {field.fieldType === 'select' ? (
+                                  <Select
+                                    value={advancedSearchFilters.customFields[field.id]?.value || ''}
+                                    onValueChange={(value) => handleCustomFieldSearchChange(field.id, value)}
+                                    disabled={advancedSearchFilters.customFields[field.id]?.searchEmpty}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue placeholder={`Select ${field.fieldName.toLowerCase()}...`} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="">All options</SelectItem>
+                                      {field.fieldOptions?.options?.map((option: string, index: number) => (
+                                        <SelectItem key={index} value={option}>
+                                          {option}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                ) : field.fieldType === 'boolean' ? (
+                                  <Select
+                                    value={advancedSearchFilters.customFields[field.id]?.value || ''}
+                                    onValueChange={(value) => handleCustomFieldSearchChange(field.id, value)}
+                                    disabled={advancedSearchFilters.customFields[field.id]?.searchEmpty}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue placeholder={`Select ${field.fieldName.toLowerCase()}...`} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="">All options</SelectItem>
+                                      <SelectItem value="yes">Yes</SelectItem>
+                                      <SelectItem value="no">No</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                ) : (
+                                  <Input
+                                    id={`custom-${field.id}`}
+                                    placeholder={`Search by ${field.fieldName.toLowerCase()}...`}
+                                    value={advancedSearchFilters.customFields[field.id]?.value || ''}
+                                    onChange={(e) => handleCustomFieldSearchChange(field.id, e.target.value)}
+                                    disabled={advancedSearchFilters.customFields[field.id]?.searchEmpty}
+                                  />
+                                )}
                                 <div className="flex items-center space-x-2">
                                   <Switch
                                     id={`empty-${field.id}`}
@@ -1770,7 +1805,7 @@ export default function Dashboard() {
               {/* Attendees Table */}
               <Card className="glass-effect border-0">
                 <CardHeader>
-                  <CardTitle>Attendees</CardTitle>
+                  <CardTitle>Records</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <Table>
