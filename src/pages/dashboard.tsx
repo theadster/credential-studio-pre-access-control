@@ -1458,8 +1458,9 @@ export default function Dashboard() {
                             let displayValue = value?.value || null;
                             
                             // Format display value based on field type
-                            if (displayValue && field.fieldType === 'boolean') {
-                              displayValue = displayValue === 'yes' ? 'Yes' : 'No';
+                            if (field.fieldType === 'boolean') {
+                              // For boolean fields, always show Yes/No, defaulting to No if no value is set
+                              displayValue = (displayValue === 'yes') ? 'Yes' : 'No';
                             } else if (displayValue && field.fieldType === 'url') {
                               // For URLs, show a clickable link
                               displayValue = displayValue;
@@ -1471,7 +1472,11 @@ export default function Dashboard() {
                               value: displayValue
                             };
                           })
-                          ?.filter((field: any) => field.value) || [];
+                          ?.filter((field: any) => {
+                            // Show boolean fields always (they will show Yes/No)
+                            // Show other fields only if they have a value
+                            return field.fieldType === 'boolean' || field.value;
+                          }) || [];
 
                         return (
                           <TableRow key={attendee.id}>
