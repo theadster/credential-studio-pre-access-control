@@ -502,7 +502,14 @@ export default function AttendeeForm({
                   <Input
                     id="firstName"
                     value={formData.firstName}
-                    onChange={(e) => setFormData(prev => ({ ...prev, firstName: e.target.value }))}
+                    onChange={(e) => {
+                      let inputValue = e.target.value;
+                      // Apply uppercase transformation if enabled in event settings
+                      if (eventSettings?.forceFirstNameUppercase) {
+                        inputValue = inputValue.toUpperCase();
+                      }
+                      setFormData(prev => ({ ...prev, firstName: inputValue }));
+                    }}
                     required
                   />
                 </div>
@@ -511,7 +518,14 @@ export default function AttendeeForm({
                   <Input
                     id="lastName"
                     value={formData.lastName}
-                    onChange={(e) => setFormData(prev => ({ ...prev, lastName: e.target.value }))}
+                    onChange={(e) => {
+                      let inputValue = e.target.value;
+                      // Apply uppercase transformation if enabled in event settings
+                      if (eventSettings?.forceLastNameUppercase) {
+                        inputValue = inputValue.toUpperCase();
+                      }
+                      setFormData(prev => ({ ...prev, lastName: inputValue }));
+                    }}
                     required
                   />
                 </div>

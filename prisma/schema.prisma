@@ -65,6 +65,8 @@ model EventSettings {
   barcodeType                  String   // "numerical" or "alphanumerical"
   barcodeLength                Int
   barcodeUnique                Boolean
+  forceFirstNameUppercase      Boolean? @default(false)
+  forceLastNameUppercase       Boolean? @default(false)
   cloudinaryEnabled            Boolean? @default(false)
   cloudinaryCloudName          String?
   cloudinaryApiKey             String?

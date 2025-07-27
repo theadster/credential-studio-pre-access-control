@@ -52,6 +52,8 @@ interface EventSettings {
   barcodeType: string;
   barcodeLength: number;
   barcodeUnique: boolean;
+  forceFirstNameUppercase?: boolean;
+  forceLastNameUppercase?: boolean;
   cloudinaryEnabled?: boolean;
   cloudinaryCloudName?: string;
   cloudinaryApiKey?: string;
@@ -466,6 +468,40 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                       value={formData.bannerImageUrl || ""}
                       onChange={(e) => handleInputChange("bannerImageUrl", e.target.value)}
                       placeholder="https://images.unsplash.com/photo-1540575467063-178a50c2df87?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Name Field Settings</CardTitle>
+                  <CardDescription>Configure how attendee names are handled</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="space-y-1">
+                      <Label className="text-sm font-medium">Force First Name to Uppercase</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Automatically convert first names to uppercase when entered
+                      </p>
+                    </div>
+                    <Switch
+                      checked={formData.forceFirstNameUppercase || false}
+                      onCheckedChange={(checked) => handleInputChange("forceFirstNameUppercase", checked)}
+                    />
+                  </div>
+                  
+                  <div className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="space-y-1">
+                      <Label className="text-sm font-medium">Force Last Name to Uppercase</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Automatically convert last names to uppercase when entered
+                      </p>
+                    </div>
+                    <Switch
+                      checked={formData.forceLastNameUppercase || false}
+                      onCheckedChange={(checked) => handleInputChange("forceLastNameUppercase", checked)}
                     />
                   </div>
                 </CardContent>
