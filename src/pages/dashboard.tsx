@@ -1715,16 +1715,16 @@ export default function Dashboard() {
                               <div className="space-y-2">
                                 {field.fieldType === 'select' ? (
                                   <Select
-                                    value={advancedSearchFilters.customFields[field.id]?.value || ''}
-                                    onValueChange={(value) => handleCustomFieldSearchChange(field.id, value)}
+                                    value={advancedSearchFilters.customFields[field.id]?.value || 'all'}
+                                    onValueChange={(value) => handleCustomFieldSearchChange(field.id, value === 'all' ? '' : value)}
                                     disabled={advancedSearchFilters.customFields[field.id]?.searchEmpty}
                                   >
                                     <SelectTrigger>
                                       <SelectValue placeholder={`Select ${field.fieldName.toLowerCase()}...`} />
                                     </SelectTrigger>
                                     <SelectContent>
-                                      <SelectItem value="">All options</SelectItem>
-                                      {field.fieldOptions?.options?.map((option: string, index: number) => (
+                                      <SelectItem value="all">All options</SelectItem>
+                                      {field.fieldOptions?.options?.filter((option: string) => option && option.trim() !== '').map((option: string, index: number) => (
                                         <SelectItem key={index} value={option}>
                                           {option}
                                         </SelectItem>
@@ -1733,15 +1733,15 @@ export default function Dashboard() {
                                   </Select>
                                 ) : field.fieldType === 'boolean' ? (
                                   <Select
-                                    value={advancedSearchFilters.customFields[field.id]?.value || ''}
-                                    onValueChange={(value) => handleCustomFieldSearchChange(field.id, value)}
+                                    value={advancedSearchFilters.customFields[field.id]?.value || 'all'}
+                                    onValueChange={(value) => handleCustomFieldSearchChange(field.id, value === 'all' ? '' : value)}
                                     disabled={advancedSearchFilters.customFields[field.id]?.searchEmpty}
                                   >
                                     <SelectTrigger>
                                       <SelectValue placeholder={`Select ${field.fieldName.toLowerCase()}...`} />
                                     </SelectTrigger>
                                     <SelectContent>
-                                      <SelectItem value="">All options</SelectItem>
+                                      <SelectItem value="all">All options</SelectItem>
                                       <SelectItem value="yes">Yes</SelectItem>
                                       <SelectItem value="no">No</SelectItem>
                                     </SelectContent>
