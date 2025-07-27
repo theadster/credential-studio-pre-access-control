@@ -43,7 +43,7 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>EventCredentialPro - Professional Event Credential Management</title>
+        <title>credential.studio - Professional Event Credential Management</title>
         <meta name="description" content="Create, manage, and print professional event credentials with ease. Full CRUD capabilities, role-based access control, and seamless integrations." />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
@@ -60,7 +60,7 @@ export default function Home() {
           <div className="container mx-auto px-4 py-4 flex justify-between items-center">
             <div className="flex items-center space-x-2">
               <CreditCard className="h-8 w-8 text-primary" />
-              <span className="text-2xl font-bold text-primary">EventCredentialPro</span>
+              <span className="text-2xl font-bold text-primary">credential.studio</span>
             </div>
             <div className="flex items-center space-x-4">
               <Link href="/login">
@@ -224,7 +224,7 @@ export default function Home() {
               transition={{ duration: 0.8 }}
             >
               <div>
-                <h2 className="text-4xl font-bold mb-6">Why Choose EventCredentialPro?</h2>
+                <h2 className="text-4xl font-bold mb-6">Why Choose credential.studio?</h2>
                 <div className="space-y-4">
                   {[
                     "Single event focus for maximum efficiency",
@@ -273,7 +273,7 @@ export default function Home() {
             >
               <h2 className="text-4xl font-bold mb-6">Ready to Get Started?</h2>
               <p className="text-xl text-muted-foreground mb-8">
-                Join thousands of event organizers who trust EventCredentialPro for their credential management needs.
+                Join thousands of event organizers who trust credential.studio for their credential management needs.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Link href="/signup">
@@ -300,10 +300,10 @@ export default function Home() {
             <div className="flex flex-col md:flex-row justify-between items-center">
               <div className="flex items-center space-x-2 mb-4 md:mb-0">
                 <CreditCard className="h-6 w-6 text-primary" />
-                <span className="text-lg font-semibold">EventCredentialPro</span>
+                <span className="text-lg font-semibold">credential.studio</span>
               </div>
               <p className="text-muted-foreground">
-                © 2024 EventCredentialPro. Professional event credential management.
+                © 2024 credential.studio. Professional event credential management.
               </p>
             </div>
           </div>
