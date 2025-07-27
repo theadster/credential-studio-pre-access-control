@@ -1303,9 +1303,6 @@ export default function Dashboard() {
               </p>
             </div>
             <div className="flex items-center space-x-2">
-              <Button variant="outline" size="sm">
-                <Bell className="h-4 w-4" />
-              </Button>
               {activeTab === "attendees" && hasPermission(currentUser?.role, 'attendees', 'create') && (
                 <Button onClick={async () => {
                   await refreshEventSettings();
