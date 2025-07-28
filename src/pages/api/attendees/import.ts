@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { getSession } from 'next-auth/react';
+import { createClient } from '@/util/supabase/api';
 import { checkApiPermission } from '@/lib/permissions';
 import prisma from '@/lib/prisma';
 import formidable from 'formidable';
@@ -17,7 +17,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const session = await getSession({ req });
+  const supabase = createClient(req, res);
+  const { data: { session } } = await supabase.auth.getSession();
+
   if (!session || !session.user || !session.user.id) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
