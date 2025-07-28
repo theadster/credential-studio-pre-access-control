@@ -84,7 +84,6 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@types/csv-parser": "^1.2.4",
     "@types/formidable": "^3.4.5",
     "@types/lodash.throttle": "^4.1.9",
     "@types/node": "^20",
