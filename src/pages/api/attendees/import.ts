@@ -5,6 +5,7 @@ import prisma from '@/lib/prisma';
 import formidable from 'formidable';
 import fs from 'fs';
 import csv from 'csv-parser';
+import { generateBarcode } from '@/util/string';
 
 export const config = {
   api: {
@@ -51,11 +52,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .on('data', (data) => results.push(data))
       .on('end', async () => {
         try {
+          // Fetch event settings for barcode configuration
+          const eventSettings = await prisma.eventSettings.findFirst();
+          if (!eventSettings) {
+            throw new Error('Event settings not found. Please configure event settings first.');
+          }
+
           // Fetch custom fields to map internal names to IDs
           const customFields = await prisma.customField.findMany({
-            select: { id: true, internalName: true },
+            select: { id: true, internalFieldName: true },
           });
-          const customFieldMap = new Map(customFields.map(cf => [cf.internalName, cf.id]));
+          const customFieldMap = new Map(customFields.map(cf => [cf.internalFieldName, cf.id]));
+
+          // Get existing barcode numbers to ensure uniqueness
+          const existingBarcodes = new Set(
+            (await prisma.attendee.findMany({ select: { barcodeNumber: true } }))
+              .map(a => a.barcodeNumber)
+          );
 
           const attendeesToCreate = results.map(row => {
             const { firstName, lastName, barcodeNumber, ...customFieldValues } = row;
@@ -78,10 +91,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               })
               .filter(Boolean) as { customFieldId: string; value: string }[];
 
+            // Generate unique barcode
+            let generatedBarcode: string;
+            do {
+              generatedBarcode = generateBarcode(eventSettings.barcodeType, eventSettings.barcodeLength);
+            } while (existingBarcodes.has(generatedBarcode));
+            
+            // Add the generated barcode to the set to avoid duplicates within this import
+            existingBarcodes.add(generatedBarcode);
+
             return {
               firstName,
               lastName,
-              barcodeNumber: barcodeNumber || '',
+              barcodeNumber: generatedBarcode,
               customFieldValues: {
                 create: customFieldsData,
               },
@@ -96,7 +118,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               });
               createdCount++;
             } catch (e: any) {
-              // Handle potential duplicate barcode errors gracefully if `skipDuplicates` is not available for nested creates
+              // Handle potential duplicate barcode errors gracefully
               if (e.code === 'P2002' && e.meta?.target?.includes('barcodeNumber')) {
                 console.warn(`Skipping duplicate barcode: ${attendeeData.barcodeNumber}`);
               } else {

@@ -93,7 +93,6 @@ export default function ImportDialog({ children, onImportSuccess, customFields }
   const allColumns = [
     { internalName: 'firstName', description: 'First Name' },
     { internalName: 'lastName', description: 'Last Name' },
-    { internalName: 'barcodeNumber', description: 'Barcode Number' },
     ...(customFields || []).map(field => ({
       internalName: field.internalFieldName,
       description: field.fieldName
@@ -108,8 +107,6 @@ export default function ImportDialog({ children, onImportSuccess, customFields }
           return 'John';
         case 'lastName':
           return 'Doe';
-        case 'barcodeNumber':
-          return '12345';
         default:
           // For custom fields, provide sample based on type
           const customField = customFields?.find(f => f.internalFieldName === col.internalName);
@@ -213,8 +210,8 @@ export default function ImportDialog({ children, onImportSuccess, customFields }
             <div className="text-xs text-gray-600 space-y-1 bg-blue-50 p-3 rounded-lg">
               <p><strong>Important Notes:</strong></p>
               <p>• First row must contain column headers (case-sensitive)</p>
-              <p>• Required fields: firstName, lastName, barcodeNumber</p>
-              <p>• Barcode numbers must be unique</p>
+              <p>• Required fields: firstName, lastName</p>
+              <p>• Barcode numbers will be automatically generated based on your event settings</p>
               <p>• Boolean fields accept: Yes/No, True/False, 1/0</p>
               <p>• URL fields should include full URLs (e.g., https://example.com)</p>
             </div>

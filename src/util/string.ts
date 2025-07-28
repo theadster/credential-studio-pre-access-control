@@ -14,3 +14,14 @@ export function generateInternalFieldName(fieldName: string): string {
     .replace(/_{2,}/g, '_') // Replace multiple underscores with single
     .replace(/^_|_$/g, ''); // Remove leading/trailing underscores
 }
+
+export function generateBarcode(type: string, length: number): string {
+  const characters = type === 'numerical' ? '0123456789' : '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  let result = '';
+  
+  for (let i = 0; i < length; i++) {
+    result += characters.charAt(Math.floor(Math.random() * characters.length));
+  }
+  
+  return result;
+}
