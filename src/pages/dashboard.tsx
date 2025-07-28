@@ -2076,11 +2076,11 @@ export default function Dashboard() {
                   </Table>
                   
                   {/* Pagination Controls */}
-                  {totalPages > 1 && (
-                    <div className="flex items-center justify-between mt-6">
-                      <div className="text-sm text-muted-foreground">
-                        Showing {startIndex + 1} to {Math.min(endIndex, totalAttendees)} of {totalAttendees} attendees
-                      </div>
+                  <div className="flex items-center justify-between mt-6">
+                    <div className="text-sm text-muted-foreground">
+                      Showing {startIndex + 1} to {Math.min(endIndex, totalAttendees)} of {totalAttendees} attendees
+                    </div>
+                    {totalPages > 1 && (
                       <div className="flex items-center space-x-2">
                         <Button
                           variant="outline"
@@ -2125,8 +2125,8 @@ export default function Dashboard() {
                           Next
                         </Button>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             </div>
