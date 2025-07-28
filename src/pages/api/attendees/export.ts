@@ -33,10 +33,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    // Check read permission for attendees (export requires read permission)
-    const readPermission = await checkApiPermission(user.id, 'attendees', 'read', prisma);
-    if (!readPermission.hasPermission) {
-      return res.status(403).json({ error: 'Insufficient permissions' });
+    // Check export permission for attendees
+    const exportPermission = await checkApiPermission(user.id, 'attendees', 'export', prisma);
+    if (!exportPermission.hasPermission) {
+      return res.status(403).json({ error: 'Insufficient permissions to export attendees' });
     }
 
     const { scope, fields, filters }: ExportRequest = req.body;

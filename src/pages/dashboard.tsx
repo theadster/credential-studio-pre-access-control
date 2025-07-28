@@ -1793,20 +1793,22 @@ export default function Dashboard() {
                       <Upload className="mr-2 h-4 w-4" />
                       Import
                     </Button>
-                    <ExportDialog
-                      totalAttendees={attendees.length}
-                      filteredAttendees={filteredAttendees.length}
-                      isFiltered={showAdvancedSearch || searchTerm !== '' || photoFilter !== 'all'}
-                      searchTerm={searchTerm}
-                      photoFilter={photoFilter}
-                      advancedFilters={showAdvancedSearch ? advancedSearchFilters : null}
-                      eventSettings={eventSettings}
-                    >
-                      <Button variant="outline">
-                        <Download className="mr-2 h-4 w-4" />
-                        Export
-                      </Button>
-                    </ExportDialog>
+                    {hasPermission(currentUser?.role, 'attendees', 'export') && (
+                      <ExportDialog
+                        totalAttendees={attendees.length}
+                        filteredAttendees={filteredAttendees.length}
+                        isFiltered={showAdvancedSearch || searchTerm !== '' || photoFilter !== 'all'}
+                        searchTerm={searchTerm}
+                        photoFilter={photoFilter}
+                        advancedFilters={showAdvancedSearch ? advancedSearchFilters : null}
+                        eventSettings={eventSettings}
+                      >
+                        <Button variant="outline">
+                          <Download className="mr-2 h-4 w-4" />
+                          Export
+                        </Button>
+                      </ExportDialog>
+                    )}
                   </div>
                 </div>
               </div>

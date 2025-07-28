@@ -4,6 +4,7 @@ interface Permission {
   update?: boolean;
   delete?: boolean;
   print?: boolean;
+  export?: boolean;
   configure?: boolean;
   backup?: boolean;
   restore?: boolean;

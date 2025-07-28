@@ -32,6 +32,7 @@ interface Permission {
   update?: boolean;
   delete?: boolean;
   print?: boolean;
+  export?: boolean;
   configure?: boolean;
   backup?: boolean;
   restore?: boolean;
@@ -53,7 +54,8 @@ const defaultPermissions: UserPermissions = {
     read: false,
     update: false,
     delete: false,
-    print: false
+    print: false,
+    export: false
   },
   users: {
     create: false,
@@ -98,7 +100,8 @@ const permissionLabels = {
       read: "View attendee list and details",
       update: "Edit attendee information",
       delete: "Delete attendees",
-      print: "Print credentials"
+      print: "Print credentials",
+      export: "Export attendee data"
     }
   },
   users: {
