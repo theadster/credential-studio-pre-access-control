@@ -61,7 +61,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
 
     // Log the bulk delete action
-    await prisma.activityLog.create({
+    await prisma.log.create({
       data: {
         action: 'delete',
         userId: user.id,
