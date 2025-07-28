@@ -14,9 +14,9 @@ import { Upload, FileText, AlertCircle } from 'lucide-react';
 
 interface CustomField {
   id: string;
-  name: string;
-  internalName: string;
-  type: string;
+  fieldName: string;
+  internalFieldName: string;
+  fieldType: string;
 }
 
 interface ImportDialogProps {
@@ -95,8 +95,8 @@ export default function ImportDialog({ children, onImportSuccess, customFields }
     { internalName: 'lastName', description: 'Last Name' },
     { internalName: 'barcodeNumber', description: 'Barcode Number' },
     ...(customFields || []).map(field => ({
-      internalName: field.internalName,
-      description: field.name
+      internalName: field.internalFieldName,
+      description: field.fieldName
     }))
   ];
 
@@ -112,9 +112,9 @@ export default function ImportDialog({ children, onImportSuccess, customFields }
           return '12345';
         default:
           // For custom fields, provide sample based on type
-          const customField = customFields?.find(f => f.internalName === col.internalName);
+          const customField = customFields?.find(f => f.internalFieldName === col.internalName);
           if (customField) {
-            switch (customField.type) {
+            switch (customField.fieldType) {
               case 'boolean':
                 return 'Yes';
               case 'url':
