@@ -143,7 +143,7 @@ export default function Dashboard() {
   const [photoFilter, setPhotoFilter] = useState<'all' | 'with' | 'without'>('all');
   const [selectedRole, setSelectedRole] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
-  const recordsPerPage = 50;
+  const recordsPerPage = 25;
 
   // Advanced Search State
   const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
