@@ -1849,6 +1849,9 @@ export default function Dashboard() {
                       </div>
                     </DialogContent>
                   </Dialog>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
                     {hasAdvancedFilters() && hasPermission(currentUser?.role, 'attendees', 'delete') && (
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
@@ -1899,9 +1902,6 @@ export default function Dashboard() {
                         </AlertDialogContent>
                       </AlertDialog>
                     )}
-                  </div>
-                  
-                  <div className="flex items-center space-x-2">
                     {hasPermission(currentUser?.role, 'attendees', 'import') && (
                       <ImportDialog 
                         onImportSuccess={refreshAttendees}
