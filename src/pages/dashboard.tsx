@@ -1805,7 +1805,10 @@ export default function Dashboard() {
                   
                   <div className="flex items-center space-x-2">
                     {hasPermission(currentUser?.role, 'attendees', 'import') && (
-                      <ImportDialog onImportSuccess={refreshAttendees}>
+                      <ImportDialog 
+                        onImportSuccess={refreshAttendees}
+                        customFields={eventSettings?.customFields || []}
+                      >
                         <Button variant="outline">
                           <Upload className="mr-2 h-4 w-4" />
                           Import

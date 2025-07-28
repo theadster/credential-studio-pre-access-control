@@ -51,16 +51,60 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .on('data', (data) => results.push(data))
       .on('end', async () => {
         try {
-          // TODO: Add more robust validation and error handling
-          const createdAttendees = await prisma.attendee.createMany({
-            data: results.map(row => ({
-              firstName: row.firstName,
-              lastName: row.lastName,
-              barcodeNumber: row.barcodeNumber,
-              // TODO: Add support for custom fields
-            })),
-            skipDuplicates: true,
+          // Fetch custom fields to map internal names to IDs
+          const customFields = await prisma.customField.findMany({
+            select: { id: true, internalName: true },
           });
+          const customFieldMap = new Map(customFields.map(cf => [cf.internalName, cf.id]));
+
+          const attendeesToCreate = results.map(row => {
+            const { firstName, lastName, barcodeNumber, ...customFieldValues } = row;
+
+            if (!firstName || !lastName) {
+              // Skip rows that are missing required fields
+              return null;
+            }
+
+            const customFieldsData = Object.entries(customFieldValues)
+              .map(([internalName, value]) => {
+                const customFieldId = customFieldMap.get(internalName);
+                if (customFieldId && value) {
+                  return {
+                    customFieldId,
+                    value: String(value),
+                  };
+                }
+                return null;
+              })
+              .filter(Boolean) as { customFieldId: string; value: string }[];
+
+            return {
+              firstName,
+              lastName,
+              barcodeNumber: barcodeNumber || '',
+              customFieldValues: {
+                create: customFieldsData,
+              },
+            };
+          }).filter(Boolean) as any[];
+
+          let createdCount = 0;
+          for (const attendeeData of attendeesToCreate) {
+            try {
+              await prisma.attendee.create({
+                data: attendeeData,
+              });
+              createdCount++;
+            } catch (e: any) {
+              // Handle potential duplicate barcode errors gracefully if `skipDuplicates` is not available for nested creates
+              if (e.code === 'P2002' && e.meta?.target?.includes('barcodeNumber')) {
+                console.warn(`Skipping duplicate barcode: ${attendeeData.barcodeNumber}`);
+              } else {
+                // Re-throw other errors
+                throw e;
+              }
+            }
+          }
 
           // Log the import action
           await prisma.log.create({
@@ -69,7 +113,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               action: 'import',
               details: {
                 type: 'attendee',
-                count: createdAttendees.count,
+                count: createdCount,
                 fileName: file.originalFilename,
               },
             },
@@ -77,7 +121,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
           res.status(200).json({
             message: 'Attendees imported successfully',
-            count: createdAttendees.count,
+            count: createdCount,
           });
         } catch (error) {
           console.error('Error importing attendees:', error);

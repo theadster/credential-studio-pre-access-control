@@ -10,18 +10,35 @@ import {
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { useDropzone } from 'react-dropzone';
-import { Upload, FileText, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Upload, FileText, Download } from 'lucide-react';
+
+interface CustomField {
+  internalName: string;
+}
 
 interface ImportDialogProps {
   children: React.ReactNode;
   onImportSuccess: () => void;
+  customFields: CustomField[];
 }
 
-export default function ImportDialog({ children, onImportSuccess }: ImportDialogProps) {
+export default function ImportDialog({ children, onImportSuccess, customFields }: ImportDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const { toast } = useToast();
+
+  const handleDownloadTemplate = () => {
+    const headers = ['firstName', 'lastName', 'barcodeNumber', ...customFields.map(cf => cf.internalName)];
+    const csvContent = "data:text/csv;charset=utf-8," + headers.join(',');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "import_template.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
@@ -81,18 +98,36 @@ export default function ImportDialog({ children, onImportSuccess }: ImportDialog
     }
   };
 
+  const requiredFields = ['firstName', 'lastName', 'barcodeNumber'];
+  const customFieldNames = customFields.map(cf => cf.internalName);
+  const allHeaders = [...requiredFields, ...customFieldNames];
+
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent>
+      <DialogContent className="sm:max-w-[525px]">
         <DialogHeader>
           <DialogTitle>Import Attendees</DialogTitle>
           <DialogDescription>
-            Upload a CSV file to import attendees in bulk. The file should contain columns for
-            'firstName', 'lastName', and 'barcodeNumber'.
+            Upload a CSV file to import attendees in bulk.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
+          <div>
+            <h4 className="font-semibold">Instructions</h4>
+            <ol className="list-decimal list-inside text-sm text-muted-foreground space-y-1 mt-2">
+              <li>Your CSV file must contain the following columns: <strong>{allHeaders.join(', ')}</strong>.</li>
+              <li>The `firstName` and `lastName` columns are required.</li>
+              <li>Column headers must match exactly, including case.</li>
+              <li>Download the template to ensure your format is correct.</li>
+            </ol>
+          </div>
+
+          <Button variant="outline" onClick={handleDownloadTemplate}>
+            <Download className="mr-2 h-4 w-4" />
+            Download CSV Template
+          </Button>
+
           <div
             {...getRootProps()}
             className={`p-8 border-2 border-dashed rounded-lg text-center cursor-pointer
