@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@/util/supabase/api';
 import prisma from '@/lib/prisma';
+import { checkApiPermission } from '@/lib/permissions';
 
 interface ExportRequest {
   scope: 'all' | 'filtered';
@@ -32,19 +33,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    // Get user's role and permissions
-    const dbUser = await prisma.user.findUnique({
-      where: { id: user.id },
-      include: { role: true }
-    });
-
-    if (!dbUser?.role) {
-      return res.status(403).json({ error: 'No role assigned' });
-    }
-
-    // Check if user has permission to export attendees
-    const permissions = dbUser.role.permissions as any;
-    if (!permissions.attendees?.view && !permissions.all) {
+    // Check read permission for attendees (export requires read permission)
+    const readPermission = await checkApiPermission(user.id, 'attendees', 'read', prisma);
+    if (!readPermission.hasPermission) {
       return res.status(403).json({ error: 'Insufficient permissions' });
     }
 
