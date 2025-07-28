@@ -48,6 +48,7 @@ import UserForm from "@/components/UserForm";
 import EventSettingsForm from "@/components/EventSettingsForm";
 import RoleForm from "@/components/RoleForm";
 import ExportDialog from "@/components/ExportDialog";
+import ImportDialog from "@/components/ImportDialog";
 import { hasPermission, canAccessTab, canManageUser } from "@/lib/permissions";
 
 interface User {
@@ -172,6 +173,20 @@ export default function Dashboard() {
   const [invitingUser, setInvitingUser] = useState<string | null>(null);
   const [showRoleForm, setShowRoleForm] = useState(false);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
+
+  const refreshAttendees = async () => {
+    try {
+      const attendeesResponse = await fetch('/api/attendees');
+      if (attendeesResponse.ok) {
+        const attendeesData = await attendeesResponse.json();
+        setAttendees(Array.isArray(attendeesData) ? attendeesData : []);
+      } else {
+        setAttendees([]);
+      }
+    } catch (error) {
+      console.error('Error refreshing attendees:', error);
+    }
+  };
 
   // Get available tabs for current user
   const getAvailableTabs = (): string[] => {
@@ -1789,10 +1804,14 @@ export default function Dashboard() {
                   </Dialog>
                   
                   <div className="flex items-center space-x-2">
-                    <Button variant="outline">
-                      <Upload className="mr-2 h-4 w-4" />
-                      Import
-                    </Button>
+                    {hasPermission(currentUser?.role, 'attendees', 'import') && (
+                      <ImportDialog onImportSuccess={refreshAttendees}>
+                        <Button variant="outline">
+                          <Upload className="mr-2 h-4 w-4" />
+                          Import
+                        </Button>
+                      </ImportDialog>
+                    )}
                     {hasPermission(currentUser?.role, 'attendees', 'export') && (
                       <ExportDialog
                         totalAttendees={attendees.length}

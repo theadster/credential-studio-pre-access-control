@@ -55,7 +55,8 @@ const defaultPermissions: UserPermissions = {
     update: false,
     delete: false,
     print: false,
-    export: false
+    export: false,
+    import: false
   },
   users: {
     create: false,
@@ -101,7 +102,8 @@ const permissionLabels = {
       update: "Edit attendee information",
       delete: "Delete attendees",
       print: "Print credentials",
-      export: "Export attendee data"
+      export: "Export attendee data",
+      import: "Import attendee data"
     }
   },
   users: {
