@@ -297,7 +297,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const csvContent = csvRows.join('\n');
 
     // Log the export activity
-    await prisma.activityLog.create({
+    await prisma.log.create({
       data: {
         action: 'export',
         userId: user.id,
