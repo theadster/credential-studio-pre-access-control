@@ -200,11 +200,11 @@ export default function ImportDialog({ children, onImportSuccess, customFields }
             <div className="bg-gray-50 rounded-lg p-4">
               <div className="font-mono text-xs space-y-2">
                 {/* Headers */}
-                <div className="text-gray-600 font-semibold border-b border-gray-300 pb-2">
+                <div className="text-gray-600 font-semibold border-b border-gray-300 pb-2 break-all whitespace-pre-wrap">
                   {allColumns.map(col => col.internalName).join(',')}
                 </div>
                 {/* Sample data */}
-                <div className="text-gray-800">
+                <div className="text-gray-800 break-all whitespace-pre-wrap">
                   {generateSampleData().join(',')}
                 </div>
               </div>
