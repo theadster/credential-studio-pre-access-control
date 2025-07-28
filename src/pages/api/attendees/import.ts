@@ -58,11 +58,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             throw new Error('Event settings not found. Please configure event settings first.');
           }
 
-          // Fetch custom fields to map internal names to IDs
+          // Fetch custom fields to map internal names to IDs and get field options
           const customFields = await prisma.customField.findMany({
-            select: { id: true, internalFieldName: true },
+            select: { id: true, internalFieldName: true, fieldType: true, fieldOptions: true },
           });
           const customFieldMap = new Map(customFields.map(cf => [cf.internalFieldName, cf.id]));
+          const customFieldOptionsMap = new Map(customFields.map(cf => [cf.internalFieldName, { fieldType: cf.fieldType, fieldOptions: cf.fieldOptions }]));
 
           // Get existing barcode numbers to ensure uniqueness
           const existingBarcodes = new Set(
@@ -78,13 +79,34 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               return null;
             }
 
+            // Apply uppercase transformations to first and last names if enabled
+            let processedFirstName = firstName;
+            let processedLastName = lastName;
+            
+            if (eventSettings.forceFirstNameUppercase) {
+              processedFirstName = firstName.toUpperCase();
+            }
+            
+            if (eventSettings.forceLastNameUppercase) {
+              processedLastName = lastName.toUpperCase();
+            }
+
             const customFieldsData = Object.entries(customFieldValues)
               .map(([internalName, value]) => {
                 const customFieldId = customFieldMap.get(internalName);
+                const fieldInfo = customFieldOptionsMap.get(internalName);
+                
                 if (customFieldId && value) {
+                  let processedValue = String(value);
+                  
+                  // Apply uppercase transformation for text fields if enabled
+                  if (fieldInfo?.fieldType === 'text' && fieldInfo?.fieldOptions?.uppercase === true) {
+                    processedValue = processedValue.toUpperCase();
+                  }
+                  
                   return {
                     customFieldId,
-                    value: String(value),
+                    value: processedValue,
                   };
                 }
                 return null;
@@ -101,8 +123,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             existingBarcodes.add(generatedBarcode);
 
             return {
-              firstName,
-              lastName,
+              firstName: processedFirstName,
+              lastName: processedLastName,
               barcodeNumber: generatedBarcode,
               customFieldValues: {
                 create: customFieldsData,
