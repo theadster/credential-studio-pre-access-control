@@ -47,6 +47,7 @@ import AttendeeForm from "@/components/AttendeeForm";
 import UserForm from "@/components/UserForm";
 import EventSettingsForm from "@/components/EventSettingsForm";
 import RoleForm from "@/components/RoleForm";
+import ExportDialog from "@/components/ExportDialog";
 import { hasPermission, canAccessTab, canManageUser } from "@/lib/permissions";
 
 interface User {
@@ -1792,10 +1793,20 @@ export default function Dashboard() {
                       <Upload className="mr-2 h-4 w-4" />
                       Import
                     </Button>
-                    <Button variant="outline">
-                      <Download className="mr-2 h-4 w-4" />
-                      Export
-                    </Button>
+                    <ExportDialog
+                      totalAttendees={attendees.length}
+                      filteredAttendees={filteredAttendees.length}
+                      isFiltered={showAdvancedSearch || searchTerm !== '' || photoFilter !== 'all'}
+                      searchTerm={searchTerm}
+                      photoFilter={photoFilter}
+                      advancedFilters={showAdvancedSearch ? advancedSearchFilters : null}
+                      eventSettings={eventSettings}
+                    >
+                      <Button variant="outline">
+                        <Download className="mr-2 h-4 w-4" />
+                        Export
+                      </Button>
+                    </ExportDialog>
                   </div>
                 </div>
               </div>
