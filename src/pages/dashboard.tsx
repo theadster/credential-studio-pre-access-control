@@ -1625,36 +1625,37 @@ export default function Dashboard() {
 
                 {/* Advanced Search Button and Import/Export Buttons */}
                 <div className="flex justify-between items-center">
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className="flex items-center space-x-2"
-                        onClick={() => {
-                          // Initialize custom fields when opening advanced search
-                          if (!showAdvancedSearch) {
-                            const customFields: { [key: string]: { value: string; searchEmpty: boolean } } = {};
-                            eventSettings?.customFields?.forEach((field: any) => {
-                              customFields[field.id] = { value: '', searchEmpty: false };
-                            });
-                            if (Object.keys(advancedSearchFilters.customFields).length === 0) {
-                              setAdvancedSearchFilters(prev => ({
-                                ...prev,
-                                customFields
-                              }));
+                  <div className="flex items-center space-x-2">
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="flex items-center space-x-2"
+                          onClick={() => {
+                            // Initialize custom fields when opening advanced search
+                            if (!showAdvancedSearch) {
+                              const customFields: { [key: string]: { value: string; searchEmpty: boolean } } = {};
+                              eventSettings?.customFields?.forEach((field: any) => {
+                                customFields[field.id] = { value: '', searchEmpty: false };
+                              });
+                              if (Object.keys(advancedSearchFilters.customFields).length === 0) {
+                                setAdvancedSearchFilters(prev => ({
+                                  ...prev,
+                                  customFields
+                                }));
+                              }
                             }
-                          }
-                        }}
-                      >
-                        <Filter className="h-4 w-4" />
-                        <span>Advanced Search</span>
-                        {hasAdvancedFilters() && (
-                          <Badge variant="secondary" className="ml-1 h-5 w-5 p-0 flex items-center justify-center">
-                            <span className="text-xs">!</span>
-                          </Badge>
-                        )}
-                      </Button>
-                    </DialogTrigger>
+                          }}
+                        >
+                          <Filter className="h-4 w-4" />
+                          <span>Advanced Search</span>
+                          {hasAdvancedFilters() && (
+                            <Badge variant="secondary" className="ml-1 h-5 w-5 p-0 flex items-center justify-center">
+                              <span className="text-xs">!</span>
+                            </Badge>
+                          )}
+                        </Button>
+                      </DialogTrigger>
                     <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
                       <DialogHeader>
                         <DialogTitle className="flex items-center justify-between">
@@ -1802,6 +1803,20 @@ export default function Dashboard() {
                       </div>
                     </DialogContent>
                   </Dialog>
+                    {hasAdvancedFilters() && hasPermission(currentUser?.role, 'attendees', 'delete') && (
+                      <Button
+                        variant="destructive"
+                        className="flex items-center space-x-2"
+                        onClick={() => {
+                          // TODO: Implement bulk delete functionality
+                          console.log('Bulk delete clicked for filtered attendees');
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        <span>Bulk Delete</span>
+                      </Button>
+                    )}
+                  </div>
                   
                   <div className="flex items-center space-x-2">
                     {hasPermission(currentUser?.role, 'attendees', 'import') && (
