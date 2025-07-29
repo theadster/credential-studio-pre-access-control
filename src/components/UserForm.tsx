@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
-import { Loader2 } from 'lucide-react';
+import { Loader2, UserCheck } from 'lucide-react';
 
 interface User {
   id: string;
@@ -174,13 +174,16 @@ export default function UserForm({ isOpen, onClose, onSave, user, roles }: UserF
               <SelectContent className="max-w-[380px]">
                 {roles.map((role) => (
                   <SelectItem key={role.id} value={role.id} className="max-w-[380px]">
-                    <div className="flex flex-col w-full">
-                      <span className="font-medium truncate">{role.name}</span>
-                      {role.description && (
-                        <span className="text-xs text-muted-foreground break-words whitespace-normal leading-tight">
-                          {role.description}
-                        </span>
-                      )}
+                    <div className="flex items-start gap-2 w-full">
+                      <UserCheck className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                      <div className="flex flex-col w-full text-left">
+                        <span className="font-medium truncate">{role.name}</span>
+                        {role.description && (
+                          <span className="text-xs text-muted-foreground break-words whitespace-normal leading-tight">
+                            {role.description}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </SelectItem>
                 ))}
