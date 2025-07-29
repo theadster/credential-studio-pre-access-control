@@ -2269,7 +2269,22 @@ export default function Dashboard() {
                                 </AvatarFallback>
                               </Avatar>
                               <div>
-                                <div className="font-medium">{user.name || user.email.split('@')[0]}</div>
+                                <button
+                                  onClick={() => {
+                                    if (hasPermission(currentUser?.role, 'users', 'update')) {
+                                      setEditingUser(user);
+                                      setShowUserForm(true);
+                                    }
+                                  }}
+                                  className={`text-left ${
+                                    hasPermission(currentUser?.role, 'users', 'update') 
+                                      ? 'hover:text-primary transition-colors cursor-pointer' 
+                                      : 'cursor-default'
+                                  }`}
+                                  disabled={!hasPermission(currentUser?.role, 'users', 'update')}
+                                >
+                                  <div className="font-medium text-lg hover:text-primary">{user.name || user.email.split('@')[0]}</div>
+                                </button>
                                 <div className="text-sm text-muted-foreground">{user.email}</div>
                               </div>
                             </div>
