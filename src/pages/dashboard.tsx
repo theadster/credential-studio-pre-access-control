@@ -2720,10 +2720,12 @@ export default function Dashboard() {
                               Last updated {new Date(eventSettings.updatedAt || eventSettings.createdAt).toLocaleDateString()} at {new Date(eventSettings.updatedAt || eventSettings.createdAt).toLocaleTimeString()}
                             </p>
                           </div>
-                          <Button onClick={() => setShowEventSettingsForm(true)}>
-                            <Edit className="mr-2 h-4 w-4" />
-                            Edit Settings
-                          </Button>
+                          {hasPermission(currentUser?.role, 'eventSettings', 'update') && (
+                            <Button onClick={() => setShowEventSettingsForm(true)}>
+                              <Edit className="mr-2 h-4 w-4" />
+                              Edit Settings
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </CardContent>
