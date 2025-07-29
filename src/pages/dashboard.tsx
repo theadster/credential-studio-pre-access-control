@@ -2301,7 +2301,7 @@ export default function Dashboard() {
                                   )}
                                 </Button>
                               )}
-                              {hasPermission(currentUser?.role, 'users', 'update') && canManageUser(currentUser?.role, user.role) && (
+                              {hasPermission(currentUser?.role, 'users', 'update') && (
                                 <Button 
                                   variant="ghost" 
                                   size="sm"
