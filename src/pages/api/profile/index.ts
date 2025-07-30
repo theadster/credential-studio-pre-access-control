@@ -15,6 +15,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     switch (req.method) {
       case 'GET':
+        // Test database connection first
+        try {
+          await prisma.$queryRaw`SELECT 1`;
+          console.log('✅ Database query test successful');
+        } catch (dbError) {
+          console.error('❌ Database connection test failed:', dbError);
+          return res.status(500).json({ 
+            error: 'Database connection failed', 
+            details: dbError instanceof Error ? dbError.message : 'Unknown database error'
+          });
+        }
+
         // Users can always fetch their own profile - no permission check needed
         const userProfile = await prisma.user.findUnique({
           where: { id: user.id },
@@ -35,6 +47,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   } catch (error) {
     console.error('API Error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ 
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : 'Unknown error',
+      stack: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.stack : undefined) : undefined
+    });
   }
 }
