@@ -1328,152 +1328,154 @@ export default function Dashboard() {
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-background via-surface to-surface-variant">
       {/* Sidebar */}
-      <aside className="w-64 border-r glass-effect">
-        <div className="p-6">
-          <div className="flex items-center space-x-2 mb-8">
-            <IdCard className="h-8 w-8 text-primary" />
-            <span className="text-xl font-bold">credential.studio</span>
-          </div>
-          
-          {/* Event Banner */}
-          {eventSettings?.bannerImageUrl && (
-            <div className="mb-6">
-              <img 
-                src={eventSettings.bannerImageUrl} 
-                alt={eventSettings.eventName}
-                className="w-full h-24 object-cover rounded-lg"
-              />
-              <div className="mt-3 text-center">
-                <h3 className="font-bold text-lg leading-tight break-words hyphens-auto" 
-                    style={{
-                      fontSize: 'clamp(0.875rem, 4vw, 1.125rem)',
-                      lineHeight: '1.2'
-                    }}>
-                  {eventSettings.eventName}
-                </h3>
-                <div className="flex items-center justify-center text-xs text-muted-foreground mt-2">
-                  <Calendar className="h-3 w-3 mr-1 flex-shrink-0" />
-                  <span className="truncate">
-                    {(() => {
-                      // Handle date properly to avoid timezone issues
-                      const dateValue = eventSettings.eventDate;
-                      
-                      if (!dateValue) return 'No date set';
-                      
-                      // Convert to string if it's not already
-                      const dateStr = typeof dateValue === 'string' ? dateValue : String(dateValue);
-                      
-                      // Extract just the date part if it's an ISO string
-                      let datePart = dateStr;
-                      if (dateStr.includes('T')) {
-                        datePart = dateStr.split('T')[0];
-                      }
-                      
-                      // Parse as local date to avoid timezone conversion issues
-                      const [year, month, day] = datePart.split('-').map(Number);
-                      const localDate = new Date(year, month - 1, day);
-                      
-                      // Format the date without timezone conversion
-                      return localDate.toLocaleDateString('en-US', { 
-                        year: 'numeric', 
-                        month: 'long', 
-                        day: 'numeric'
-                      });
-                    })()}
-                  </span>
-                </div>
-                {eventSettings.eventTime && (
-                  <div className="flex items-center justify-center text-xs text-muted-foreground mt-1">
-                    <Clock className="h-3 w-3 mr-1 flex-shrink-0" />
-                    <span>
+      <aside className="w-64 border-r glass-effect flex flex-col h-screen">
+        <div className="flex-1 overflow-y-auto">
+          <div className="p-6">
+            <div className="flex items-center space-x-2 mb-8">
+              <IdCard className="h-8 w-8 text-primary" />
+              <span className="text-xl font-bold">credential.studio</span>
+            </div>
+            
+            {/* Event Banner */}
+            {eventSettings?.bannerImageUrl && (
+              <div className="mb-6">
+                <img 
+                  src={eventSettings.bannerImageUrl} 
+                  alt={eventSettings.eventName}
+                  className="w-full h-24 object-cover rounded-lg"
+                />
+                <div className="mt-3 text-center">
+                  <h3 className="font-bold text-lg leading-tight break-words hyphens-auto" 
+                      style={{
+                        fontSize: 'clamp(0.875rem, 4vw, 1.125rem)',
+                        lineHeight: '1.2'
+                      }}>
+                    {eventSettings.eventName}
+                  </h3>
+                  <div className="flex items-center justify-center text-xs text-muted-foreground mt-2">
+                    <Calendar className="h-3 w-3 mr-1 flex-shrink-0" />
+                    <span className="truncate">
                       {(() => {
-                        // Format time in the event's timezone
-                        const timeZone = eventSettings.timeZone || 'America/Los_Angeles';
-                        const timeStr = eventSettings.eventTime;
+                        // Handle date properly to avoid timezone issues
+                        const dateValue = eventSettings.eventDate;
                         
-                        // Create a date object with the time in the event's timezone
-                        const today = new Date();
-                        const [hours, minutes] = timeStr.split(':').map(Number);
+                        if (!dateValue) return 'No date set';
                         
-                        // Create a date with today's date and the event time
-                        const eventDateTime = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes);
+                        // Convert to string if it's not already
+                        const dateStr = typeof dateValue === 'string' ? dateValue : String(dateValue);
                         
-                        return eventDateTime.toLocaleTimeString('en-US', {
-                          hour: 'numeric',
-                          minute: '2-digit',
-                          hour12: true,
-                          timeZone: timeZone
+                        // Extract just the date part if it's an ISO string
+                        let datePart = dateStr;
+                        if (dateStr.includes('T')) {
+                          datePart = dateStr.split('T')[0];
+                        }
+                        
+                        // Parse as local date to avoid timezone conversion issues
+                        const [year, month, day] = datePart.split('-').map(Number);
+                        const localDate = new Date(year, month - 1, day);
+                        
+                        // Format the date without timezone conversion
+                        return localDate.toLocaleDateString('en-US', { 
+                          year: 'numeric', 
+                          month: 'long', 
+                          day: 'numeric'
                         });
                       })()}
                     </span>
                   </div>
-                )}
-                <div className="flex items-center justify-center text-xs text-muted-foreground mt-1">
-                  <MapPin className="h-3 w-3 mr-1 flex-shrink-0" />
-                  <span className="truncate">
-                    {eventSettings.eventLocation}
-                  </span>
+                  {eventSettings.eventTime && (
+                    <div className="flex items-center justify-center text-xs text-muted-foreground mt-1">
+                      <Clock className="h-3 w-3 mr-1 flex-shrink-0" />
+                      <span>
+                        {(() => {
+                          // Format time in the event's timezone
+                          const timeZone = eventSettings.timeZone || 'America/Los_Angeles';
+                          const timeStr = eventSettings.eventTime;
+                          
+                          // Create a date object with the time in the event's timezone
+                          const today = new Date();
+                          const [hours, minutes] = timeStr.split(':').map(Number);
+                          
+                          // Create a date with today's date and the event time
+                          const eventDateTime = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes);
+                          
+                          return eventDateTime.toLocaleTimeString('en-US', {
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            hour12: true,
+                            timeZone: timeZone
+                          });
+                        })()}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-center text-xs text-muted-foreground mt-1">
+                    <MapPin className="h-3 w-3 mr-1 flex-shrink-0" />
+                    <span className="truncate">
+                      {eventSettings.eventLocation}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          <nav className="space-y-2">
-            {canAccessTab(currentUser?.role, 'attendees') && (
-              <Button
-                variant={activeTab === "attendees" ? "default" : "ghost"}
-                className="w-full justify-start text-base"
-                onClick={() => setActiveTab("attendees")}
-              >
-                <Users className="mr-2 h-4 w-4" />
-                Attendees
-              </Button>
-            )}
-            {canAccessTab(currentUser?.role, 'settings') && (
-              <Button
-                variant={activeTab === "settings" ? "default" : "ghost"}
-                className="w-full justify-start text-base"
-                onClick={() => setActiveTab("settings")}
-              >
-                <Settings className="mr-2 h-4 w-4" />
-                Event Settings
-              </Button>
-            )}
-            {canAccessTab(currentUser?.role, 'users') && (
-              <Button
-                variant={activeTab === "users" ? "default" : "ghost"}
-                className="w-full justify-start text-base"
-                onClick={() => setActiveTab("users")}
-              >
-                <Shield className="mr-2 h-4 w-4" />
-                User Management
-              </Button>
-            )}
-            {canAccessTab(currentUser?.role, 'roles') && (
-              <Button
-                variant={activeTab === "roles" ? "default" : "ghost"}
-                className="w-full justify-start text-base"
-                onClick={() => setActiveTab("roles")}
-              >
-                <Shield className="mr-2 h-4 w-4" />
-                Roles
-              </Button>
-            )}
-            {canAccessTab(currentUser?.role, 'logs') && (
-              <Button
-                variant={activeTab === "logs" ? "default" : "ghost"}
-                className="w-full justify-start text-base"
-                onClick={() => setActiveTab("logs")}
-              >
-                <Activity className="mr-2 h-4 w-4" />
-                Activity Logs
-              </Button>
-            )}
-          </nav>
+            <nav className="space-y-2">
+              {canAccessTab(currentUser?.role, 'attendees') && (
+                <Button
+                  variant={activeTab === "attendees" ? "default" : "ghost"}
+                  className="w-full justify-start text-base"
+                  onClick={() => setActiveTab("attendees")}
+                >
+                  <Users className="mr-2 h-4 w-4" />
+                  Attendees
+                </Button>
+              )}
+              {canAccessTab(currentUser?.role, 'settings') && (
+                <Button
+                  variant={activeTab === "settings" ? "default" : "ghost"}
+                  className="w-full justify-start text-base"
+                  onClick={() => setActiveTab("settings")}
+                >
+                  <Settings className="mr-2 h-4 w-4" />
+                  Event Settings
+                </Button>
+              )}
+              {canAccessTab(currentUser?.role, 'users') && (
+                <Button
+                  variant={activeTab === "users" ? "default" : "ghost"}
+                  className="w-full justify-start text-base"
+                  onClick={() => setActiveTab("users")}
+                >
+                  <Shield className="mr-2 h-4 w-4" />
+                  User Management
+                </Button>
+              )}
+              {canAccessTab(currentUser?.role, 'roles') && (
+                <Button
+                  variant={activeTab === "roles" ? "default" : "ghost"}
+                  className="w-full justify-start text-base"
+                  onClick={() => setActiveTab("roles")}
+                >
+                  <Shield className="mr-2 h-4 w-4" />
+                  Roles
+                </Button>
+              )}
+              {canAccessTab(currentUser?.role, 'logs') && (
+                <Button
+                  variant={activeTab === "logs" ? "default" : "ghost"}
+                  className="w-full justify-start text-base"
+                  onClick={() => setActiveTab("logs")}
+                >
+                  <Activity className="mr-2 h-4 w-4" />
+                  Activity Logs
+                </Button>
+              )}
+            </nav>
+          </div>
         </div>
 
-        {/* User Profile */}
-        <div className="absolute bottom-0 left-0 w-64 p-6 border-t">
+        {/* User Profile - Fixed at bottom of sidebar */}
+        <div className="flex-shrink-0 p-6 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="flex items-center space-x-3 mb-3">
             <Avatar className="h-8 w-8">
               <AvatarImage src={user?.user_metadata?.avatar_url} />
