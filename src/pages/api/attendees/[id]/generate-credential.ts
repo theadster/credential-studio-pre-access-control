@@ -193,7 +193,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             mappingDebug.processing.push(`Original value: "${originalValue}", lookupKey: "${lookupKey}"`);
 
             if (mapping.fieldType === 'boolean') {
-              const boolValue = originalValue.toLowerCase() === 'true' || originalValue === '1';
+              // Handle various boolean representations
+              const lowerValue = originalValue.toLowerCase();
+              const boolValue = lowerValue === 'true' || lowerValue === 'yes' || originalValue === '1';
               lookupKey = boolValue.toString();
               console.log(`Boolean conversion: "${originalValue}" -> ${boolValue} -> "${lookupKey}"`);
               mappingDebug.processing.push(`Boolean conversion: "${originalValue}" -> ${boolValue} -> "${lookupKey}"`);
