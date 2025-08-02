@@ -42,6 +42,14 @@ interface CustomField {
   order: number;
 }
 
+interface FieldMapping {
+  fieldId: string;
+  fieldName: string;
+  fieldType: string;
+  jsonVariable: string;
+  valueMapping?: { [key: string]: string }; // For boolean and select fields
+}
+
 interface EventSettings {
   id?: string;
   eventName: string;
@@ -69,6 +77,7 @@ interface EventSettings {
   switchboardApiKey?: string;
   switchboardRequestBody?: string;
   switchboardTemplateId?: string;
+  switchboardFieldMappings?: FieldMapping[];
   bannerImageUrl?: string | null;
   customFields?: CustomField[];
   createdAt?: string;
@@ -203,6 +212,8 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
   const [editingField, setEditingField] = useState<CustomField | null>(null);
   const [showFieldForm, setShowFieldForm] = useState(false);
+  const [fieldMappings, setFieldMappings] = useState<FieldMapping[]>([]);
+  const [showMappingForm, setShowMappingForm] = useState(false);
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -240,6 +251,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
         eventTime: parsedTime
       });
       setCustomFields(eventSettings.customFields || []);
+      setFieldMappings(eventSettings.switchboardFieldMappings || []);
     } else {
       // Reset form for new event settings
       setFormData({
@@ -254,6 +266,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
         customFields: []
       });
       setCustomFields([]);
+      setFieldMappings([]);
     }
   }, [eventSettings, isOpen]);
 
@@ -271,7 +284,8 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
     try {
       const settingsData = {
         ...formData,
-        customFields
+        customFields,
+        switchboardFieldMappings: fieldMappings
       };
 
       await onSave(settingsData);
@@ -900,6 +914,78 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                         </div>
                       </div>
 
+                      {/* Field Mappings Section */}
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Link className="h-4 w-4" />
+                            <h4 className="text-sm font-semibold">Field Mappings</h4>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowMappingForm(true)}
+                            disabled={customFields.length === 0}
+                          >
+                            <Plus className="mr-2 h-4 w-4" />
+                            Add Mapping
+                          </Button>
+                        </div>
+                        
+                        <div className="p-4 border rounded-lg bg-purple-50 dark:bg-purple-950/20">
+                          <p className="text-sm text-purple-800 dark:text-purple-200 mb-3">
+                            <strong>Field Mappings</strong> allow you to map custom field responses to different variable names in your JSON request. 
+                            This is especially useful for boolean (Yes/No) and select fields where you want to transform the values.
+                          </p>
+                          
+                          {fieldMappings.length === 0 ? (
+                            <div className="text-center py-4 text-purple-600 dark:text-purple-400 text-sm">
+                              {customFields.length === 0 
+                                ? "Create custom fields first to add field mappings"
+                                : "No field mappings configured. Click 'Add Mapping' to create one."
+                              }
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {fieldMappings.map((mapping, index) => (
+                                <div key={index} className="flex items-center justify-between p-3 bg-background border rounded-lg">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className="font-medium text-sm">{mapping.fieldName}</span>
+                                      <Badge variant="outline" className="text-xs">{mapping.fieldType}</Badge>
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      Maps to: <code className="bg-muted px-1 rounded">{mapping.jsonVariable}</code>
+                                    </div>
+                                    {mapping.valueMapping && Object.keys(mapping.valueMapping).length > 0 && (
+                                      <div className="text-xs text-muted-foreground mt-1">
+                                        Value mappings: {Object.entries(mapping.valueMapping).map(([key, value]) => (
+                                          <span key={key} className="inline-block mr-2">
+                                            <code className="bg-muted px-1 rounded">{key}</code> → <code className="bg-muted px-1 rounded">{value}</code>
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-destructive"
+                                    onClick={() => {
+                                      setFieldMappings(prev => prev.filter((_, i) => i !== index));
+                                    }}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
                       {/* Placeholders Documentation */}
                       <div className="space-y-4">
                         <div className="flex items-center gap-2">
@@ -940,6 +1026,19 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                                         {`{{${field.internalFieldName || generateInternalFieldName(field.fieldName)}}}`}
                                       </code>
                                     ))}
+                                </div>
+                              </div>
+                            )}
+                            
+                            {fieldMappings.length > 0 && (
+                              <div>
+                                <h5 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">Mapped Fields:</h5>
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                                  {fieldMappings.map((mapping, index) => (
+                                    <code key={index} className="bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded">
+                                      {`{{${mapping.jsonVariable}}}`}
+                                    </code>
+                                  ))}
                                 </div>
                               </div>
                             )}
@@ -1094,6 +1193,18 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
               setShowFieldForm(false);
               setEditingField(null);
             }}
+          />
+        )}
+
+        {/* Field Mapping Form Modal */}
+        {showMappingForm && (
+          <FieldMappingForm
+            customFields={customFields}
+            onSave={(mapping) => {
+              setFieldMappings(prev => [...prev, mapping]);
+              setShowMappingForm(false);
+            }}
+            onCancel={() => setShowMappingForm(false)}
           />
         )}
       </DialogContent>
@@ -1350,6 +1461,218 @@ function CustomFieldForm({ field, onSave, onCancel }: CustomFieldFormProps) {
             <Button type="submit" className="h-10">
               <Save className="mr-2 h-4 w-4" />
               {field?.id ? "Update Field" : "Add Field"}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// Field Mapping Form Component
+interface FieldMappingFormProps {
+  customFields: CustomField[];
+  onSave: (mapping: FieldMapping) => void;
+  onCancel: () => void;
+}
+
+function FieldMappingForm({ customFields, onSave, onCancel }: FieldMappingFormProps) {
+  const [selectedField, setSelectedField] = useState<CustomField | null>(null);
+  const [jsonVariable, setJsonVariable] = useState("");
+  const [valueMapping, setValueMapping] = useState<{ [key: string]: string }>({});
+
+  // Filter fields that support mapping (boolean and select)
+  const mappableFields = customFields.filter(field => 
+    field.fieldType === 'boolean' || field.fieldType === 'select'
+  );
+
+  useEffect(() => {
+    if (selectedField) {
+      // Initialize value mapping based on field type
+      if (selectedField.fieldType === 'boolean') {
+        setValueMapping({
+          'true': '',
+          'false': ''
+        });
+      } else if (selectedField.fieldType === 'select' && selectedField.fieldOptions?.options) {
+        const mapping: { [key: string]: string } = {};
+        selectedField.fieldOptions.options.forEach((option: string) => {
+          mapping[option] = '';
+        });
+        setValueMapping(mapping);
+      }
+    }
+  }, [selectedField]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!selectedField || !jsonVariable.trim()) {
+      return;
+    }
+
+    // Clean up value mapping - remove empty values
+    const cleanedValueMapping: { [key: string]: string } = {};
+    Object.entries(valueMapping).forEach(([key, value]) => {
+      if (value.trim()) {
+        cleanedValueMapping[key] = value.trim();
+      }
+    });
+
+    const mapping: FieldMapping = {
+      fieldId: selectedField.id!,
+      fieldName: selectedField.fieldName,
+      fieldType: selectedField.fieldType,
+      jsonVariable: jsonVariable.trim(),
+      valueMapping: Object.keys(cleanedValueMapping).length > 0 ? cleanedValueMapping : undefined
+    };
+
+    onSave(mapping);
+  };
+
+  const updateValueMapping = (key: string, value: string) => {
+    setValueMapping(prev => ({
+      ...prev,
+      [key]: value
+    }));
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-background p-6 rounded-lg max-w-lg w-full mx-4 shadow-xl">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-xl font-semibold flex items-center gap-2">
+            <Link className="h-5 w-5" />
+            Add Field Mapping
+          </h3>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={onCancel}
+            className="h-8 w-8 p-0"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div>
+            <Label htmlFor="customField" className="flex items-center gap-2 text-sm font-medium mb-2">
+              <Settings className="h-4 w-4" />
+              Custom Field *
+            </Label>
+            <Select 
+              value={selectedField?.id || ""} 
+              onValueChange={(value) => {
+                const field = mappableFields.find(f => f.id === value);
+                setSelectedField(field || null);
+                setJsonVariable("");
+                setValueMapping({});
+              }}
+            >
+              <SelectTrigger className="h-10">
+                <SelectValue placeholder="Select a custom field to map" />
+              </SelectTrigger>
+              <SelectContent>
+                {mappableFields.length === 0 ? (
+                  <SelectItem value="none" disabled>
+                    No boolean or select fields available
+                  </SelectItem>
+                ) : (
+                  mappableFields.map((field) => (
+                    <SelectItem key={field.id} value={field.id!}>
+                      <div className="flex items-center gap-2">
+                        {field.fieldType === 'boolean' ? (
+                          <ToggleLeft className="h-4 w-4" />
+                        ) : (
+                          <List className="h-4 w-4" />
+                        )}
+                        <span>{field.fieldName}</span>
+                        <Badge variant="outline" className="text-xs">{field.fieldType}</Badge>
+                      </div>
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground mt-1">
+              Only boolean (Yes/No) and select fields can be mapped
+            </p>
+          </div>
+
+          {selectedField && (
+            <>
+              <div>
+                <Label htmlFor="jsonVariable" className="flex items-center gap-2 text-sm font-medium mb-2">
+                  <Type className="h-4 w-4" />
+                  JSON Variable Name *
+                </Label>
+                <Input
+                  id="jsonVariable"
+                  value={jsonVariable}
+                  onChange={(e) => setJsonVariable(e.target.value)}
+                  placeholder="e.g., vipStatus, membershipLevel"
+                  required
+                  className="h-10"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  The variable name to use in your JSON request body
+                </p>
+              </div>
+
+              <div>
+                <Label className="flex items-center gap-2 text-sm font-medium mb-3">
+                  <Hash className="h-4 w-4" />
+                  Value Mappings
+                </Label>
+                <div className="space-y-3">
+                  <p className="text-xs text-muted-foreground">
+                    Map the field responses to specific values in your JSON:
+                  </p>
+                  
+                  {Object.entries(valueMapping).map(([key, value]) => (
+                    <div key={key} className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <code className="bg-muted px-2 py-1 rounded text-xs font-mono whitespace-nowrap">
+                          {key}
+                        </code>
+                        <span className="text-muted-foreground">→</span>
+                        <Input
+                          value={value}
+                          onChange={(e) => updateValueMapping(key, e.target.value)}
+                          placeholder={`Value for "${key}"`}
+                          className="h-9 flex-1"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                  
+                  <div className="p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
+                    <p className="text-xs text-blue-800 dark:text-blue-200">
+                      <strong>Example:</strong> For a "VIP Status" boolean field, you might map:
+                      <br />
+                      <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">true</code> → <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">premium</code>
+                      <br />
+                      <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">false</code> → <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">standard</code>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          <div className="flex justify-end space-x-3 pt-4 border-t">
+            <Button type="button" variant="outline" onClick={onCancel} className="h-10">
+              Cancel
+            </Button>
+            <Button 
+              type="submit" 
+              disabled={!selectedField || !jsonVariable.trim()}
+              className="h-10"
+            >
+              <Save className="mr-2 h-4 w-4" />
+              Add Mapping
             </Button>
           </div>
         </form>

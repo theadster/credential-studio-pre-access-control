@@ -104,6 +104,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       });
 
+      // Add field mappings placeholders
+      const fieldMappings = eventSettings.switchboardFieldMappings as any[] || [];
+      fieldMappings.forEach(mapping => {
+        // Find the custom field value for this mapping
+        const customFieldValue = attendee.customFieldValues.find(cfv => 
+          cfv.customField?.id === mapping.fieldId
+        );
+        
+        if (customFieldValue && mapping.jsonVariable) {
+          let mappedValue = customFieldValue.value || '';
+          
+          // Apply value mapping if it exists
+          if (mapping.valueMapping && typeof mapping.valueMapping === 'object') {
+            const originalValue = customFieldValue.value || '';
+            
+            // For boolean fields, convert string values to boolean for mapping
+            if (mapping.fieldType === 'boolean') {
+              const boolValue = originalValue.toLowerCase() === 'true' || originalValue === '1';
+              mappedValue = mapping.valueMapping[boolValue.toString()] || mappedValue;
+            } else {
+              // For select and other fields, use direct mapping
+              mappedValue = mapping.valueMapping[originalValue] || mappedValue;
+            }
+          }
+          
+          placeholders[`{{${mapping.jsonVariable}}}`] = mappedValue;
+        }
+      });
+
       // Convert body template to string and replace placeholders
       let bodyString = JSON.stringify(bodyTemplate);
       Object.entries(placeholders).forEach(([placeholder, value]) => {

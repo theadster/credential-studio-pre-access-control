@@ -82,6 +82,7 @@ model EventSettings {
   switchboardApiKey            String?
   switchboardRequestBody       String?
   switchboardTemplateId        String?
+  switchboardFieldMappings     Json?    // Store field mappings as JSON
   bannerImageUrl               String?
   createdAt                    DateTime @default(now())
   updatedAt                    DateTime @updatedAt
