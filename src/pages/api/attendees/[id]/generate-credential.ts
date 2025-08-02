@@ -82,6 +82,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     try {
       // Parse the request body to ensure it's valid JSON
+      console.log('Original request body template:', requestBody);
       const bodyTemplate = JSON.parse(requestBody);
       
       // Replace standard placeholders
@@ -146,20 +147,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       // Convert body template to string and replace placeholders
       let bodyString = JSON.stringify(bodyTemplate);
+      console.log('Body string after JSON.stringify:', bodyString);
       
       // Replace string placeholders, ensuring values are properly escaped for JSON
       Object.entries(placeholders).forEach(([placeholder, value]) => {
         const jsonValue = JSON.stringify(value).slice(1, -1); // Escapes quotes and other special chars
         bodyString = bodyString.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), jsonValue);
       });
+      console.log('Body string after string placeholder replacement:', bodyString);
 
       // Replace numeric placeholders, removing quotes to insert them as numbers
       Object.entries(numericPlaceholders).forEach(([placeholder, value]) => {
         const regex = new RegExp(`"${placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`, 'g');
         bodyString = bodyString.replace(regex, String(value));
       });
+      console.log('Body string after numeric placeholder replacement:', bodyString);
+      console.log('Numeric placeholders:', numericPlaceholders);
 
-      const finalRequestBody = JSON.parse(bodyString);
+      let finalRequestBody;
+      try {
+        finalRequestBody = JSON.parse(bodyString);
+      } catch (jsonParseError) {
+        console.error('Failed to parse final body string as JSON:', jsonParseError);
+        console.error('Body string that failed to parse:', bodyString);
+        throw new Error(`JSON parse error: ${jsonParseError.message}. Body: ${bodyString}`);
+      }
 
       // Make the API call to Switchboard Canvas
       let switchboardResponse;
