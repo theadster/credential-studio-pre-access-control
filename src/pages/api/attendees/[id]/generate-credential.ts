@@ -1,7 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@/util/supabase/api';
 import prisma from '@/lib/prisma';
-import { checkApiPermission } from '@/lib/permissions';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -26,7 +25,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(403).json({ error: 'No role assigned' });
     }
 
-    // Check permissions manually since checkApiPermission expects different parameters
+    // Check permissions
     const userRole = currentUser.role;
     const permissions = userRole.permissions as any;
     const hasPermission = permissions?.attendees?.print || permissions?.all;
@@ -81,25 +80,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let requestBody = eventSettings.switchboardRequestBody || '{}';
     
     try {
-      // Parse the request body to ensure it's valid JSON
-      console.log('Original request body template:', requestBody);
-      
-      // First, let's try to fix common JSON syntax issues
+      // Fix common JSON syntax issues
       let cleanedRequestBody = requestBody;
-      
-      // Fix tab characters that might cause parsing issues
       cleanedRequestBody = cleanedRequestBody.replace(/\t/g, '  ');
-      
-      // This regex finds a closing brace `}` or bracket `]` that is followed by whitespace
-      // and then a double-quoted property name. It inserts a comma where it's missing.
-      // This is a common JSON syntax error in user-provided templates.
-      // It handles different kinds of whitespace (\s*) and is applied globally (g).
-      // Example: `... "key1": "value1" \n "key2": "value2" ...` becomes `... "key1": "value1", \n "key2": "value2" ...`
       cleanedRequestBody = cleanedRequestBody.replace(/([}\]])\s*("[^"]+":)/g, '$1,\n$2');
-      
-      console.log('Cleaned request body template:', cleanedRequestBody);
 
-      // Define placeholders
+      // Define basic placeholders
       const placeholders: Record<string, string> = {
         '{{firstName}}': attendee.firstName || '',
         '{{lastName}}': attendee.lastName || '',
@@ -112,48 +98,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         '{{template_id}}': eventSettings.switchboardTemplateId || ''
       };
 
-      // --- New, more robust placeholder logic ---
-
       const fieldMappings = eventSettings.switchboardFieldMappings as any[] || [];
       const numericPlaceholders: Record<string, number> = {};
       
-      // === DEBUGGING FIELD MAPPINGS ===
-      const debugInfo = {
-        rawFieldMappings: eventSettings.switchboardFieldMappings,
-        fieldMappingsType: typeof eventSettings.switchboardFieldMappings,
-        parsedFieldMappings: fieldMappings,
-        fieldMappingsLength: fieldMappings?.length,
-        attendeeCustomFields: attendee.customFieldValues.map(cfv => ({
-          id: cfv.customField?.id,
-          fieldName: cfv.customField?.fieldName,
-          internalFieldName: cfv.customField?.internalFieldName,
-          fieldType: cfv.customField?.fieldType,
-          value: cfv.value
-        })),
-        mappingProcessing: [] as any[],
-        finalPlaceholders: {} as Record<string, string>,
-        finalNumericPlaceholders: {} as Record<string, number>,
-        bodyProcessing: {
-          original: '',
-          afterStringReplacement: '',
-          afterNumericReplacement: '',
-          finalParsed: null as any
-        }
-      };
-
-      console.log('=== FIELD MAPPING DEBUG START ===');
-      console.log('Event settings switchboardFieldMappings (raw):', eventSettings.switchboardFieldMappings);
-      console.log('Event settings switchboardFieldMappings (type):', typeof eventSettings.switchboardFieldMappings);
-      console.log('Event settings switchboardFieldMappings (stringified):', JSON.stringify(eventSettings.switchboardFieldMappings, null, 2));
-      console.log('Parsed field mappings:', fieldMappings);
-      console.log('Field mappings length:', fieldMappings?.length);
-      console.log('Attendee custom field values:', debugInfo.attendeeCustomFields);
-      console.log('=== FIELD MAPPING DEBUG END ===');
-      
-      // Create a set of field IDs that have mappings to easily separate them from unmapped fields.
+      // Create a set of field IDs that have mappings
       const mappedFieldIds = new Set(fieldMappings.map(m => m.fieldId));
 
-      // 1. Add placeholders for UNMAPPED custom fields. These will always be strings.
+      // Add placeholders for unmapped custom fields
       attendee.customFieldValues.forEach(cfv => {
         if (cfv.customField && !mappedFieldIds.has(cfv.customField.id)) {
           if (cfv.customField.internalFieldName) {
@@ -162,134 +113,63 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       });
 
-      // 2. Process MAPPED fields. This logic determines the final value and correctly types it
-      // as either a string or a number, preventing conflicts with the raw values.
-      fieldMappings.forEach((mapping, index) => {
-        const mappingDebug: any = {
-          index,
-          mapping,
-          customFieldValue: null,
-          processing: []
-        };
-
-        console.log(`Processing mapping ${index}:`, mapping);
+      // Process mapped fields
+      fieldMappings.forEach((mapping) => {
         const customFieldValue = attendee.customFieldValues.find(cfv => cfv.customField?.id === mapping.fieldId);
-        console.log(`Found custom field value for mapping ${index}:`, customFieldValue);
-        
-        mappingDebug.customFieldValue = customFieldValue;
-        mappingDebug.processing.push(`Processing mapping ${index}: ${JSON.stringify(mapping)}`);
-        mappingDebug.processing.push(`Found custom field value: ${JSON.stringify(customFieldValue)}`);
         
         if (customFieldValue && mapping.jsonVariable) {
-          let finalValue: any = customFieldValue.value ?? ''; // Default to raw value
-          console.log(`Initial finalValue for ${mapping.jsonVariable}:`, finalValue);
-          mappingDebug.processing.push(`Initial finalValue for ${mapping.jsonVariable}: ${finalValue}`);
+          let finalValue: any = customFieldValue.value ?? '';
 
           // Check if a mapping exists and apply it
           if (mapping.valueMapping && typeof mapping.valueMapping === 'object') {
             const originalValue = customFieldValue.value || '';
             let lookupKey = originalValue;
-            console.log(`Original value: "${originalValue}", lookupKey: "${lookupKey}"`);
-            mappingDebug.processing.push(`Original value: "${originalValue}", lookupKey: "${lookupKey}"`);
 
-            // For boolean fields, we can optionally normalize the case for consistent lookup
+            // For boolean fields, normalize the case for consistent lookup
             if (mapping.fieldType === 'boolean') {
               lookupKey = originalValue.toLowerCase();
-              console.log(`Boolean field lookup key: "${originalValue}" -> "${lookupKey}"`);
-              mappingDebug.processing.push(`Boolean field lookup key: "${originalValue}" -> "${lookupKey}"`);
             }
-            
-            console.log(`Value mapping for ${mapping.jsonVariable}:`, mapping.valueMapping);
-            console.log(`Looking up key "${lookupKey}" in value mapping`);
-            mappingDebug.processing.push(`Value mapping: ${JSON.stringify(mapping.valueMapping)}`);
-            mappingDebug.processing.push(`Looking up key "${lookupKey}" in value mapping`);
             
             if (Object.prototype.hasOwnProperty.call(mapping.valueMapping, lookupKey)) {
               finalValue = mapping.valueMapping[lookupKey];
-              console.log(`Found mapping: "${lookupKey}" -> "${finalValue}"`);
-              mappingDebug.processing.push(`Found mapping: "${lookupKey}" -> "${finalValue}"`);
-            } else {
-              console.log(`No mapping found for key "${lookupKey}"`);
-              mappingDebug.processing.push(`No mapping found for key "${lookupKey}"`);
             }
           }
 
-          console.log(`Final value for ${mapping.jsonVariable}:`, finalValue, `(type: ${typeof finalValue})`);
-          mappingDebug.processing.push(`Final value for ${mapping.jsonVariable}: ${finalValue} (type: ${typeof finalValue})`);
-
-          // After determining the final value, correctly classify it as numeric or string.
-          // This logic correctly handles booleans as strings, and numbers/numeric-strings as numbers.
+          // Determine if finalValue should be a number or string
           const numValue = Number(finalValue);
           if (typeof finalValue === 'number') {
              numericPlaceholders[`{{${mapping.jsonVariable}}}`] = finalValue;
-             console.log(`Added to numericPlaceholders: {{${mapping.jsonVariable}}} = ${finalValue}`);
-             mappingDebug.processing.push(`Added to numericPlaceholders: {{${mapping.jsonVariable}}} = ${finalValue}`);
           } else if (typeof finalValue === 'string' && finalValue.trim() !== '' && !isNaN(numValue)) {
              numericPlaceholders[`{{${mapping.jsonVariable}}}`] = numValue;
-             console.log(`Added to numericPlaceholders (converted): {{${mapping.jsonVariable}}} = ${numValue}`);
-             mappingDebug.processing.push(`Added to numericPlaceholders (converted): {{${mapping.jsonVariable}}} = ${numValue}`);
-          }
-          else {
+          } else {
             placeholders[`{{${mapping.jsonVariable}}}`] = String(finalValue ?? '');
-            console.log(`Added to placeholders: {{${mapping.jsonVariable}}} = "${String(finalValue ?? '')}"`);
-            mappingDebug.processing.push(`Added to placeholders: {{${mapping.jsonVariable}}} = "${String(finalValue ?? '')}"`);
           }
-        } else {
-          console.log(`Skipping mapping ${index}: customFieldValue=${!!customFieldValue}, jsonVariable="${mapping.jsonVariable}"`);
-          mappingDebug.processing.push(`Skipping mapping ${index}: customFieldValue=${!!customFieldValue}, jsonVariable="${mapping.jsonVariable}"`);
         }
-
-        debugInfo.mappingProcessing.push(mappingDebug);
       });
 
-      console.log('Final placeholders object:', placeholders);
-      console.log('Final numericPlaceholders object:', numericPlaceholders);
-      
-      debugInfo.finalPlaceholders = placeholders;
-      debugInfo.finalNumericPlaceholders = numericPlaceholders;
-
-      // --- Start of new replacement logic ---
-      // Perform replacements directly on the cleaned request body string,
-      // instead of parsing it to JSON first. This handles templates that are
-      // not valid JSON until after placeholders are replaced (e.g., unquoted numeric placeholders).
+      // Perform replacements on the cleaned request body string
       let bodyString = cleanedRequestBody;
-      debugInfo.bodyProcessing.original = cleanedRequestBody;
 
-      // Replace string placeholders. The value is JSON-escaped to handle special characters.
+      // Replace string placeholders
       Object.entries(placeholders).forEach(([placeholder, value]) => {
         const jsonEscapedValue = JSON.stringify(value).slice(1, -1);
         bodyString = bodyString.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), jsonEscapedValue);
       });
-      console.log('Body string after string placeholder replacement:', bodyString);
-      debugInfo.bodyProcessing.afterStringReplacement = bodyString;
 
-      // Replace numeric placeholders. These are expected to be unquoted in the template.
+      // Replace numeric placeholders
       Object.entries(numericPlaceholders).forEach(([placeholder, value]) => {
         bodyString = bodyString.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), String(value));
       });
-      console.log('Body string after numeric placeholder replacement:', bodyString);
-      console.log('Numeric placeholders:', numericPlaceholders);
-      debugInfo.bodyProcessing.afterNumericReplacement = bodyString;
 
       let finalRequestBody;
       try {
-        // Parse the final string to validate it and normalize formatting
         finalRequestBody = JSON.parse(bodyString);
-        debugInfo.bodyProcessing.finalParsed = finalRequestBody;
       } catch (jsonParseError) {
-        console.error('Failed to parse final body string as JSON:', jsonParseError);
-        console.error('Body string that failed to parse:', bodyString);
-        
-        // Return debug info with the error for troubleshooting
         return res.status(400).json({ 
           error: 'Invalid request body template in Switchboard Canvas settings',
-          details: `JSON parse error: ${jsonParseError.message}`,
-          originalTemplate: requestBody,
-          parseErrorType: jsonParseError.constructor.name,
-          debugInfo: debugInfo
+          details: `JSON parse error: ${jsonParseError.message}`
         });
       }
-      // --- End of new replacement logic ---
 
       // Make the API call to Switchboard Canvas
       let switchboardResponse;
@@ -306,31 +186,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           headers[authHeaderType] = eventSettings.switchboardApiKey || '';
         }
 
-        console.log('Making Switchboard API request to:', eventSettings.switchboardApiEndpoint);
-        console.log('Request headers:', { ...headers, [authHeaderType === 'Bearer' ? 'Authorization' : authHeaderType]: '[REDACTED]' });
-        console.log('Request body:', JSON.stringify(finalRequestBody, null, 2));
-
         switchboardResponse = await fetch(eventSettings.switchboardApiEndpoint, {
           method: 'POST',
           headers,
           body: JSON.stringify(finalRequestBody)
         });
 
-        console.log('Switchboard API response status:', switchboardResponse.status);
-        console.log('Switchboard API response headers:', Object.fromEntries(switchboardResponse.headers.entries()));
-
       } catch (fetchError) {
-        console.error('Fetch error:', fetchError);
         return res.status(500).json({ error: 'Failed to connect to Switchboard Canvas API' });
       }
 
       if (!switchboardResponse.ok) {
         const errorText = await switchboardResponse.text();
-        console.error('Switchboard API error response:', {
-          status: switchboardResponse.status,
-          statusText: switchboardResponse.statusText,
-          body: errorText
-        });
         return res.status(500).json({ 
           error: 'Failed to generate credential with Switchboard Canvas',
           details: `API returned ${switchboardResponse.status}: ${errorText}`
@@ -340,13 +207,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       let switchboardResult;
       try {
         switchboardResult = await switchboardResponse.json();
-        console.log('Switchboard API response data:', switchboardResult);
       } catch (parseError) {
-        console.error('Failed to parse Switchboard response as JSON:', parseError);
         return res.status(500).json({ error: 'Invalid response format from Switchboard Canvas' });
       }
       
-      // Extract the credential URL from the response - try multiple possible field names
+      // Extract the credential URL from the response
       let credentialUrl = switchboardResult.url || 
                          switchboardResult.imageUrl || 
                          switchboardResult.downloadUrl ||
@@ -366,7 +231,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
       
       if (!credentialUrl) {
-        console.error('No credential URL found in Switchboard response. Available fields:', Object.keys(switchboardResult));
         return res.status(500).json({ 
           error: 'No credential URL returned from Switchboard Canvas',
           responseFields: Object.keys(switchboardResult),
@@ -404,18 +268,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         success: true,
         credentialUrl,
         generatedAt: now.toISOString(),
-        attendee: updatedAttendee,
-        debugInfo: debugInfo
+        attendee: updatedAttendee
       });
 
     } catch (parseError) {
-      console.error('Error parsing request body template:', parseError);
       return res.status(400).json({ 
         error: 'Invalid request body template in Switchboard Canvas settings',
-        details: parseError.message,
-        originalTemplate: requestBody,
-        parseErrorType: parseError.constructor.name,
-        debugInfo: typeof debugInfo !== 'undefined' ? debugInfo : null
+        details: parseError.message
       });
     }
 
