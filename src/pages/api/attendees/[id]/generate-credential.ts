@@ -127,25 +127,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const customFieldValue = attendee.customFieldValues.find(cfv => cfv.customField?.id === mapping.fieldId);
         if (customFieldValue && mapping.jsonVariable) {
           let mappedValue = customFieldValue.value || '';
-          let isNumeric = false;
           
+          // Apply value mapping if it exists, regardless of field type
           if (mapping.valueMapping && typeof mapping.valueMapping === 'object') {
             const originalValue = customFieldValue.value || '';
             if (mapping.fieldType === 'boolean') {
               const boolValue = originalValue.toLowerCase() === 'true' || originalValue === '1';
               mappedValue = mapping.valueMapping[boolValue.toString()] || mappedValue;
-              
-              const numValue = Number(mappedValue);
-              if (!isNaN(numValue) && mappedValue.trim() !== '') {
-                numericPlaceholders[`{{${mapping.jsonVariable}}}`] = numValue;
-                isNumeric = true;
-              }
             } else {
+              // For select and other fields, get the mapped value
               mappedValue = mapping.valueMapping[originalValue] || mappedValue;
             }
           }
           
-          if (!isNumeric) {
+          // After determining the final mapped value, check if it should be treated as a number.
+          // This handles cases where a select field maps an option to a numeric value (e.g., "Yes" -> 1).
+          const numValue = Number(mappedValue);
+          if (!isNaN(numValue) && mappedValue.trim() !== '') {
+            // It's a number, so add it to numeric placeholders to be inserted without quotes.
+            numericPlaceholders[`{{${mapping.jsonVariable}}}`] = numValue;
+          } else {
+            // It's a string, so add it to the standard string placeholders.
             placeholders[`{{${mapping.jsonVariable}}}`] = mappedValue;
           }
         }
