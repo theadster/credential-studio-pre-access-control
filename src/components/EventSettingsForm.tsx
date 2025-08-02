@@ -251,7 +251,13 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
         eventTime: parsedTime
       });
       setCustomFields(eventSettings.customFields || []);
-      setFieldMappings(eventSettings.switchboardFieldMappings || []);
+      // Ensure fieldMappings is always an array, even if database value is malformed
+      const mappings = eventSettings.switchboardFieldMappings;
+      if (Array.isArray(mappings)) {
+        setFieldMappings(mappings);
+      } else {
+        setFieldMappings([]);
+      }
     } else {
       // Reset form for new event settings
       setFormData({
