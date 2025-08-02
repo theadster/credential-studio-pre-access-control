@@ -112,43 +112,55 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         '{{template_id}}': eventSettings.switchboardTemplateId || ''
       };
 
-      // Add custom field placeholders
+      // --- New, more robust placeholder logic ---
+
+      const fieldMappings = eventSettings.switchboardFieldMappings as any[] || [];
+      const numericPlaceholders: Record<string, number> = {};
+      
+      // Create a set of field IDs that have mappings to easily separate them from unmapped fields.
+      const mappedFieldIds = new Set(fieldMappings.map(m => m.fieldId));
+
+      // 1. Add placeholders for UNMAPPED custom fields. These will always be strings.
       attendee.customFieldValues.forEach(cfv => {
-        if (cfv.customField?.internalFieldName) {
-          placeholders[`{{${cfv.customField.internalFieldName}}}`] = cfv.value || '';
+        if (cfv.customField && !mappedFieldIds.has(cfv.customField.id)) {
+          if (cfv.customField.internalFieldName) {
+            placeholders[`{{${cfv.customField.internalFieldName}}}`] = cfv.value || '';
+          }
         }
       });
 
-      // Define numeric placeholders and add mapped string placeholders
-      const fieldMappings = eventSettings.switchboardFieldMappings as any[] || [];
-      const numericPlaceholders: Record<string, number> = {};
-
+      // 2. Process MAPPED fields. This logic determines the final value and correctly types it
+      // as either a string or a number, preventing conflicts with the raw values.
       fieldMappings.forEach(mapping => {
         const customFieldValue = attendee.customFieldValues.find(cfv => cfv.customField?.id === mapping.fieldId);
         if (customFieldValue && mapping.jsonVariable) {
-          let mappedValue = customFieldValue.value || '';
-          
-          // Apply value mapping if it exists, regardless of field type
+          let finalValue: any = customFieldValue.value ?? ''; // Default to raw value
+
+          // Check if a mapping exists and apply it
           if (mapping.valueMapping && typeof mapping.valueMapping === 'object') {
             const originalValue = customFieldValue.value || '';
+            let lookupKey = originalValue;
+
             if (mapping.fieldType === 'boolean') {
               const boolValue = originalValue.toLowerCase() === 'true' || originalValue === '1';
-              mappedValue = mapping.valueMapping[boolValue.toString()] || mappedValue;
-            } else {
-              // For select and other fields, get the mapped value
-              mappedValue = mapping.valueMapping[originalValue] || mappedValue;
+              lookupKey = boolValue.toString();
+            }
+            
+            if (Object.prototype.hasOwnProperty.call(mapping.valueMapping, lookupKey)) {
+              finalValue = mapping.valueMapping[lookupKey];
             }
           }
-          
-          // After determining the final mapped value, check if it should be treated as a number.
-          // This handles cases where a select field maps an option to a numeric value (e.g., "Yes" -> 1).
-          const numValue = Number(mappedValue);
-          if (!isNaN(numValue) && mappedValue.trim() !== '') {
-            // It's a number, so add it to numeric placeholders to be inserted without quotes.
-            numericPlaceholders[`{{${mapping.jsonVariable}}}`] = numValue;
-          } else {
-            // It's a string, so add it to the standard string placeholders.
-            placeholders[`{{${mapping.jsonVariable}}}`] = mappedValue;
+
+          // After determining the final value, correctly classify it as numeric or string.
+          // This logic correctly handles booleans as strings, and numbers/numeric-strings as numbers.
+          const numValue = Number(finalValue);
+          if (typeof finalValue === 'number') {
+             numericPlaceholders[`{{${mapping.jsonVariable}}}`] = finalValue;
+          } else if (typeof finalValue === 'string' && finalValue.trim() !== '' && !isNaN(numValue)) {
+             numericPlaceholders[`{{${mapping.jsonVariable}}}`] = numValue;
+          }
+          else {
+            placeholders[`{{${mapping.jsonVariable}}}`] = String(finalValue ?? '');
           }
         }
       });
