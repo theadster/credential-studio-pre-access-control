@@ -117,6 +117,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const fieldMappings = eventSettings.switchboardFieldMappings as any[] || [];
       const numericPlaceholders: Record<string, number> = {};
       
+      // === DEBUGGING FIELD MAPPINGS ===
+      console.log('=== FIELD MAPPING DEBUG START ===');
+      console.log('Event settings switchboardFieldMappings (raw):', eventSettings.switchboardFieldMappings);
+      console.log('Event settings switchboardFieldMappings (type):', typeof eventSettings.switchboardFieldMappings);
+      console.log('Event settings switchboardFieldMappings (stringified):', JSON.stringify(eventSettings.switchboardFieldMappings, null, 2));
+      console.log('Parsed field mappings:', fieldMappings);
+      console.log('Field mappings length:', fieldMappings?.length);
+      console.log('Attendee custom field values:', attendee.customFieldValues.map(cfv => ({
+        id: cfv.customField?.id,
+        fieldName: cfv.customField?.fieldName,
+        internalFieldName: cfv.customField?.internalFieldName,
+        fieldType: cfv.customField?.fieldType,
+        value: cfv.value
+      })));
+      console.log('=== FIELD MAPPING DEBUG END ===');
+      
       // Create a set of field IDs that have mappings to easily separate them from unmapped fields.
       const mappedFieldIds = new Set(fieldMappings.map(m => m.fieldId));
 
@@ -131,39 +147,61 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       // 2. Process MAPPED fields. This logic determines the final value and correctly types it
       // as either a string or a number, preventing conflicts with the raw values.
-      fieldMappings.forEach(mapping => {
+      fieldMappings.forEach((mapping, index) => {
+        console.log(`Processing mapping ${index}:`, mapping);
         const customFieldValue = attendee.customFieldValues.find(cfv => cfv.customField?.id === mapping.fieldId);
+        console.log(`Found custom field value for mapping ${index}:`, customFieldValue);
+        
         if (customFieldValue && mapping.jsonVariable) {
           let finalValue: any = customFieldValue.value ?? ''; // Default to raw value
+          console.log(`Initial finalValue for ${mapping.jsonVariable}:`, finalValue);
 
           // Check if a mapping exists and apply it
           if (mapping.valueMapping && typeof mapping.valueMapping === 'object') {
             const originalValue = customFieldValue.value || '';
             let lookupKey = originalValue;
+            console.log(`Original value: "${originalValue}", lookupKey: "${lookupKey}"`);
 
             if (mapping.fieldType === 'boolean') {
               const boolValue = originalValue.toLowerCase() === 'true' || originalValue === '1';
               lookupKey = boolValue.toString();
+              console.log(`Boolean conversion: "${originalValue}" -> ${boolValue} -> "${lookupKey}"`);
             }
+            
+            console.log(`Value mapping for ${mapping.jsonVariable}:`, mapping.valueMapping);
+            console.log(`Looking up key "${lookupKey}" in value mapping`);
             
             if (Object.prototype.hasOwnProperty.call(mapping.valueMapping, lookupKey)) {
               finalValue = mapping.valueMapping[lookupKey];
+              console.log(`Found mapping: "${lookupKey}" -> "${finalValue}"`);
+            } else {
+              console.log(`No mapping found for key "${lookupKey}"`);
             }
           }
+
+          console.log(`Final value for ${mapping.jsonVariable}:`, finalValue, `(type: ${typeof finalValue})`);
 
           // After determining the final value, correctly classify it as numeric or string.
           // This logic correctly handles booleans as strings, and numbers/numeric-strings as numbers.
           const numValue = Number(finalValue);
           if (typeof finalValue === 'number') {
              numericPlaceholders[`{{${mapping.jsonVariable}}}`] = finalValue;
+             console.log(`Added to numericPlaceholders: {{${mapping.jsonVariable}}} = ${finalValue}`);
           } else if (typeof finalValue === 'string' && finalValue.trim() !== '' && !isNaN(numValue)) {
              numericPlaceholders[`{{${mapping.jsonVariable}}}`] = numValue;
+             console.log(`Added to numericPlaceholders (converted): {{${mapping.jsonVariable}}} = ${numValue}`);
           }
           else {
             placeholders[`{{${mapping.jsonVariable}}}`] = String(finalValue ?? '');
+            console.log(`Added to placeholders: {{${mapping.jsonVariable}}} = "${String(finalValue ?? '')}"`);
           }
+        } else {
+          console.log(`Skipping mapping ${index}: customFieldValue=${!!customFieldValue}, jsonVariable="${mapping.jsonVariable}"`);
         }
       });
+
+      console.log('Final placeholders object:', placeholders);
+      console.log('Final numericPlaceholders object:', numericPlaceholders);
 
       // --- Start of new replacement logic ---
       // Perform replacements directly on the cleaned request body string,
