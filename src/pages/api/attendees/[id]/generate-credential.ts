@@ -87,10 +87,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // First, let's try to fix common JSON syntax issues
       let cleanedRequestBody = requestBody;
       
+      // Fix tab characters that might cause parsing issues
+      cleanedRequestBody = cleanedRequestBody.replace(/\t/g, '  ');
+      
       // Fix missing comma after "url": "{{credential_type_variable}}" in background object
       cleanedRequestBody = cleanedRequestBody.replace(
         /"url":\s*"{{credential_type_variable}}"\s*\n\s*}/,
         '"url": "{{credential_type_variable}}"\n         },'
+      );
+      
+      // Fix missing comma after background object (more comprehensive)
+      cleanedRequestBody = cleanedRequestBody.replace(
+        /("background":\s*{[^}]*})\s*\n\s*("[\w-]+":\s*{)/g,
+        '$1,\n        $2'
+      );
+      
+      // Fix missing comma after any object that's followed by another property
+      cleanedRequestBody = cleanedRequestBody.replace(
+        /(}\s*)\n(\s*"[\w-]+":\s*{)/g,
+        '$1,\n$2'
       );
       
       console.log('Cleaned request body template:', cleanedRequestBody);
