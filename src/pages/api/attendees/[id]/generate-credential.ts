@@ -90,22 +90,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Fix tab characters that might cause parsing issues
       cleanedRequestBody = cleanedRequestBody.replace(/\t/g, '  ');
       
-      // Fix missing comma after "url": "{{credential_type_variable}}" in background object
+      // More comprehensive approach: Fix the specific structure issues
+      // 1. Fix the background object structure specifically
       cleanedRequestBody = cleanedRequestBody.replace(
-        /"url":\s*"{{credential_type_variable}}"\s*\n\s*}/,
-        '"url": "{{credential_type_variable}}"\n         },'
+        /("background":\s*{\s*"url":\s*"[^"]*"\s*)\n(\s*})/g,
+        '$1\n$2,'
       );
       
-      // Fix missing comma after background object (more comprehensive)
+      // 2. Fix any object that ends with } followed by a newline and another property
       cleanedRequestBody = cleanedRequestBody.replace(
-        /("background":\s*{[^}]*})\s*\n\s*("[\w-]+":\s*{)/g,
-        '$1,\n        $2'
-      );
-      
-      // Fix missing comma after any object that's followed by another property
-      cleanedRequestBody = cleanedRequestBody.replace(
-        /(}\s*)\n(\s*"[\w-]+":\s*{)/g,
+        /(}\s*)\n(\s*"[^"]+"\s*:\s*{)/g,
         '$1,\n$2'
+      );
+      
+      // 3. Fix any property that ends with } followed by a newline and another property (not an object)
+      cleanedRequestBody = cleanedRequestBody.replace(
+        /(}\s*)\n(\s*"[^"]+"\s*:\s*[^{])/g,
+        '$1,\n$2'
+      );
+      
+      // 4. Specific fix for the background object in this template
+      cleanedRequestBody = cleanedRequestBody.replace(
+        /"background":\s*{\s*"url":\s*"{{credential_type_variable}}"\s*\n\s*}/,
+        '"background": {\n          "url": "{{credential_type_variable}}"\n         },'
       );
       
       console.log('Cleaned request body template:', cleanedRequestBody);
