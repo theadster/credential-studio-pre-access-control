@@ -214,6 +214,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
   const [showFieldForm, setShowFieldForm] = useState(false);
   const [fieldMappings, setFieldMappings] = useState<FieldMapping[]>([]);
   const [showMappingForm, setShowMappingForm] = useState(false);
+  const [editingFieldMapping, setEditingFieldMapping] = useState<FieldMapping | null>(null);
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -974,17 +975,30 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                                       </div>
                                     )}
                                   </div>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="text-destructive"
-                                    onClick={() => {
-                                      setFieldMappings(prev => prev.filter((_, i) => i !== index));
-                                    }}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
+                                  <div className="flex items-center space-x-2">
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        setEditingFieldMapping(mapping);
+                                        setShowMappingForm(true);
+                                      }}
+                                    >
+                                      <Edit className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="text-destructive"
+                                      onClick={() => {
+                                        setFieldMappings(prev => prev.filter((_, i) => i !== index));
+                                      }}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
                                 </div>
                               ))}
                             </div>
@@ -1206,11 +1220,26 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
         {showMappingForm && (
           <FieldMappingForm
             customFields={customFields}
+            editingMapping={editingFieldMapping}
             onSave={(mapping) => {
-              setFieldMappings(prev => [...prev, mapping]);
+              if (editingFieldMapping) {
+                // Update existing mapping
+                setFieldMappings(prev => prev.map(m => 
+                  m.fieldId === editingFieldMapping.fieldId && m.jsonVariable === editingFieldMapping.jsonVariable 
+                    ? mapping 
+                    : m
+                ));
+              } else {
+                // Add new mapping
+                setFieldMappings(prev => [...prev, mapping]);
+              }
               setShowMappingForm(false);
+              setEditingFieldMapping(null);
             }}
-            onCancel={() => setShowMappingForm(false)}
+            onCancel={() => {
+              setShowMappingForm(false);
+              setEditingFieldMapping(null);
+            }}
           />
         )}
       </DialogContent>
@@ -1478,11 +1507,12 @@ function CustomFieldForm({ field, onSave, onCancel }: CustomFieldFormProps) {
 // Field Mapping Form Component
 interface FieldMappingFormProps {
   customFields: CustomField[];
+  editingMapping?: FieldMapping | null;
   onSave: (mapping: FieldMapping) => void;
   onCancel: () => void;
 }
 
-function FieldMappingForm({ customFields, onSave, onCancel }: FieldMappingFormProps) {
+function FieldMappingForm({ customFields, editingMapping, onSave, onCancel }: FieldMappingFormProps) {
   const [selectedField, setSelectedField] = useState<CustomField | null>(null);
   const [jsonVariable, setJsonVariable] = useState("");
   const [valueMapping, setValueMapping] = useState<{ [key: string]: string }>({});
@@ -1492,9 +1522,23 @@ function FieldMappingForm({ customFields, onSave, onCancel }: FieldMappingFormPr
     field.fieldType === 'boolean' || field.fieldType === 'select'
   );
 
+  // Initialize form with editing data
   useEffect(() => {
-    if (selectedField) {
-      // Initialize value mapping based on field type
+    if (editingMapping) {
+      const field = customFields.find(f => f.id === editingMapping.fieldId);
+      setSelectedField(field || null);
+      setJsonVariable(editingMapping.jsonVariable);
+      setValueMapping(editingMapping.valueMapping || {});
+    } else {
+      setSelectedField(null);
+      setJsonVariable("");
+      setValueMapping({});
+    }
+  }, [editingMapping, customFields]);
+
+  useEffect(() => {
+    if (selectedField && !editingMapping) {
+      // Initialize value mapping based on field type (only for new mappings)
       if (selectedField.fieldType === 'boolean') {
         setValueMapping({
           'true': '',
@@ -1508,7 +1552,7 @@ function FieldMappingForm({ customFields, onSave, onCancel }: FieldMappingFormPr
         setValueMapping(mapping);
       }
     }
-  }, [selectedField]);
+  }, [selectedField, editingMapping]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1544,12 +1588,12 @@ function FieldMappingForm({ customFields, onSave, onCancel }: FieldMappingFormPr
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-background p-6 rounded-lg max-w-lg w-full mx-4 shadow-xl">
+    <div className="fixed inset-0 bg-black/50 flex items-start justify-center z-[60] pt-8 pb-8 overflow-y-auto">
+      <div className="bg-background p-6 rounded-lg max-w-lg w-full mx-4 shadow-xl my-auto">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-xl font-semibold flex items-center gap-2">
             <Link className="h-5 w-5" />
-            Add Field Mapping
+            {editingMapping ? "Edit Field Mapping" : "Add Field Mapping"}
           </h3>
           <Button
             type="button"
@@ -1573,8 +1617,10 @@ function FieldMappingForm({ customFields, onSave, onCancel }: FieldMappingFormPr
               onValueChange={(value) => {
                 const field = mappableFields.find(f => f.id === value);
                 setSelectedField(field || null);
-                setJsonVariable("");
-                setValueMapping({});
+                if (!editingMapping) {
+                  setJsonVariable("");
+                  setValueMapping({});
+                }
               }}
             >
               <SelectTrigger className="h-10">
@@ -1678,7 +1724,7 @@ function FieldMappingForm({ customFields, onSave, onCancel }: FieldMappingFormPr
               className="h-10"
             >
               <Save className="mr-2 h-4 w-4" />
-              Add Mapping
+              {editingMapping ? "Update Mapping" : "Add Mapping"}
             </Button>
           </div>
         </form>
