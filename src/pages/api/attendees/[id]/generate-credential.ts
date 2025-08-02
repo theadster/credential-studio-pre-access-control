@@ -90,32 +90,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Fix tab characters that might cause parsing issues
       cleanedRequestBody = cleanedRequestBody.replace(/\t/g, '  ');
       
-      // Direct string replacement approach for the specific problematic structure
-      // Fix the exact background object structure that's causing the issue
-      cleanedRequestBody = cleanedRequestBody.replace(
-        '    "background": {\n          "url": "{{credential_type_variable}}"\n         }',
-        '    "background": {\n          "url": "{{credential_type_variable}}"\n         },'
-      );
-      
-      // Alternative pattern in case spacing is different
-      cleanedRequestBody = cleanedRequestBody.replace(
-        '"background": {\n          "url": "{{credential_type_variable}}"\n         }\n        "full-name"',
-        '"background": {\n          "url": "{{credential_type_variable}}"\n         },\n        "full-name"'
-      );
-      
-      // More general approach: find } followed by newline and whitespace and a quoted property
-      cleanedRequestBody = cleanedRequestBody.replace(
-        /(\s*})\n(\s*"[a-zA-Z-]+"\s*:\s*{)/g,
-        '$1,\n$2'
-      );
-      
-      // Ensure we catch the specific case where background object is followed by full-name
-      if (cleanedRequestBody.includes('"background"') && cleanedRequestBody.includes('"full-name"')) {
-        cleanedRequestBody = cleanedRequestBody.replace(
-          /("background":\s*{[^}]*})\s*\n\s*("full-name")/g,
-          '$1,\n        $2'
-        );
-      }
+      // This regex finds a closing brace `}` or bracket `]` that is followed by whitespace
+      // and then a double-quoted property name. It inserts a comma where it's missing.
+      // This is a common JSON syntax error in user-provided templates.
+      // It handles different kinds of whitespace (\s*) and is applied globally (g).
+      // Example: `... "key1": "value1" \n "key2": "value2" ...` becomes `... "key1": "value1", \n "key2": "value2" ...`
+      cleanedRequestBody = cleanedRequestBody.replace(/([}\]])\s*("[^"]+":)/g, '$1,\n$2');
       
       console.log('Cleaned request body template:', cleanedRequestBody);
       const bodyTemplate = JSON.parse(cleanedRequestBody);
