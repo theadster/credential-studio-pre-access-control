@@ -118,19 +118,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const numericPlaceholders: Record<string, number> = {};
       
       // === DEBUGGING FIELD MAPPINGS ===
+      const debugInfo = {
+        rawFieldMappings: eventSettings.switchboardFieldMappings,
+        fieldMappingsType: typeof eventSettings.switchboardFieldMappings,
+        parsedFieldMappings: fieldMappings,
+        fieldMappingsLength: fieldMappings?.length,
+        attendeeCustomFields: attendee.customFieldValues.map(cfv => ({
+          id: cfv.customField?.id,
+          fieldName: cfv.customField?.fieldName,
+          internalFieldName: cfv.customField?.internalFieldName,
+          fieldType: cfv.customField?.fieldType,
+          value: cfv.value
+        })),
+        mappingProcessing: [] as any[],
+        finalPlaceholders: {} as Record<string, string>,
+        finalNumericPlaceholders: {} as Record<string, number>,
+        bodyProcessing: {
+          original: '',
+          afterStringReplacement: '',
+          afterNumericReplacement: '',
+          finalParsed: null as any
+        }
+      };
+
       console.log('=== FIELD MAPPING DEBUG START ===');
       console.log('Event settings switchboardFieldMappings (raw):', eventSettings.switchboardFieldMappings);
       console.log('Event settings switchboardFieldMappings (type):', typeof eventSettings.switchboardFieldMappings);
       console.log('Event settings switchboardFieldMappings (stringified):', JSON.stringify(eventSettings.switchboardFieldMappings, null, 2));
       console.log('Parsed field mappings:', fieldMappings);
       console.log('Field mappings length:', fieldMappings?.length);
-      console.log('Attendee custom field values:', attendee.customFieldValues.map(cfv => ({
-        id: cfv.customField?.id,
-        fieldName: cfv.customField?.fieldName,
-        internalFieldName: cfv.customField?.internalFieldName,
-        fieldType: cfv.customField?.fieldType,
-        value: cfv.value
-      })));
+      console.log('Attendee custom field values:', debugInfo.attendeeCustomFields);
       console.log('=== FIELD MAPPING DEBUG END ===');
       
       // Create a set of field IDs that have mappings to easily separate them from unmapped fields.
@@ -148,38 +165,57 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // 2. Process MAPPED fields. This logic determines the final value and correctly types it
       // as either a string or a number, preventing conflicts with the raw values.
       fieldMappings.forEach((mapping, index) => {
+        const mappingDebug: any = {
+          index,
+          mapping,
+          customFieldValue: null,
+          processing: []
+        };
+
         console.log(`Processing mapping ${index}:`, mapping);
         const customFieldValue = attendee.customFieldValues.find(cfv => cfv.customField?.id === mapping.fieldId);
         console.log(`Found custom field value for mapping ${index}:`, customFieldValue);
         
+        mappingDebug.customFieldValue = customFieldValue;
+        mappingDebug.processing.push(`Processing mapping ${index}: ${JSON.stringify(mapping)}`);
+        mappingDebug.processing.push(`Found custom field value: ${JSON.stringify(customFieldValue)}`);
+        
         if (customFieldValue && mapping.jsonVariable) {
           let finalValue: any = customFieldValue.value ?? ''; // Default to raw value
           console.log(`Initial finalValue for ${mapping.jsonVariable}:`, finalValue);
+          mappingDebug.processing.push(`Initial finalValue for ${mapping.jsonVariable}: ${finalValue}`);
 
           // Check if a mapping exists and apply it
           if (mapping.valueMapping && typeof mapping.valueMapping === 'object') {
             const originalValue = customFieldValue.value || '';
             let lookupKey = originalValue;
             console.log(`Original value: "${originalValue}", lookupKey: "${lookupKey}"`);
+            mappingDebug.processing.push(`Original value: "${originalValue}", lookupKey: "${lookupKey}"`);
 
             if (mapping.fieldType === 'boolean') {
               const boolValue = originalValue.toLowerCase() === 'true' || originalValue === '1';
               lookupKey = boolValue.toString();
               console.log(`Boolean conversion: "${originalValue}" -> ${boolValue} -> "${lookupKey}"`);
+              mappingDebug.processing.push(`Boolean conversion: "${originalValue}" -> ${boolValue} -> "${lookupKey}"`);
             }
             
             console.log(`Value mapping for ${mapping.jsonVariable}:`, mapping.valueMapping);
             console.log(`Looking up key "${lookupKey}" in value mapping`);
+            mappingDebug.processing.push(`Value mapping: ${JSON.stringify(mapping.valueMapping)}`);
+            mappingDebug.processing.push(`Looking up key "${lookupKey}" in value mapping`);
             
             if (Object.prototype.hasOwnProperty.call(mapping.valueMapping, lookupKey)) {
               finalValue = mapping.valueMapping[lookupKey];
               console.log(`Found mapping: "${lookupKey}" -> "${finalValue}"`);
+              mappingDebug.processing.push(`Found mapping: "${lookupKey}" -> "${finalValue}"`);
             } else {
               console.log(`No mapping found for key "${lookupKey}"`);
+              mappingDebug.processing.push(`No mapping found for key "${lookupKey}"`);
             }
           }
 
           console.log(`Final value for ${mapping.jsonVariable}:`, finalValue, `(type: ${typeof finalValue})`);
+          mappingDebug.processing.push(`Final value for ${mapping.jsonVariable}: ${finalValue} (type: ${typeof finalValue})`);
 
           // After determining the final value, correctly classify it as numeric or string.
           // This logic correctly handles booleans as strings, and numbers/numeric-strings as numbers.
@@ -187,27 +223,37 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           if (typeof finalValue === 'number') {
              numericPlaceholders[`{{${mapping.jsonVariable}}}`] = finalValue;
              console.log(`Added to numericPlaceholders: {{${mapping.jsonVariable}}} = ${finalValue}`);
+             mappingDebug.processing.push(`Added to numericPlaceholders: {{${mapping.jsonVariable}}} = ${finalValue}`);
           } else if (typeof finalValue === 'string' && finalValue.trim() !== '' && !isNaN(numValue)) {
              numericPlaceholders[`{{${mapping.jsonVariable}}}`] = numValue;
              console.log(`Added to numericPlaceholders (converted): {{${mapping.jsonVariable}}} = ${numValue}`);
+             mappingDebug.processing.push(`Added to numericPlaceholders (converted): {{${mapping.jsonVariable}}} = ${numValue}`);
           }
           else {
             placeholders[`{{${mapping.jsonVariable}}}`] = String(finalValue ?? '');
             console.log(`Added to placeholders: {{${mapping.jsonVariable}}} = "${String(finalValue ?? '')}"`);
+            mappingDebug.processing.push(`Added to placeholders: {{${mapping.jsonVariable}}} = "${String(finalValue ?? '')}"`);
           }
         } else {
           console.log(`Skipping mapping ${index}: customFieldValue=${!!customFieldValue}, jsonVariable="${mapping.jsonVariable}"`);
+          mappingDebug.processing.push(`Skipping mapping ${index}: customFieldValue=${!!customFieldValue}, jsonVariable="${mapping.jsonVariable}"`);
         }
+
+        debugInfo.mappingProcessing.push(mappingDebug);
       });
 
       console.log('Final placeholders object:', placeholders);
       console.log('Final numericPlaceholders object:', numericPlaceholders);
+      
+      debugInfo.finalPlaceholders = placeholders;
+      debugInfo.finalNumericPlaceholders = numericPlaceholders;
 
       // --- Start of new replacement logic ---
       // Perform replacements directly on the cleaned request body string,
       // instead of parsing it to JSON first. This handles templates that are
       // not valid JSON until after placeholders are replaced (e.g., unquoted numeric placeholders).
       let bodyString = cleanedRequestBody;
+      debugInfo.bodyProcessing.original = cleanedRequestBody;
 
       // Replace string placeholders. The value is JSON-escaped to handle special characters.
       Object.entries(placeholders).forEach(([placeholder, value]) => {
@@ -215,6 +261,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         bodyString = bodyString.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), jsonEscapedValue);
       });
       console.log('Body string after string placeholder replacement:', bodyString);
+      debugInfo.bodyProcessing.afterStringReplacement = bodyString;
 
       // Replace numeric placeholders. These are expected to be unquoted in the template.
       Object.entries(numericPlaceholders).forEach(([placeholder, value]) => {
@@ -222,15 +269,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
       console.log('Body string after numeric placeholder replacement:', bodyString);
       console.log('Numeric placeholders:', numericPlaceholders);
+      debugInfo.bodyProcessing.afterNumericReplacement = bodyString;
 
       let finalRequestBody;
       try {
         // Parse the final string to validate it and normalize formatting
         finalRequestBody = JSON.parse(bodyString);
+        debugInfo.bodyProcessing.finalParsed = finalRequestBody;
       } catch (jsonParseError) {
         console.error('Failed to parse final body string as JSON:', jsonParseError);
         console.error('Body string that failed to parse:', bodyString);
-        throw new Error(`JSON parse error: ${jsonParseError.message}. Body: ${bodyString}`);
+        
+        // Return debug info with the error for troubleshooting
+        return res.status(400).json({ 
+          error: 'Invalid request body template in Switchboard Canvas settings',
+          details: `JSON parse error: ${jsonParseError.message}`,
+          originalTemplate: requestBody,
+          parseErrorType: jsonParseError.constructor.name,
+          debugInfo: debugInfo
+        });
       }
       // --- End of new replacement logic ---
 
@@ -347,7 +404,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         success: true,
         credentialUrl,
         generatedAt: now.toISOString(),
-        attendee: updatedAttendee
+        attendee: updatedAttendee,
+        debugInfo: debugInfo
       });
 
     } catch (parseError) {
@@ -356,7 +414,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         error: 'Invalid request body template in Switchboard Canvas settings',
         details: parseError.message,
         originalTemplate: requestBody,
-        parseErrorType: parseError.constructor.name
+        parseErrorType: parseError.constructor.name,
+        debugInfo: typeof debugInfo !== 'undefined' ? debugInfo : null
       });
     }
 
