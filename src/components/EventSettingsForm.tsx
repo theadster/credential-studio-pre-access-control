@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1217,7 +1218,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
         )}
 
         {/* Field Mapping Form Modal */}
-        {showMappingForm && (
+        {showMappingForm && typeof window !== 'undefined' && createPortal(
           <FieldMappingForm
             customFields={customFields}
             editingMapping={editingFieldMapping}
@@ -1240,7 +1241,8 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
               setShowMappingForm(false);
               setEditingFieldMapping(null);
             }}
-          />
+          />,
+          document.body
         )}
       </DialogContent>
     </Dialog>
