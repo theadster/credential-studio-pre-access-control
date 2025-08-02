@@ -1541,8 +1541,8 @@ function FieldMappingForm({ isOpen, customFields, editingMapping, onSave, onCanc
       // Initialize value mapping based on field type (only for new mappings)
       if (selectedField.fieldType === 'boolean') {
         setValueMapping({
-          'true': '',
-          'false': ''
+          'yes': '',
+          'no': ''
         });
       } else if (selectedField.fieldType === 'select' && selectedField.fieldOptions?.options) {
         const mapping: { [key: string]: string } = {};
@@ -1699,9 +1699,9 @@ function FieldMappingForm({ isOpen, customFields, editingMapping, onSave, onCanc
                       <p className="text-xs text-blue-800 dark:text-blue-200">
                         <strong>Example:</strong> For a "VIP Status" boolean field, you might map:
                         <br />
-                        <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">true</code> → <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">premium</code>
+                        <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">yes</code> → <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">1</code>
                         <br />
-                        <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">false</code> → <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">standard</code>
+                        <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">no</code> → <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">0</code>
                       </p>
                     </div>
                   </div>

@@ -192,13 +192,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             console.log(`Original value: "${originalValue}", lookupKey: "${lookupKey}"`);
             mappingDebug.processing.push(`Original value: "${originalValue}", lookupKey: "${lookupKey}"`);
 
+            // For boolean fields, we can optionally normalize the case for consistent lookup
             if (mapping.fieldType === 'boolean') {
-              // Handle various boolean representations
-              const lowerValue = originalValue.toLowerCase();
-              const boolValue = lowerValue === 'true' || lowerValue === 'yes' || originalValue === '1';
-              lookupKey = boolValue.toString();
-              console.log(`Boolean conversion: "${originalValue}" -> ${boolValue} -> "${lookupKey}"`);
-              mappingDebug.processing.push(`Boolean conversion: "${originalValue}" -> ${boolValue} -> "${lookupKey}"`);
+              lookupKey = originalValue.toLowerCase();
+              console.log(`Boolean field lookup key: "${originalValue}" -> "${lookupKey}"`);
+              mappingDebug.processing.push(`Boolean field lookup key: "${originalValue}" -> "${lookupKey}"`);
             }
             
             console.log(`Value mapping for ${mapping.jsonVariable}:`, mapping.valueMapping);
