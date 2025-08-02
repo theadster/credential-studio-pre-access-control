@@ -83,7 +83,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     try {
       // Parse the request body to ensure it's valid JSON
       console.log('Original request body template:', requestBody);
-      const bodyTemplate = JSON.parse(requestBody);
+      
+      // First, let's try to fix common JSON syntax issues
+      let cleanedRequestBody = requestBody;
+      
+      // Fix missing comma after "url": "{{credential_type_variable}}" in background object
+      cleanedRequestBody = cleanedRequestBody.replace(
+        /"url":\s*"{{credential_type_variable}}"\s*\n\s*}/,
+        '"url": "{{credential_type_variable}}"\n         },'
+      );
+      
+      console.log('Cleaned request body template:', cleanedRequestBody);
+      const bodyTemplate = JSON.parse(cleanedRequestBody);
       
       // Replace standard placeholders
       const placeholders: Record<string, string> = {
