@@ -98,9 +98,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       cleanedRequestBody = cleanedRequestBody.replace(/([}\]])\s*("[^"]+":)/g, '$1,\n$2');
       
       console.log('Cleaned request body template:', cleanedRequestBody);
-      const bodyTemplate = JSON.parse(cleanedRequestBody);
-      
-      // Replace standard placeholders
+
+      // Define placeholders
       const placeholders: Record<string, string> = {
         '{{firstName}}': attendee.firstName || '',
         '{{lastName}}': attendee.lastName || '',
@@ -120,36 +119,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       });
 
-      // Add field mappings placeholders
+      // Define numeric placeholders and add mapped string placeholders
       const fieldMappings = eventSettings.switchboardFieldMappings as any[] || [];
       const numericPlaceholders: Record<string, number> = {};
 
       fieldMappings.forEach(mapping => {
-        // Find the custom field value for this mapping
-        const customFieldValue = attendee.customFieldValues.find(cfv => 
-          cfv.customField?.id === mapping.fieldId
-        );
-        
+        const customFieldValue = attendee.customFieldValues.find(cfv => cfv.customField?.id === mapping.fieldId);
         if (customFieldValue && mapping.jsonVariable) {
           let mappedValue = customFieldValue.value || '';
           let isNumeric = false;
           
-          // Apply value mapping if it exists
           if (mapping.valueMapping && typeof mapping.valueMapping === 'object') {
             const originalValue = customFieldValue.value || '';
-            
             if (mapping.fieldType === 'boolean') {
               const boolValue = originalValue.toLowerCase() === 'true' || originalValue === '1';
               mappedValue = mapping.valueMapping[boolValue.toString()] || mappedValue;
               
-              // Check if the mapped value is a numeric string, and if so, treat it as a number
               const numValue = Number(mappedValue);
               if (!isNaN(numValue) && mappedValue.trim() !== '') {
                 numericPlaceholders[`{{${mapping.jsonVariable}}}`] = numValue;
                 isNumeric = true;
               }
             } else {
-              // For select and other fields, use direct mapping
               mappedValue = mapping.valueMapping[originalValue] || mappedValue;
             }
           }
@@ -160,33 +151,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       });
 
-      // Convert body template to string and replace placeholders
-      let bodyString = JSON.stringify(bodyTemplate);
-      console.log('Body string after JSON.stringify:', bodyString);
-      
-      // Replace string placeholders, ensuring values are properly escaped for JSON
+      // --- Start of new replacement logic ---
+      // Perform replacements directly on the cleaned request body string,
+      // instead of parsing it to JSON first. This handles templates that are
+      // not valid JSON until after placeholders are replaced (e.g., unquoted numeric placeholders).
+      let bodyString = cleanedRequestBody;
+
+      // Replace string placeholders. The value is JSON-escaped to handle special characters.
       Object.entries(placeholders).forEach(([placeholder, value]) => {
-        const jsonValue = JSON.stringify(value).slice(1, -1); // Escapes quotes and other special chars
-        bodyString = bodyString.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), jsonValue);
+        const jsonEscapedValue = JSON.stringify(value).slice(1, -1);
+        bodyString = bodyString.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), jsonEscapedValue);
       });
       console.log('Body string after string placeholder replacement:', bodyString);
 
-      // Replace numeric placeholders, removing quotes to insert them as numbers
+      // Replace numeric placeholders. These are expected to be unquoted in the template.
       Object.entries(numericPlaceholders).forEach(([placeholder, value]) => {
-        const regex = new RegExp(`"${placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`, 'g');
-        bodyString = bodyString.replace(regex, String(value));
+        bodyString = bodyString.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), String(value));
       });
       console.log('Body string after numeric placeholder replacement:', bodyString);
       console.log('Numeric placeholders:', numericPlaceholders);
 
       let finalRequestBody;
       try {
+        // Parse the final string to validate it and normalize formatting
         finalRequestBody = JSON.parse(bodyString);
       } catch (jsonParseError) {
         console.error('Failed to parse final body string as JSON:', jsonParseError);
         console.error('Body string that failed to parse:', bodyString);
         throw new Error(`JSON parse error: ${jsonParseError.message}. Body: ${bodyString}`);
       }
+      // --- End of new replacement logic ---
 
       // Make the API call to Switchboard Canvas
       let switchboardResponse;
