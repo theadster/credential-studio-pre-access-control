@@ -126,18 +126,7 @@ const LoginPage = () => {
                       )}
                     </div>
 
-                    <div className="flex justify-between mt-2 text-sm">
-                      <div className="flex items-center gap-1.5 text-muted-foreground">
-                        <span>Need an account?</span>
-                        <Button
-                          type="button"
-                          variant="link"
-                          className="p-0"
-                          onClick={() => router.push('/signup')}
-                        >
-                          Sign up
-                        </Button>
-                      </div>
+                    <div className="flex justify-end mt-2 text-sm">
                       <Button
                         type="button"
                         variant="link"

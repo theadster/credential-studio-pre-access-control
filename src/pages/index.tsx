@@ -66,9 +66,6 @@ export default function Home() {
               <Link href="/login">
                 <Button variant="ghost">Sign In</Button>
               </Link>
-              <Link href="/signup">
-                <Button>Get Started</Button>
-              </Link>
             </div>
           </div>
         </motion.nav>
@@ -108,15 +105,10 @@ export default function Home() {
               className="flex flex-col sm:flex-row gap-4 justify-center"
               variants={fadeInUp}
             >
-              <Link href="/signup">
-                <Button size="lg" className="group">
-                  Start Your Event
-                  <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
-                </Button>
-              </Link>
               <Link href="/login">
-                <Button size="lg" variant="outline">
-                  Sign In to Dashboard
+                <Button size="lg" className="group">
+                  Access Dashboard
+                  <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
                 </Button>
               </Link>
             </motion.div>
@@ -276,17 +268,11 @@ export default function Home() {
                 Join thousands of event organizers who trust credential.studio for their credential management needs.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Link href="/signup">
-                  <Button size="lg" className="group shadow-lg hover:shadow-xl transition-shadow">
-                    <Zap className="mr-2 h-4 w-4" />
-                    Create Your Event
-                    <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
-                  </Button>
-                </Link>
                 <Link href="/login">
-                  <Button size="lg" variant="outline" className="glass-effect">
+                  <Button size="lg" className="group shadow-lg hover:shadow-xl transition-shadow">
                     <Cloud className="mr-2 h-4 w-4" />
                     Access Dashboard
+                    <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
                   </Button>
                 </Link>
               </div>
