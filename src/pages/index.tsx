@@ -64,7 +64,12 @@ export default function Home() {
             </div>
             <div className="flex items-center space-x-4">
               <Link href="/login">
-                <Button variant="ghost">Sign In</Button>
+                <Button 
+                  variant="ghost"
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground border-primary hover:border-primary/90 transition-all duration-300 hover:scale-105 hover:shadow-lg"
+                >
+                  Sign In
+                </Button>
               </Link>
             </div>
           </div>
