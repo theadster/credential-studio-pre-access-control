@@ -178,6 +178,7 @@ export default function Dashboard() {
   const [showRoleForm, setShowRoleForm] = useState(false);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [attendeeToDelete, setAttendeeToDelete] = useState<Attendee | null>(null);
   const [dropdownStates, setDropdownStates] = useState<{[key: string]: boolean}>({});
 
   const refreshAttendees = async () => {
@@ -2305,7 +2306,7 @@ export default function Dashboard() {
                                           ...prev,
                                           [attendee.id]: false
                                         }));
-                                        handleDeleteAttendee(attendee.id);
+                                        setAttendeeToDelete(attendee);
                                       }}
                                       className="text-destructive"
                                     >
@@ -3502,6 +3503,31 @@ export default function Dashboard() {
         onSave={handleSaveRole}
         role={editingRole}
       />
+
+      {/* Delete Attendee Confirmation Dialog */}
+      <AlertDialog open={!!attendeeToDelete} onOpenChange={(open) => {if (!open) setAttendeeToDelete(null)}}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete 1 attendee from the database. All associated data including photos, credentials, and custom field values will be lost.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (attendeeToDelete) {
+                  handleDeleteAttendee(attendeeToDelete.id);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete Attendee
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
