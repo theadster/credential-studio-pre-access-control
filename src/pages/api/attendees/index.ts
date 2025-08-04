@@ -24,23 +24,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
 
         const {
-          firstName,
-          lastName,
-          barcode,
+          firstName: firstNameFilter,
+          lastName: lastNameFilter,
+          barcode: barcodeFilter,
           photoFilter,
           customFields: customFieldsJSON,
         } = req.query;
 
         const where: any = { AND: [] };
 
-        if (typeof firstName === 'string' && firstName) {
-          where.AND.push({ firstName: { contains: firstName, mode: 'insensitive' } });
+        if (typeof firstNameFilter === 'string' && firstNameFilter) {
+          where.AND.push({ firstName: { contains: firstNameFilter, mode: 'insensitive' } });
         }
-        if (typeof lastName === 'string' && lastName) {
-          where.AND.push({ lastName: { contains: lastName, mode: 'insensitive' } });
+        if (typeof lastNameFilter === 'string' && lastNameFilter) {
+          where.AND.push({ lastName: { contains: lastNameFilter, mode: 'insensitive' } });
         }
-        if (typeof barcode === 'string' && barcode) {
-          where.AND.push({ barcodeNumber: { contains: barcode, mode: 'insensitive' } });
+        if (typeof barcodeFilter === 'string' && barcodeFilter) {
+          where.AND.push({ barcodeNumber: { contains: barcodeFilter, mode: 'insensitive' } });
         }
         if (photoFilter === 'with') {
           where.AND.push({ photoUrl: { not: null } });
