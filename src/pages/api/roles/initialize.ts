@@ -12,7 +12,7 @@ const DEFAULT_ROLES = [
       roles: { create: true, read: true, update: true, delete: true },
       eventSettings: { create: true, read: true, update: true, delete: true },
       customFields: { create: true, read: true, update: true, delete: true },
-      logs: { read: true },
+      logs: { read: true, delete: true },
       system: { configure: true, backup: true, restore: true }
     }
   },
