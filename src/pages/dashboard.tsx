@@ -21,6 +21,7 @@ import {
   Edit,
   Trash2,
   UserPlus,
+  Wand2,
   Calendar,
   MapPin,
   Clock,
@@ -178,6 +179,9 @@ export default function Dashboard() {
   const [showRoleForm, setShowRoleForm] = useState(false);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [showBulkEdit, setShowBulkEdit] = useState(false);
+  const [bulkEditChanges, setBulkEditChanges] = useState<{ [key: string]: any }>({});
+  const [isBulkEditing, setIsBulkEditing] = useState(false);
   const [attendeeToDelete, setAttendeeToDelete] = useState<Attendee | null>(null);
   const [dropdownStates, setDropdownStates] = useState<{[key: string]: boolean}>({});
 
@@ -1330,6 +1334,55 @@ export default function Dashboard() {
     }
   };
 
+  const handleBulkEdit = async () => {
+    setIsBulkEditing(true);
+    try {
+      const attendeeIds = filteredAttendees.map(attendee => attendee.id);
+      const changesToApply = Object.fromEntries(
+        Object.entries(bulkEditChanges).filter(([, value]) => value && value !== 'no-change')
+      );
+
+      if (Object.keys(changesToApply).length === 0) {
+        toast({
+          title: "No Changes",
+          description: "You haven't specified any changes to apply.",
+        });
+        return;
+      }
+
+      const response = await fetch('/api/attendees/bulk-edit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ attendeeIds, changes: changesToApply }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to bulk edit attendees');
+      }
+
+      const result = await response.json();
+      await refreshAttendees();
+      
+      setShowBulkEdit(false);
+      setBulkEditChanges({});
+      
+      toast({
+        title: "Success",
+        description: `Successfully updated ${result.updatedCount} attendees.`,
+      });
+
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
+    } finally {
+      setIsBulkEditing(false);
+    }
+  };
+
   // Function to determine credential status
   const getCredentialStatus = (attendee: Attendee) => {
     // If no credential exists, return null (no status to show)
@@ -1975,55 +2028,146 @@ export default function Dashboard() {
                   </div>
                   
                   <div className="flex items-center space-x-2">
-                    {hasAdvancedFilters() && hasPermission(currentUser?.role, 'attendees', 'delete') && (
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            variant="destructive"
-                            className="flex items-center space-x-2"
-                            disabled={bulkDeleting}
-                          >
-                            {bulkDeleting ? (
-                              <>
-                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                Deleting...
-                              </>
-                            ) : (
-                              <>
-                                <Trash2 className="h-4 w-4" />
-                                <span>Bulk Delete</span>
-                              </>
-                            )}
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              This action cannot be undone. This will permanently delete{' '}
-                              <strong>{filteredAttendees.length}</strong> attendee{filteredAttendees.length !== 1 ? 's' : ''} 
-                              {' '}from the database. All associated data including photos, credentials, and custom field values will be lost.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel disabled={bulkDeleting}>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={handleBulkDelete}
-                              disabled={bulkDeleting}
-                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                            >
-                              {bulkDeleting ? (
-                                <>
-                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                  Deleting...
-                                </>
-                              ) : (
-                                'Delete Attendees'
-                              )}
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                    {hasAdvancedFilters() && (
+                      <>
+                        {hasPermission(currentUser?.role, 'attendees', 'update') && (
+                          <Dialog open={showBulkEdit} onOpenChange={setShowBulkEdit}>
+                            <DialogTrigger asChild>
+                              <Button variant="outline" className="flex items-center space-x-2">
+                                <Wand2 className="h-4 w-4" />
+                                <span>Bulk Edit</span>
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <AlertDialog>
+                                <DialogHeader>
+                                  <DialogTitle>Bulk Edit Attendees</DialogTitle>
+                                  <DialogDescription>
+                                    Apply changes to all {filteredAttendees.length} attendees in the current search results.
+                                    Only fields you change will be updated.
+                                  </DialogDescription>
+                                </DialogHeader>
+                                <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+                                  {eventSettings?.customFields
+                                    ?.filter(field => ['text', 'url', 'email', 'number', 'select', 'boolean', 'uppercase'].includes(field.fieldType))
+                                    .map((field: any) => (
+                                      <div key={field.id} className="space-y-2">
+                                        <Label htmlFor={`bulk-edit-${field.id}`}>{field.fieldName}</Label>
+                                        {field.fieldType === 'boolean' ? (
+                                          <Select
+                                            onValueChange={(value) => setBulkEditChanges(prev => ({ ...prev, [field.id]: value }))}
+                                          >
+                                            <SelectTrigger>
+                                              <SelectValue placeholder="No Change" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              <SelectItem value="no-change">No Change</SelectItem>
+                                              <SelectItem value="yes">Yes</SelectItem>
+                                              <SelectItem value="no">No</SelectItem>
+                                            </SelectContent>
+                                          </Select>
+                                        ) : field.fieldType === 'select' ? (
+                                          <Select
+                                            onValueChange={(value) => setBulkEditChanges(prev => ({ ...prev, [field.id]: value }))}
+                                          >
+                                            <SelectTrigger>
+                                              <SelectValue placeholder="No Change" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              <SelectItem value="no-change">No Change</SelectItem>
+                                              {field.fieldOptions?.options?.map((option: string, index: number) => (
+                                                <SelectItem key={index} value={option}>{option}</SelectItem>
+                                              ))}
+                                            </SelectContent>
+                                          </Select>
+                                        ) : (
+                                          <Input
+                                            id={`bulk-edit-${field.id}`}
+                                            placeholder="Leave empty for no change"
+                                            onChange={(e) => setBulkEditChanges(prev => ({ ...prev, [field.id]: e.target.value }))}
+                                          />
+                                        )}
+                                      </div>
+                                    ))}
+                                </div>
+                                <div className="flex justify-end space-x-2">
+                                  <Button variant="outline" onClick={() => setShowBulkEdit(false)}>Cancel</Button>
+                                  <AlertDialogTrigger asChild>
+                                    <Button disabled={isBulkEditing}>
+                                      {isBulkEditing ? 'Applying...' : 'Apply Changes'}
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                </div>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      This action cannot be undone. This will permanently modify the custom fields for{' '}
+                                      <strong>{filteredAttendees.length}</strong> attendees.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleBulkEdit}>
+                                      Confirm Bulk Edit
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </DialogContent>
+                          </Dialog>
+                        )}
+                        {hasPermission(currentUser?.role, 'attendees', 'delete') && (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="destructive"
+                                className="flex items-center space-x-2"
+                                disabled={bulkDeleting}
+                              >
+                                {bulkDeleting ? (
+                                  <>
+                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                    Deleting...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Trash2 className="h-4 w-4" />
+                                    <span>Bulk Delete</span>
+                                  </>
+                                )}
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This action cannot be undone. This will permanently delete{' '}
+                                  <strong>{filteredAttendees.length}</strong> attendee{filteredAttendees.length !== 1 ? 's' : ''}
+                                  {' '}from the database. All associated data including photos, credentials, and custom field values will be lost.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel disabled={bulkDeleting}>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={handleBulkDelete}
+                                  disabled={bulkDeleting}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  {bulkDeleting ? (
+                                    <>
+                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                      Deleting...
+                                    </>
+                                  ) : (
+                                    'Delete Attendees'
+                                  )}
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
+                      </>
                     )}
                     {hasPermission(currentUser?.role, 'attendees', 'import') && (
                       <ImportDialog 
