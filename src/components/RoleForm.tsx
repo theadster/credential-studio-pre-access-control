@@ -33,6 +33,7 @@ interface Permission {
   delete?: boolean;
   print?: boolean;
   export?: boolean;
+  import?: boolean;
   configure?: boolean;
   backup?: boolean;
   restore?: boolean;
@@ -71,8 +72,10 @@ const defaultPermissions: UserPermissions = {
     delete: false
   },
   eventSettings: {
+    create: false,
     read: false,
     update: false,
+    delete: false,
     configure: false
   },
   customFields: {
@@ -82,7 +85,10 @@ const defaultPermissions: UserPermissions = {
     delete: false
   },
   logs: {
-    read: false
+    read: false,
+    delete: false,
+    export: false,
+    configure: false
   },
   system: {
     backup: false,
@@ -133,8 +139,10 @@ const permissionLabels = {
     description: "Configure event settings and integrations",
     icon: Settings,
     actions: {
+      create: "Create event settings",
       read: "View event settings",
       update: "Edit event settings",
+      delete: "Delete event settings",
       configure: "Advanced configuration"
     }
   },
@@ -154,7 +162,10 @@ const permissionLabels = {
     description: "View system activity and audit trail",
     icon: Activity,
     actions: {
-      read: "View activity logs"
+      read: "View activity logs",
+      delete: "Delete logs",
+      export: "Export logs",
+      configure: "Configure log settings"
     }
   },
   system: {
