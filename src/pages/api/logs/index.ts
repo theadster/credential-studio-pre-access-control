@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
 import { createClient } from '@/util/supabase/api';
+import { shouldLog } from '@/lib/logSettings';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const supabase = createClient(req, res);
@@ -74,15 +75,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       case 'POST':
         // Create a new log entry (usually called internally by other API routes)
-        const { action, attendeeId, details } = req.body;
+        const { action, attendeeId, details, userId: requestUserId } = req.body;
 
         if (!action) {
           return res.status(400).json({ error: 'Action is required' });
         }
 
+        // Check if this action should be logged based on settings
+        const settingKey = action.replace('_', '');
+        if (!(await shouldLog(settingKey))) {
+          // Return success but don't actually log
+          return res.status(201).json({ message: 'Logging disabled for this action' });
+        }
+
+        // For authentication events, use the userId from the request body if provided
+        // Otherwise, use the authenticated user's ID
+        const logUserId = requestUserId || user.id;
+
         const newLog = await prisma.log.create({
           data: {
-            userId: user.id,
+            userId: logUserId,
             attendeeId,
             action,
             details: details || {}

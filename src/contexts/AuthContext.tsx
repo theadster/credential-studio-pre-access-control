@@ -3,6 +3,7 @@ import { createClient } from '@/util/supabase/component';
 import { User, Provider } from '@supabase/supabase-js';
 import { useToast } from "@/components/ui/use-toast";
 import { useRouter } from 'next/router';
+import { shouldLog } from '@/lib/logSettings';
 
 interface AuthContextType {
   user: User | null;
@@ -57,6 +58,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
   }, []);
 
+  const logAuthEvent = async (action: string, userId: string, details?: any) => {
+    try {
+      await fetch('/api/logs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId,
+          action,
+          details: details || {},
+        }),
+      });
+    } catch (error) {
+      console.error('Failed to log authentication event:', error);
+    }
+  };
+
   const createUser = async (user: User) => {
     try {
       const { data, error } = await supabase
@@ -92,6 +111,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (!error && data.user) {
       await createUser(data.user);
+      
+      // Log the login event
+      try {
+        await logAuthEvent('auth_login', data.user.id, {
+          email: data.user.email,
+          loginMethod: 'password',
+          timestamp: new Date().toISOString()
+        });
+      } catch (logError) {
+        console.error('Failed to log login event:', logError);
+      }
     }
     
     if (error) {
@@ -144,6 +174,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
     if (!error && data.user) {
       await createUser(data.user);
+      
+      // Log the login event
+      try {
+        await logAuthEvent('auth_login', data.user.id, {
+          email: data.user.email,
+          loginMethod: 'magic_link',
+          timestamp: new Date().toISOString()
+        });
+      } catch (logError) {
+        console.error('Failed to log magic link login event:', logError);
+      }
     }
     if (error) {
       toast({
@@ -179,6 +220,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const signOut = async () => {
+    // Capture current user before signing out
+    const currentUser = user;
+    
     const { error } = await supabase.auth.signOut();
     if (error) {
       toast({
@@ -187,6 +231,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         description: error.message,
       });
     } else {
+      // Log the logout event if we had a user
+      if (currentUser) {
+        try {
+          await logAuthEvent('auth_logout', currentUser.id, {
+            email: currentUser.email,
+            timestamp: new Date().toISOString()
+          });
+        } catch (logError) {
+          console.error('Failed to log logout event:', logError);
+        }
+      }
+      
       toast({
         title: "Success",
         description: "You have successfully signed out",
