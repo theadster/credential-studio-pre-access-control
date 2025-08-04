@@ -23,7 +23,99 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           return res.status(403).json({ error: 'Insufficient permissions to view attendees' });
         }
 
+        const {
+          firstName,
+          lastName,
+          barcode,
+          photoFilter,
+          customFields: customFieldsJSON,
+        } = req.query;
+
+        const where: any = { AND: [] };
+
+        if (typeof firstName === 'string' && firstName) {
+          where.AND.push({ firstName: { contains: firstName, mode: 'insensitive' } });
+        }
+        if (typeof lastName === 'string' && lastName) {
+          where.AND.push({ lastName: { contains: lastName, mode: 'insensitive' } });
+        }
+        if (typeof barcode === 'string' && barcode) {
+          where.AND.push({ barcodeNumber: { contains: barcode, mode: 'insensitive' } });
+        }
+        if (photoFilter === 'with') {
+          where.AND.push({ photoUrl: { not: null } });
+          where.AND.push({ photoUrl: { not: '' } });
+        }
+        if (photoFilter === 'without') {
+          where.AND.push({ OR: [{ photoUrl: null }, { photoUrl: '' }] });
+        }
+
+        if (typeof customFieldsJSON === 'string' && customFieldsJSON) {
+          try {
+            const customFields = JSON.parse(customFieldsJSON);
+            for (const fieldId in customFields) {
+              const { value, operator } = customFields[fieldId];
+
+              if (operator === 'isEmpty') {
+                where.AND.push({
+                  NOT: {
+                    customFieldValues: {
+                      some: {
+                        customFieldId: fieldId,
+                        value: { not: '' },
+                      },
+                    },
+                  },
+                });
+              } else if (operator === 'isNotEmpty') {
+                where.AND.push({
+                  customFieldValues: {
+                    some: {
+                      customFieldId: fieldId,
+                      value: { not: '' },
+                    },
+                  },
+                });
+              } else if (value) {
+                const mode = 'insensitive';
+                let condition;
+
+                switch (operator) {
+                  case 'contains':
+                    condition = { contains: value, mode };
+                    break;
+                  case 'equals':
+                    condition = { equals: value, mode };
+                    break;
+                  case 'startsWith':
+                    condition = { startsWith: value, mode };
+                    break;
+                  case 'endsWith':
+                    condition = { endsWith: value, mode };
+                    break;
+                  default:
+                    // Default to equals for select/boolean fields
+                    condition = { equals: value, mode };
+                }
+                
+                where.AND.push({
+                  customFieldValues: {
+                    some: {
+                      customFieldId: fieldId,
+                      value: condition,
+                    },
+                  },
+                });
+              }
+            }
+          } catch (e) {
+            console.error("Failed to parse customFields JSON:", e);
+            // Don't apply custom field filters if JSON is invalid
+          }
+        }
+
         const attendees = await prisma.attendee.findMany({
+          where: where.AND.length > 0 ? where : undefined,
           include: {
             customFieldValues: {
               include: {

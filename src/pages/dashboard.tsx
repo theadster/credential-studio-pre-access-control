@@ -156,7 +156,7 @@ export default function Dashboard() {
     lastName: string;
     barcode: string;
     photoFilter: 'all' | 'with' | 'without';
-    customFields: { [key: string]: { value: string; searchEmpty: boolean } };
+    customFields: { [key: string]: { value: string; operator: string } };
   }>({
     firstName: '',
     lastName: '',
@@ -445,26 +445,32 @@ export default function Dashboard() {
       
       // Custom fields filter
       const customFieldsMatch = Object.entries(advancedSearchFilters.customFields).every(([fieldId, filter]) => {
-        const attendeeValue = attendee.customFieldValues?.find((cfv: any) => cfv.customFieldId === fieldId);
-        const hasValue = attendeeValue?.value;
-        
-        // If searching for empty fields
-        if (filter.searchEmpty) {
-          return !hasValue;
-        }
-        
-        // If no filter value is set, include all
-        if (!filter.value) {
+        const attendeeValueObj = attendee.customFieldValues?.find((cfv: any) => cfv.customFieldId === fieldId);
+        const attendeeValue = attendeeValueObj?.value || '';
+        const hasValue = !!attendeeValue;
+
+        // If no operator or value (for operators that need it), match all
+        if (!filter.operator || (filter.operator !== 'isEmpty' && filter.operator !== 'isNotEmpty' && !filter.value)) {
           return true;
         }
-        
-        // If attendee has no value for this field, exclude
-        if (!hasValue) {
-          return false;
+
+        switch (filter.operator) {
+          case 'isEmpty':
+            return !hasValue;
+          case 'isNotEmpty':
+            return hasValue;
+          case 'contains':
+            return hasValue && attendeeValue.toLowerCase().includes(filter.value.toLowerCase());
+          case 'equals':
+            return hasValue && attendeeValue.toLowerCase() === filter.value.toLowerCase();
+          case 'startsWith':
+            return hasValue && attendeeValue.toLowerCase().startsWith(filter.value.toLowerCase());
+          case 'endsWith':
+            return hasValue && attendeeValue.toLowerCase().endsWith(filter.value.toLowerCase());
+          default:
+            // For select and boolean, it's an equals check
+            return hasValue && attendeeValue.toLowerCase() === filter.value.toLowerCase();
         }
-        
-        // Check if the value matches the filter
-        return attendeeValue.value.toLowerCase().includes(filter.value.toLowerCase());
       });
       
       return firstNameMatch && lastNameMatch && barcodeMatch && photoMatch && customFieldsMatch;
@@ -502,10 +508,10 @@ export default function Dashboard() {
   // Initialize custom fields in advanced search when event settings change
   useEffect(() => {
     if (eventSettings?.customFields && showAdvancedSearch) {
-      const newCustomFields: { [key: string]: { value: string; searchEmpty: boolean } } = {};
+      const newCustomFields: { [key: string]: { value: string; operator: string } } = {};
       eventSettings.customFields.forEach((field: any) => {
         if (!advancedSearchFilters.customFields[field.id]) {
-          newCustomFields[field.id] = { value: '', searchEmpty: false };
+          newCustomFields[field.id] = { value: '', operator: 'contains' };
         }
       });
       
@@ -523,9 +529,9 @@ export default function Dashboard() {
     setShowAdvancedSearch(!showAdvancedSearch);
     if (!showAdvancedSearch) {
       // Initialize custom fields when opening advanced search
-      const customFields: { [key: string]: { value: string; searchEmpty: boolean } } = {};
+      const customFields: { [key: string]: { value: string; operator: string } } = {};
       eventSettings?.customFields?.forEach((field: any) => {
-        customFields[field.id] = { value: '', searchEmpty: false };
+        customFields[field.id] = { value: '', operator: 'contains' };
       });
       setAdvancedSearchFilters({
         firstName: '',
@@ -543,7 +549,7 @@ export default function Dashboard() {
            advancedSearchFilters.lastName || 
            advancedSearchFilters.barcode || 
            advancedSearchFilters.photoFilter !== 'all' ||
-           Object.values(advancedSearchFilters.customFields).some(field => field.value || field.searchEmpty);
+           Object.values(advancedSearchFilters.customFields).some(field => field.value || field.operator === 'isEmpty' || field.operator === 'isNotEmpty');
   };
 
   const handleAdvancedSearchChange = (field: string, value: string) => {
@@ -553,36 +559,38 @@ export default function Dashboard() {
     }));
   };
 
-  const handleCustomFieldSearchChange = (fieldId: string, value: string) => {
+  const handleCustomFieldSearchChange = (fieldId: string, value: string, operator?: string) => {
     setAdvancedSearchFilters(prev => ({
       ...prev,
       customFields: {
         ...prev.customFields,
         [fieldId]: {
-          ...prev.customFields[fieldId],
-          value
+          value,
+          operator: operator || prev.customFields[fieldId]?.operator || 'contains',
         }
       }
     }));
   };
 
-  const handleCustomFieldEmptyToggle = (fieldId: string, searchEmpty: boolean) => {
+  const handleCustomFieldOperatorChange = (fieldId: string, operator: string) => {
     setAdvancedSearchFilters(prev => ({
       ...prev,
       customFields: {
         ...prev.customFields,
         [fieldId]: {
           ...prev.customFields[fieldId],
-          searchEmpty
+          operator,
+          // Clear value if operator doesn't need it
+          value: ['isEmpty', 'isNotEmpty'].includes(operator) ? '' : prev.customFields[fieldId].value,
         }
       }
     }));
   };
 
   const clearAdvancedSearch = () => {
-    const customFields: { [key: string]: { value: string; searchEmpty: boolean } } = {};
+    const customFields: { [key: string]: { value: string; operator: string } } = {};
     eventSettings?.customFields?.forEach((field: any) => {
-      customFields[field.id] = { value: '', searchEmpty: false };
+      customFields[field.id] = { value: '', operator: 'contains' };
     });
     setAdvancedSearchFilters({
       firstName: '',
@@ -1686,9 +1694,9 @@ export default function Dashboard() {
                           onClick={() => {
                             // Initialize custom fields when opening advanced search
                             if (!showAdvancedSearch) {
-                              const customFields: { [key: string]: { value: string; searchEmpty: boolean } } = {};
+                              const customFields: { [key: string]: { value: string; operator: string } } = {};
                               eventSettings?.customFields?.forEach((field: any) => {
-                                customFields[field.id] = { value: '', searchEmpty: false };
+                                customFields[field.id] = { value: '', operator: 'contains' };
                               });
                               if (Object.keys(advancedSearchFilters.customFields).length === 0) {
                                 setAdvancedSearchFilters(prev => ({
@@ -1782,11 +1790,36 @@ export default function Dashboard() {
                                 )}
                               </Label>
                               <div className="space-y-2">
-                                {field.fieldType === 'select' ? (
+                                {['text', 'url', 'email', 'number'].includes(field.fieldType) ? (
+                                  <div className="flex space-x-2">
+                                    <Select
+                                      value={advancedSearchFilters.customFields[field.id]?.operator || 'contains'}
+                                      onValueChange={(operator) => handleCustomFieldOperatorChange(field.id, operator)}
+                                    >
+                                      <SelectTrigger className="w-[120px]">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="contains">Contains</SelectItem>
+                                        <SelectItem value="equals">Equals</SelectItem>
+                                        <SelectItem value="startsWith">Starts With</SelectItem>
+                                        <SelectItem value="endsWith">Ends With</SelectItem>
+                                        <SelectItem value="isEmpty">Is Empty</SelectItem>
+                                        <SelectItem value="isNotEmpty">Is Not Empty</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                    <Input
+                                      id={`custom-${field.id}`}
+                                      placeholder={`Value...`}
+                                      value={advancedSearchFilters.customFields[field.id]?.value || ''}
+                                      onChange={(e) => handleCustomFieldSearchChange(field.id, e.target.value)}
+                                      disabled={['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.customFields[field.id]?.operator)}
+                                    />
+                                  </div>
+                                ) : field.fieldType === 'select' ? (
                                   <Select
                                     value={advancedSearchFilters.customFields[field.id]?.value || 'all'}
-                                    onValueChange={(value) => handleCustomFieldSearchChange(field.id, value === 'all' ? '' : value)}
-                                    disabled={advancedSearchFilters.customFields[field.id]?.searchEmpty}
+                                    onValueChange={(value) => handleCustomFieldSearchChange(field.id, value === 'all' ? '' : value, 'equals')}
                                   >
                                     <SelectTrigger>
                                       <SelectValue placeholder={`Select ${field.fieldName.toLowerCase()}...`} />
@@ -1803,8 +1836,7 @@ export default function Dashboard() {
                                 ) : field.fieldType === 'boolean' ? (
                                   <Select
                                     value={advancedSearchFilters.customFields[field.id]?.value || 'all'}
-                                    onValueChange={(value) => handleCustomFieldSearchChange(field.id, value === 'all' ? '' : value)}
-                                    disabled={advancedSearchFilters.customFields[field.id]?.searchEmpty}
+                                    onValueChange={(value) => handleCustomFieldSearchChange(field.id, value === 'all' ? '' : value, 'equals')}
                                   >
                                     <SelectTrigger>
                                       <SelectValue placeholder={`Select ${field.fieldName.toLowerCase()}...`} />
@@ -1821,19 +1853,8 @@ export default function Dashboard() {
                                     placeholder={`Search by ${field.fieldName.toLowerCase()}...`}
                                     value={advancedSearchFilters.customFields[field.id]?.value || ''}
                                     onChange={(e) => handleCustomFieldSearchChange(field.id, e.target.value)}
-                                    disabled={advancedSearchFilters.customFields[field.id]?.searchEmpty}
                                   />
                                 )}
-                                <div className="flex items-center space-x-2">
-                                  <Switch
-                                    id={`empty-${field.id}`}
-                                    checked={advancedSearchFilters.customFields[field.id]?.searchEmpty || false}
-                                    onCheckedChange={(checked) => handleCustomFieldEmptyToggle(field.id, checked)}
-                                  />
-                                  <Label htmlFor={`empty-${field.id}`} className="text-sm text-muted-foreground">
-                                    Search for empty {field.fieldName.toLowerCase()}
-                                  </Label>
-                                </div>
                               </div>
                             </div>
                           ))}
