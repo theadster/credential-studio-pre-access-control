@@ -57,6 +57,10 @@ interface LogSettings {
   logsDelete: boolean;
   logsExport: boolean;
   logsView: boolean;
+  systemViewEventSettings: boolean;
+  systemViewAttendeeList: boolean;
+  systemViewRolesList: boolean;
+  systemViewUsersList: boolean;
 }
 
 interface LogSettingsDialogProps {
@@ -209,6 +213,12 @@ const LogSettingsDialog: React.FC<LogSettingsDialogProps> = ({ children, onSetti
         settings.logsDelete,
         settings.logsExport,
         settings.logsView
+      ],
+      system: [
+        settings.systemViewEventSettings,
+        settings.systemViewAttendeeList,
+        settings.systemViewRolesList,
+        settings.systemViewUsersList
       ]
     };
 
@@ -224,7 +234,8 @@ const LogSettingsDialog: React.FC<LogSettingsDialogProps> = ({ children, onSetti
       settings: 1,
       customFields: 4,
       auth: 2,
-      logs: 3
+      logs: 3,
+      system: 4
     };
 
     return categoryCounts[category as keyof typeof categoryCounts] || 0;
@@ -631,8 +642,8 @@ const LogSettingsDialog: React.FC<LogSettingsDialogProps> = ({ children, onSetti
               </Card>
             </div>
 
-            {/* Authentication & Logs */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Authentication, Logs & System Operations */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center justify-between">
@@ -716,6 +727,71 @@ const LogSettingsDialog: React.FC<LogSettingsDialogProps> = ({ children, onSetti
                         id="logsView"
                         checked={settings.logsView}
                         onCheckedChange={(checked) => updateSetting('logsView', checked)}
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <Settings className="h-5 w-5 text-slate-600" />
+                      <span>System Operations</span>
+                    </div>
+                    <Badge variant="outline">
+                      {getEnabledCount('system')}/{getTotalCount('system')} enabled
+                    </Badge>
+                  </CardTitle>
+                  <CardDescription>
+                    Control logging for system view operations that occur on page refresh
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <Eye className="h-4 w-4 text-gray-600" />
+                        <Label htmlFor="systemViewEventSettings">View Event Settings</Label>
+                      </div>
+                      <Switch
+                        id="systemViewEventSettings"
+                        checked={settings.systemViewEventSettings}
+                        onCheckedChange={(checked) => updateSetting('systemViewEventSettings', checked)}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <Eye className="h-4 w-4 text-gray-600" />
+                        <Label htmlFor="systemViewAttendeeList">View Attendee List</Label>
+                      </div>
+                      <Switch
+                        id="systemViewAttendeeList"
+                        checked={settings.systemViewAttendeeList}
+                        onCheckedChange={(checked) => updateSetting('systemViewAttendeeList', checked)}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <Eye className="h-4 w-4 text-gray-600" />
+                        <Label htmlFor="systemViewRolesList">View Roles List</Label>
+                      </div>
+                      <Switch
+                        id="systemViewRolesList"
+                        checked={settings.systemViewRolesList}
+                        onCheckedChange={(checked) => updateSetting('systemViewRolesList', checked)}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <Eye className="h-4 w-4 text-gray-600" />
+                        <Label htmlFor="systemViewUsersList">View Users List</Label>
+                      </div>
+                      <Switch
+                        id="systemViewUsersList"
+                        checked={settings.systemViewUsersList}
+                        onCheckedChange={(checked) => updateSetting('systemViewUsersList', checked)}
                       />
                     </div>
                   </div>

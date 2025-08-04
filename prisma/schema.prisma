@@ -184,6 +184,10 @@ model LogSettings {
   logsDelete            Boolean @default(true)
   logsExport            Boolean @default(true)
   logsView              Boolean @default(false)
+  systemViewEventSettings Boolean @default(false)
+  systemViewAttendeeList  Boolean @default(false)
+  systemViewRolesList     Boolean @default(false)
+  systemViewUsersList     Boolean @default(false)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 

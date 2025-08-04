@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
 import { createClient } from '@/util/supabase/api';
+import { shouldLog } from '@/lib/logSettings';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const supabase = createClient(req, res);
@@ -28,12 +29,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         });
 
-        // Log the view action (defensive check)
+        // Log the view action if enabled (defensive check)
         const existingUser = await prisma.user.findUnique({
           where: { id: user.id }
         });
         
-        if (existingUser) {
+        if (existingUser && await shouldLog('systemViewRolesList')) {
           await prisma.log.create({
             data: {
               userId: user.id,

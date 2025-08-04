@@ -2,6 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
 import { createClient } from '@/util/supabase/api';
 import { checkApiPermission } from '@/lib/permissions';
+import { clearLogSettingsCache } from '@/lib/logSettings';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const supabase = createClient(req, res);
@@ -69,7 +70,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           authLogout,
           logsDelete,
           logsExport,
-          logsView
+          logsView,
+          systemViewEventSettings,
+          systemViewAttendeeList,
+          systemViewRolesList,
+          systemViewUsersList
         } = req.body;
 
         // Get existing settings or create new ones
@@ -107,7 +112,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               authLogout,
               logsDelete,
               logsExport,
-              logsView
+              logsView,
+              systemViewEventSettings,
+              systemViewAttendeeList,
+              systemViewRolesList,
+              systemViewUsersList
             }
           });
         } else {
@@ -140,10 +149,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               authLogout,
               logsDelete,
               logsExport,
-              logsView
+              logsView,
+              systemViewEventSettings,
+              systemViewAttendeeList,
+              systemViewRolesList,
+              systemViewUsersList
             }
           });
         }
+
+        // Clear the cache so new settings take effect immediately
+        clearLogSettingsCache();
 
         // Log the settings update
         await prisma.log.create({

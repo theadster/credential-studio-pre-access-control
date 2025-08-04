@@ -2,6 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
 import { createClient } from '@/util/supabase/api';
 import { checkApiPermission } from '@/lib/permissions';
+import { shouldLog } from '@/lib/logSettings';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const supabase = createClient(req, res);
@@ -35,8 +36,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         });
 
-        // Log the view action
-        if (readPermission.user) {
+        // Log the view action if enabled
+        if (readPermission.user && await shouldLog('systemViewAttendeeList')) {
           await prisma.log.create({
             data: {
               userId: user.id,

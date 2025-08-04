@@ -2,6 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
 import { createClient } from '@/util/supabase/api';
 import { generateInternalFieldName } from '@/util/string';
+import { shouldLog } from '@/lib/logSettings';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const supabase = createClient(req, res);
@@ -54,12 +55,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         }
 
-        // Log the view action - only if user exists in our database
+        // Log the view action - only if user exists in our database and logging is enabled
         const existingPrismaUser = await prisma.user.findUnique({
           where: { id: user.id }
         });
         
-        if (existingPrismaUser) {
+        if (existingPrismaUser && await shouldLog('systemViewEventSettings')) {
           await prisma.log.create({
             data: {
               userId: user.id,
