@@ -2384,15 +2384,15 @@ export default function Dashboard() {
               {/* Role Statistics */}
               {roles.length > 0 && (
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                  <Card className="bg-gradient-to-br from-indigo-50 to-indigo-100 border-indigo-200 dark:from-indigo-950/50 dark:to-indigo-900/50 dark:border-indigo-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
+                  <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 dark:from-blue-950/50 dark:to-blue-900/50 dark:border-blue-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium text-indigo-700 dark:text-indigo-300">Total Roles</CardTitle>
-                      <div className="p-2 rounded-lg bg-indigo-500/20 dark:bg-indigo-400/20">
-                        <Shield className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                      <CardTitle className="text-sm font-medium text-blue-700 dark:text-blue-300">Total Roles</CardTitle>
+                      <div className="p-2 rounded-lg bg-blue-500/20 dark:bg-blue-400/20">
+                        <Shield className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                       </div>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold text-indigo-900 dark:text-indigo-100">{roles.length}</div>
+                      <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">{roles.length}</div>
                     </CardContent>
                   </Card>
                   <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200 dark:from-emerald-950/50 dark:to-emerald-900/50 dark:border-emerald-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
@@ -2406,26 +2406,26 @@ export default function Dashboard() {
                       <div className="text-2xl font-bold text-emerald-900 dark:text-emerald-100">{users.filter(u => u.role).length}</div>
                     </CardContent>
                   </Card>
-                  <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200 dark:from-orange-950/50 dark:to-orange-900/50 dark:border-orange-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
+                  <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200 dark:from-purple-950/50 dark:to-purple-900/50 dark:border-purple-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium text-orange-700 dark:text-orange-300">Unassigned Users</CardTitle>
-                      <div className="p-2 rounded-lg bg-orange-500/20 dark:bg-orange-400/20">
-                        <AlertTriangle className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                      <CardTitle className="text-sm font-medium text-purple-700 dark:text-purple-300">Unassigned Users</CardTitle>
+                      <div className="p-2 rounded-lg bg-purple-500/20 dark:bg-purple-400/20">
+                        <AlertTriangle className="h-4 w-4 text-purple-600 dark:text-purple-400" />
                       </div>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold text-orange-900 dark:text-orange-100">{users.filter(u => !u.role).length}</div>
+                      <div className="text-2xl font-bold text-purple-900 dark:text-purple-100">{users.filter(u => !u.role).length}</div>
                     </CardContent>
                   </Card>
-                  <Card className="bg-gradient-to-br from-cyan-50 to-cyan-100 border-cyan-200 dark:from-cyan-950/50 dark:to-cyan-900/50 dark:border-cyan-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
+                  <Card className="bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200 dark:from-amber-950/50 dark:to-amber-900/50 dark:border-amber-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium text-cyan-700 dark:text-cyan-300">Permission Categories</CardTitle>
-                      <div className="p-2 rounded-lg bg-cyan-500/20 dark:bg-cyan-400/20">
-                        <Settings className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
+                      <CardTitle className="text-sm font-medium text-amber-700 dark:text-amber-300">Permission Categories</CardTitle>
+                      <div className="p-2 rounded-lg bg-amber-500/20 dark:bg-amber-400/20">
+                        <Settings className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                       </div>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold text-cyan-900 dark:text-cyan-100">
+                      <div className="text-2xl font-bold text-amber-900 dark:text-amber-100">
                         {roles.length > 0 ? new Set(roles.flatMap(role => Object.keys(role.permissions || {}))).size : 0}
                       </div>
                     </CardContent>
@@ -2937,15 +2937,15 @@ export default function Dashboard() {
 
               {/* Activity Statistics */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <Card className="bg-gradient-to-br from-violet-50 to-violet-100 border-violet-200 dark:from-violet-950/50 dark:to-violet-900/50 dark:border-violet-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
+                <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 dark:from-blue-950/50 dark:to-blue-900/50 dark:border-blue-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium text-violet-700 dark:text-violet-300">Total Activities</CardTitle>
-                    <div className="p-2 rounded-lg bg-violet-500/20 dark:bg-violet-400/20">
-                      <Activity className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                    <CardTitle className="text-sm font-medium text-blue-700 dark:text-blue-300">Total Activities</CardTitle>
+                    <div className="p-2 rounded-lg bg-blue-500/20 dark:bg-blue-400/20">
+                      <Activity className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-violet-900 dark:text-violet-100">{logsPagination.totalCount}</div>
+                    <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">{logsPagination.totalCount}</div>
                   </CardContent>
                 </Card>
                 <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200 dark:from-emerald-950/50 dark:to-emerald-900/50 dark:border-emerald-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
@@ -2965,28 +2965,28 @@ export default function Dashboard() {
                     </div>
                   </CardContent>
                 </Card>
-                <Card className="bg-gradient-to-br from-sky-50 to-sky-100 border-sky-200 dark:from-sky-950/50 dark:to-sky-900/50 dark:border-sky-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
+                <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200 dark:from-purple-950/50 dark:to-purple-900/50 dark:border-purple-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium text-sky-700 dark:text-sky-300">Active Users</CardTitle>
-                    <div className="p-2 rounded-lg bg-sky-500/20 dark:bg-sky-400/20">
-                      <Users className="h-4 w-4 text-sky-600 dark:text-sky-400" />
+                    <CardTitle className="text-sm font-medium text-purple-700 dark:text-purple-300">Active Users</CardTitle>
+                    <div className="p-2 rounded-lg bg-purple-500/20 dark:bg-purple-400/20">
+                      <Users className="h-4 w-4 text-purple-600 dark:text-purple-400" />
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-sky-900 dark:text-sky-100">
+                    <div className="text-2xl font-bold text-purple-900 dark:text-purple-100">
                       {new Set(logs.map(log => log.user.email)).size}
                     </div>
                   </CardContent>
                 </Card>
-                <Card className="bg-gradient-to-br from-rose-50 to-rose-100 border-rose-200 dark:from-rose-950/50 dark:to-rose-900/50 dark:border-rose-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
+                <Card className="bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200 dark:from-amber-950/50 dark:to-amber-900/50 dark:border-amber-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium text-rose-700 dark:text-rose-300">Most Common Action</CardTitle>
-                    <div className="p-2 rounded-lg bg-rose-500/20 dark:bg-rose-400/20">
-                      <BarChart3 className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+                    <CardTitle className="text-sm font-medium text-amber-700 dark:text-amber-300">Most Common Action</CardTitle>
+                    <div className="p-2 rounded-lg bg-amber-500/20 dark:bg-amber-400/20">
+                      <BarChart3 className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-rose-900 dark:text-rose-100">
+                    <div className="text-2xl font-bold text-amber-900 dark:text-amber-100">
                       {(() => {
                         const actionCounts = logs.reduce((acc: any, log) => {
                           acc[log.action] = (acc[log.action] || 0) + 1;
