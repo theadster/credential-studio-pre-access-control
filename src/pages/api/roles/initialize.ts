@@ -7,12 +7,12 @@ const DEFAULT_ROLES = [
     name: 'Super Administrator',
     description: 'Full system access with all permissions including user management and system configuration',
     permissions: {
-      attendees: { create: true, read: true, update: true, delete: true, print: true },
+      attendees: { create: true, read: true, update: true, delete: true, print: true, export: true, import: true },
       users: { create: true, read: true, update: true, delete: true },
       roles: { create: true, read: true, update: true, delete: true },
       eventSettings: { create: true, read: true, update: true, delete: true },
       customFields: { create: true, read: true, update: true, delete: true },
-      logs: { read: true, delete: true },
+      logs: { read: true, delete: true, export: true, configure: true },
       system: { configure: true, backup: true, restore: true }
     }
   },
@@ -20,12 +20,12 @@ const DEFAULT_ROLES = [
     name: 'Event Manager',
     description: 'Full event management access including attendees, settings, and printing',
     permissions: {
-      attendees: { create: true, read: true, update: true, delete: true, print: true },
+      attendees: { create: true, read: true, update: true, delete: true, print: true, export: true, import: true },
       users: { read: true },
       roles: { read: true },
       eventSettings: { create: true, read: true, update: true, delete: false },
       customFields: { create: true, read: true, update: true, delete: true },
-      logs: { read: true },
+      logs: { read: true, export: true, configure: false },
       system: { configure: false, backup: false, restore: false }
     }
   },
@@ -33,12 +33,12 @@ const DEFAULT_ROLES = [
     name: 'Registration Staff',
     description: 'Attendee management and credential printing access',
     permissions: {
-      attendees: { create: true, read: true, update: true, delete: false, print: true },
+      attendees: { create: true, read: true, update: true, delete: false, print: true, export: false, import: false },
       users: { read: false },
       roles: { read: false },
       eventSettings: { create: false, read: true, update: false, delete: false },
       customFields: { create: false, read: true, update: false, delete: false },
-      logs: { read: false },
+      logs: { read: false, export: false, configure: false },
       system: { configure: false, backup: false, restore: false }
     }
   },
@@ -46,12 +46,12 @@ const DEFAULT_ROLES = [
     name: 'Viewer',
     description: 'Read-only access to attendee information',
     permissions: {
-      attendees: { create: false, read: true, update: false, delete: false, print: false },
+      attendees: { create: false, read: true, update: false, delete: false, print: false, export: false, import: false },
       users: { read: false },
       roles: { read: false },
       eventSettings: { create: false, read: true, update: false, delete: false },
       customFields: { create: false, read: true, update: false, delete: false },
-      logs: { read: false },
+      logs: { read: false, export: false, configure: false },
       system: { configure: false, backup: false, restore: false }
     }
   }

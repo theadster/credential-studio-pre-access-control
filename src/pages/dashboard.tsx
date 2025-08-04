@@ -52,6 +52,7 @@ import ExportDialog from "@/components/ExportDialog";
 import ImportDialog from "@/components/ImportDialog";
 import LogsExportDialog from "@/components/LogsExportDialog";
 import LogsDeleteDialog from "@/components/LogsDeleteDialog";
+import LogSettingsDialog from "@/components/LogSettingsDialog";
 import { hasPermission, canAccessTab, canManageUser } from "@/lib/permissions";
 
 interface User {
@@ -2926,6 +2927,22 @@ export default function Dashboard() {
                   </Select>
                 </div>
                 <div className="flex items-center space-x-2">
+                  {hasPermission(currentUser?.role, 'logs', 'configure') && (
+                    <LogSettingsDialog
+                      onSettingsUpdate={() => {
+                        // Optionally refresh logs or show a success message
+                        toast({
+                          title: "Log Settings Updated",
+                          description: "Logging preferences have been updated successfully.",
+                        });
+                      }}
+                    >
+                      <Button variant="outline">
+                        <Settings className="mr-2 h-4 w-4" />
+                        Log Settings
+                      </Button>
+                    </LogSettingsDialog>
+                  )}
                   {hasPermission(currentUser?.role, 'logs', 'delete') && (
                     <LogsDeleteDialog
                       users={users}

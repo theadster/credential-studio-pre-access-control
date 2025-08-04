@@ -153,3 +153,39 @@ model Log {
 
   @@map("logs")
 }
+
+model LogSettings {
+  id                    String  @id @default(cuid())
+  attendeeCreate        Boolean @default(true)
+  attendeeUpdate        Boolean @default(true)
+  attendeeDelete        Boolean @default(true)
+  attendeeView          Boolean @default(false)
+  attendeeBulkDelete    Boolean @default(true)
+  attendeeImport        Boolean @default(true)
+  attendeeExport        Boolean @default(true)
+  credentialGenerate    Boolean @default(true)
+  credentialClear       Boolean @default(true)
+  userCreate            Boolean @default(true)
+  userUpdate            Boolean @default(true)
+  userDelete            Boolean @default(true)
+  userView              Boolean @default(false)
+  userInvite            Boolean @default(true)
+  roleCreate            Boolean @default(true)
+  roleUpdate            Boolean @default(true)
+  roleDelete            Boolean @default(true)
+  roleView              Boolean @default(false)
+  eventSettingsUpdate   Boolean @default(true)
+  customFieldCreate     Boolean @default(true)
+  customFieldUpdate     Boolean @default(true)
+  customFieldDelete     Boolean @default(true)
+  customFieldReorder    Boolean @default(true)
+  authLogin             Boolean @default(true)
+  authLogout            Boolean @default(true)
+  logsDelete            Boolean @default(true)
+  logsExport            Boolean @default(true)
+  logsView              Boolean @default(false)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@map("log_settings")
+}
