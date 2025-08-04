@@ -178,6 +178,7 @@ export default function Dashboard() {
   const [showRoleForm, setShowRoleForm] = useState(false);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [dropdownStates, setDropdownStates] = useState<{[key: string]: boolean}>({});
 
   const refreshAttendees = async () => {
     try {
@@ -2100,7 +2101,15 @@ export default function Dashboard() {
                               </div>
                             </TableCell>
                             <TableCell>
-                              <DropdownMenu>
+                              <DropdownMenu 
+                                open={dropdownStates[attendee.id] || false} 
+                                onOpenChange={(open) => {
+                                  setDropdownStates(prev => ({
+                                    ...prev,
+                                    [attendee.id]: open
+                                  }));
+                                }}
+                              >
                                 <DropdownMenuTrigger asChild>
                                   <Button variant="ghost" size="sm">
                                     <MoreHorizontal className="h-4 w-4" />
@@ -2109,7 +2118,13 @@ export default function Dashboard() {
                                 <DropdownMenuContent align="end">
                                   {hasPermission(currentUser?.role, 'attendees', 'print') && (
                                     <DropdownMenuItem
-                                      onClick={() => handleGenerateCredential(attendee.id)}
+                                      onClick={() => {
+                                        setDropdownStates(prev => ({
+                                          ...prev,
+                                          [attendee.id]: false
+                                        }));
+                                        handleGenerateCredential(attendee.id);
+                                      }}
                                       disabled={generatingCredential === attendee.id}
                                     >
                                       {generatingCredential === attendee.id ? (
@@ -2127,7 +2142,13 @@ export default function Dashboard() {
                                   )}
                                   {hasPermission(currentUser?.role, 'attendees', 'print') && attendee.credentialUrl && (
                                     <DropdownMenuItem
-                                      onClick={() => handleClearCredential(attendee.id)}
+                                      onClick={() => {
+                                        setDropdownStates(prev => ({
+                                          ...prev,
+                                          [attendee.id]: false
+                                        }));
+                                        handleClearCredential(attendee.id);
+                                      }}
                                     >
                                       <Trash2 className="mr-2 h-4 w-4" />
                                       Clear Credential
@@ -2135,11 +2156,22 @@ export default function Dashboard() {
                                   )}
                                   {hasPermission(currentUser?.role, 'attendees', 'update') && (
                                     <DropdownMenuItem
-                                      onSelect={async (e) => {
+                                      onSelect={(e) => {
                                         e.preventDefault();
-                                        await refreshEventSettings();
-                                        setEditingAttendee(attendee);
-                                        setShowAttendeeForm(true);
+                                        e.stopPropagation();
+                                        
+                                        // Close dropdown immediately
+                                        setDropdownStates(prev => ({
+                                          ...prev,
+                                          [attendee.id]: false
+                                        }));
+                                        
+                                        // Use requestAnimationFrame to ensure dropdown closes first
+                                        requestAnimationFrame(async () => {
+                                          await refreshEventSettings();
+                                          setEditingAttendee(attendee);
+                                          setShowAttendeeForm(true);
+                                        });
                                       }}
                                     >
                                       <Edit className="mr-2 h-4 w-4" />
@@ -2148,7 +2180,13 @@ export default function Dashboard() {
                                   )}
                                   {hasPermission(currentUser?.role, 'attendees', 'delete') && (
                                     <DropdownMenuItem
-                                      onClick={() => handleDeleteAttendee(attendee.id)}
+                                      onClick={() => {
+                                        setDropdownStates(prev => ({
+                                          ...prev,
+                                          [attendee.id]: false
+                                        }));
+                                        handleDeleteAttendee(attendee.id);
+                                      }}
                                       className="text-destructive"
                                     >
                                       <Trash2 className="mr-2 h-4 w-4" />
