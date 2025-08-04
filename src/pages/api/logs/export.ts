@@ -18,7 +18,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { scope, fields, filters } = req.body;
+    const { scope, fields, filters, timezone = 'UTC' } = req.body;
 
     if (!fields || !Array.isArray(fields) || fields.length === 0) {
       return res.status(400).json({ error: 'Fields selection is required' });
@@ -122,7 +122,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
       createdAt: {
         header: 'Date & Time',
-        extract: (log) => new Date(log.createdAt).toLocaleString()
+        extract: (log) => {
+          try {
+            return new Date(log.createdAt).toLocaleString('en-US', {
+              timeZone: timezone,
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+              hour12: false
+            });
+          } catch (error) {
+            // Fallback to UTC if timezone is invalid
+            return new Date(log.createdAt).toLocaleString('en-US', {
+              timeZone: 'UTC',
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+              hour12: false
+            });
+          }
+        }
       },
       action: {
         header: 'Action',

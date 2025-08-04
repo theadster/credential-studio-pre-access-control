@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -63,6 +63,16 @@ export default function LogsExportDialog({
     userId: 'all',
     targetType: 'all'
   });
+  
+  // Timezone selection
+  const [timezone, setTimezone] = useState('UTC');
+
+  // Initialize timezone to user's local timezone when dialog opens
+  useEffect(() => {
+    if (open) {
+      setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone);
+    }
+  }, [open]);
 
   // Define available export fields
   const exportFields: ExportField[] = [
@@ -157,6 +167,7 @@ export default function LogsExportDialog({
       const exportParams = {
         scope: exportScope,
         fields: selectedFields,
+        timezone: timezone,
         filters: exportScope === 'custom' ? customFilters : 
                 exportScope === 'filtered' ? currentFilters : 
                 undefined
@@ -638,6 +649,67 @@ export default function LogsExportDialog({
             </CardContent>
           </Card>
 
+          {/* Timezone Selection */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Clock className="h-4 w-4" />
+                Timezone Settings
+              </CardTitle>
+              <CardDescription>
+                Choose the timezone for displaying dates and times in the export
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <Label htmlFor="timezone">Export Timezone</Label>
+                <Select value={timezone} onValueChange={setTimezone}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select timezone" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    <SelectItem value="UTC">UTC (Coordinated Universal Time)</SelectItem>
+                    <SelectItem value="America/New_York">Eastern Time (ET)</SelectItem>
+                    <SelectItem value="America/Chicago">Central Time (CT)</SelectItem>
+                    <SelectItem value="America/Denver">Mountain Time (MT)</SelectItem>
+                    <SelectItem value="America/Los_Angeles">Pacific Time (PT)</SelectItem>
+                    <SelectItem value="America/Phoenix">Arizona Time (MST)</SelectItem>
+                    <SelectItem value="America/Anchorage">Alaska Time (AKST)</SelectItem>
+                    <SelectItem value="Pacific/Honolulu">Hawaii Time (HST)</SelectItem>
+                    <SelectItem value="Europe/London">London (GMT/BST)</SelectItem>
+                    <SelectItem value="Europe/Paris">Paris (CET/CEST)</SelectItem>
+                    <SelectItem value="Europe/Berlin">Berlin (CET/CEST)</SelectItem>
+                    <SelectItem value="Europe/Rome">Rome (CET/CEST)</SelectItem>
+                    <SelectItem value="Europe/Madrid">Madrid (CET/CEST)</SelectItem>
+                    <SelectItem value="Europe/Amsterdam">Amsterdam (CET/CEST)</SelectItem>
+                    <SelectItem value="Europe/Stockholm">Stockholm (CET/CEST)</SelectItem>
+                    <SelectItem value="Europe/Moscow">Moscow (MSK)</SelectItem>
+                    <SelectItem value="Asia/Tokyo">Tokyo (JST)</SelectItem>
+                    <SelectItem value="Asia/Shanghai">Shanghai (CST)</SelectItem>
+                    <SelectItem value="Asia/Hong_Kong">Hong Kong (HKT)</SelectItem>
+                    <SelectItem value="Asia/Singapore">Singapore (SGT)</SelectItem>
+                    <SelectItem value="Asia/Seoul">Seoul (KST)</SelectItem>
+                    <SelectItem value="Asia/Kolkata">India (IST)</SelectItem>
+                    <SelectItem value="Asia/Dubai">Dubai (GST)</SelectItem>
+                    <SelectItem value="Australia/Sydney">Sydney (AEDT/AEST)</SelectItem>
+                    <SelectItem value="Australia/Melbourne">Melbourne (AEDT/AEST)</SelectItem>
+                    <SelectItem value="Australia/Perth">Perth (AWST)</SelectItem>
+                    <SelectItem value="Pacific/Auckland">Auckland (NZDT/NZST)</SelectItem>
+                    <SelectItem value="America/Toronto">Toronto (ET)</SelectItem>
+                    <SelectItem value="America/Vancouver">Vancouver (PT)</SelectItem>
+                    <SelectItem value="America/Sao_Paulo">São Paulo (BRT)</SelectItem>
+                    <SelectItem value="America/Mexico_City">Mexico City (CST)</SelectItem>
+                    <SelectItem value="Africa/Cairo">Cairo (EET)</SelectItem>
+                    <SelectItem value="Africa/Johannesburg">Johannesburg (SAST)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="text-xs text-muted-foreground">
+                  All timestamps in the exported CSV will be displayed in the selected timezone.
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Export Summary */}
           <Card>
             <CardHeader>
@@ -658,6 +730,10 @@ export default function LogsExportDialog({
                   <Badge variant="outline">
                     {selectedFields.length} fields
                   </Badge>
+                </div>
+                <div className="flex justify-between">
+                  <span>Timezone:</span>
+                  <Badge variant="outline">{timezone}</Badge>
                 </div>
                 <div className="flex justify-between">
                   <span>Export format:</span>
