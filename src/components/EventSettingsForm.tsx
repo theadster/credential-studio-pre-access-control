@@ -412,9 +412,9 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="general">General</TabsTrigger>
+              <TabsTrigger value="custom-fields">Custom Fields</TabsTrigger>
               <TabsTrigger value="barcode">Barcode</TabsTrigger>
               <TabsTrigger value="integrations">Integrations</TabsTrigger>
-              <TabsTrigger value="custom-fields">Custom Fields</TabsTrigger>
             </TabsList>
 
             <TabsContent value="general" className="space-y-4">
