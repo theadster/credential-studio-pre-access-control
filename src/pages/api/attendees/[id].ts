@@ -164,26 +164,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         });
 
-        // Log the update action
+        // Log the update action with detailed before/after values
         if (updatePermission.user) {
-          // Create a more descriptive list of changes
-          const changedFields: string[] = [];
+          const changeDetails: string[] = [];
           
-          // Check for basic field changes
+          // Check for basic field changes with before/after values
           if (firstName && firstName !== existingAttendee.firstName) {
-            changedFields.push('First Name');
+            changeDetails.push(`First Name: "${existingAttendee.firstName}" → "${firstName}"`);
           }
           if (lastName && lastName !== existingAttendee.lastName) {
-            changedFields.push('Last Name');
+            changeDetails.push(`Last Name: "${existingAttendee.lastName}" → "${lastName}"`);
           }
           if (barcodeNumber && barcodeNumber !== existingAttendee.barcodeNumber) {
-            changedFields.push('Barcode Number');
+            changeDetails.push(`Barcode Number: "${existingAttendee.barcodeNumber}" → "${barcodeNumber}"`);
           }
           if (photoUrl !== undefined && photoUrl !== existingAttendee.photoUrl) {
-            changedFields.push('Photo');
+            const oldPhoto = existingAttendee.photoUrl ? 'has photo' : 'no photo';
+            const newPhoto = photoUrl ? 'has photo' : 'no photo';
+            changeDetails.push(`Photo: ${oldPhoto} → ${newPhoto}`);
           }
           
-          // Check for custom field changes
+          // Check for custom field changes with detailed before/after values
           if (customFieldValues && Array.isArray(customFieldValues)) {
             // Get the current custom field values for comparison
             const currentCustomFieldValues = await prisma.attendeeCustomFieldValue.findMany({
@@ -195,51 +196,62 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             
             // Get all custom fields to map IDs to names
             const allCustomFields = await prisma.customField.findMany({
-              select: { id: true, fieldName: true }
+              select: { id: true, fieldName: true, fieldType: true }
             });
-            const customFieldMap = new Map(allCustomFields.map(cf => [cf.id, cf.fieldName]));
+            const customFieldMap = new Map(allCustomFields.map(cf => [cf.id, { name: cf.fieldName, type: cf.fieldType }]));
             
-            // Track which custom fields were changed
-            const changedCustomFields: string[] = [];
+            // Helper function to format values based on field type
+            const formatValue = (value: any, fieldType: string) => {
+              if (value === null || value === undefined || value === '') {
+                return 'empty';
+              }
+              if (fieldType === 'boolean') {
+                // Handle both string and boolean values
+                if (typeof value === 'string') {
+                  return value.toLowerCase() === 'yes' ? 'Yes' : 'No';
+                }
+                return value ? 'Yes' : 'No';
+              }
+              return `"${value}"`;
+            };
             
             // Check each incoming custom field value
             for (const newValue of customFieldValues) {
               const currentValue = currentCustomFieldValues.find(cv => cv.customFieldId === newValue.customFieldId);
-              const fieldName = customFieldMap.get(newValue.customFieldId);
+              const fieldInfo = customFieldMap.get(newValue.customFieldId);
               
-              if (fieldName) {
-                // If there's no current value but there's a new value, it's a change
-                if (!currentValue && newValue.value !== null && newValue.value !== undefined && newValue.value !== '') {
-                  changedCustomFields.push(fieldName);
-                }
-                // If there's a current value but it's different from the new value, it's a change
-                else if (currentValue && currentValue.value !== String(newValue.value)) {
-                  changedCustomFields.push(fieldName);
+              if (fieldInfo) {
+                const oldVal = currentValue ? currentValue.value : null;
+                const newVal = newValue.value;
+                
+                // Only log if there's actually a change
+                if (String(oldVal || '') !== String(newVal || '')) {
+                  const formattedOldValue = formatValue(oldVal, fieldInfo.type);
+                  const formattedNewValue = formatValue(newVal, fieldInfo.type);
+                  changeDetails.push(`${fieldInfo.name}: ${formattedOldValue} → ${formattedNewValue}`);
                 }
               }
             }
             
-            // Check for removed custom field values
+            // Check for removed custom field values (fields that existed before but are not in the new data)
             for (const currentValue of currentCustomFieldValues) {
               const newValue = customFieldValues.find(nv => nv.customFieldId === currentValue.customFieldId);
-              const fieldName = customFieldMap.get(currentValue.customFieldId);
+              const fieldInfo = customFieldMap.get(currentValue.customFieldId);
               
-              if (fieldName && (!newValue || newValue.value === null || newValue.value === undefined || newValue.value === '')) {
-                if (!changedCustomFields.includes(fieldName)) {
-                  changedCustomFields.push(fieldName);
+              if (fieldInfo && (!newValue || newValue.value === null || newValue.value === undefined || newValue.value === '')) {
+                // Only log if the current value is not already empty
+                if (currentValue.value !== null && currentValue.value !== undefined && currentValue.value !== '') {
+                  const formattedOldValue = formatValue(currentValue.value, fieldInfo.type);
+                  const formattedNewValue = formatValue(null, fieldInfo.type);
+                  changeDetails.push(`${fieldInfo.name}: ${formattedOldValue} → ${formattedNewValue}`);
                 }
               }
-            }
-            
-            // Add changed custom fields to the main changes list
-            if (changedCustomFields.length > 0) {
-              changedFields.push(`Custom Fields: ${changedCustomFields.join(', ')}`);
             }
           }
           
           // If no specific changes detected, fall back to generic message
-          if (changedFields.length === 0) {
-            changedFields.push('Attendee Information');
+          if (changeDetails.length === 0) {
+            changeDetails.push('No changes detected');
           }
 
           await prisma.log.create({
@@ -251,7 +263,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 type: 'attendee',
                 firstName: updatedAttendee.firstName,
                 lastName: updatedAttendee.lastName,
-                changes: changedFields
+                changes: changeDetails
               }
             }
           });
