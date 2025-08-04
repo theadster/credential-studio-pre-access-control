@@ -51,6 +51,7 @@ import RoleForm from "@/components/RoleForm";
 import ExportDialog from "@/components/ExportDialog";
 import ImportDialog from "@/components/ImportDialog";
 import LogsExportDialog from "@/components/LogsExportDialog";
+import LogsDeleteDialog from "@/components/LogsDeleteDialog";
 import { hasPermission, canAccessTab, canManageUser } from "@/lib/permissions";
 
 interface User {
@@ -2925,6 +2926,17 @@ export default function Dashboard() {
                   </Select>
                 </div>
                 <div className="flex items-center space-x-2">
+                  {hasPermission(currentUser?.role, 'logs', 'delete') && (
+                    <LogsDeleteDialog
+                      users={users}
+                      onDeleteSuccess={() => loadLogs(1, logsFilters)}
+                    >
+                      <Button variant="destructive">
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete Logs
+                      </Button>
+                    </LogsDeleteDialog>
+                  )}
                   <LogsExportDialog
                     users={users}
                     totalLogs={logsPagination.totalCount}
