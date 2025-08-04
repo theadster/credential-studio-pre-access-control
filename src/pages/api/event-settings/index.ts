@@ -7,17 +7,11 @@ import { shouldLog } from '@/lib/logSettings';
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const supabase = createClient(req, res);
   
-  // Get the authenticated user
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  
-  if (authError || !user) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
   try {
     switch (req.method) {
       case 'GET':
-        // Get the first (and should be only) event settings record
+        // For GET requests, allow unauthenticated access to fetch basic event settings
+        // This is needed for the login page to display the sign-in banner
         let eventSettings = await prisma.eventSettings.findFirst({
           include: {
             customFields: {
@@ -27,6 +21,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             }
           }
         });
+
+        if (!eventSettings) {
+          return res.status(404).json({ error: 'Event settings not found' });
+        }
 
         // Generate internal field names for existing custom fields that don't have them
         if (eventSettings?.customFields) {
@@ -55,80 +53,50 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         }
 
-        // Log the view action - only if user exists in our database and logging is enabled
-        const existingPrismaUser = await prisma.user.findUnique({
-          where: { id: user.id }
-        });
+        // Try to get the authenticated user for logging (optional for GET requests)
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
         
-        if (existingPrismaUser && await shouldLog('systemViewEventSettings')) {
-          await prisma.log.create({
-            data: {
-              userId: user.id,
-              action: 'view',
-              details: { type: 'event_settings' }
-            }
+        // Log the view action - only if user exists in our database and logging is enabled
+        if (user && !authError) {
+          const existingPrismaUser = await prisma.user.findUnique({
+            where: { id: user.id }
           });
+          
+          if (existingPrismaUser && await shouldLog('systemViewEventSettings')) {
+            await prisma.log.create({
+              data: {
+                userId: user.id,
+                action: 'view',
+                details: { type: 'event_settings' }
+              }
+            });
+          }
         }
 
         return res.status(200).json(eventSettings);
 
       case 'POST':
-        // Create initial event settings (should only happen once)
-        const {
-          eventName,
-          eventDate,
-          eventTime,
-          eventLocation,
-          timeZone,
-          barcodeType,
-          barcodeLength,
-          barcodeUnique,
-          forceFirstNameUppercase,
-          forceLastNameUppercase,
-          cloudinaryCloudName,
-          cloudinaryApiKey,
-          cloudinaryApiSecret,
-          cloudinaryUploadPreset,
-          switchboardApiKey,
-          switchboardTemplateId,
-          bannerImageUrl,
-          signInBannerUrl
-        } = req.body;
-
-        if (!eventName || !eventDate || !eventLocation || !timeZone) {
-          return res.status(400).json({ error: 'Missing required fields' });
+      case 'PUT':
+        // For POST and PUT requests, require authentication
+        const { data: { user: authUser }, error: authErrorForMutation } = await supabase.auth.getUser();
+        
+        if (authErrorForMutation || !authUser) {
+          return res.status(401).json({ error: 'Unauthorized' });
         }
 
-        // Check if event settings already exist
-        const existingSettings = await prisma.eventSettings.findFirst();
-        if (existingSettings) {
-          return res.status(400).json({ error: 'Event settings already exist. Use PUT to update.' });
-        }
-
-        // Handle date properly to avoid timezone issues
-        let createParsedEventDate;
-        if (eventDate) {
-          if (typeof eventDate === 'string' && eventDate.includes('-') && !eventDate.includes('T')) {
-            // If it's a date string (YYYY-MM-DD), parse it as local date to avoid UTC conversion
-            const [year, month, day] = eventDate.split('-').map(Number);
-            createParsedEventDate = new Date(year, month - 1, day);
-          } else {
-            createParsedEventDate = new Date(eventDate);
-          }
-        }
-
-        const newEventSettings = await prisma.eventSettings.create({
-          data: {
+        if (req.method === 'POST') {
+          // Create initial event settings (should only happen once)
+          const {
             eventName,
-            eventDate: createParsedEventDate,
+            eventDate,
             eventTime,
             eventLocation,
             timeZone,
-            barcodeType: barcodeType || 'alphanumerical',
-            barcodeLength: barcodeLength || 8,
-            barcodeUnique: barcodeUnique !== undefined ? barcodeUnique : true,
-            forceFirstNameUppercase: forceFirstNameUppercase || false,
-            forceLastNameUppercase: forceLastNameUppercase || false,
+            barcodeType,
+            barcodeLength,
+            barcodeUnique,
+            forceFirstNameUppercase,
+            forceLastNameUppercase,
             cloudinaryCloudName,
             cloudinaryApiKey,
             cloudinaryApiSecret,
@@ -137,39 +105,83 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             switchboardTemplateId,
             bannerImageUrl,
             signInBannerUrl
-          },
-          include: {
-            customFields: {
-              orderBy: {
-                order: 'asc'
-              }
+          } = req.body;
+
+          if (!eventName || !eventDate || !eventLocation || !timeZone) {
+            return res.status(400).json({ error: 'Missing required fields' });
+          }
+
+          // Check if event settings already exist
+          const existingSettings = await prisma.eventSettings.findFirst();
+          if (existingSettings) {
+            return res.status(400).json({ error: 'Event settings already exist. Use PUT to update.' });
+          }
+
+          // Handle date properly to avoid timezone issues
+          let createParsedEventDate;
+          if (eventDate) {
+            if (typeof eventDate === 'string' && eventDate.includes('-') && !eventDate.includes('T')) {
+              // If it's a date string (YYYY-MM-DD), parse it as local date to avoid UTC conversion
+              const [year, month, day] = eventDate.split('-').map(Number);
+              createParsedEventDate = new Date(year, month - 1, day);
+            } else {
+              createParsedEventDate = new Date(eventDate);
             }
           }
-        });
 
-        // Log the create action - only if user exists in our database
-        const existingPrismaUserForCreate = await prisma.user.findUnique({
-          where: { id: user.id }
-        });
-        
-        if (existingPrismaUserForCreate) {
-          await prisma.log.create({
+          const newEventSettings = await prisma.eventSettings.create({
             data: {
-              userId: user.id,
-              action: 'create',
-              details: { 
-                type: 'event_settings',
-                eventName: newEventSettings.eventName,
-                eventDate: newEventSettings.eventDate
+              eventName,
+              eventDate: createParsedEventDate,
+              eventTime,
+              eventLocation,
+              timeZone,
+              barcodeType: barcodeType || 'alphanumerical',
+              barcodeLength: barcodeLength || 8,
+              barcodeUnique: barcodeUnique !== undefined ? barcodeUnique : true,
+              forceFirstNameUppercase: forceFirstNameUppercase || false,
+              forceLastNameUppercase: forceLastNameUppercase || false,
+              cloudinaryCloudName,
+              cloudinaryApiKey,
+              cloudinaryApiSecret,
+              cloudinaryUploadPreset,
+              switchboardApiKey,
+              switchboardTemplateId,
+              bannerImageUrl,
+              signInBannerUrl
+            },
+            include: {
+              customFields: {
+                orderBy: {
+                  order: 'asc'
+                }
               }
             }
           });
+
+          // Log the create action - only if user exists in our database
+          const existingPrismaUserForCreate = await prisma.user.findUnique({
+            where: { id: authUser.id }
+          });
+          
+          if (existingPrismaUserForCreate) {
+            await prisma.log.create({
+              data: {
+                userId: authUser.id,
+                action: 'create',
+                details: { 
+                  type: 'event_settings',
+                  eventName: newEventSettings.eventName,
+                  eventDate: newEventSettings.eventDate
+                }
+              }
+            });
+          }
+
+          return res.status(201).json(newEventSettings);
         }
 
-        return res.status(201).json(newEventSettings);
-
-      case 'PUT':
-        // Update event settings
+        // PUT request - Update event settings
         const updateData = req.body;
         const { customFields, ...eventSettingsData } = updateData;
         
@@ -363,7 +375,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         // Log the update action - only if user exists in our database
         const existingPrismaUserForUpdate = await prisma.user.findUnique({
-          where: { id: user.id }
+          where: { id: authUser.id }
         });
         
         if (existingPrismaUserForUpdate) {
@@ -472,7 +484,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
           await prisma.log.create({
             data: {
-              userId: user.id,
+              userId: authUser.id,
               action: 'update',
               details: { 
                 type: 'event_settings',
