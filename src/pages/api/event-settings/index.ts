@@ -364,6 +364,106 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
         
         if (existingPrismaUserForUpdate) {
+          // Create a more descriptive list of changes
+          const changedFields: string[] = [];
+          
+          // Check for main event settings changes
+          if (updateData.eventName && updateData.eventName !== currentSettings.eventName) {
+            changedFields.push('Event Name');
+          }
+          if (updateData.eventDate && new Date(updateData.eventDate).getTime() !== currentSettings.eventDate?.getTime()) {
+            changedFields.push('Event Date');
+          }
+          if (updateData.eventTime && updateData.eventTime !== currentSettings.eventTime) {
+            changedFields.push('Event Time');
+          }
+          if (updateData.eventLocation && updateData.eventLocation !== currentSettings.eventLocation) {
+            changedFields.push('Event Location');
+          }
+          if (updateData.timeZone && updateData.timeZone !== currentSettings.timeZone) {
+            changedFields.push('Time Zone');
+          }
+          if (updateData.barcodeType && updateData.barcodeType !== currentSettings.barcodeType) {
+            changedFields.push('Barcode Type');
+          }
+          if (updateData.barcodeLength && updateData.barcodeLength !== currentSettings.barcodeLength) {
+            changedFields.push('Barcode Length');
+          }
+          if (updateData.barcodeUnique !== undefined && updateData.barcodeUnique !== currentSettings.barcodeUnique) {
+            changedFields.push('Barcode Unique Setting');
+          }
+          if (updateData.forceFirstNameUppercase !== undefined && updateData.forceFirstNameUppercase !== currentSettings.forceFirstNameUppercase) {
+            changedFields.push('Force First Name Uppercase');
+          }
+          if (updateData.forceLastNameUppercase !== undefined && updateData.forceLastNameUppercase !== currentSettings.forceLastNameUppercase) {
+            changedFields.push('Force Last Name Uppercase');
+          }
+          if (updateData.bannerImageUrl !== undefined && updateData.bannerImageUrl !== currentSettings.bannerImageUrl) {
+            changedFields.push('Banner Image');
+          }
+          
+          // Check for Cloudinary settings changes
+          if (updateData.cloudinaryEnabled !== undefined && updateData.cloudinaryEnabled !== currentSettings.cloudinaryEnabled) {
+            changedFields.push('Cloudinary Integration');
+          }
+          if (updateData.cloudinaryCloudName && updateData.cloudinaryCloudName !== currentSettings.cloudinaryCloudName) {
+            changedFields.push('Cloudinary Cloud Name');
+          }
+          if (updateData.cloudinaryApiKey && updateData.cloudinaryApiKey !== currentSettings.cloudinaryApiKey) {
+            changedFields.push('Cloudinary API Key');
+          }
+          if (updateData.cloudinaryApiSecret && updateData.cloudinaryApiSecret !== currentSettings.cloudinaryApiSecret) {
+            changedFields.push('Cloudinary API Secret');
+          }
+          if (updateData.cloudinaryUploadPreset && updateData.cloudinaryUploadPreset !== currentSettings.cloudinaryUploadPreset) {
+            changedFields.push('Cloudinary Upload Preset');
+          }
+          if (updateData.cloudinaryAutoOptimize !== undefined && updateData.cloudinaryAutoOptimize !== currentSettings.cloudinaryAutoOptimize) {
+            changedFields.push('Cloudinary Auto-optimize');
+          }
+          if (updateData.cloudinaryGenerateThumbnails !== undefined && updateData.cloudinaryGenerateThumbnails !== currentSettings.cloudinaryGenerateThumbnails) {
+            changedFields.push('Cloudinary Generate Thumbnails');
+          }
+          if (updateData.cloudinaryDisableSkipCrop !== undefined && updateData.cloudinaryDisableSkipCrop !== currentSettings.cloudinaryDisableSkipCrop) {
+            changedFields.push('Cloudinary Disable Skip Crop');
+          }
+          if (updateData.cloudinaryCropAspectRatio && updateData.cloudinaryCropAspectRatio !== currentSettings.cloudinaryCropAspectRatio) {
+            changedFields.push('Cloudinary Crop Aspect Ratio');
+          }
+          
+          // Check for Switchboard settings changes
+          if (updateData.switchboardEnabled !== undefined && updateData.switchboardEnabled !== currentSettings.switchboardEnabled) {
+            changedFields.push('Switchboard Canvas Integration');
+          }
+          if (updateData.switchboardApiEndpoint && updateData.switchboardApiEndpoint !== currentSettings.switchboardApiEndpoint) {
+            changedFields.push('Switchboard API Endpoint');
+          }
+          if (updateData.switchboardAuthHeaderType && updateData.switchboardAuthHeaderType !== currentSettings.switchboardAuthHeaderType) {
+            changedFields.push('Switchboard Auth Header Type');
+          }
+          if (updateData.switchboardApiKey && updateData.switchboardApiKey !== currentSettings.switchboardApiKey) {
+            changedFields.push('Switchboard API Key');
+          }
+          if (updateData.switchboardRequestBody && updateData.switchboardRequestBody !== currentSettings.switchboardRequestBody) {
+            changedFields.push('Switchboard Request Body');
+          }
+          if (updateData.switchboardTemplateId && updateData.switchboardTemplateId !== currentSettings.switchboardTemplateId) {
+            changedFields.push('Switchboard Template ID');
+          }
+          if (updateData.switchboardFieldMappings && JSON.stringify(updateData.switchboardFieldMappings) !== JSON.stringify(currentSettings.switchboardFieldMappings)) {
+            changedFields.push('Switchboard Field Mappings');
+          }
+          
+          // Check for custom fields changes
+          if (updateData.customFields) {
+            changedFields.push('Custom Fields');
+          }
+          
+          // If no specific changes detected, fall back to generic message
+          if (changedFields.length === 0) {
+            changedFields.push('Event Settings');
+          }
+
           await prisma.log.create({
             data: {
               userId: user.id,
@@ -371,7 +471,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               details: { 
                 type: 'event_settings',
                 eventName: updatedEventSettings.eventName,
-                changes: Object.keys(updateData)
+                changes: changedFields
               }
             }
           });
