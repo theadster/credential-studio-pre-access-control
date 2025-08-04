@@ -2030,7 +2030,7 @@ export default function Dashboard() {
                   <div className="flex items-center space-x-2">
                     {hasAdvancedFilters() && (
                       <>
-                        {hasPermission(currentUser?.role, 'attendees', 'update') && (
+                        {hasPermission(currentUser?.role, 'attendees', 'bulkEdit') && (
                           <Dialog open={showBulkEdit} onOpenChange={setShowBulkEdit}>
                             <DialogTrigger asChild>
                               <Button variant="outline" className="flex items-center space-x-2">

@@ -34,6 +34,7 @@ interface Permission {
   print?: boolean;
   export?: boolean;
   import?: boolean;
+  bulkEdit?: boolean;
   configure?: boolean;
   backup?: boolean;
   restore?: boolean;
@@ -57,7 +58,8 @@ const defaultPermissions: UserPermissions = {
     delete: false,
     print: false,
     export: false,
-    import: false
+    import: false,
+    bulkEdit: false
   },
   users: {
     create: false,
@@ -109,7 +111,8 @@ const permissionLabels = {
       delete: "Delete attendees",
       print: "Print credentials",
       export: "Export attendee data",
-      import: "Import attendee data"
+      import: "Import attendee data",
+      bulkEdit: "Bulk edit multiple attendees"
     }
   },
   users: {

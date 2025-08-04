@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
 import { createClient } from '@/util/supabase/api';
+import { checkApiPermission } from '@/lib/permissions';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -13,6 +14,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (userError || !user) {
     return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  // Check bulk edit permission
+  const permission = await checkApiPermission(user.id, 'attendees', 'bulkEdit', prisma);
+  if (!permission.hasPermission) {
+    return res.status(403).json({ error: 'Insufficient permissions to bulk edit attendees' });
   }
 
   const { attendeeIds, changes } = req.body;

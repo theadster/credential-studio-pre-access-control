@@ -6,6 +6,7 @@ interface Permission {
   print?: boolean;
   export?: boolean;
   import?: boolean;
+  bulkEdit?: boolean;
   configure?: boolean;
   backup?: boolean;
   restore?: boolean;
