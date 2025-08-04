@@ -1,7 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
 import { createClient } from '@/util/supabase/api';
-import { logApiError, logApiRequest } from '@/lib/utils';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -86,18 +85,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    await logApiRequest(req, {
-      action: 'bulk_update_attendees',
-      details: {
-        count: attendeeIds.length,
-        updatedCount,
-        changes: Object.keys(changes),
+    // Log the bulk edit action
+    await prisma.log.create({
+      data: {
+        userId: user.id,
+        action: 'bulk_update',
+        details: {
+          type: 'attendees',
+          count: attendeeIds.length,
+          updatedCount,
+          changes: Object.keys(changes),
+        },
       },
     });
 
     res.status(200).json({ message: 'Attendees updated successfully', updatedCount });
   } catch (error) {
-    await logApiError(req, error, 'Failed to bulk edit attendees');
+    console.error('Bulk edit error:', error);
     res.status(500).json({ error: 'Failed to bulk edit attendees' });
   }
 }
