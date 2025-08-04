@@ -91,7 +91,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           cloudinaryUploadPreset,
           switchboardApiKey,
           switchboardTemplateId,
-          bannerImageUrl
+          bannerImageUrl,
+          signInBannerUrl
         } = req.body;
 
         if (!eventName || !eventDate || !eventLocation || !timeZone) {
@@ -134,7 +135,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             cloudinaryUploadPreset,
             switchboardApiKey,
             switchboardTemplateId,
-            bannerImageUrl
+            bannerImageUrl,
+            signInBannerUrl
           },
           include: {
             customFields: {
@@ -401,6 +403,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
           if (updateData.bannerImageUrl !== undefined && updateData.bannerImageUrl !== currentSettings.bannerImageUrl) {
             changedFields.push('Banner Image');
+          }
+          if (updateData.signInBannerUrl !== undefined && updateData.signInBannerUrl !== currentSettings.signInBannerUrl) {
+            changedFields.push('Sign In Banner Image');
           }
           
           // Check for Cloudinary settings changes

@@ -17,8 +17,28 @@ const LoginPage = () => {
   const { initializing, signIn } = useContext(AuthContext);
   const [showPw, setShowPw] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [signInBannerUrl, setSignInBannerUrl] = useState<string | null>(null);
   const { isIframe } = useIsIFrame();
   const { toast } = useToast();
+
+  // Fetch event settings to get the sign-in banner URL
+  useEffect(() => {
+    const fetchEventSettings = async () => {
+      try {
+        const response = await fetch('/api/event-settings');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.signInBannerUrl) {
+            setSignInBannerUrl(data.signInBannerUrl);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch event settings:', error);
+      }
+    };
+
+    fetchEventSettings();
+  }, []);
 
   const handleLogin = async (e: any) => {
     e.preventDefault();
@@ -66,6 +86,16 @@ const LoginPage = () => {
   return (
     <div className="flex h-screen justify-center items-center bg-background">
       <div className="flex flex-col gap-5 h-auto">
+        {signInBannerUrl && (
+          <div className="w-full flex justify-center">
+            <img
+              src={signInBannerUrl}
+              alt="Sign In Banner"
+              className="max-w-full h-auto max-h-48 object-contain rounded-lg"
+            />
+          </div>
+        )}
+        
         <div className="w-full flex justify-center cursor-pointer" onClick={() => router.push("/")}>
           <Logo />
         </div>

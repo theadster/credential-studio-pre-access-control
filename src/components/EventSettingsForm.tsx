@@ -80,6 +80,7 @@ interface EventSettings {
   switchboardTemplateId?: string;
   switchboardFieldMappings?: FieldMapping[];
   bannerImageUrl?: string | null;
+  signInBannerUrl?: string | null;
   customFields?: CustomField[];
   createdAt?: string;
   updatedAt?: string;
@@ -489,6 +490,15 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                       id="bannerImageUrl"
                       value={formData.bannerImageUrl || ""}
                       onChange={(e) => handleInputChange("bannerImageUrl", e.target.value)}
+                      placeholder="https://images.unsplash.com/photo-1540575467063-178a50c2df87?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="signInBannerUrl">Sign In Banner URL</Label>
+                    <Input
+                      id="signInBannerUrl"
+                      value={formData.signInBannerUrl || ""}
+                      onChange={(e) => handleInputChange("signInBannerUrl", e.target.value)}
                       placeholder="https://images.unsplash.com/photo-1540575467063-178a50c2df87?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80"
                     />
                   </div>
