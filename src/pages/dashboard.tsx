@@ -2355,12 +2355,12 @@ export default function Dashboard() {
             <div className="space-y-6">
               {/* Role Initialization Alert */}
               {roles.length === 0 && (
-                <Alert>
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertDescription>
+                <Alert className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/50">
+                  <AlertTriangle className="h-4 w-4 text-amber-600" />
+                  <AlertDescription className="text-amber-800 dark:text-amber-200">
                     No roles have been configured yet. Initialize the default role system to get started.
                     <Button 
-                      className="ml-4" 
+                      className="ml-4 bg-amber-600 hover:bg-amber-700 text-white" 
                       size="sm"
                       onClick={handleInitializeRoles}
                       disabled={initializingRoles}
@@ -2419,96 +2419,200 @@ export default function Dashboard() {
                   </Card>
                   <Card className="bg-gradient-to-br from-cyan-50 to-cyan-100 border-cyan-200 dark:from-cyan-950/50 dark:to-cyan-900/50 dark:border-cyan-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium text-cyan-700 dark:text-cyan-300">Permission Levels</CardTitle>
+                      <CardTitle className="text-sm font-medium text-cyan-700 dark:text-cyan-300">Permission Categories</CardTitle>
                       <div className="p-2 rounded-lg bg-cyan-500/20 dark:bg-cyan-400/20">
                         <Settings className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
                       </div>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold text-cyan-900 dark:text-cyan-100">4</div>
+                      <div className="text-2xl font-bold text-cyan-900 dark:text-cyan-100">
+                        {roles.length > 0 ? new Set(roles.flatMap(role => Object.keys(role.permissions || {}))).size : 0}
+                      </div>
                     </CardContent>
                   </Card>
                 </div>
               )}
 
-              {/* Roles Grid */}
+              {/* Roles Table */}
               {roles.length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {roles.map((role) => (
-                    <Card key={role.id} className="glass-effect border-0 hover:shadow-lg transition-shadow">
-                      <CardHeader>
-                        <CardTitle className="flex items-center justify-between">
-                          <div className="flex items-center space-x-2">
-                            <Shield className="h-5 w-5 text-primary" />
-                            <span>{role.name}</span>
-                          </div>
-                          <Badge variant="outline" className="text-xs">
-                            {users.filter(u => u.role?.id === role.id).length} users
-                          </Badge>
-                        </CardTitle>
-                        <CardDescription>{role.description}</CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-4">
-                          <div>
-                            <div className="text-sm font-medium mb-2">Permissions:</div>
-                            <div className="space-y-2">
-                              {Object.entries(role.permissions).map(([resource, perms]: [string, any]) => (
-                                <div key={resource} className="flex items-center justify-between p-2 bg-muted/50 rounded">
-                                  <span className="text-sm font-medium capitalize">{resource}</span>
-                                  <div className="flex flex-wrap gap-1">
-                                    {typeof perms === 'object' && perms !== null ? (
-                                      Object.entries(perms).map(([action, allowed]: [string, any]) => (
-                                        allowed && (
-                                          <Badge key={action} variant="secondary" className="text-xs">
-                                            {action}
-                                          </Badge>
-                                        )
-                                      ))
-                                    ) : (
-                                      <Badge variant="secondary" className="text-xs">
-                                        {String(perms)}
-                                      </Badge>
-                                    )}
+                <Card className="glass-effect border-0">
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <Shield className="h-5 w-5 text-primary" />
+                        <span>System Roles</span>
+                      </div>
+                      <Badge variant="outline" className="text-sm">
+                        {roles.length} role{roles.length !== 1 ? 's' : ''} configured
+                      </Badge>
+                    </CardTitle>
+                    <CardDescription>
+                      Manage user roles and their permissions across the system
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {roles.map((role, index) => {
+                        const userCount = users.filter(u => u.role?.id === role.id).length;
+                        const permissionCount = Object.values(role.permissions || {}).reduce((count, perms) => {
+                          if (typeof perms === 'object' && perms !== null) {
+                            return count + Object.values(perms).filter(Boolean).length;
+                          }
+                          return count + (perms ? 1 : 0);
+                        }, 0);
+
+                        return (
+                          <div 
+                            key={role.id} 
+                            className="group relative border rounded-lg p-6 hover:shadow-md transition-all duration-200 hover:border-primary/20 bg-gradient-to-r from-background to-muted/20"
+                          >
+                            {/* Role Header */}
+                            <div className="flex items-start justify-between mb-4">
+                              <div className="flex-1">
+                                <div className="flex items-center space-x-3 mb-2">
+                                  <div className={`p-2 rounded-lg ${
+                                    role.name === 'Super Administrator' ? 'bg-red-100 dark:bg-red-900/20' :
+                                    role.name === 'Administrator' ? 'bg-purple-100 dark:bg-purple-900/20' :
+                                    role.name === 'Manager' ? 'bg-blue-100 dark:bg-blue-900/20' :
+                                    role.name === 'Editor' ? 'bg-green-100 dark:bg-green-900/20' :
+                                    'bg-gray-100 dark:bg-gray-900/20'
+                                  }`}>
+                                    <Shield className={`h-5 w-5 ${
+                                      role.name === 'Super Administrator' ? 'text-red-600 dark:text-red-400' :
+                                      role.name === 'Administrator' ? 'text-purple-600 dark:text-purple-400' :
+                                      role.name === 'Manager' ? 'text-blue-600 dark:text-blue-400' :
+                                      role.name === 'Editor' ? 'text-green-600 dark:text-green-400' :
+                                      'text-gray-600 dark:text-gray-400'
+                                    }`} />
+                                  </div>
+                                  <div>
+                                    <h3 className="text-lg font-semibold text-foreground group-hover:text-primary transition-colors">
+                                      {role.name}
+                                    </h3>
+                                    <p className="text-sm text-muted-foreground">
+                                      {role.description || 'No description provided'}
+                                    </p>
                                   </div>
                                 </div>
-                              ))}
+                                
+                                {/* Role Stats */}
+                                <div className="flex items-center space-x-6 text-sm text-muted-foreground">
+                                  <div className="flex items-center space-x-1">
+                                    <Users className="h-4 w-4" />
+                                    <span>{userCount} user{userCount !== 1 ? 's' : ''}</span>
+                                  </div>
+                                  <div className="flex items-center space-x-1">
+                                    <Settings className="h-4 w-4" />
+                                    <span>{permissionCount} permission{permissionCount !== 1 ? 's' : ''}</span>
+                                  </div>
+                                  <div className="flex items-center space-x-1">
+                                    <Calendar className="h-4 w-4" />
+                                    <span>Created {new Date(role.createdAt).toLocaleDateString()}</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Actions */}
+                              <div className="flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                {hasPermission(currentUser?.role, 'roles', 'update') && (
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm"
+                                    onClick={() => {
+                                      setEditingRole(role);
+                                      setShowRoleForm(true);
+                                    }}
+                                    className="hover:bg-primary/10 hover:text-primary"
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                )}
+                                {hasPermission(currentUser?.role, 'roles', 'delete') && role.name !== 'Super Administrator' && (
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm"
+                                    className="text-destructive hover:bg-destructive/10"
+                                    onClick={() => handleDeleteRole(role.id)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                          <div className="flex items-center justify-between pt-2 border-t">
-                            <span className="text-xs text-muted-foreground">
-                              Created {new Date(role.createdAt).toLocaleDateString()}
-                            </span>
-                            <div className="flex items-center space-x-2">
-                              {hasPermission(currentUser?.role, 'roles', 'update') && (
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm"
-                                  onClick={() => {
-                                    setEditingRole(role);
-                                    setShowRoleForm(true);
-                                  }}
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                              )}
-                              {hasPermission(currentUser?.role, 'roles', 'delete') && role.name !== 'Super Administrator' && (
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm"
-                                  className="text-destructive"
-                                  onClick={() => handleDeleteRole(role.id)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              )}
+
+                            {/* Permissions Overview */}
+                            <div className="space-y-3">
+                              <div className="text-sm font-medium text-foreground">Permissions Overview</div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                {Object.entries(role.permissions || {}).map(([resource, perms]: [string, any]) => {
+                                  const resourcePermissions = typeof perms === 'object' && perms !== null 
+                                    ? Object.entries(perms).filter(([, allowed]) => allowed).map(([action]) => action)
+                                    : perms ? [String(perms)] : [];
+
+                                  if (resourcePermissions.length === 0) return null;
+
+                                  return (
+                                    <div key={resource} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border">
+                                      <div className="flex items-center space-x-2">
+                                        <div className={`h-2 w-2 rounded-full ${
+                                          resourcePermissions.length > 0 ? 'bg-green-500' : 'bg-gray-400'
+                                        }`}></div>
+                                        <span className="text-sm font-medium capitalize">{resource}</span>
+                                      </div>
+                                      <div className="flex flex-wrap gap-1">
+                                        {resourcePermissions.slice(0, 3).map((action, idx) => (
+                                          <Badge key={idx} variant="secondary" className="text-xs px-2 py-0.5">
+                                            {action}
+                                          </Badge>
+                                        ))}
+                                        {resourcePermissions.length > 3 && (
+                                          <Badge variant="outline" className="text-xs px-2 py-0.5">
+                                            +{resourcePermissions.length - 3}
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
                             </div>
+
+                            {/* Users with this role */}
+                            {userCount > 0 && (
+                              <div className="mt-4 pt-4 border-t">
+                                <div className="text-sm font-medium text-foreground mb-2">Users with this role</div>
+                                <div className="flex flex-wrap gap-2">
+                                  {users
+                                    .filter(u => u.role?.id === role.id)
+                                    .slice(0, 5)
+                                    .map((user) => (
+                                      <div key={user.id} className="flex items-center space-x-2 bg-muted/50 rounded-full px-3 py-1">
+                                        <Avatar className="h-5 w-5">
+                                          <AvatarFallback className="text-xs">
+                                            {(user.name || user.email).charAt(0).toUpperCase()}
+                                          </AvatarFallback>
+                                        </Avatar>
+                                        <span className="text-xs font-medium">
+                                          {user.name || user.email.split('@')[0]}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  {userCount > 5 && (
+                                    <div className="flex items-center justify-center bg-muted/50 rounded-full px-3 py-1">
+                                      <span className="text-xs text-muted-foreground">
+                                        +{userCount - 5} more
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
               )}
             </div>
           )}
