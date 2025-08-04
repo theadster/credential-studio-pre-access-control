@@ -2135,10 +2135,14 @@ export default function Dashboard() {
                                   )}
                                   {hasPermission(currentUser?.role, 'attendees', 'update') && (
                                     <DropdownMenuItem
-                                      onClick={async () => {
-                                        await refreshEventSettings();
-                                        setEditingAttendee(attendee);
-                                        setShowAttendeeForm(true);
+                                      onClick={async (e) => {
+                                        e.preventDefault();
+                                        // Add a small delay to ensure dropdown closes completely
+                                        setTimeout(async () => {
+                                          await refreshEventSettings();
+                                          setEditingAttendee(attendee);
+                                          setShowAttendeeForm(true);
+                                        }, 100);
                                       }}
                                     >
                                       <Edit className="mr-2 h-4 w-4" />
