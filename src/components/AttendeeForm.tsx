@@ -426,7 +426,7 @@ export default function AttendeeForm({
   return (
     <Dialog open={isOpen} onOpenChange={onClose} modal={false}>
       <DialogContent 
-        className="max-w-2xl max-h-[90vh] overflow-y-auto"
+        className="max-w-5xl max-h-[90vh] overflow-y-auto"
         onInteractOutside={(e) => {
           // Prevent closing the dialog when interacting with the Cloudinary widget
           if (isCloudinaryOpen) {
@@ -444,139 +444,156 @@ export default function AttendeeForm({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Photo Upload Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Photo</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center space-x-4">
-                <div className="w-20 h-28 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden border">
-                  {formData.photoUrl ? (
-                    <img 
-                      src={formData.photoUrl} 
-                      alt="Attendee" 
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-gray-200 flex items-center justify-center text-gray-600 font-medium text-sm">
-                      {formData.firstName.charAt(0)}{formData.lastName.charAt(0)}
-                    </div>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleCloudinaryUpload}
-                    className="w-full"
-                  >
-                    <Camera className="mr-2 h-4 w-4" />
-                    {formData.photoUrl ? 'Change Photo' : 'Upload Photo'}
-                  </Button>
-                  {formData.photoUrl && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setFormData(prev => ({ ...prev, photoUrl: '' }))}
-                    >
-                      <X className="mr-2 h-4 w-4" />
-                      Remove Photo
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Basic Information */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Basic Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="firstName">First Name *</Label>
-                  <Input
-                    id="firstName"
-                    value={formData.firstName}
-                    onChange={(e) => {
-                      let inputValue = e.target.value;
-                      // Apply uppercase transformation if enabled in event settings
-                      if (eventSettings?.forceFirstNameUppercase) {
-                        inputValue = inputValue.toUpperCase();
-                      }
-                      setFormData(prev => ({ ...prev, firstName: inputValue }));
-                    }}
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="lastName">Last Name *</Label>
-                  <Input
-                    id="lastName"
-                    value={formData.lastName}
-                    onChange={(e) => {
-                      let inputValue = e.target.value;
-                      // Apply uppercase transformation if enabled in event settings
-                      if (eventSettings?.forceLastNameUppercase) {
-                        inputValue = inputValue.toUpperCase();
-                      }
-                      setFormData(prev => ({ ...prev, lastName: inputValue }));
-                    }}
-                    required
-                  />
-                </div>
-              </div>
-              <div>
-                <Label htmlFor="barcodeNumber">Barcode Number *</Label>
-                <div className="flex space-x-2">
-                  <Input
-                    id="barcodeNumber"
-                    value={formData.barcodeNumber}
-                    onChange={(e) => setFormData(prev => ({ ...prev, barcodeNumber: e.target.value }))}
-                    required
-                  />
-                  {!attendee && (
+          <div className="grid grid-cols-12 gap-6">
+            {/* Photo Upload Section - Left Column */}
+            <div className="col-span-3">
+              <Card className="h-fit">
+                <CardHeader>
+                  <CardTitle className="text-base">Photo</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="w-full aspect-[3/4] bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden border">
+                    {formData.photoUrl ? (
+                      <img 
+                        src={formData.photoUrl} 
+                        alt="Attendee" 
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gray-200 flex items-center justify-center text-gray-600 font-medium text-lg">
+                        {formData.firstName.charAt(0)}{formData.lastName.charAt(0)}
+                      </div>
+                    )}
+                  </div>
+                  <div className="space-y-2">
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={generateBarcode}
+                      onClick={handleCloudinaryUpload}
+                      className="w-full"
+                      size="sm"
                     >
-                      Generate
+                      <Camera className="mr-2 h-4 w-4" />
+                      {formData.photoUrl ? 'Change Photo' : 'Upload Photo'}
                     </Button>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+                    {formData.photoUrl && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setFormData(prev => ({ ...prev, photoUrl: '' }))}
+                        className="w-full"
+                      >
+                        <X className="mr-2 h-4 w-4" />
+                        Remove Photo
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
 
-          {/* Custom Fields */}
-          {customFields.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Additional Information</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {customFields
-                  .sort((a, b) => a.order - b.order)
-                  .map((field) => (
-                    <div key={field.id}>
-                      <Label htmlFor={field.id}>
-                        {field.fieldName}
-                        {field.required && ' *'}
-                      </Label>
-                      {renderCustomField(field)}
+            {/* Form Fields - Right Columns */}
+            <div className="col-span-9">
+              <div className="space-y-6">
+                {/* Basic Information */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Basic Information</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="firstName">First Name *</Label>
+                        <Input
+                          id="firstName"
+                          value={formData.firstName}
+                          onChange={(e) => {
+                            let inputValue = e.target.value;
+                            // Apply uppercase transformation if enabled in event settings
+                            if (eventSettings?.forceFirstNameUppercase) {
+                              inputValue = inputValue.toUpperCase();
+                            }
+                            setFormData(prev => ({ ...prev, firstName: inputValue }));
+                          }}
+                          required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="lastName">Last Name *</Label>
+                        <Input
+                          id="lastName"
+                          value={formData.lastName}
+                          onChange={(e) => {
+                            let inputValue = e.target.value;
+                            // Apply uppercase transformation if enabled in event settings
+                            if (eventSettings?.forceLastNameUppercase) {
+                              inputValue = inputValue.toUpperCase();
+                            }
+                            setFormData(prev => ({ ...prev, lastName: inputValue }));
+                          }}
+                          required
+                        />
+                      </div>
+                      <div className="col-span-2 space-y-2">
+                        <Label htmlFor="barcodeNumber">Barcode Number *</Label>
+                        <div className="flex space-x-2">
+                          <Input
+                            id="barcodeNumber"
+                            value={formData.barcodeNumber}
+                            onChange={(e) => setFormData(prev => ({ ...prev, barcodeNumber: e.target.value }))}
+                            required
+                            className="flex-1"
+                          />
+                          {!attendee && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={generateBarcode}
+                            >
+                              Generate
+                            </Button>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  ))}
-              </CardContent>
-            </Card>
-          )}
+                  </CardContent>
+                </Card>
+
+                {/* Custom Fields */}
+                {customFields.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Additional Information</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-2 gap-4">
+                        {customFields
+                          .sort((a, b) => a.order - b.order)
+                          .map((field) => (
+                            <div 
+                              key={field.id} 
+                              className={`space-y-2 ${
+                                field.fieldType === 'textarea' ? 'col-span-2' : ''
+                              }`}
+                            >
+                              <Label htmlFor={field.id}>
+                                {field.fieldName}
+                                {field.required && ' *'}
+                              </Label>
+                              {renderCustomField(field)}
+                            </div>
+                          ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            </div>
+          </div>
 
           {/* Form Actions */}
-          <div className="flex justify-end space-x-2">
+          <div className="flex justify-end space-x-2 pt-4 border-t">
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
