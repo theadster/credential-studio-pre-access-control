@@ -50,6 +50,7 @@ import EventSettingsForm from "@/components/EventSettingsForm";
 import RoleForm from "@/components/RoleForm";
 import ExportDialog from "@/components/ExportDialog";
 import ImportDialog from "@/components/ImportDialog";
+import LogsExportDialog from "@/components/LogsExportDialog";
 import { hasPermission, canAccessTab, canManageUser } from "@/lib/permissions";
 
 interface User {
@@ -2924,10 +2925,16 @@ export default function Dashboard() {
                   </Select>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <Button variant="outline" onClick={exportLogs}>
-                    <Download className="mr-2 h-4 w-4" />
-                    Export
-                  </Button>
+                  <LogsExportDialog
+                    users={users}
+                    totalLogs={logsPagination.totalCount}
+                    currentFilters={logsFilters}
+                  >
+                    <Button variant="outline">
+                      <Download className="mr-2 h-4 w-4" />
+                      Export
+                    </Button>
+                  </LogsExportDialog>
                   <Button variant="outline" onClick={() => loadLogs(1, logsFilters)}>
                     <Activity className="mr-2 h-4 w-4" />
                     Refresh
