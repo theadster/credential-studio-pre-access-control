@@ -115,11 +115,13 @@ export default function AttendeeForm({
       const widgetConfig: any = {
         cloudName: eventSettings.cloudinaryCloudName,
         uploadPreset: eventSettings.cloudinaryUploadPreset,
-        sources: ['local', 'camera'],
+        sources: ['local', 'url', 'camera'],
+        defaultSource: 'local',
         multiple: false,
         cropping: true,
         croppingShowDimensions: true,
         croppingCoordinatesMode: 'custom',
+        showSkipCropButton: false,
         folder: 'attendee-photos',
         clientAllowedFormats: ['jpg', 'jpeg', 'png'],
         maxFileSize: 5000000, // 5MB
