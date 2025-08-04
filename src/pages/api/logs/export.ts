@@ -173,12 +173,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           const details = log.details || {};
           const parts = [];
           
-          if (details.changes && typeof details.changes === 'object') {
-            const changedFields = Object.entries(details.changes)
-              .filter(([, changed]) => changed)
-              .map(([field]) => field);
-            if (changedFields.length > 0) {
-              parts.push(`Changed: ${changedFields.join(', ')}`);
+          // Handle the new detailed changes format
+          if (details.changes) {
+            if (Array.isArray(details.changes)) {
+              // New format: array of detailed change descriptions
+              parts.push(`Changed: ${details.changes.join('; ')}`);
+            } else if (typeof details.changes === 'object') {
+              // Legacy format: object with field names
+              const changedFields = Object.entries(details.changes)
+                .filter(([, changed]) => changed)
+                .map(([field]) => field);
+              if (changedFields.length > 0) {
+                parts.push(`Changed: ${changedFields.join(', ')}`);
+              }
+            } else if (typeof details.changes === 'string') {
+              // String format
+              parts.push(`Changed: ${details.changes}`);
             }
           }
           
@@ -204,11 +214,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       changes: {
         header: 'Changes Made',
         extract: (log) => {
-          if (log.details?.changes && typeof log.details.changes === 'object') {
-            return Object.entries(log.details.changes)
-              .filter(([, changed]) => changed)
-              .map(([field]) => field)
-              .join(', ');
+          if (log.details?.changes) {
+            if (Array.isArray(log.details.changes)) {
+              // New format: array of detailed change descriptions
+              return log.details.changes.join('; ');
+            } else if (typeof log.details.changes === 'object') {
+              // Legacy format: object with field names
+              return Object.entries(log.details.changes)
+                .filter(([, changed]) => changed)
+                .map(([field]) => field)
+                .join(', ');
+            } else if (typeof log.details.changes === 'string') {
+              // String format
+              return log.details.changes;
+            }
           }
           return '';
         }
