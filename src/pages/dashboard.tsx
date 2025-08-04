@@ -3140,29 +3140,153 @@ export default function Dashboard() {
                         </TableBody>
                       </Table>
 
-                      {/* Pagination */}
+                      {/* Enhanced Pagination */}
                       {logsPagination.totalPages > 1 && (
-                        <div className="flex items-center justify-between mt-6">
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6">
                           <div className="text-sm text-muted-foreground">
-                            Page {logsPagination.page} of {logsPagination.totalPages}
+                            Page {logsPagination.page} of {logsPagination.totalPages} • Showing {logs.length} of {logsPagination.totalCount} activities
                           </div>
-                          <div className="flex items-center space-x-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleLogsPageChange(logsPagination.page - 1)}
-                              disabled={!logsPagination.hasPrev || logsLoading}
-                            >
-                              Previous
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleLogsPageChange(logsPagination.page + 1)}
-                              disabled={!logsPagination.hasNext || logsLoading}
-                            >
-                              Next
-                            </Button>
+                          
+                          <div className="flex flex-col sm:flex-row items-center gap-4">
+                            {/* Jump to Page */}
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-muted-foreground">Go to page:</span>
+                              <Input
+                                type="number"
+                                min="1"
+                                max={logsPagination.totalPages}
+                                value={logsPagination.page}
+                                onChange={(e) => {
+                                  const page = parseInt(e.target.value);
+                                  if (page >= 1 && page <= logsPagination.totalPages) {
+                                    handleLogsPageChange(page);
+                                  }
+                                }}
+                                className="w-16 h-8 text-center"
+                                disabled={logsLoading}
+                              />
+                              <span className="text-sm text-muted-foreground">
+                                of {logsPagination.totalPages}
+                              </span>
+                            </div>
+
+                            {/* Page Navigation */}
+                            <div className="flex items-center space-x-1">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleLogsPageChange(1)}
+                                disabled={logsPagination.page === 1 || logsLoading}
+                              >
+                                First
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleLogsPageChange(logsPagination.page - 1)}
+                                disabled={!logsPagination.hasPrev || logsLoading}
+                              >
+                                Previous
+                              </Button>
+                              
+                              {/* Page Numbers */}
+                              <div className="flex items-center space-x-1">
+                                {(() => {
+                                  const pages = [];
+                                  const maxVisiblePages = 5;
+                                  const currentPage = logsPagination.page;
+                                  const totalPages = logsPagination.totalPages;
+                                  
+                                  let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+                                  let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+                                  
+                                  if (endPage - startPage + 1 < maxVisiblePages) {
+                                    startPage = Math.max(1, endPage - maxVisiblePages + 1);
+                                  }
+                                  
+                                  // Add first page and ellipsis if needed
+                                  if (startPage > 1) {
+                                    pages.push(
+                                      <Button
+                                        key={1}
+                                        variant={1 === currentPage ? "default" : "outline"}
+                                        size="sm"
+                                        onClick={() => handleLogsPageChange(1)}
+                                        className="w-8 h-8 p-0"
+                                        disabled={logsLoading}
+                                      >
+                                        1
+                                      </Button>
+                                    );
+                                    if (startPage > 2) {
+                                      pages.push(
+                                        <span key="ellipsis1" className="text-muted-foreground px-1">
+                                          ...
+                                        </span>
+                                      );
+                                    }
+                                  }
+                                  
+                                  // Add visible page numbers
+                                  for (let i = startPage; i <= endPage; i++) {
+                                    pages.push(
+                                      <Button
+                                        key={i}
+                                        variant={i === currentPage ? "default" : "outline"}
+                                        size="sm"
+                                        onClick={() => handleLogsPageChange(i)}
+                                        className="w-8 h-8 p-0"
+                                        disabled={logsLoading}
+                                      >
+                                        {i}
+                                      </Button>
+                                    );
+                                  }
+                                  
+                                  // Add ellipsis and last page if needed
+                                  if (endPage < totalPages) {
+                                    if (endPage < totalPages - 1) {
+                                      pages.push(
+                                        <span key="ellipsis2" className="text-muted-foreground px-1">
+                                          ...
+                                        </span>
+                                      );
+                                    }
+                                    pages.push(
+                                      <Button
+                                        key={totalPages}
+                                        variant={totalPages === currentPage ? "default" : "outline"}
+                                        size="sm"
+                                        onClick={() => handleLogsPageChange(totalPages)}
+                                        className="w-8 h-8 p-0"
+                                        disabled={logsLoading}
+                                      >
+                                        {totalPages}
+                                      </Button>
+                                    );
+                                  }
+                                  
+                                  return pages;
+                                })()}
+                              </div>
+                              
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleLogsPageChange(logsPagination.page + 1)}
+                                disabled={!logsPagination.hasNext || logsLoading}
+                              >
+                                Next
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleLogsPageChange(logsPagination.totalPages)}
+                                disabled={logsPagination.page === logsPagination.totalPages || logsLoading}
+                              >
+                                Last
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       )}
