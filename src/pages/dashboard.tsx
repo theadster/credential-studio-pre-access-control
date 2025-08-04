@@ -152,15 +152,15 @@ export default function Dashboard() {
   // Advanced Search State
   const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
   const [advancedSearchFilters, setAdvancedSearchFilters] = useState<{
-    firstName: string;
-    lastName: string;
-    barcode: string;
+    firstName: { value: string; operator: string };
+    lastName: { value: string; operator: string };
+    barcode: { value: string; operator: string };
     photoFilter: 'all' | 'with' | 'without';
     customFields: { [key: string]: { value: string; operator: string } };
   }>({
-    firstName: '',
-    lastName: '',
-    barcode: '',
+    firstName: { value: '', operator: 'contains' },
+    lastName: { value: '', operator: 'contains' },
+    barcode: { value: '', operator: 'contains' },
     photoFilter: 'all',
     customFields: {}
   });
@@ -424,19 +424,38 @@ export default function Dashboard() {
 
   // Enhanced filtering function for attendees including custom fields and photo filter
   const filteredAttendees = attendees.filter(attendee => {
+    const applyTextFilter = (value: string, filter: { value: string; operator: string }) => {
+      const { value: filterValue, operator } = filter;
+      const lowerCaseValue = (value || '').toLowerCase();
+      const lowerCaseFilterValue = (filterValue || '').toLowerCase();
+
+      if (operator !== 'isEmpty' && operator !== 'isNotEmpty' && !filterValue) {
+        return true; // No filter value provided for operators that need it
+      }
+
+      switch (operator) {
+        case 'isEmpty':
+          return !value;
+        case 'isNotEmpty':
+          return !!value;
+        case 'contains':
+          return lowerCaseValue.includes(lowerCaseFilterValue);
+        case 'equals':
+          return lowerCaseValue === lowerCaseFilterValue;
+        case 'startsWith':
+          return lowerCaseValue.startsWith(lowerCaseFilterValue);
+        case 'endsWith':
+          return lowerCaseValue.endsWith(lowerCaseFilterValue);
+        default:
+          return true;
+      }
+    };
+
     // If advanced search is active, use advanced filters
     if (showAdvancedSearch) {
-      // First Name filter
-      const firstNameMatch = !advancedSearchFilters.firstName || 
-        attendee.firstName.toLowerCase().includes(advancedSearchFilters.firstName.toLowerCase());
-      
-      // Last Name filter
-      const lastNameMatch = !advancedSearchFilters.lastName || 
-        attendee.lastName.toLowerCase().includes(advancedSearchFilters.lastName.toLowerCase());
-      
-      // Barcode filter
-      const barcodeMatch = !advancedSearchFilters.barcode || 
-        attendee.barcodeNumber.toLowerCase().includes(advancedSearchFilters.barcode.toLowerCase());
+      const firstNameMatch = applyTextFilter(attendee.firstName, advancedSearchFilters.firstName);
+      const lastNameMatch = applyTextFilter(attendee.lastName, advancedSearchFilters.lastName);
+      const barcodeMatch = applyTextFilter(attendee.barcodeNumber, advancedSearchFilters.barcode);
       
       // Photo filter
       const photoMatch = advancedSearchFilters.photoFilter === 'all' || 
@@ -534,9 +553,9 @@ export default function Dashboard() {
         customFields[field.id] = { value: '', operator: 'contains' };
       });
       setAdvancedSearchFilters({
-        firstName: '',
-        lastName: '',
-        barcode: '',
+        firstName: { value: '', operator: 'contains' },
+        lastName: { value: '', operator: 'contains' },
+        barcode: { value: '', operator: 'contains' },
         photoFilter: 'all',
         customFields
       });
@@ -545,18 +564,37 @@ export default function Dashboard() {
 
   // Check if advanced search has any active filters
   const hasAdvancedFilters = () => {
-    return advancedSearchFilters.firstName || 
-           advancedSearchFilters.lastName || 
-           advancedSearchFilters.barcode || 
+    return advancedSearchFilters.firstName.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.firstName.operator) ||
+           advancedSearchFilters.lastName.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.lastName.operator) ||
+           advancedSearchFilters.barcode.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.barcode.operator) ||
            advancedSearchFilters.photoFilter !== 'all' ||
            Object.values(advancedSearchFilters.customFields).some(field => field.value || field.operator === 'isEmpty' || field.operator === 'isNotEmpty');
   };
 
-  const handleAdvancedSearchChange = (field: string, value: string) => {
-    setAdvancedSearchFilters(prev => ({
-      ...prev,
-      [field]: value
-    }));
+  const handleAdvancedSearchChange = (
+    field: 'firstName' | 'lastName' | 'barcode' | 'photoFilter', 
+    value: string, 
+    property: 'value' | 'operator' = 'value'
+  ) => {
+    setAdvancedSearchFilters(prev => {
+      if (field === 'photoFilter') {
+        return { ...prev, photoFilter: value as 'all' | 'with' | 'without' };
+      }
+      
+      const newFieldState = {
+        ...prev[field],
+        [property]: value,
+      };
+
+      if (property === 'operator' && ['isEmpty', 'isNotEmpty'].includes(value)) {
+        newFieldState.value = '';
+      }
+
+      return {
+        ...prev,
+        [field]: newFieldState,
+      };
+    });
   };
 
   const handleCustomFieldSearchChange = (fieldId: string, value: string, operator?: string) => {
@@ -593,9 +631,9 @@ export default function Dashboard() {
       customFields[field.id] = { value: '', operator: 'contains' };
     });
     setAdvancedSearchFilters({
-      firstName: '',
-      lastName: '',
-      barcode: '',
+      firstName: { value: '', operator: 'contains' },
+      lastName: { value: '', operator: 'contains' },
+      barcode: { value: '', operator: 'contains' },
       photoFilter: 'all',
       customFields
     });
@@ -1716,7 +1754,7 @@ export default function Dashboard() {
                           )}
                         </Button>
                       </DialogTrigger>
-                    <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                    <DialogContent className="max-w-5xl max-h-[80vh] overflow-y-auto">
                       <DialogHeader>
                         <DialogTitle className="flex items-center justify-between">
                           <span>Advanced Search</span>
@@ -1729,36 +1767,93 @@ export default function Dashboard() {
                         </DialogDescription>
                       </DialogHeader>
                       <div className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                           {/* Basic Fields */}
                           <div className="space-y-2">
                             <Label htmlFor="firstName">First Name</Label>
-                            <Input
-                              id="firstName"
-                              placeholder="Search by first name..."
-                              value={advancedSearchFilters.firstName}
-                              onChange={(e) => handleAdvancedSearchChange('firstName', e.target.value)}
-                            />
+                            <div className="flex space-x-2">
+                              <Select
+                                value={advancedSearchFilters.firstName.operator}
+                                onValueChange={(operator) => handleAdvancedSearchChange('firstName', operator, 'operator')}
+                              >
+                                <SelectTrigger className="w-[120px]">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="contains">Contains</SelectItem>
+                                  <SelectItem value="equals">Equals</SelectItem>
+                                  <SelectItem value="startsWith">Starts With</SelectItem>
+                                  <SelectItem value="endsWith">Ends With</SelectItem>
+                                  <SelectItem value="isEmpty">Is Empty</SelectItem>
+                                  <SelectItem value="isNotEmpty">Is Not Empty</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <Input
+                                id="firstName"
+                                placeholder="Value..."
+                                value={advancedSearchFilters.firstName.value}
+                                onChange={(e) => handleAdvancedSearchChange('firstName', e.target.value, 'value')}
+                                disabled={['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.firstName.operator)}
+                              />
+                            </div>
                           </div>
                           
                           <div className="space-y-2">
                             <Label htmlFor="lastName">Last Name</Label>
-                            <Input
-                              id="lastName"
-                              placeholder="Search by last name..."
-                              value={advancedSearchFilters.lastName}
-                              onChange={(e) => handleAdvancedSearchChange('lastName', e.target.value)}
-                            />
+                            <div className="flex space-x-2">
+                              <Select
+                                value={advancedSearchFilters.lastName.operator}
+                                onValueChange={(operator) => handleAdvancedSearchChange('lastName', operator, 'operator')}
+                              >
+                                <SelectTrigger className="w-[120px]">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="contains">Contains</SelectItem>
+                                  <SelectItem value="equals">Equals</SelectItem>
+                                  <SelectItem value="startsWith">Starts With</SelectItem>
+                                  <SelectItem value="endsWith">Ends With</SelectItem>
+                                  <SelectItem value="isEmpty">Is Empty</SelectItem>
+                                  <SelectItem value="isNotEmpty">Is Not Empty</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <Input
+                                id="lastName"
+                                placeholder="Value..."
+                                value={advancedSearchFilters.lastName.value}
+                                onChange={(e) => handleAdvancedSearchChange('lastName', e.target.value, 'value')}
+                                disabled={['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.lastName.operator)}
+                              />
+                            </div>
                           </div>
                           
                           <div className="space-y-2">
                             <Label htmlFor="barcode">Barcode</Label>
-                            <Input
-                              id="barcode"
-                              placeholder="Search by barcode..."
-                              value={advancedSearchFilters.barcode}
-                              onChange={(e) => handleAdvancedSearchChange('barcode', e.target.value)}
-                            />
+                            <div className="flex space-x-2">
+                              <Select
+                                value={advancedSearchFilters.barcode.operator}
+                                onValueChange={(operator) => handleAdvancedSearchChange('barcode', operator, 'operator')}
+                              >
+                                <SelectTrigger className="w-[120px]">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="contains">Contains</SelectItem>
+                                  <SelectItem value="equals">Equals</SelectItem>
+                                  <SelectItem value="startsWith">Starts With</SelectItem>
+                                  <SelectItem value="endsWith">Ends With</SelectItem>
+                                  <SelectItem value="isEmpty">Is Empty</SelectItem>
+                                  <SelectItem value="isNotEmpty">Is Not Empty</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <Input
+                                id="barcode"
+                                placeholder="Value..."
+                                value={advancedSearchFilters.barcode.value}
+                                onChange={(e) => handleAdvancedSearchChange('barcode', e.target.value, 'value')}
+                                disabled={['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.barcode.operator)}
+                              />
+                            </div>
                           </div>
                           
                           <div className="space-y-2">

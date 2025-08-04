@@ -1,8 +1,42 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 import { createClient } from '@/util/supabase/api';
 import { checkApiPermission } from '@/lib/permissions';
 import { shouldLog } from '@/lib/logSettings';
+
+const buildTextFilter = (filterString: string | string[] | undefined): Prisma.StringFilter | undefined => {
+  if (!filterString || typeof filterString !== 'string') return undefined;
+
+  try {
+    const filter = JSON.parse(filterString);
+    const { value, operator } = filter;
+
+    if (operator === 'isEmpty') {
+      return { equals: '' };
+    }
+    if (operator === 'isNotEmpty') {
+      return { not: '' };
+    }
+    if (!value) return undefined;
+
+    switch (operator) {
+      case 'contains':
+        return { contains: value, mode: 'insensitive' };
+      case 'equals':
+        return { equals: value, mode: 'insensitive' };
+      case 'startsWith':
+        return { startsWith: value, mode: 'insensitive' };
+      case 'endsWith':
+        return { endsWith: value, mode: 'insensitive' };
+      default:
+        return undefined;
+    }
+  } catch (e) {
+    // Fallback for simple string filter
+    return { contains: filterString as string, mode: 'insensitive' };
+  }
+};
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const supabase = createClient(req, res);
@@ -33,14 +67,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         const where: any = { AND: [] };
 
-        if (typeof firstNameFilter === 'string' && firstNameFilter) {
-          where.AND.push({ firstName: { contains: firstNameFilter, mode: 'insensitive' } });
+        const firstNameWhere = buildTextFilter(firstNameFilter);
+        if (firstNameWhere) {
+          where.AND.push({ firstName: firstNameWhere });
         }
-        if (typeof lastNameFilter === 'string' && lastNameFilter) {
-          where.AND.push({ lastName: { contains: lastNameFilter, mode: 'insensitive' } });
+
+        const lastNameWhere = buildTextFilter(lastNameFilter);
+        if (lastNameWhere) {
+          where.AND.push({ lastName: lastNameWhere });
         }
-        if (typeof barcodeFilter === 'string' && barcodeFilter) {
-          where.AND.push({ barcodeNumber: { contains: barcodeFilter, mode: 'insensitive' } });
+
+        const barcodeWhere = buildTextFilter(barcodeFilter);
+        if (barcodeWhere) {
+          where.AND.push({ barcodeNumber: barcodeWhere });
         }
         if (photoFilter === 'with') {
           where.AND.push({ photoUrl: { not: null } });
