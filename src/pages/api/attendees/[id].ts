@@ -69,14 +69,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         const { firstName, lastName, barcodeNumber, photoUrl, customFieldValues } = req.body;
 
-        // Check if attendee exists
+        // Check if attendee exists and get current custom field values BEFORE making changes
         const existingAttendee = await prisma.attendee.findUnique({
-          where: { id }
+          where: { id },
+          include: {
+            customFieldValues: {
+              include: {
+                customField: true
+              }
+            }
+          }
         });
 
         if (!existingAttendee) {
           return res.status(404).json({ error: 'Attendee not found' });
         }
+
+        // Store current custom field values for comparison
+        const currentCustomFieldValues = existingAttendee.customFieldValues;
 
         // Check if barcode is unique (excluding current attendee)
         if (barcodeNumber && barcodeNumber !== existingAttendee.barcodeNumber) {
@@ -186,14 +196,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           
           // Check for custom field changes with detailed before/after values
           if (customFieldValues && Array.isArray(customFieldValues)) {
-            // Get the current custom field values for comparison
-            const currentCustomFieldValues = await prisma.attendeeCustomFieldValue.findMany({
-              where: { attendeeId: id },
-              include: {
-                customField: true
-              }
-            });
-            
             // Get all custom fields to map IDs to names
             const allCustomFields = await prisma.customField.findMany({
               select: { id: true, fieldName: true, fieldType: true }
@@ -215,7 +217,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               return `"${value}"`;
             };
             
-            // Check each incoming custom field value
+            // Check each incoming custom field value against the stored current values
             for (const newValue of customFieldValues) {
               const currentValue = currentCustomFieldValues.find(cv => cv.customFieldId === newValue.customFieldId);
               const fieldInfo = customFieldMap.get(newValue.customFieldId);
