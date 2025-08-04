@@ -166,6 +166,82 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         // Log the update action
         if (updatePermission.user) {
+          // Create a more descriptive list of changes
+          const changedFields: string[] = [];
+          
+          // Check for basic field changes
+          if (firstName && firstName !== existingAttendee.firstName) {
+            changedFields.push('First Name');
+          }
+          if (lastName && lastName !== existingAttendee.lastName) {
+            changedFields.push('Last Name');
+          }
+          if (barcodeNumber && barcodeNumber !== existingAttendee.barcodeNumber) {
+            changedFields.push('Barcode Number');
+          }
+          if (photoUrl !== undefined && photoUrl !== existingAttendee.photoUrl) {
+            changedFields.push('Photo');
+          }
+          
+          // Check for custom field changes
+          if (customFieldValues && Array.isArray(customFieldValues)) {
+            // Get the current custom field values for comparison
+            const currentCustomFieldValues = await prisma.attendeeCustomFieldValue.findMany({
+              where: { attendeeId: id },
+              include: {
+                customField: true
+              }
+            });
+            
+            // Get all custom fields to map IDs to names
+            const allCustomFields = await prisma.customField.findMany({
+              select: { id: true, fieldName: true }
+            });
+            const customFieldMap = new Map(allCustomFields.map(cf => [cf.id, cf.fieldName]));
+            
+            // Track which custom fields were changed
+            const changedCustomFields: string[] = [];
+            
+            // Check each incoming custom field value
+            for (const newValue of customFieldValues) {
+              const currentValue = currentCustomFieldValues.find(cv => cv.customFieldId === newValue.customFieldId);
+              const fieldName = customFieldMap.get(newValue.customFieldId);
+              
+              if (fieldName) {
+                // If there's no current value but there's a new value, it's a change
+                if (!currentValue && newValue.value !== null && newValue.value !== undefined && newValue.value !== '') {
+                  changedCustomFields.push(fieldName);
+                }
+                // If there's a current value but it's different from the new value, it's a change
+                else if (currentValue && currentValue.value !== String(newValue.value)) {
+                  changedCustomFields.push(fieldName);
+                }
+              }
+            }
+            
+            // Check for removed custom field values
+            for (const currentValue of currentCustomFieldValues) {
+              const newValue = customFieldValues.find(nv => nv.customFieldId === currentValue.customFieldId);
+              const fieldName = customFieldMap.get(currentValue.customFieldId);
+              
+              if (fieldName && (!newValue || newValue.value === null || newValue.value === undefined || newValue.value === '')) {
+                if (!changedCustomFields.includes(fieldName)) {
+                  changedCustomFields.push(fieldName);
+                }
+              }
+            }
+            
+            // Add changed custom fields to the main changes list
+            if (changedCustomFields.length > 0) {
+              changedFields.push(`Custom Fields: ${changedCustomFields.join(', ')}`);
+            }
+          }
+          
+          // If no specific changes detected, fall back to generic message
+          if (changedFields.length === 0) {
+            changedFields.push('Attendee Information');
+          }
+
           await prisma.log.create({
             data: {
               userId: user.id,
@@ -175,13 +251,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 type: 'attendee',
                 firstName: updatedAttendee.firstName,
                 lastName: updatedAttendee.lastName,
-                changes: {
-                  firstName: firstName !== existingAttendee.firstName,
-                  lastName: lastName !== existingAttendee.lastName,
-                  barcodeNumber: barcodeNumber !== existingAttendee.barcodeNumber,
-                  photoUrl: photoUrl !== existingAttendee.photoUrl,
-                  customFieldValues: customFieldValues && customFieldValues.length > 0
-                }
+                changes: changedFields
               }
             }
           });

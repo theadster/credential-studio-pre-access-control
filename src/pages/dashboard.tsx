@@ -3127,13 +3127,22 @@ export default function Dashboard() {
                               </TableCell>
                               <TableCell>
                                 <div className="text-sm text-muted-foreground max-w-xs">
-                                  {log.details?.changes && Object.keys(log.details.changes).length > 0 && (
+                                  {log.details?.changes && (
                                     <div className="text-xs">
-                                      Changed: {Object.entries(log.details.changes)
-                                        .filter(([, changed]) => changed)
-                                        .map(([field]) => field)
-                                        .join(', ')
-                                      }
+                                      {Array.isArray(log.details.changes) ? (
+                                        // Handle array format (new format)
+                                        <>Changed: {log.details.changes.join(', ')}</>
+                                      ) : typeof log.details.changes === 'object' && log.details.changes !== null ? (
+                                        // Handle object format (legacy format)
+                                        <>Changed: {Object.entries(log.details.changes)
+                                          .filter(([, changed]) => changed)
+                                          .map(([field]) => field)
+                                          .join(', ')
+                                        }</>
+                                      ) : (
+                                        // Handle string format (fallback)
+                                        <>Changed: {String(log.details.changes)}</>
+                                      )}
                                     </div>
                                   )}
                                   {log.details?.count && (
