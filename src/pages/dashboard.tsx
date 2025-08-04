@@ -2159,6 +2159,10 @@ export default function Dashboard() {
                                       onSelect={(e) => {
                                         e.preventDefault();
                                         e.stopPropagation();
+                                      }}
+                                      onClick={async (e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
                                         
                                         // Close dropdown immediately
                                         setDropdownStates(prev => ({
@@ -2166,12 +2170,12 @@ export default function Dashboard() {
                                           [attendee.id]: false
                                         }));
                                         
-                                        // Use requestAnimationFrame to ensure dropdown closes first
-                                        requestAnimationFrame(async () => {
+                                        // Use a longer delay to ensure dropdown fully closes
+                                        setTimeout(async () => {
                                           await refreshEventSettings();
                                           setEditingAttendee(attendee);
                                           setShowAttendeeForm(true);
-                                        });
+                                        }, 100);
                                       }}
                                     >
                                       <Edit className="mr-2 h-4 w-4" />
