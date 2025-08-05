@@ -10,7 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/components/ui/use-toast';
-import { Upload, Camera, X, Save, Loader2 } from 'lucide-react';
+import { Upload, Camera, X, Save, Loader2, User, Users, Hash, FileText, Link, ToggleLeft, Calendar, Mail, ChevronDown, Type, Hash as NumberIcon } from 'lucide-react';
 
 interface CustomField {
   id: string;
@@ -200,6 +200,30 @@ export default function AttendeeForm({
         title: "Error",
         description: "Cloudinary widget not loaded. Please refresh the page.",
       });
+    }
+  };
+
+  // Helper function to get appropriate icon for custom field types
+  const getCustomFieldIcon = (fieldType: string) => {
+    switch (fieldType) {
+      case 'text':
+        return <Type className="h-4 w-4 text-muted-foreground" />;
+      case 'number':
+        return <NumberIcon className="h-4 w-4 text-muted-foreground" />;
+      case 'email':
+        return <Mail className="h-4 w-4 text-muted-foreground" />;
+      case 'url':
+        return <Link className="h-4 w-4 text-muted-foreground" />;
+      case 'date':
+        return <Calendar className="h-4 w-4 text-muted-foreground" />;
+      case 'select':
+        return <ChevronDown className="h-4 w-4 text-muted-foreground" />;
+      case 'boolean':
+        return <ToggleLeft className="h-4 w-4 text-muted-foreground" />;
+      case 'textarea':
+        return <FileText className="h-4 w-4 text-muted-foreground" />;
+      default:
+        return <FileText className="h-4 w-4 text-muted-foreground" />;
     }
   };
 
@@ -514,7 +538,10 @@ export default function AttendeeForm({
                   <CardContent>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="firstName">First Name *</Label>
+                        <Label htmlFor="firstName" className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-muted-foreground" />
+                          First Name *
+                        </Label>
                         <Input
                           id="firstName"
                           value={formData.firstName}
@@ -530,7 +557,10 @@ export default function AttendeeForm({
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="lastName">Last Name *</Label>
+                        <Label htmlFor="lastName" className="flex items-center gap-2">
+                          <Users className="h-4 w-4 text-muted-foreground" />
+                          Last Name *
+                        </Label>
                         <Input
                           id="lastName"
                           value={formData.lastName}
@@ -546,7 +576,10 @@ export default function AttendeeForm({
                         />
                       </div>
                       <div className="col-span-2 space-y-2">
-                        <Label htmlFor="barcodeNumber">Barcode Number *</Label>
+                        <Label htmlFor="barcodeNumber" className="flex items-center gap-2">
+                          <Hash className="h-4 w-4 text-muted-foreground" />
+                          Barcode Number *
+                        </Label>
                         <div className="flex space-x-2">
                           <Input
                             id="barcodeNumber"
@@ -587,7 +620,8 @@ export default function AttendeeForm({
                                 field.fieldType === 'textarea' ? 'col-span-2' : ''
                               }`}
                             >
-                              <Label htmlFor={field.id}>
+                              <Label htmlFor={field.id} className="flex items-center gap-2">
+                                {getCustomFieldIcon(field.fieldType)}
                                 {field.fieldName}
                                 {field.required && ' *'}
                               </Label>
