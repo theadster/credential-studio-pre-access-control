@@ -2731,7 +2731,7 @@ export default function Dashboard() {
                         <Settings className="h-8 w-8 text-amber-600 dark:text-amber-400" />
                       </div>
                       <div className="ml-4">
-                        <p className="text-sm font-medium text-amber-700 dark:text-amber-300">Permission Categories</p>
+                        <p className="text-sm font-medium text-amber-700 dark:text-amber-300">Categories</p>
                         <p className="text-4xl font-bold text-amber-900 dark:text-amber-100">
                           {roles.length > 0 ? new Set(roles.flatMap(role => Object.keys(role.permissions || {}))).size : 0}
                         </p>
@@ -3325,7 +3325,7 @@ export default function Dashboard() {
                       <BarChart3 className="h-8 w-8 text-amber-600 dark:text-amber-400" />
                     </div>
                     <div className="ml-4">
-                      <p className="text-sm font-medium text-amber-700 dark:text-amber-300">Most Common Action</p>
+                      <p className="text-sm font-medium text-amber-700 dark:text-amber-300">Most Common</p>
                       <p className="text-2xl font-bold text-amber-900 dark:text-amber-100">
                         {(() => {
                           const actionCounts = logs.reduce((acc: any, log) => {
