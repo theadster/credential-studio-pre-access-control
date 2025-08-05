@@ -68,6 +68,14 @@ export default function AttendeeForm({
         }, {}) || {}
       });
     } else {
+      // Reset form for new attendee
+      setFormData({
+        firstName: '',
+        lastName: '',
+        barcodeNumber: '',
+        photoUrl: '',
+        customFieldValues: {}
+      });
       // Generate barcode for new attendee
       generateBarcode();
     }
