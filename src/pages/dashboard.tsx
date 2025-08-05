@@ -1430,9 +1430,9 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-background via-surface to-surface-variant">
+    <div className="flex min-h-screen">
       {/* Sidebar */}
-      <aside className="w-64 border-r glass-effect flex flex-col h-screen">
+      <aside className="w-64 border-r glass-effect flex flex-col h-screen bg-gradient-to-br from-background via-surface to-surface-variant">
         <div className="flex-1 overflow-y-auto">
           <div className="p-6">
             <div className="flex items-center space-x-2 mb-8">
@@ -1612,7 +1612,7 @@ export default function Dashboard() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 overflow-auto" style={{ backgroundColor: '#F1F5F9' }}>
         <div className="p-8">
           {/* Header */}
           <div className="flex items-center justify-between mb-8">
