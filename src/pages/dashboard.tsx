@@ -1662,7 +1662,7 @@ export default function Dashboard() {
                 <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 dark:from-blue-950/50 dark:to-blue-900/50 dark:border-blue-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
                   <CardContent className="flex items-center p-4">
                     <div className="p-3 rounded-lg bg-blue-500/20 dark:bg-blue-400/20">
-                      <Calendar className="h-10 w-10 text-blue-600 dark:text-blue-400" />
+                      <Calendar className="h-8 w-8 text-blue-600 dark:text-blue-400" />
                     </div>
                     <div className="ml-4">
                       <p className="text-sm font-medium text-blue-700 dark:text-blue-300">Days Until Event</p>
@@ -1683,7 +1683,7 @@ export default function Dashboard() {
                 <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200 dark:from-emerald-950/50 dark:to-emerald-900/50 dark:border-emerald-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
                   <CardContent className="flex items-center p-4">
                     <div className="p-3 rounded-lg bg-emerald-500/20 dark:bg-emerald-400/20">
-                      <Users className="h-10 w-10 text-emerald-600 dark:text-emerald-400" />
+                      <Users className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
                     </div>
                     <div className="ml-4">
                       <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Total Attendees</p>
@@ -1694,7 +1694,7 @@ export default function Dashboard() {
                 <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200 dark:from-purple-950/50 dark:to-purple-900/50 dark:border-purple-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
                   <CardContent className="flex items-center p-4">
                     <div className="p-3 rounded-lg bg-purple-500/20 dark:bg-purple-400/20">
-                      <IdCard className="h-10 w-10 text-purple-600 dark:text-purple-400" />
+                      <IdCard className="h-8 w-8 text-purple-600 dark:text-purple-400" />
                     </div>
                     <div className="ml-4">
                       <p className="text-sm font-medium text-purple-700 dark:text-purple-300">Credentials Printed</p>
@@ -1705,7 +1705,7 @@ export default function Dashboard() {
                 <Card className="bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200 dark:from-amber-950/50 dark:to-amber-900/50 dark:border-amber-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
                   <CardContent className="flex items-center p-4">
                     <div className="p-3 rounded-lg bg-amber-500/20 dark:bg-amber-400/20">
-                      <Upload className="h-10 w-10 text-amber-600 dark:text-amber-400" />
+                      <Upload className="h-8 w-8 text-amber-600 dark:text-amber-400" />
                     </div>
                     <div className="ml-4">
                       <p className="text-sm font-medium text-amber-700 dark:text-amber-300">Photos Uploaded</p>
@@ -2695,7 +2695,7 @@ export default function Dashboard() {
                   <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 dark:from-blue-950/50 dark:to-blue-900/50 dark:border-blue-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
                     <CardContent className="flex items-center p-4">
                       <div className="p-3 rounded-lg bg-blue-500/20 dark:bg-blue-400/20">
-                        <Shield className="h-10 w-10 text-blue-600 dark:text-blue-400" />
+                        <Shield className="h-8 w-8 text-blue-600 dark:text-blue-400" />
                       </div>
                       <div className="ml-4">
                         <p className="text-sm font-medium text-blue-700 dark:text-blue-300">Total Roles</p>
@@ -2706,7 +2706,7 @@ export default function Dashboard() {
                   <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200 dark:from-emerald-950/50 dark:to-emerald-900/50 dark:border-emerald-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
                     <CardContent className="flex items-center p-4">
                       <div className="p-3 rounded-lg bg-emerald-500/20 dark:bg-emerald-400/20">
-                        <Users className="h-10 w-10 text-emerald-600 dark:text-emerald-400" />
+                        <Users className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
                       </div>
                       <div className="ml-4">
                         <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Active Users</p>
@@ -2717,7 +2717,7 @@ export default function Dashboard() {
                   <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200 dark:from-purple-950/50 dark:to-purple-900/50 dark:border-purple-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
                     <CardContent className="flex items-center p-4">
                       <div className="p-3 rounded-lg bg-purple-500/20 dark:bg-purple-400/20">
-                        <AlertTriangle className="h-10 w-10 text-purple-600 dark:text-purple-400" />
+                        <AlertTriangle className="h-8 w-8 text-purple-600 dark:text-purple-400" />
                       </div>
                       <div className="ml-4">
                         <p className="text-sm font-medium text-purple-700 dark:text-purple-300">Unassigned Users</p>
@@ -2728,7 +2728,7 @@ export default function Dashboard() {
                   <Card className="bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200 dark:from-amber-950/50 dark:to-amber-900/50 dark:border-amber-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
                     <CardContent className="flex items-center p-4">
                       <div className="p-3 rounded-lg bg-amber-500/20 dark:bg-amber-400/20">
-                        <Settings className="h-10 w-10 text-amber-600 dark:text-amber-400" />
+                        <Settings className="h-8 w-8 text-amber-600 dark:text-amber-400" />
                       </div>
                       <div className="ml-4">
                         <p className="text-sm font-medium text-amber-700 dark:text-amber-300">Permission Categories</p>
@@ -2949,7 +2949,7 @@ export default function Dashboard() {
                     <Card className="bg-gradient-to-br from-blue-50 to-indigo-100 border-blue-200 dark:from-blue-950/50 dark:to-indigo-900/50 dark:border-blue-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
                       <CardContent className="flex items-center p-4">
                         <div className="p-3 rounded-lg bg-blue-500/20 dark:bg-blue-400/20">
-                          <Calendar className="h-10 w-10 text-blue-600 dark:text-blue-400" />
+                          <Calendar className="h-8 w-8 text-blue-600 dark:text-blue-400" />
                         </div>
                         <div className="ml-4 overflow-hidden">
                           <p className="text-sm font-medium text-blue-700 dark:text-blue-300">Event Details</p>
@@ -2988,7 +2988,7 @@ export default function Dashboard() {
                     <Card className="bg-gradient-to-br from-emerald-50 to-teal-100 border-emerald-200 dark:from-emerald-950/50 dark:to-teal-900/50 dark:border-emerald-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
                       <CardContent className="flex items-center p-4">
                         <div className="p-3 rounded-lg bg-emerald-500/20 dark:bg-emerald-400/20">
-                          <QrCode className="h-10 w-10 text-emerald-600 dark:text-emerald-400" />
+                          <QrCode className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
                         </div>
                         <div className="ml-4">
                           <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Barcode Settings</p>
@@ -3002,7 +3002,7 @@ export default function Dashboard() {
                     <Card className="bg-gradient-to-br from-purple-50 to-violet-100 border-purple-200 dark:from-purple-950/50 dark:to-violet-900/50 dark:border-purple-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
                       <CardContent className="flex items-center p-4">
                         <div className="p-3 rounded-lg bg-purple-500/20 dark:bg-purple-400/20">
-                          <Plus className="h-10 w-10 text-purple-600 dark:text-purple-400" />
+                          <Plus className="h-8 w-8 text-purple-600 dark:text-purple-400" />
                         </div>
                         <div className="ml-4">
                           <p className="text-sm font-medium text-purple-700 dark:text-purple-300">Custom Fields</p>
@@ -3281,7 +3281,7 @@ export default function Dashboard() {
                 <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 dark:from-blue-950/50 dark:to-blue-900/50 dark:border-blue-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
                   <CardContent className="flex items-center p-4">
                     <div className="p-3 rounded-lg bg-blue-500/20 dark:bg-blue-400/20">
-                      <Activity className="h-10 w-10 text-blue-600 dark:text-blue-400" />
+                      <Activity className="h-8 w-8 text-blue-600 dark:text-blue-400" />
                     </div>
                     <div className="ml-4">
                       <p className="text-sm font-medium text-blue-700 dark:text-blue-300">Total Activities</p>
@@ -3292,7 +3292,7 @@ export default function Dashboard() {
                 <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200 dark:from-emerald-950/50 dark:to-emerald-900/50 dark:border-emerald-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
                   <CardContent className="flex items-center p-4">
                     <div className="p-3 rounded-lg bg-emerald-500/20 dark:bg-emerald-400/20">
-                      <Calendar className="h-10 w-10 text-emerald-600 dark:text-emerald-400" />
+                      <Calendar className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
                     </div>
                     <div className="ml-4">
                       <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Today's Activities</p>
@@ -3309,7 +3309,7 @@ export default function Dashboard() {
                 <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200 dark:from-purple-950/50 dark:to-purple-900/50 dark:border-purple-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
                   <CardContent className="flex items-center p-4">
                     <div className="p-3 rounded-lg bg-purple-500/20 dark:bg-purple-400/20">
-                      <Users className="h-10 w-10 text-purple-600 dark:text-purple-400" />
+                      <Users className="h-8 w-8 text-purple-600 dark:text-purple-400" />
                     </div>
                     <div className="ml-4">
                       <p className="text-sm font-medium text-purple-700 dark:text-purple-300">Active Users</p>
@@ -3322,7 +3322,7 @@ export default function Dashboard() {
                 <Card className="bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200 dark:from-amber-950/50 dark:to-amber-900/50 dark:border-amber-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
                   <CardContent className="flex items-center p-4">
                     <div className="p-3 rounded-lg bg-amber-500/20 dark:bg-amber-400/20">
-                      <BarChart3 className="h-10 w-10 text-amber-600 dark:text-amber-400" />
+                      <BarChart3 className="h-8 w-8 text-amber-600 dark:text-amber-400" />
                     </div>
                     <div className="ml-4">
                       <p className="text-sm font-medium text-amber-700 dark:text-amber-300">Most Common Action</p>
