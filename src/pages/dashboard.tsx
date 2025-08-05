@@ -1766,6 +1766,7 @@ export default function Dashboard() {
                     {hasPermission(currentUser?.role, 'attendees', 'create') && (
                       <Button onClick={async () => {
                         await refreshEventSettings();
+                        setEditingAttendee(null);
                         setShowAttendeeForm(true);
                       }}>
                         <Plus className="mr-2 h-4 w-4" />
