@@ -10,122 +10,161 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    console.log('Bulk edit API called');
+    // Step 1: Authentication
     const supabase = createClient(req, res);
     const { data: { user }, error: userError } = await supabase.auth.getUser();
 
     if (userError || !user) {
-      console.log('Authentication failed:', userError);
+      console.error('Authentication failed:', userError);
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    console.log('User authenticated:', user.id);
-
-    // Ensure prisma is available
-    if (!prisma) {
-      console.error('Prisma client is not available');
-      return res.status(500).json({ error: 'Database connection error' });
-    }
-
-    console.log('Prisma client available');
-
-    // Check bulk edit permission
-    console.log('Checking permissions...');
-    const permission = await checkApiPermission(user.id, 'attendees', 'bulkEdit', prisma);
-    console.log('Permission result:', permission);
-    
-    if (!permission.hasPermission) {
-      return res.status(403).json({ error: 'Insufficient permissions to bulk edit attendees' });
-    }
-
+    // Step 2: Validate request body
     const { attendeeIds, changes } = req.body;
-    console.log('Request body:', { attendeeIds, changes });
 
-    if (!Array.isArray(attendeeIds) || attendeeIds.length === 0 || !changes || typeof changes !== 'object') {
-      return res.status(400).json({ error: 'Invalid request body' });
+    if (!attendeeIds || !Array.isArray(attendeeIds) || attendeeIds.length === 0) {
+      return res.status(400).json({ error: 'Invalid attendeeIds' });
     }
 
-    console.log('Fetching event settings...');
-    const eventSettings = await prisma.eventSettings.findFirst();
-    if (!eventSettings) {
-      return res.status(404).json({ error: 'Event settings not found' });
+    if (!changes || typeof changes !== 'object') {
+      return res.status(400).json({ error: 'Invalid changes object' });
     }
 
-    const customFields = await prisma.customField.findMany();
-    const forceUpperCaseFirstName = eventSettings.forceUpperCaseFirstName;
-    const forceUpperCaseLastName = eventSettings.forceUpperCaseLastName;
+    // Step 3: Check permissions
+    try {
+      const dbUser = await prisma.user.findUnique({
+        where: { id: user.id },
+        include: { role: true }
+      });
 
+      if (!dbUser || !dbUser.role) {
+        return res.status(403).json({ error: 'User role not found' });
+      }
+
+      const permissions = dbUser.role.permissions as any;
+      if (!permissions?.attendees?.bulkEdit) {
+        return res.status(403).json({ error: 'Insufficient permissions to bulk edit attendees' });
+      }
+    } catch (permError) {
+      console.error('Permission check error:', permError);
+      return res.status(500).json({ error: 'Permission check failed' });
+    }
+
+    // Step 4: Get custom fields
+    let customFields;
+    try {
+      customFields = await prisma.customField.findMany();
+    } catch (cfError) {
+      console.error('Custom fields fetch error:', cfError);
+      return res.status(500).json({ error: 'Failed to fetch custom fields' });
+    }
+
+    // Step 5: Process bulk updates
     let updatedCount = 0;
 
-    for (const attendeeId of attendeeIds) {
-      const attendee = await prisma.attendee.findUnique({ where: { id: attendeeId } });
-      if (!attendee) continue;
-
-      const updatedCustomFieldValues: { [key: string]: any } = {};
-      let hasChanges = false;
-
-      for (const [fieldId, value] of Object.entries(changes)) {
-        const customField = customFields.find(cf => cf.id === fieldId);
-        if (!customField) continue;
-
-        let processedValue = value;
-        if (customField.fieldType === 'uppercase' && typeof processedValue === 'string') {
-          processedValue = processedValue.toUpperCase();
+    try {
+      for (const attendeeId of attendeeIds) {
+        // Verify attendee exists
+        const attendee = await prisma.attendee.findUnique({ 
+          where: { id: attendeeId } 
+        });
+        
+        if (!attendee) {
+          console.warn(`Attendee ${attendeeId} not found, skipping`);
+          continue;
         }
 
-        const existingValue = await prisma.customFieldValue.findFirst({
-          where: {
-            attendeeId: attendeeId,
-            customFieldId: fieldId,
-          },
-        });
+        let hasChanges = false;
 
-        if (existingValue) {
-          if (existingValue.value !== processedValue) {
-            await prisma.customFieldValue.update({
-              where: { id: existingValue.id },
-              data: { value: processedValue as string },
+        // Process each field change
+        for (const [fieldId, value] of Object.entries(changes)) {
+          if (!value || value === 'no-change') continue;
+
+          const customField = customFields.find(cf => cf.id === fieldId);
+          if (!customField) {
+            console.warn(`Custom field ${fieldId} not found, skipping`);
+            continue;
+          }
+
+          let processedValue = value;
+          if (customField.fieldType === 'uppercase' && typeof processedValue === 'string') {
+            processedValue = processedValue.toUpperCase();
+          }
+
+          // Check if custom field value exists
+          const existingValue = await prisma.customFieldValue.findFirst({
+            where: {
+              attendeeId: attendeeId,
+              customFieldId: fieldId,
+            },
+          });
+
+          if (existingValue) {
+            // Update existing value
+            if (existingValue.value !== processedValue) {
+              await prisma.customFieldValue.update({
+                where: { id: existingValue.id },
+                data: { value: String(processedValue) },
+              });
+              hasChanges = true;
+            }
+          } else {
+            // Create new value
+            await prisma.customFieldValue.create({
+              data: {
+                attendeeId: attendeeId,
+                customFieldId: fieldId,
+                value: String(processedValue),
+              },
             });
             hasChanges = true;
           }
-        } else {
-          await prisma.customFieldValue.create({
-            data: {
-              attendeeId: attendeeId,
-              customFieldId: fieldId,
-              value: processedValue as string,
-            },
+        }
+
+        // Update attendee timestamp if changes were made
+        if (hasChanges) {
+          await prisma.attendee.update({
+            where: { id: attendeeId },
+            data: { updatedAt: new Date() },
           });
-          hasChanges = true;
+          updatedCount++;
         }
       }
 
-      if (hasChanges) {
-        await prisma.attendee.update({
-          where: { id: attendeeId },
-          data: { updatedAt: new Date() },
+      // Step 6: Log the action
+      try {
+        await prisma.log.create({
+          data: {
+            userId: user.id,
+            action: 'bulk_update',
+            details: {
+              type: 'attendees',
+              count: attendeeIds.length,
+              updatedCount,
+              changes: Object.keys(changes),
+            },
+          },
         });
-        updatedCount++;
+      } catch (logError) {
+        console.error('Logging error:', logError);
+        // Don't fail the request if logging fails
       }
+
+      return res.status(200).json({ 
+        message: 'Attendees updated successfully', 
+        updatedCount 
+      });
+
+    } catch (updateError) {
+      console.error('Bulk update error:', updateError);
+      return res.status(500).json({ error: 'Failed to update attendees' });
     }
 
-    // Log the bulk edit action
-    await prisma.log.create({
-      data: {
-        userId: user.id,
-        action: 'bulk_update',
-        details: {
-          type: 'attendees',
-          count: attendeeIds.length,
-          updatedCount,
-          changes: Object.keys(changes),
-        },
-      },
-    });
-
-    res.status(200).json({ message: 'Attendees updated successfully', updatedCount });
   } catch (error) {
-    console.error('Bulk edit error:', error);
-    res.status(500).json({ error: 'Failed to bulk edit attendees' });
+    console.error('Bulk edit API error:', error);
+    return res.status(500).json({ 
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 }
