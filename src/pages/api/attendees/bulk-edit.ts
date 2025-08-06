@@ -64,17 +64,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     try {
       console.log(`Processing ${attendeeIds.length} attendees for bulk edit`);
-      console.log('Changes to apply:', changes);
+      console.log('Changes to apply:', JSON.stringify(changes, null, 2));
+      console.log('Available custom fields:', customFields.map(cf => ({ id: cf.id, name: cf.fieldName, type: cf.fieldType })));
 
       for (let i = 0; i < attendeeIds.length; i++) {
         const attendeeId = attendeeIds[i];
-        console.log(`Processing attendee ${i + 1}/${attendeeIds.length}: ${attendeeId}`);
+        console.log(`\n--- Processing attendee ${i + 1}/${attendeeIds.length}: ${attendeeId} ---`);
 
         // Verify attendee exists
         let attendee;
         try {
           attendee = await prisma.attendee.findUnique({ 
-            where: { id: attendeeId } 
+            where: { id: attendeeId },
+            include: {
+              customFieldValues: true
+            }
           });
         } catch (findError) {
           console.error(`Error finding attendee ${attendeeId}:`, findError);
@@ -86,29 +90,34 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           continue;
         }
 
+        console.log(`Found attendee: ${attendee.firstName} ${attendee.lastName}`);
+        console.log(`Existing custom field values:`, attendee.customFieldValues.map(cfv => ({ fieldId: cfv.customFieldId, value: cfv.value })));
+
         let hasChanges = false;
 
         // Process each field change
         for (const [fieldId, value] of Object.entries(changes)) {
-          console.log(`Processing field ${fieldId} with value:`, value);
+          console.log(`\nProcessing field ${fieldId} with value:`, value);
           
           if (!value || value === 'no-change') {
-            console.log(`Skipping field ${fieldId} - no change`);
+            console.log(`Skipping field ${fieldId} - no change requested`);
             continue;
           }
 
           const customField = customFields.find(cf => cf.id === fieldId);
           if (!customField) {
-            console.warn(`Custom field ${fieldId} not found, skipping`);
+            console.warn(`Custom field ${fieldId} not found in available fields, skipping`);
+            console.log('Available field IDs:', customFields.map(cf => cf.id));
             continue;
           }
+
+          console.log(`Found custom field: ${customField.fieldName} (${customField.fieldType})`);
 
           let processedValue = value;
           if (customField.fieldType === 'uppercase' && typeof processedValue === 'string') {
             processedValue = processedValue.toUpperCase();
+            console.log(`Applied uppercase transformation: ${value} -> ${processedValue}`);
           }
-
-          console.log(`Processed value for ${fieldId}:`, processedValue);
 
           // Check if custom field value exists
           let existingValue;
@@ -119,6 +128,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 customFieldId: fieldId,
               },
             });
+            console.log(`Existing value query result:`, existingValue ? { id: existingValue.id, value: existingValue.value } : 'null');
           } catch (findValueError) {
             console.error(`Error finding custom field value:`, findValueError);
             continue;
@@ -127,17 +137,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           try {
             if (existingValue) {
               // Update existing value
-              if (existingValue.value !== processedValue) {
-                console.log(`Updating existing value for field ${fieldId}`);
+              if (existingValue.value !== String(processedValue)) {
+                console.log(`Updating existing value: "${existingValue.value}" -> "${processedValue}"`);
                 await prisma.customFieldValue.update({
                   where: { id: existingValue.id },
                   data: { value: String(processedValue) },
                 });
                 hasChanges = true;
+                console.log(`Successfully updated existing value`);
+              } else {
+                console.log(`Value unchanged, skipping update`);
               }
             } else {
               // Create new value
-              console.log(`Creating new value for field ${fieldId}`);
+              console.log(`Creating new value: "${processedValue}"`);
               await prisma.customFieldValue.create({
                 data: {
                   attendeeId: attendeeId,
@@ -146,6 +159,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 },
               });
               hasChanges = true;
+              console.log(`Successfully created new value`);
             }
           } catch (valueUpdateError) {
             console.error(`Error updating/creating custom field value:`, valueUpdateError);
@@ -162,10 +176,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               data: { updatedAt: new Date() },
             });
             updatedCount++;
+            console.log(`Successfully updated attendee timestamp. Total updated: ${updatedCount}`);
           } catch (attendeeUpdateError) {
             console.error(`Error updating attendee timestamp:`, attendeeUpdateError);
             throw attendeeUpdateError;
           }
+        } else {
+          console.log(`No changes made for attendee ${attendeeId}`);
         }
       }
 
