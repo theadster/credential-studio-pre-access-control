@@ -32,7 +32,14 @@ import {
   MoreHorizontal,
   FileImage,
   Image,
-  QrCode
+  QrCode,
+  User,
+  Type,
+  Link,
+  Hash,
+  ToggleLeft,
+  ChevronDown,
+  FileText
 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
@@ -1825,7 +1832,10 @@ export default function Dashboard() {
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                           {/* Basic Fields */}
                           <div className="space-y-2">
-                            <Label htmlFor="firstName">First Name</Label>
+                            <Label htmlFor="firstName" className="flex items-center space-x-2">
+                              <User className="h-4 w-4 text-muted-foreground" />
+                              <span>First Name</span>
+                            </Label>
                             <div className="flex space-x-2">
                               <Select
                                 value={advancedSearchFilters.firstName.operator}
@@ -1854,7 +1864,10 @@ export default function Dashboard() {
                           </div>
                           
                           <div className="space-y-2">
-                            <Label htmlFor="lastName">Last Name</Label>
+                            <Label htmlFor="lastName" className="flex items-center space-x-2">
+                              <User className="h-4 w-4 text-muted-foreground" />
+                              <span>Last Name</span>
+                            </Label>
                             <div className="flex space-x-2">
                               <Select
                                 value={advancedSearchFilters.lastName.operator}
@@ -1883,7 +1896,10 @@ export default function Dashboard() {
                           </div>
                           
                           <div className="space-y-2">
-                            <Label htmlFor="barcode">Barcode</Label>
+                            <Label htmlFor="barcode" className="flex items-center space-x-2">
+                              <QrCode className="h-4 w-4 text-muted-foreground" />
+                              <span>Barcode</span>
+                            </Label>
                             <div className="flex space-x-2">
                               <Select
                                 value={advancedSearchFilters.barcode.operator}
@@ -1912,7 +1928,10 @@ export default function Dashboard() {
                           </div>
                           
                           <div className="space-y-2">
-                            <Label htmlFor="photoFilter">Photo Status</Label>
+                            <Label htmlFor="photoFilter" className="flex items-center space-x-2">
+                              <Image className="h-4 w-4 text-muted-foreground" />
+                              <span>Photo Status</span>
+                            </Label>
                             <Select 
                               value={advancedSearchFilters.photoFilter} 
                               onValueChange={(value) => handleAdvancedSearchChange('photoFilter', value)}
@@ -1929,85 +1948,109 @@ export default function Dashboard() {
                           </div>
 
                           {/* Custom Fields */}
-                          {eventSettings?.customFields?.map((field: any) => (
-                            <div key={field.id} className="space-y-2">
-                              <Label htmlFor={`custom-${field.id}`}>
-                                {field.fieldName}
-                                {field.fieldType && (
-                                  <Badge variant="outline" className="ml-2 text-xs">
-                                    {field.fieldType}
-                                  </Badge>
-                                )}
-                              </Label>
-                              <div className="space-y-2">
-                                {['text', 'url', 'email', 'number'].includes(field.fieldType) ? (
-                                  <div className="flex space-x-2">
+                          {eventSettings?.customFields?.map((field: any) => {
+                            // Function to get icon based on field type
+                            const getFieldIcon = (fieldType: string) => {
+                              switch (fieldType) {
+                                case 'text':
+                                case 'uppercase':
+                                  return <Type className="h-4 w-4 text-muted-foreground" />;
+                                case 'url':
+                                  return <Link className="h-4 w-4 text-muted-foreground" />;
+                                case 'email':
+                                  return <Mail className="h-4 w-4 text-muted-foreground" />;
+                                case 'number':
+                                  return <Hash className="h-4 w-4 text-muted-foreground" />;
+                                case 'boolean':
+                                  return <ToggleLeft className="h-4 w-4 text-muted-foreground" />;
+                                case 'select':
+                                  return <ChevronDown className="h-4 w-4 text-muted-foreground" />;
+                                default:
+                                  return <FileText className="h-4 w-4 text-muted-foreground" />;
+                              }
+                            };
+
+                            return (
+                              <div key={field.id} className="space-y-2">
+                                <Label htmlFor={`custom-${field.id}`} className="flex items-center space-x-2">
+                                  {getFieldIcon(field.fieldType)}
+                                  <span>{field.fieldName}</span>
+                                  {field.fieldType && (
+                                    <Badge variant="outline" className="ml-2 text-xs">
+                                      {field.fieldType}
+                                    </Badge>
+                                  )}
+                                </Label>
+                                <div className="space-y-2">
+                                  {['text', 'url', 'email', 'number'].includes(field.fieldType) ? (
+                                    <div className="flex space-x-2">
+                                      <Select
+                                        value={advancedSearchFilters.customFields[field.id]?.operator || 'contains'}
+                                        onValueChange={(operator) => handleCustomFieldOperatorChange(field.id, operator)}
+                                      >
+                                        <SelectTrigger className="w-[120px]">
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="contains">Contains</SelectItem>
+                                          <SelectItem value="equals">Equals</SelectItem>
+                                          <SelectItem value="startsWith">Starts With</SelectItem>
+                                          <SelectItem value="endsWith">Ends With</SelectItem>
+                                          <SelectItem value="isEmpty">Is Empty</SelectItem>
+                                          <SelectItem value="isNotEmpty">Is Not Empty</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                      <Input
+                                        id={`custom-${field.id}`}
+                                        placeholder={`Value...`}
+                                        value={advancedSearchFilters.customFields[field.id]?.value || ''}
+                                        onChange={(e) => handleCustomFieldSearchChange(field.id, e.target.value)}
+                                        disabled={['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.customFields[field.id]?.operator)}
+                                      />
+                                    </div>
+                                  ) : field.fieldType === 'select' ? (
                                     <Select
-                                      value={advancedSearchFilters.customFields[field.id]?.operator || 'contains'}
-                                      onValueChange={(operator) => handleCustomFieldOperatorChange(field.id, operator)}
+                                      value={advancedSearchFilters.customFields[field.id]?.value || 'all'}
+                                      onValueChange={(value) => handleCustomFieldSearchChange(field.id, value === 'all' ? '' : value, 'equals')}
                                     >
-                                      <SelectTrigger className="w-[120px]">
-                                        <SelectValue />
+                                      <SelectTrigger>
+                                        <SelectValue placeholder={`Select ${field.fieldName.toLowerCase()}...`} />
                                       </SelectTrigger>
                                       <SelectContent>
-                                        <SelectItem value="contains">Contains</SelectItem>
-                                        <SelectItem value="equals">Equals</SelectItem>
-                                        <SelectItem value="startsWith">Starts With</SelectItem>
-                                        <SelectItem value="endsWith">Ends With</SelectItem>
-                                        <SelectItem value="isEmpty">Is Empty</SelectItem>
-                                        <SelectItem value="isNotEmpty">Is Not Empty</SelectItem>
+                                        <SelectItem value="all">All options</SelectItem>
+                                        {field.fieldOptions?.options?.filter((option: string) => option && option.trim() !== '').map((option: string, index: number) => (
+                                          <SelectItem key={index} value={option}>
+                                            {option}
+                                          </SelectItem>
+                                        ))}
                                       </SelectContent>
                                     </Select>
+                                  ) : field.fieldType === 'boolean' ? (
+                                    <Select
+                                      value={advancedSearchFilters.customFields[field.id]?.value || 'all'}
+                                      onValueChange={(value) => handleCustomFieldSearchChange(field.id, value === 'all' ? '' : value, 'equals')}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue placeholder={`Select ${field.fieldName.toLowerCase()}...`} />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="all">All options</SelectItem>
+                                        <SelectItem value="yes">Yes</SelectItem>
+                                        <SelectItem value="no">No</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  ) : (
                                     <Input
                                       id={`custom-${field.id}`}
-                                      placeholder={`Value...`}
+                                      placeholder={`Search by ${field.fieldName.toLowerCase()}...`}
                                       value={advancedSearchFilters.customFields[field.id]?.value || ''}
                                       onChange={(e) => handleCustomFieldSearchChange(field.id, e.target.value)}
-                                      disabled={['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.customFields[field.id]?.operator)}
                                     />
-                                  </div>
-                                ) : field.fieldType === 'select' ? (
-                                  <Select
-                                    value={advancedSearchFilters.customFields[field.id]?.value || 'all'}
-                                    onValueChange={(value) => handleCustomFieldSearchChange(field.id, value === 'all' ? '' : value, 'equals')}
-                                  >
-                                    <SelectTrigger>
-                                      <SelectValue placeholder={`Select ${field.fieldName.toLowerCase()}...`} />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="all">All options</SelectItem>
-                                      {field.fieldOptions?.options?.filter((option: string) => option && option.trim() !== '').map((option: string, index: number) => (
-                                        <SelectItem key={index} value={option}>
-                                          {option}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                ) : field.fieldType === 'boolean' ? (
-                                  <Select
-                                    value={advancedSearchFilters.customFields[field.id]?.value || 'all'}
-                                    onValueChange={(value) => handleCustomFieldSearchChange(field.id, value === 'all' ? '' : value, 'equals')}
-                                  >
-                                    <SelectTrigger>
-                                      <SelectValue placeholder={`Select ${field.fieldName.toLowerCase()}...`} />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="all">All options</SelectItem>
-                                      <SelectItem value="yes">Yes</SelectItem>
-                                      <SelectItem value="no">No</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                ) : (
-                                  <Input
-                                    id={`custom-${field.id}`}
-                                    placeholder={`Search by ${field.fieldName.toLowerCase()}...`}
-                                    value={advancedSearchFilters.customFields[field.id]?.value || ''}
-                                    onChange={(e) => handleCustomFieldSearchChange(field.id, e.target.value)}
-                                  />
-                                )}
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                         
                         {/* Apply Search Button */}
