@@ -483,7 +483,10 @@ export default function AttendeeForm({
             <div className="col-span-3">
               <Card className="h-fit">
                 <CardHeader>
-                  <CardTitle className="text-base">Photo</CardTitle>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Camera className="h-4 w-4 text-muted-foreground" />
+                    Photo
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="w-full aspect-[3/4] bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden border">
