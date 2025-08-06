@@ -63,11 +63,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let updatedCount = 0;
 
     try {
-      for (const attendeeId of attendeeIds) {
+      console.log(`Processing ${attendeeIds.length} attendees for bulk edit`);
+      console.log('Changes to apply:', changes);
+
+      for (let i = 0; i < attendeeIds.length; i++) {
+        const attendeeId = attendeeIds[i];
+        console.log(`Processing attendee ${i + 1}/${attendeeIds.length}: ${attendeeId}`);
+
         // Verify attendee exists
-        const attendee = await prisma.attendee.findUnique({ 
-          where: { id: attendeeId } 
-        });
+        let attendee;
+        try {
+          attendee = await prisma.attendee.findUnique({ 
+            where: { id: attendeeId } 
+          });
+        } catch (findError) {
+          console.error(`Error finding attendee ${attendeeId}:`, findError);
+          continue;
+        }
         
         if (!attendee) {
           console.warn(`Attendee ${attendeeId} not found, skipping`);
@@ -78,7 +90,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         // Process each field change
         for (const [fieldId, value] of Object.entries(changes)) {
-          if (!value || value === 'no-change') continue;
+          console.log(`Processing field ${fieldId} with value:`, value);
+          
+          if (!value || value === 'no-change') {
+            console.log(`Skipping field ${fieldId} - no change`);
+            continue;
+          }
 
           const customField = customFields.find(cf => cf.id === fieldId);
           if (!customField) {
@@ -91,45 +108,68 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             processedValue = processedValue.toUpperCase();
           }
 
-          // Check if custom field value exists
-          const existingValue = await prisma.customFieldValue.findFirst({
-            where: {
-              attendeeId: attendeeId,
-              customFieldId: fieldId,
-            },
-          });
+          console.log(`Processed value for ${fieldId}:`, processedValue);
 
-          if (existingValue) {
-            // Update existing value
-            if (existingValue.value !== processedValue) {
-              await prisma.customFieldValue.update({
-                where: { id: existingValue.id },
-                data: { value: String(processedValue) },
+          // Check if custom field value exists
+          let existingValue;
+          try {
+            existingValue = await prisma.customFieldValue.findFirst({
+              where: {
+                attendeeId: attendeeId,
+                customFieldId: fieldId,
+              },
+            });
+          } catch (findValueError) {
+            console.error(`Error finding custom field value:`, findValueError);
+            continue;
+          }
+
+          try {
+            if (existingValue) {
+              // Update existing value
+              if (existingValue.value !== processedValue) {
+                console.log(`Updating existing value for field ${fieldId}`);
+                await prisma.customFieldValue.update({
+                  where: { id: existingValue.id },
+                  data: { value: String(processedValue) },
+                });
+                hasChanges = true;
+              }
+            } else {
+              // Create new value
+              console.log(`Creating new value for field ${fieldId}`);
+              await prisma.customFieldValue.create({
+                data: {
+                  attendeeId: attendeeId,
+                  customFieldId: fieldId,
+                  value: String(processedValue),
+                },
               });
               hasChanges = true;
             }
-          } else {
-            // Create new value
-            await prisma.customFieldValue.create({
-              data: {
-                attendeeId: attendeeId,
-                customFieldId: fieldId,
-                value: String(processedValue),
-              },
-            });
-            hasChanges = true;
+          } catch (valueUpdateError) {
+            console.error(`Error updating/creating custom field value:`, valueUpdateError);
+            throw valueUpdateError;
           }
         }
 
         // Update attendee timestamp if changes were made
         if (hasChanges) {
-          await prisma.attendee.update({
-            where: { id: attendeeId },
-            data: { updatedAt: new Date() },
-          });
-          updatedCount++;
+          try {
+            console.log(`Updating attendee ${attendeeId} timestamp`);
+            await prisma.attendee.update({
+              where: { id: attendeeId },
+              data: { updatedAt: new Date() },
+            });
+            updatedCount++;
+          } catch (attendeeUpdateError) {
+            console.error(`Error updating attendee timestamp:`, attendeeUpdateError);
+            throw attendeeUpdateError;
+          }
         }
       }
+
+      console.log(`Bulk edit completed. Updated ${updatedCount} attendees.`);
 
       // Step 6: Log the action
       try {
