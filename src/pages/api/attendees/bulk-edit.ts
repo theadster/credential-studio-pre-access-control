@@ -10,12 +10,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    console.log('Bulk edit API called');
     const supabase = createClient(req, res);
     const { data: { user }, error: userError } = await supabase.auth.getUser();
 
     if (userError || !user) {
+      console.log('Authentication failed:', userError);
       return res.status(401).json({ error: 'Unauthorized' });
     }
+
+    console.log('User authenticated:', user.id);
 
     // Ensure prisma is available
     if (!prisma) {
@@ -23,18 +27,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(500).json({ error: 'Database connection error' });
     }
 
+    console.log('Prisma client available');
+
     // Check bulk edit permission
+    console.log('Checking permissions...');
     const permission = await checkApiPermission(user.id, 'attendees', 'bulkEdit', prisma);
+    console.log('Permission result:', permission);
+    
     if (!permission.hasPermission) {
       return res.status(403).json({ error: 'Insufficient permissions to bulk edit attendees' });
     }
 
     const { attendeeIds, changes } = req.body;
+    console.log('Request body:', { attendeeIds, changes });
 
     if (!Array.isArray(attendeeIds) || attendeeIds.length === 0 || !changes || typeof changes !== 'object') {
       return res.status(400).json({ error: 'Invalid request body' });
     }
 
+    console.log('Fetching event settings...');
     const eventSettings = await prisma.eventSettings.findFirst();
     if (!eventSettings) {
       return res.status(404).json({ error: 'Event settings not found' });
