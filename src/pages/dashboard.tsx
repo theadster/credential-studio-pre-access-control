@@ -131,8 +131,8 @@ interface Log {
 
 export default function Dashboard() {
   const { user, signOut } = useAuth();
-  const { toast } = useToast();
   const supabase = createClient();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("attendees");
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
