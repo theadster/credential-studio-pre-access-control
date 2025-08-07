@@ -131,8 +131,8 @@ interface Log {
 
 export default function Dashboard() {
   const { user, signOut } = useAuth();
-  const supabase = createClient();
   const { toast } = useToast();
+  const supabase = createClient();
   const [activeTab, setActiveTab] = useState("attendees");
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -529,7 +529,7 @@ export default function Dashboard() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [supabase, refreshAttendees, refreshUsers, refreshRoles, refreshEventSettings, loadLogs]);
+  }, [refreshAttendees, refreshUsers, refreshRoles, refreshEventSettings, loadLogs]);
 
   // Enhanced filtering function for attendees including custom fields and photo filter
   const filteredAttendees = attendees.filter(attendee => {
