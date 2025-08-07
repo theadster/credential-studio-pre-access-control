@@ -49,7 +49,7 @@ export default function Home() {
         <link rel="icon" href="/favicon.ico" />
       </Head>
       
-      <div className="bg-gradient-to-br from-background via-surface to-surface-variant min-h-screen">
+      <div style={{ backgroundColor: '#F1F5F9' }} className="min-h-screen">
         {/* Navigation */}
         <motion.nav 
           className="border-b glass-effect sticky top-0 z-50"
