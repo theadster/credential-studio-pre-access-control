@@ -76,19 +76,13 @@ export default function Home() {
         </motion.nav>
 
         {/* Hero Section */}
-        <section className="container mx-auto px-4 py-20">
+        <section className="container mx-auto px-4 py-12">
           <motion.div 
             className="text-center max-w-4xl mx-auto"
             variants={staggerContainer}
             initial="initial"
             animate="animate"
           >
-            <motion.div variants={fadeInUp}>
-              <Badge variant="secondary" className="mb-4">
-                Professional Event Management
-              </Badge>
-            </motion.div>
-            
             <motion.h1 
               className="text-5xl md:text-7xl font-bold mb-6 gradient-text"
               variants={fadeInUp}
@@ -293,7 +287,7 @@ export default function Home() {
                 <span className="text-lg font-semibold">credential.studio</span>
               </div>
               <p className="text-muted-foreground">
-                © 2024 credential.studio. Professional event credential management.
+                © 2025 credential.studio. Professional event credential management.
               </p>
             </div>
           </div>
