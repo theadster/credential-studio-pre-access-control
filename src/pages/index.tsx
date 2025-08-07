@@ -102,8 +102,7 @@ export default function Home() {
               className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto"
               variants={fadeInUp}
             >
-              Create, manage, and print professional event credentials with our comprehensive platform. 
-              Full CRUD capabilities, role-based access control, and seamless integrations with Cloudinary and Switchboard Canvas.
+              Create, manage, and print professional event credentials with our comprehensive platform.
             </motion.p>
             
             <motion.div 
