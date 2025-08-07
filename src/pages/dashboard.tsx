@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
+import { createClient } from "@/util/supabase/component";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
@@ -130,6 +131,7 @@ interface Log {
 
 export default function Dashboard() {
   const { user, signOut } = useAuth();
+  const supabase = createClient();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("attendees");
   const [users, setUsers] = useState<User[]>([]);
@@ -192,7 +194,7 @@ export default function Dashboard() {
   const [attendeeToDelete, setAttendeeToDelete] = useState<Attendee | null>(null);
   const [dropdownStates, setDropdownStates] = useState<{[key: string]: boolean}>({});
 
-  const refreshAttendees = async () => {
+  const refreshAttendees = useCallback(async () => {
     try {
       const attendeesResponse = await fetch('/api/attendees');
       if (attendeesResponse.ok) {
@@ -204,7 +206,35 @@ export default function Dashboard() {
     } catch (error) {
       console.error('Error refreshing attendees:', error);
     }
-  };
+  }, []);
+
+  const refreshUsers = useCallback(async () => {
+    try {
+      const usersResponse = await fetch('/api/users');
+      if (usersResponse.ok) {
+        const usersData = await usersResponse.json();
+        setUsers(Array.isArray(usersData) ? usersData : []);
+      } else {
+        setUsers([]);
+      }
+    } catch (error) {
+      console.error('Error refreshing users:', error);
+    }
+  }, []);
+
+  const refreshRoles = useCallback(async () => {
+    try {
+      const rolesResponse = await fetch('/api/roles');
+      if (rolesResponse.ok) {
+        const rolesData = await rolesResponse.json();
+        setRoles(Array.isArray(rolesData) ? rolesData : []);
+      } else {
+        setRoles([]);
+      }
+    } catch (error) {
+      console.error('Error refreshing roles:', error);
+    }
+  }, []);
 
   // Get available tabs for current user
   const getAvailableTabs = (): string[] => {
@@ -433,6 +463,73 @@ export default function Dashboard() {
 
     loadData();
   }, []);
+
+  // Real-time subscriptions
+  useEffect(() => {
+    const channel = supabase
+      .channel('all-tables-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'attendees' },
+        (payload) => {
+          console.log('Attendee change received!', payload);
+          refreshAttendees();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'attendee_custom_field_values' },
+        (payload) => {
+          console.log('Attendee custom field value change received!', payload);
+          refreshAttendees();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'users' },
+        (payload) => {
+          console.log('Users change received!', payload);
+          refreshUsers();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'roles' },
+        (payload) => {
+          console.log('Roles change received!', payload);
+          refreshRoles();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'event_settings' },
+        (payload) => {
+          console.log('Event settings change received!', payload);
+          refreshEventSettings();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'custom_fields' },
+        (payload) => {
+          console.log('Custom fields change received!', payload);
+          refreshEventSettings(); // Custom fields are part of event settings
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'logs' },
+        (payload) => {
+          console.log('Logs change received!', payload);
+          loadLogs();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [supabase, refreshAttendees, refreshUsers, refreshRoles, refreshEventSettings, loadLogs]);
 
   // Enhanced filtering function for attendees including custom fields and photo filter
   const filteredAttendees = attendees.filter(attendee => {
@@ -676,7 +773,7 @@ export default function Dashboard() {
   });
 
   // Function to refresh event settings and custom fields
-  const refreshEventSettings = async () => {
+  const refreshEventSettings = useCallback(async () => {
     try {
       const settingsResponse = await fetch('/api/event-settings');
       if (settingsResponse.ok) {
@@ -686,7 +783,7 @@ export default function Dashboard() {
     } catch (error) {
       console.error('Error refreshing event settings:', error);
     }
-  };
+  }, []);
 
   // Helper function to capitalize first letter
   const capitalizeFirst = (str: string) => {
@@ -1205,7 +1302,7 @@ export default function Dashboard() {
   };
 
   // Logs Functions
-  const loadLogs = async (page = 1, filters = logsFilters) => {
+  const loadLogs = useCallback(async (page = 1, filters = logsFilters) => {
     setLogsLoading(true);
     try {
       const params = new URLSearchParams({
@@ -1236,7 +1333,7 @@ export default function Dashboard() {
     } finally {
       setLogsLoading(false);
     }
-  };
+  }, [logsPagination.limit, logsFilters]);
 
   const handleLogsFilterChange = async (newFilters: typeof logsFilters) => {
     setLogsFilters(newFilters);
