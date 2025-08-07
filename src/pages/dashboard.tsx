@@ -131,7 +131,6 @@ interface Log {
 
 export default function Dashboard() {
   const { user, signOut } = useAuth();
-  const supabase = createClient();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("attendees");
   const [users, setUsers] = useState<User[]>([]);
@@ -194,6 +193,8 @@ export default function Dashboard() {
   const [attendeeToDelete, setAttendeeToDelete] = useState<Attendee | null>(null);
   const [dropdownStates, setDropdownStates] = useState<{[key: string]: boolean}>({});
 
+  const supabase = createClient();
+
   const refreshAttendees = useCallback(async () => {
     try {
       const attendeesResponse = await fetch('/api/attendees');
@@ -235,6 +236,51 @@ export default function Dashboard() {
       console.error('Error refreshing roles:', error);
     }
   }, []);
+
+  const refreshEventSettings = useCallback(async () => {
+    try {
+      const settingsResponse = await fetch('/api/event-settings');
+      if (settingsResponse.ok) {
+        const settingsData = await settingsResponse.json();
+        setEventSettings(settingsData);
+      }
+    } catch (error) {
+      console.error('Error refreshing event settings:', error);
+    }
+  }, []);
+
+  const loadLogs = useCallback(async (page = 1, filters = logsFilters) => {
+    setLogsLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: logsPagination.limit.toString(),
+        action: filters.action,
+        userId: filters.userId
+      });
+
+      const response = await fetch(`/api/logs?${params}`);
+      if (response.ok) {
+        const data = await response.json();
+        setLogs(data.logs || []);
+        setLogsPagination(data.pagination || {
+          page: 1,
+          limit: 50,
+          totalCount: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false
+        });
+      } else {
+        setLogs([]);
+      }
+    } catch (error) {
+      console.error('Error loading logs:', error);
+      setLogs([]);
+    } finally {
+      setLogsLoading(false);
+    }
+  }, [logsPagination.limit, logsFilters]);
 
   // Get available tabs for current user
   const getAvailableTabs = (): string[] => {
@@ -772,19 +818,6 @@ export default function Dashboard() {
     return matchesSearch && matchesRole;
   });
 
-  // Function to refresh event settings and custom fields
-  const refreshEventSettings = useCallback(async () => {
-    try {
-      const settingsResponse = await fetch('/api/event-settings');
-      if (settingsResponse.ok) {
-        const settingsData = await settingsResponse.json();
-        setEventSettings(settingsData);
-      }
-    } catch (error) {
-      console.error('Error refreshing event settings:', error);
-    }
-  }, []);
-
   // Helper function to capitalize first letter
   const capitalizeFirst = (str: string) => {
     if (!str) return str;
@@ -1301,40 +1334,6 @@ export default function Dashboard() {
     }
   };
 
-  // Logs Functions
-  const loadLogs = useCallback(async (page = 1, filters = logsFilters) => {
-    setLogsLoading(true);
-    try {
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: logsPagination.limit.toString(),
-        action: filters.action,
-        userId: filters.userId
-      });
-
-      const response = await fetch(`/api/logs?${params}`);
-      if (response.ok) {
-        const data = await response.json();
-        setLogs(data.logs || []);
-        setLogsPagination(data.pagination || {
-          page: 1,
-          limit: 50,
-          totalCount: 0,
-          totalPages: 0,
-          hasNext: false,
-          hasPrev: false
-        });
-      } else {
-        setLogs([]);
-      }
-    } catch (error) {
-      console.error('Error loading logs:', error);
-      setLogs([]);
-    } finally {
-      setLogsLoading(false);
-    }
-  }, [logsPagination.limit, logsFilters]);
-
   const handleLogsFilterChange = async (newFilters: typeof logsFilters) => {
     setLogsFilters(newFilters);
     await loadLogs(1, newFilters);
@@ -1520,7 +1519,7 @@ export default function Dashboard() {
     if (activeTab === 'logs' && canAccessTab(currentUser?.role, 'logs')) {
       loadLogs();
     }
-  }, [activeTab, currentUser?.role]);
+  }, [activeTab, currentUser?.role, loadLogs]);
 
   if (loading) {
     return (
