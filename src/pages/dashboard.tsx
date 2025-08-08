@@ -43,6 +43,7 @@ import {
   FileText
 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -192,6 +193,7 @@ export default function Dashboard() {
   const [isBulkEditing, setIsBulkEditing] = useState(false);
   const [attendeeToDelete, setAttendeeToDelete] = useState<Attendee | null>(null);
   const [dropdownStates, setDropdownStates] = useState<{[key: string]: boolean}>({});
+  const [selectedAttendees, setSelectedAttendees] = useState<string[]>([]);
 
   const supabase = createClient();
 
@@ -677,6 +679,7 @@ export default function Dashboard() {
   // Reset to first page when search term or photo filter changes
   useEffect(() => {
     setCurrentPage(1);
+    setSelectedAttendees([]);
   }, [searchTerm, photoFilter, showAdvancedSearch, advancedSearchFilters]);
 
   // Initialize custom fields in advanced search when event settings change
@@ -1397,8 +1400,7 @@ export default function Dashboard() {
   const handleBulkDelete = async () => {
     setBulkDeleting(true);
     try {
-      // Get the IDs of all filtered attendees
-      const attendeeIds = filteredAttendees.map(attendee => attendee.id);
+      const attendeeIds = selectedAttendees;
       
       const response = await fetch('/api/attendees/bulk-delete', {
         method: 'DELETE',
@@ -1415,12 +1417,9 @@ export default function Dashboard() {
 
       const result = await response.json();
       
-      // Remove deleted attendees from local state
+      // Remove deleted attendees from local state and clear selection
       setAttendees(prev => prev.filter(a => !attendeeIds.includes(a.id)));
-      
-      // Clear advanced search filters
-      setShowAdvancedSearch(false);
-      clearAdvancedSearch();
+      setSelectedAttendees([]);
       
       toast({
         title: "Success",
@@ -1440,7 +1439,7 @@ export default function Dashboard() {
   const handleBulkEdit = async () => {
     setIsBulkEditing(true);
     try {
-      const attendeeIds = filteredAttendees.map(attendee => attendee.id);
+      const attendeeIds = selectedAttendees;
       const changesToApply = Object.fromEntries(
         Object.entries(bulkEditChanges).filter(([, value]) => value && value !== 'no-change')
       );
@@ -1450,6 +1449,7 @@ export default function Dashboard() {
           title: "No Changes",
           description: "You haven't specified any changes to apply.",
         });
+        setIsBulkEditing(false);
         return;
       }
 
@@ -1469,6 +1469,7 @@ export default function Dashboard() {
       
       setShowBulkEdit(false);
       setBulkEditChanges({});
+      setSelectedAttendees([]);
       
       toast({
         title: "Success",
@@ -2168,8 +2169,11 @@ export default function Dashboard() {
                   </div>
                   
                   <div className="flex items-center space-x-2">
-                    {hasAdvancedFilters() && (
+                    {selectedAttendees.length > 0 && (
                       <>
+                        <span className="text-sm text-muted-foreground">
+                          {selectedAttendees.length} selected
+                        </span>
                         {hasPermission(currentUser?.role, 'attendees', 'bulkEdit') && (
                           <Dialog open={showBulkEdit} onOpenChange={setShowBulkEdit}>
                             <DialogTrigger asChild>
@@ -2183,7 +2187,7 @@ export default function Dashboard() {
                                 <DialogHeader>
                                   <DialogTitle>Bulk Edit Attendees</DialogTitle>
                                   <DialogDescription>
-                                    Apply changes to all {filteredAttendees.length} attendees in the current search results.
+                                    Apply changes to all {selectedAttendees.length} selected attendees.
                                     Only fields you change will be updated.
                                   </DialogDescription>
                                 </DialogHeader>
@@ -2243,7 +2247,7 @@ export default function Dashboard() {
                                     <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                                     <AlertDialogDescription>
                                       This action cannot be undone. This will permanently modify the custom fields for{' '}
-                                      <strong>{filteredAttendees.length}</strong> attendees.
+                                      <strong>{selectedAttendees.length}</strong> attendees.
                                     </AlertDialogDescription>
                                   </AlertDialogHeader>
                                   <AlertDialogFooter>
@@ -2283,7 +2287,7 @@ export default function Dashboard() {
                                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                                 <AlertDialogDescription>
                                   This action cannot be undone. This will permanently delete{' '}
-                                  <strong>{filteredAttendees.length}</strong> attendee{filteredAttendees.length !== 1 ? 's' : ''}
+                                  <strong>{selectedAttendees.length}</strong> attendee{selectedAttendees.length !== 1 ? 's' : ''}
                                   {' '}from the database. All associated data including photos, credentials, and custom field values will be lost.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
@@ -2348,6 +2352,28 @@ export default function Dashboard() {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-[50px]">
+                          <Checkbox
+                            checked={
+                              paginatedAttendees.length > 0 &&
+                              paginatedAttendees.every(a => selectedAttendees.includes(a.id))
+                                ? true
+                                : paginatedAttendees.some(a => selectedAttendees.includes(a.id))
+                                ? "indeterminate"
+                                : false
+                            }
+                            onCheckedChange={() => {
+                              const paginatedIds = paginatedAttendees.map(a => a.id);
+                              const allOnPageSelected = paginatedAttendees.every(a => selectedAttendees.includes(a.id));
+                              if (allOnPageSelected) {
+                                setSelectedAttendees(prev => prev.filter(id => !paginatedIds.includes(id)));
+                              } else {
+                                setSelectedAttendees(prev => [...new Set([...prev, ...paginatedIds])]);
+                              }
+                            }}
+                            aria-label="Select all on this page"
+                          />
+                        </TableHead>
                         <TableHead>Photo</TableHead>
                         <TableHead>Name</TableHead>
                         <TableHead>Barcode</TableHead>
@@ -2357,7 +2383,7 @@ export default function Dashboard() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {paginatedAttendees.map((attendee) => {
+                      {paginatedAttendees.map((attendee, index) => {
                         // Get custom field values for this attendee, sorted by field order
                         const customFieldsWithValues = eventSettings?.customFields
                           ?.sort((a: any, b: any) => a.order - b.order)
@@ -2387,7 +2413,20 @@ export default function Dashboard() {
                           }) || [];
 
                         return (
-                          <TableRow key={attendee.id}>
+                          <TableRow key={attendee.id} data-state={selectedAttendees.includes(attendee.id) && "selected"}>
+                            <TableCell>
+                              <Checkbox
+                                checked={selectedAttendees.includes(attendee.id)}
+                                onCheckedChange={(checked) => {
+                                  setSelectedAttendees(prev => 
+                                    checked 
+                                      ? [...prev, attendee.id] 
+                                      : prev.filter(id => id !== attendee.id)
+                                  );
+                                }}
+                                aria-label={`Select attendee ${index + 1}`}
+                              />
+                            </TableCell>
                             <TableCell>
                               <div className="relative w-12 h-16 bg-muted rounded overflow-hidden flex-shrink-0">
                                 {attendee.photoUrl ? (
