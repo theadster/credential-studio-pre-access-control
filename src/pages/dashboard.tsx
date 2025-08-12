@@ -3432,6 +3432,71 @@ export default function Dashboard() {
 
           {activeTab === "logs" && (
             <div className="space-y-6">
+              {/* Activity Statistics */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 dark:from-blue-950/50 dark:to-blue-900/50 dark:border-blue-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
+                  <CardContent className="flex items-center p-4">
+                    <div className="p-3 rounded-lg bg-blue-500/20 dark:bg-blue-400/20">
+                      <Activity className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-blue-700 dark:text-blue-300">Total Activities</p>
+                      <p className="text-4xl font-bold text-blue-900 dark:text-blue-100">{logsPagination.totalCount}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200 dark:from-emerald-950/50 dark:to-emerald-900/50 dark:border-emerald-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
+                  <CardContent className="flex items-center p-4">
+                    <div className="p-3 rounded-lg bg-emerald-500/20 dark:bg-emerald-400/20">
+                      <Calendar className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Today's Activities</p>
+                      <p className="text-4xl font-bold text-emerald-900 dark:text-emerald-100">
+                        {logs.filter(log => {
+                          const logDate = new Date(log.createdAt).toDateString();
+                          const today = new Date().toDateString();
+                          return logDate === today;
+                        }).length}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200 dark:from-purple-950/50 dark:to-purple-900/50 dark:border-purple-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
+                  <CardContent className="flex items-center p-4">
+                    <div className="p-3 rounded-lg bg-purple-500/20 dark:bg-purple-400/20">
+                      <Users className="h-8 w-8 text-purple-600 dark:text-purple-400" />
+                    </div>
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-purple-700 dark:text-purple-300">Active Users</p>
+                      <p className="text-4xl font-bold text-purple-900 dark:text-purple-100">
+                        {new Set(logs.map(log => log.user.email)).size}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card className="bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200 dark:from-amber-950/50 dark:to-amber-900/50 dark:border-amber-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
+                  <CardContent className="flex items-center p-4">
+                    <div className="p-3 rounded-lg bg-amber-500/20 dark:bg-amber-400/20">
+                      <BarChart3 className="h-8 w-8 text-amber-600 dark:text-amber-400" />
+                    </div>
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-amber-700 dark:text-amber-300">Most Common</p>
+                      <p className="text-2xl font-bold text-amber-900 dark:text-amber-100">
+                        {(() => {
+                          const actionCounts = logs.reduce((acc: any, log) => {
+                            acc[log.action] = (acc[log.action] || 0) + 1;
+                            return acc;
+                          }, {});
+                          const mostCommon = Object.entries(actionCounts).sort(([,a]: any, [,b]: any) => b - a)[0];
+                          return mostCommon ? capitalizeFirst(mostCommon[0]) : 'N/A';
+                        })()}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
               {/* Logs Filters and Actions */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
@@ -3513,71 +3578,6 @@ export default function Dashboard() {
                     Refresh
                   </Button>
                 </div>
-              </div>
-
-              {/* Activity Statistics */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 dark:from-blue-950/50 dark:to-blue-900/50 dark:border-blue-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
-                  <CardContent className="flex items-center p-4">
-                    <div className="p-3 rounded-lg bg-blue-500/20 dark:bg-blue-400/20">
-                      <Activity className="h-8 w-8 text-blue-600 dark:text-blue-400" />
-                    </div>
-                    <div className="ml-4">
-                      <p className="text-sm font-medium text-blue-700 dark:text-blue-300">Total Activities</p>
-                      <p className="text-4xl font-bold text-blue-900 dark:text-blue-100">{logsPagination.totalCount}</p>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200 dark:from-emerald-950/50 dark:to-emerald-900/50 dark:border-emerald-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
-                  <CardContent className="flex items-center p-4">
-                    <div className="p-3 rounded-lg bg-emerald-500/20 dark:bg-emerald-400/20">
-                      <Calendar className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
-                    </div>
-                    <div className="ml-4">
-                      <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Today's Activities</p>
-                      <p className="text-4xl font-bold text-emerald-900 dark:text-emerald-100">
-                        {logs.filter(log => {
-                          const logDate = new Date(log.createdAt).toDateString();
-                          const today = new Date().toDateString();
-                          return logDate === today;
-                        }).length}
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200 dark:from-purple-950/50 dark:to-purple-900/50 dark:border-purple-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
-                  <CardContent className="flex items-center p-4">
-                    <div className="p-3 rounded-lg bg-purple-500/20 dark:bg-purple-400/20">
-                      <Users className="h-8 w-8 text-purple-600 dark:text-purple-400" />
-                    </div>
-                    <div className="ml-4">
-                      <p className="text-sm font-medium text-purple-700 dark:text-purple-300">Active Users</p>
-                      <p className="text-4xl font-bold text-purple-900 dark:text-purple-100">
-                        {new Set(logs.map(log => log.user.email)).size}
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card className="bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200 dark:from-amber-950/50 dark:to-amber-900/50 dark:border-amber-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
-                  <CardContent className="flex items-center p-4">
-                    <div className="p-3 rounded-lg bg-amber-500/20 dark:bg-amber-400/20">
-                      <BarChart3 className="h-8 w-8 text-amber-600 dark:text-amber-400" />
-                    </div>
-                    <div className="ml-4">
-                      <p className="text-sm font-medium text-amber-700 dark:text-amber-300">Most Common</p>
-                      <p className="text-2xl font-bold text-amber-900 dark:text-amber-100">
-                        {(() => {
-                          const actionCounts = logs.reduce((acc: any, log) => {
-                            acc[log.action] = (acc[log.action] || 0) + 1;
-                            return acc;
-                          }, {});
-                          const mostCommon = Object.entries(actionCounts).sort(([,a]: any, [,b]: any) => b - a)[0];
-                          return mostCommon ? capitalizeFirst(mostCommon[0]) : 'N/A';
-                        })()}
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
               </div>
 
               {/* Logs Table */}
