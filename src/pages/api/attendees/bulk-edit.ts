@@ -46,77 +46,109 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Get custom fields
     const customFields = await prisma.customField.findMany();
 
-    // Process bulk updates
-    let updatedCount = 0;
-
-    for (const attendeeId of attendeeIds) {
-      // Verify attendee exists
-      const attendee = await prisma.attendee.findUnique({ 
-        where: { id: attendeeId },
+    // Use a transaction to perform bulk updates efficiently
+    const updatedCount = await prisma.$transaction(async (tx) => {
+      // Get all attendees and their existing custom field values in one query
+      const attendees = await tx.attendee.findMany({
+        where: { id: { in: attendeeIds } },
         include: { customFieldValues: true }
       });
-      
-      if (!attendee) {
-        continue;
+
+      if (attendees.length === 0) {
+        return 0;
       }
 
-      let hasChanges = false;
+      // Prepare batch operations
+      const valuesToUpdate: { id: string; value: string }[] = [];
+      const valuesToCreate: { attendeeId: string; customFieldId: string; value: string }[] = [];
+      const attendeesToUpdate: string[] = [];
 
-      // Process each field change
-      for (const [fieldId, value] of Object.entries(changes)) {
-        if (!value || value === 'no-change') {
-          continue;
-        }
+      // Process changes for each attendee
+      for (const attendee of attendees) {
+        let hasChanges = false;
 
-        const customField = customFields.find(cf => cf.id === fieldId);
-        if (!customField) {
-          continue;
-        }
+        for (const [fieldId, value] of Object.entries(changes)) {
+          if (!value || value === 'no-change') {
+            continue;
+          }
 
-        let processedValue = value;
-        if (customField.fieldType === 'uppercase' && typeof processedValue === 'string') {
-          processedValue = processedValue.toUpperCase();
-        }
+          const customField = customFields.find(cf => cf.id === fieldId);
+          if (!customField) {
+            continue;
+          }
 
-        // Check if custom field value exists
-        const existingValue = await prisma.attendeeCustomFieldValue.findFirst({
-          where: {
-            attendeeId: attendeeId,
-            customFieldId: fieldId,
-          },
-        });
+          let processedValue = value;
+          if (customField.fieldType === 'uppercase' && typeof processedValue === 'string') {
+            processedValue = processedValue.toUpperCase();
+          }
 
-        if (existingValue) {
-          // Update existing value
-          if (existingValue.value !== String(processedValue)) {
-            await prisma.attendeeCustomFieldValue.update({
-              where: { id: existingValue.id },
-              data: { value: String(processedValue) },
+          const existingValue = attendee.customFieldValues.find(cfv => cfv.customFieldId === fieldId);
+
+          if (existingValue) {
+            // Update existing value if different
+            if (existingValue.value !== String(processedValue)) {
+              valuesToUpdate.push({
+                id: existingValue.id,
+                value: String(processedValue)
+              });
+              hasChanges = true;
+            }
+          } else {
+            // Create new value
+            valuesToCreate.push({
+              attendeeId: attendee.id,
+              customFieldId: fieldId,
+              value: String(processedValue)
             });
             hasChanges = true;
           }
-        } else {
-          // Create new value
-          await prisma.attendeeCustomFieldValue.create({
-            data: {
-              attendeeId: attendeeId,
-              customFieldId: fieldId,
-              value: String(processedValue),
-            },
-          });
-          hasChanges = true;
+        }
+
+        if (hasChanges) {
+          attendeesToUpdate.push(attendee.id);
         }
       }
 
-      // Update attendee timestamp if changes were made
-      if (hasChanges) {
-        await prisma.attendee.update({
-          where: { id: attendeeId },
-          data: { updatedAt: new Date() },
-        });
-        updatedCount++;
+      // Execute batch operations
+      const operations = [];
+
+      // Batch update existing values
+      if (valuesToUpdate.length > 0) {
+        for (const update of valuesToUpdate) {
+          operations.push(
+            tx.attendeeCustomFieldValue.update({
+              where: { id: update.id },
+              data: { value: update.value }
+            })
+          );
+        }
       }
-    }
+
+      // Batch create new values
+      if (valuesToCreate.length > 0) {
+        operations.push(
+          tx.attendeeCustomFieldValue.createMany({
+            data: valuesToCreate,
+            skipDuplicates: true
+          })
+        );
+      }
+
+      // Update attendee timestamps
+      if (attendeesToUpdate.length > 0) {
+        operations.push(
+          tx.attendee.updateMany({
+            where: { id: { in: attendeesToUpdate } },
+            data: { updatedAt: new Date() }
+          })
+        );
+      }
+
+      // Execute all operations
+      await Promise.all(operations);
+
+      return attendeesToUpdate.length;
+    });
 
     // Log the action
     await prisma.log.create({

@@ -132,23 +132,56 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             };
           }).filter(Boolean) as any[];
 
-          let createdCount = 0;
-          for (const attendeeData of attendeesToCreate) {
-            try {
-              await prisma.attendee.create({
-                data: attendeeData,
-              });
-              createdCount++;
-            } catch (e: any) {
-              // Handle potential duplicate barcode errors gracefully
-              if (e.code === 'P2002' && e.meta?.target?.includes('barcodeNumber')) {
-                console.warn(`Skipping duplicate barcode: ${attendeeData.barcodeNumber}`);
-              } else {
-                // Re-throw other errors
-                throw e;
+          // Use a transaction to create all attendees and their custom field values efficiently
+          const result = await prisma.$transaction(async (tx) => {
+            // Prepare attendee data without nested creates
+            const attendeesData = attendeesToCreate.map(({ customFieldValues, ...attendeeData }) => attendeeData);
+            
+            // Create all attendees in a single batch operation
+            const createResult = await tx.attendee.createMany({
+              data: attendeesData,
+              skipDuplicates: true, // Skip duplicates instead of throwing errors
+            });
+
+            // Get the created attendees to link custom field values
+            const createdAttendees = await tx.attendee.findMany({
+              where: {
+                barcodeNumber: { in: attendeesData.map(a => a.barcodeNumber) }
+              },
+              select: { id: true, barcodeNumber: true }
+            });
+
+            // Create a map for quick lookup
+            const barcodeToIdMap = new Map(createdAttendees.map(a => [a.barcodeNumber, a.id]));
+
+            // Prepare custom field values data
+            const customFieldValuesData: { attendeeId: string; customFieldId: string; value: string }[] = [];
+            
+            attendeesToCreate.forEach(({ customFieldValues, barcodeNumber }) => {
+              const attendeeId = barcodeToIdMap.get(barcodeNumber);
+              if (attendeeId && customFieldValues?.create) {
+                customFieldValues.create.forEach((cfv: any) => {
+                  customFieldValuesData.push({
+                    attendeeId,
+                    customFieldId: cfv.customFieldId,
+                    value: cfv.value
+                  });
+                });
               }
+            });
+
+            // Create all custom field values in a single batch operation
+            if (customFieldValuesData.length > 0) {
+              await tx.attendeeCustomFieldValue.createMany({
+                data: customFieldValuesData,
+                skipDuplicates: true
+              });
             }
-          }
+
+            return createResult.count;
+          });
+
+          const createdCount = result;
 
           // Log the import action
           await prisma.log.create({
