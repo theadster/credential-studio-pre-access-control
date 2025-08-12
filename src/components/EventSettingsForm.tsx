@@ -1302,6 +1302,58 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
   );
 }
 
+// Sortable Select Option Component
+interface SortableSelectOptionProps {
+  option: string;
+  index: number;
+  onUpdate: (index: number, value: string) => void;
+  onRemove: (index: number) => void;
+}
+
+function SortableSelectOption({ option, index, onUpdate, onRemove }: SortableSelectOptionProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: `option-${index}` });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="flex items-center space-x-2">
+      <div
+        {...attributes}
+        {...listeners}
+        className="cursor-grab active:cursor-grabbing p-2 hover:bg-muted rounded"
+      >
+        <GripVertical className="h-4 w-4 text-muted-foreground" />
+      </div>
+      <Input
+        value={option}
+        onChange={(e) => onUpdate(index, e.target.value)}
+        placeholder={`Option ${index + 1}`}
+        className="h-9"
+      />
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={() => onRemove(index)}
+        className="h-9 w-9 p-0 text-destructive hover:text-destructive"
+      >
+        <X className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+}
+
 // Custom Field Form Component
 interface CustomFieldFormProps {
   isOpen: boolean;
@@ -1316,30 +1368,51 @@ function CustomFieldForm({ isOpen, field, onSave, onCancel }: CustomFieldFormPro
     fieldType: "text",
     required: false,
     order: 1,
-    ...field
   });
   const [selectOptions, setSelectOptions] = useState<string[]>([]);
 
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
   useEffect(() => {
-    if (field?.fieldType === "select" && field.fieldOptions?.options) {
-      setSelectOptions(field.fieldOptions.options);
+    if (field) {
+      setFieldData(field);
+      if (field.fieldType === "select" && Array.isArray(field.fieldOptions?.options)) {
+        setSelectOptions(field.fieldOptions.options);
+      } else {
+        setSelectOptions([]);
+      }
+    } else {
+      setFieldData({
+        fieldName: "",
+        fieldType: "text",
+        required: false,
+        order: 1,
+      });
+      setSelectOptions([]);
     }
   }, [field]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    let fieldOptions: any = undefined;
+    let fieldOptions: any = {};
     
     if (fieldData.fieldType === "select") {
-      fieldOptions = { options: selectOptions };
-    } else if (fieldData.fieldType === "text" && fieldData.fieldOptions?.uppercase) {
-      fieldOptions = { uppercase: true };
+      fieldOptions.options = selectOptions;
+    }
+    
+    if (fieldData.fieldType === "text") {
+      fieldOptions.uppercase = fieldData.fieldOptions?.uppercase || false;
     }
     
     const finalFieldData = {
       ...fieldData,
-      fieldOptions
+      fieldOptions: Object.keys(fieldOptions).length > 0 ? fieldOptions : undefined
     };
 
     onSave(finalFieldData);
@@ -1355,6 +1428,17 @@ function CustomFieldForm({ isOpen, field, onSave, onCancel }: CustomFieldFormPro
 
   const removeSelectOption = (index: number) => {
     setSelectOptions(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleOptionDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      setSelectOptions((items) => {
+        const oldIndex = parseInt(String(active.id).replace('option-', ''));
+        const newIndex = parseInt(String(over.id).replace('option-', ''));
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
   };
 
   // Get placeholder text based on field type
@@ -1475,25 +1559,26 @@ function CustomFieldForm({ isOpen, field, onSave, onCancel }: CustomFieldFormPro
                   Select Options
                 </Label>
                 <div className="space-y-2">
-                  {selectOptions.map((option, index) => (
-                    <div key={index} className="flex items-center space-x-2">
-                      <Input
-                        value={option}
-                        onChange={(e) => updateSelectOption(index, e.target.value)}
-                        placeholder={`Option ${index + 1} (e.g., ${index === 0 ? 'Small' : index === 1 ? 'Medium' : 'Large'})`}
-                        className="h-9"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeSelectOption(index)}
-                        className="h-9 w-9 p-0 text-destructive hover:text-destructive"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleOptionDragEnd}
+                  >
+                    <SortableContext
+                      items={selectOptions.map((_, index) => `option-${index}`)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      {selectOptions.map((option, index) => (
+                        <SortableSelectOption
+                          key={`option-${index}`}
+                          index={index}
+                          option={option}
+                          onUpdate={updateSelectOption}
+                          onRemove={removeSelectOption}
+                        />
+                      ))}
+                    </SortableContext>
+                  </DndContext>
                   <Button 
                     type="button" 
                     variant="outline" 
