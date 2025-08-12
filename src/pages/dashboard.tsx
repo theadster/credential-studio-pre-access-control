@@ -512,8 +512,20 @@ export default function Dashboard() {
     loadData();
   }, []);
 
-  // Real-time subscriptions
+  // Real-time subscriptions with debouncing to prevent excessive API calls
   useEffect(() => {
+    let refreshTimeouts: { [key: string]: NodeJS.Timeout } = {};
+
+    const debouncedRefresh = (key: string, refreshFunction: () => void, delay: number = 1000) => {
+      if (refreshTimeouts[key]) {
+        clearTimeout(refreshTimeouts[key]);
+      }
+      refreshTimeouts[key] = setTimeout(() => {
+        refreshFunction();
+        delete refreshTimeouts[key];
+      }, delay);
+    };
+
     const channel = supabase
       .channel('all-tables-realtime')
       .on(
@@ -521,7 +533,7 @@ export default function Dashboard() {
         { event: '*', schema: 'public', table: 'attendees' },
         (payload) => {
           console.log('Attendee change received!', payload);
-          refreshAttendees();
+          debouncedRefresh('attendees', refreshAttendees, 2000);
         }
       )
       .on(
@@ -529,7 +541,7 @@ export default function Dashboard() {
         { event: '*', schema: 'public', table: 'attendee_custom_field_values' },
         (payload) => {
           console.log('Attendee custom field value change received!', payload);
-          refreshAttendees();
+          debouncedRefresh('attendees', refreshAttendees, 2000);
         }
       )
       .on(
@@ -537,7 +549,7 @@ export default function Dashboard() {
         { event: '*', schema: 'public', table: 'users' },
         (payload) => {
           console.log('Users change received!', payload);
-          refreshUsers();
+          debouncedRefresh('users', refreshUsers, 1500);
         }
       )
       .on(
@@ -545,7 +557,7 @@ export default function Dashboard() {
         { event: '*', schema: 'public', table: 'roles' },
         (payload) => {
           console.log('Roles change received!', payload);
-          refreshRoles();
+          debouncedRefresh('roles', refreshRoles, 1500);
         }
       )
       .on(
@@ -553,7 +565,7 @@ export default function Dashboard() {
         { event: '*', schema: 'public', table: 'event_settings' },
         (payload) => {
           console.log('Event settings change received!', payload);
-          refreshEventSettings();
+          debouncedRefresh('eventSettings', refreshEventSettings, 1000);
         }
       )
       .on(
@@ -561,7 +573,7 @@ export default function Dashboard() {
         { event: '*', schema: 'public', table: 'custom_fields' },
         (payload) => {
           console.log('Custom fields change received!', payload);
-          refreshEventSettings(); // Custom fields are part of event settings
+          debouncedRefresh('eventSettings', refreshEventSettings, 1000);
         }
       )
       .on(
@@ -569,12 +581,14 @@ export default function Dashboard() {
         { event: '*', schema: 'public', table: 'logs' },
         (payload) => {
           console.log('Logs change received!', payload);
-          loadLogs();
+          debouncedRefresh('logs', () => loadLogs(), 2000);
         }
       )
       .subscribe();
 
     return () => {
+      // Clear any pending timeouts
+      Object.values(refreshTimeouts).forEach(timeout => clearTimeout(timeout));
       supabase.removeChannel(channel);
     };
   }, [refreshAttendees, refreshUsers, refreshRoles, refreshEventSettings, loadLogs]);
