@@ -2217,14 +2217,82 @@ export default function Dashboard() {
                         <span className="text-sm text-muted-foreground">
                           {selectedAttendees.length} selected
                         </span>
+                        {(hasPermission(currentUser?.role, 'attendees', 'bulkEdit') || hasPermission(currentUser?.role, 'attendees', 'delete')) && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="outline" className="flex items-center space-x-2">
+                                <MoreHorizontal className="h-4 w-4" />
+                                <span>Bulk</span>
+                                <ChevronDown className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              {hasPermission(currentUser?.role, 'attendees', 'bulkEdit') && (
+                                <DropdownMenuItem
+                                  onClick={() => setShowBulkEdit(true)}
+                                  disabled={isBulkEditing}
+                                >
+                                  <Wand2 className="mr-2 h-4 w-4" />
+                                  Bulk Edit
+                                </DropdownMenuItem>
+                              )}
+                              {hasPermission(currentUser?.role, 'attendees', 'delete') && (
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <DropdownMenuItem
+                                      onSelect={(e) => e.preventDefault()}
+                                      disabled={bulkDeleting}
+                                      className="text-destructive focus:text-destructive"
+                                    >
+                                      {bulkDeleting ? (
+                                        <>
+                                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                                          Deleting...
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Trash2 className="mr-2 h-4 w-4" />
+                                          Bulk Delete
+                                        </>
+                                      )}
+                                    </DropdownMenuItem>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        This action cannot be undone. This will permanently delete{' '}
+                                        <strong>{selectedAttendees.length}</strong> attendee{selectedAttendees.length !== 1 ? 's' : ''}
+                                        {' '}from the database. All associated data including photos, credentials, and custom field values will be lost.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel disabled={bulkDeleting}>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction
+                                        onClick={handleBulkDelete}
+                                        disabled={bulkDeleting}
+                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                      >
+                                        {bulkDeleting ? (
+                                          <>
+                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                            Deleting...
+                                          </>
+                                        ) : (
+                                          'Delete Attendees'
+                                        )}
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+
+                        {/* Bulk Edit Dialog - moved outside dropdown */}
                         {hasPermission(currentUser?.role, 'attendees', 'bulkEdit') && (
                           <Dialog open={showBulkEdit} onOpenChange={setShowBulkEdit}>
-                            <DialogTrigger asChild>
-                              <Button variant="outline" className="flex items-center space-x-2">
-                                <Wand2 className="h-4 w-4" />
-                                <span>Bulk Edit</span>
-                              </Button>
-                            </DialogTrigger>
                             <DialogContent>
                               <AlertDialog>
                                 <DialogHeader>
@@ -2303,56 +2371,6 @@ export default function Dashboard() {
                               </AlertDialog>
                             </DialogContent>
                           </Dialog>
-                        )}
-                        {hasPermission(currentUser?.role, 'attendees', 'delete') && (
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button
-                                variant="destructive"
-                                className="flex items-center space-x-2"
-                                disabled={bulkDeleting}
-                              >
-                                {bulkDeleting ? (
-                                  <>
-                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                    Deleting...
-                                  </>
-                                ) : (
-                                  <>
-                                    <Trash2 className="h-4 w-4" />
-                                    <span>Bulk Delete</span>
-                                  </>
-                                )}
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  This action cannot be undone. This will permanently delete{' '}
-                                  <strong>{selectedAttendees.length}</strong> attendee{selectedAttendees.length !== 1 ? 's' : ''}
-                                  {' '}from the database. All associated data including photos, credentials, and custom field values will be lost.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel disabled={bulkDeleting}>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={handleBulkDelete}
-                                  disabled={bulkDeleting}
-                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                >
-                                  {bulkDeleting ? (
-                                    <>
-                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                      Deleting...
-                                    </>
-                                  ) : (
-                                    'Delete Attendees'
-                                  )}
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
                         )}
                       </>
                     )}
