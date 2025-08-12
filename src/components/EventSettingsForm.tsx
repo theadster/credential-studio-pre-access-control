@@ -1356,7 +1356,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                               className="min-h-[300px] font-mono text-sm"
                             />
                             <p className="text-xs text-muted-foreground">
-                              HTML template for PDF generation. Use placeholders like {"{{credentialUrl}}"}, {"{{firstName}}"}, {"{{lastName}}"}, etc.
+                              {`HTML template for PDF generation. Use placeholders like {{credentialUrl}}, {{firstName}}, {{lastName}}, etc.`}
                             </p>
                           </div>
                         </div>
