@@ -594,94 +594,102 @@ export default function Dashboard() {
   }, [refreshAttendees, refreshUsers, refreshRoles, refreshEventSettings, loadLogs]);
 
   // Enhanced filtering function for attendees including custom fields and photo filter
-  const filteredAttendees = attendees.filter(attendee => {
-    const applyTextFilter = (value: string, filter: { value: string; operator: string }) => {
-      const { value: filterValue, operator } = filter;
-      const lowerCaseValue = (value || '').toLowerCase();
-      const lowerCaseFilterValue = (filterValue || '').toLowerCase();
+  const filteredAttendees = attendees
+    .filter(attendee => {
+      const applyTextFilter = (value: string, filter: { value: string; operator: string }) => {
+        const { value: filterValue, operator } = filter;
+        const lowerCaseValue = (value || '').toLowerCase();
+        const lowerCaseFilterValue = (filterValue || '').toLowerCase();
 
-      if (operator !== 'isEmpty' && operator !== 'isNotEmpty' && !filterValue) {
-        return true; // No filter value provided for operators that need it
-      }
-
-      switch (operator) {
-        case 'isEmpty':
-          return !value;
-        case 'isNotEmpty':
-          return !!value;
-        case 'contains':
-          return lowerCaseValue.includes(lowerCaseFilterValue);
-        case 'equals':
-          return lowerCaseValue === lowerCaseFilterValue;
-        case 'startsWith':
-          return lowerCaseValue.startsWith(lowerCaseFilterValue);
-        case 'endsWith':
-          return lowerCaseValue.endsWith(lowerCaseFilterValue);
-        default:
-          return true;
-      }
-    };
-
-    // If advanced search is active, use advanced filters
-    if (showAdvancedSearch) {
-      const firstNameMatch = applyTextFilter(attendee.firstName, advancedSearchFilters.firstName);
-      const lastNameMatch = applyTextFilter(attendee.lastName, advancedSearchFilters.lastName);
-      const barcodeMatch = applyTextFilter(attendee.barcodeNumber, advancedSearchFilters.barcode);
-      
-      // Photo filter
-      const photoMatch = advancedSearchFilters.photoFilter === 'all' || 
-        (advancedSearchFilters.photoFilter === 'with' && attendee.photoUrl) ||
-        (advancedSearchFilters.photoFilter === 'without' && !attendee.photoUrl);
-      
-      // Custom fields filter
-      const customFieldsMatch = Object.entries(advancedSearchFilters.customFields).every(([fieldId, filter]) => {
-        const attendeeValueObj = attendee.customFieldValues?.find((cfv: any) => cfv.customFieldId === fieldId);
-        const attendeeValue = attendeeValueObj?.value || '';
-        const hasValue = !!attendeeValue;
-
-        // If no operator or value (for operators that need it), match all
-        if (!filter.operator || (filter.operator !== 'isEmpty' && filter.operator !== 'isNotEmpty' && !filter.value)) {
-          return true;
+        if (operator !== 'isEmpty' && operator !== 'isNotEmpty' && !filterValue) {
+          return true; // No filter value provided for operators that need it
         }
 
-        switch (filter.operator) {
+        switch (operator) {
           case 'isEmpty':
-            return !hasValue;
+            return !value;
           case 'isNotEmpty':
-            return hasValue;
+            return !!value;
           case 'contains':
-            return hasValue && attendeeValue.toLowerCase().includes(filter.value.toLowerCase());
+            return lowerCaseValue.includes(lowerCaseFilterValue);
           case 'equals':
-            return hasValue && attendeeValue.toLowerCase() === filter.value.toLowerCase();
+            return lowerCaseValue === lowerCaseFilterValue;
           case 'startsWith':
-            return hasValue && attendeeValue.toLowerCase().startsWith(filter.value.toLowerCase());
+            return lowerCaseValue.startsWith(lowerCaseFilterValue);
           case 'endsWith':
-            return hasValue && attendeeValue.toLowerCase().endsWith(filter.value.toLowerCase());
+            return lowerCaseValue.endsWith(lowerCaseFilterValue);
           default:
-            // For select and boolean, it's an equals check
-            return hasValue && attendeeValue.toLowerCase() === filter.value.toLowerCase();
+            return true;
         }
-      });
-      
-      return firstNameMatch && lastNameMatch && barcodeMatch && photoMatch && customFieldsMatch;
-    } else {
-      // Use simple search
-      const basicMatch = `${attendee.firstName} ${attendee.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        attendee.barcodeNumber.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      // Search in custom field values
-      const customFieldMatch = attendee.customFieldValues?.some((cfv: any) => 
-        cfv.value && cfv.value.toLowerCase().includes(searchTerm.toLowerCase())
-      ) || false;
-      
-      // Photo filter
-      const photoMatch = photoFilter === 'all' || 
-        (photoFilter === 'with' && attendee.photoUrl) ||
-        (photoFilter === 'without' && !attendee.photoUrl);
-      
-      return (basicMatch || customFieldMatch) && photoMatch;
-    }
-  });
+      };
+
+      // If advanced search is active, use advanced filters
+      if (showAdvancedSearch) {
+        const firstNameMatch = applyTextFilter(attendee.firstName, advancedSearchFilters.firstName);
+        const lastNameMatch = applyTextFilter(attendee.lastName, advancedSearchFilters.lastName);
+        const barcodeMatch = applyTextFilter(attendee.barcodeNumber, advancedSearchFilters.barcode);
+        
+        // Photo filter
+        const photoMatch = advancedSearchFilters.photoFilter === 'all' || 
+          (advancedSearchFilters.photoFilter === 'with' && attendee.photoUrl) ||
+          (advancedSearchFilters.photoFilter === 'without' && !attendee.photoUrl);
+        
+        // Custom fields filter
+        const customFieldsMatch = Object.entries(advancedSearchFilters.customFields).every(([fieldId, filter]) => {
+          const attendeeValueObj = attendee.customFieldValues?.find((cfv: any) => cfv.customFieldId === fieldId);
+          const attendeeValue = attendeeValueObj?.value || '';
+          const hasValue = !!attendeeValue;
+
+          // If no operator or value (for operators that need it), match all
+          if (!filter.operator || (filter.operator !== 'isEmpty' && filter.operator !== 'isNotEmpty' && !filter.value)) {
+            return true;
+          }
+
+          switch (filter.operator) {
+            case 'isEmpty':
+              return !hasValue;
+            case 'isNotEmpty':
+              return hasValue;
+            case 'contains':
+              return hasValue && attendeeValue.toLowerCase().includes(filter.value.toLowerCase());
+            case 'equals':
+              return hasValue && attendeeValue.toLowerCase() === filter.value.toLowerCase();
+            case 'startsWith':
+              return hasValue && attendeeValue.toLowerCase().startsWith(filter.value.toLowerCase());
+            case 'endsWith':
+              return hasValue && attendeeValue.toLowerCase().endsWith(filter.value.toLowerCase());
+            default:
+              // For select and boolean, it's an equals check
+              return hasValue && attendeeValue.toLowerCase() === filter.value.toLowerCase();
+          }
+        });
+        
+        return firstNameMatch && lastNameMatch && barcodeMatch && photoMatch && customFieldsMatch;
+      } else {
+        // Use simple search
+        const basicMatch = `${attendee.firstName} ${attendee.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          attendee.barcodeNumber.toLowerCase().includes(searchTerm.toLowerCase());
+        
+        // Search in custom field values
+        const customFieldMatch = attendee.customFieldValues?.some((cfv: any) => 
+          cfv.value && cfv.value.toLowerCase().includes(searchTerm.toLowerCase())
+        ) || false;
+        
+        // Photo filter
+        const photoMatch = photoFilter === 'all' || 
+          (photoFilter === 'with' && attendee.photoUrl) ||
+          (photoFilter === 'without' && !attendee.photoUrl);
+        
+        return (basicMatch || customFieldMatch) && photoMatch;
+      }
+    })
+    .sort((a, b) => {
+      const lastNameComparison = a.lastName.localeCompare(b.lastName);
+      if (lastNameComparison !== 0) {
+        return lastNameComparison;
+      }
+      return a.firstName.localeCompare(b.firstName);
+    });
 
   // Pagination logic for attendees
   const totalAttendees = filteredAttendees.length;
