@@ -156,18 +156,45 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         bodyString = bodyString.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), jsonEscapedValue);
       });
 
-      // Replace numeric placeholders
+      // Replace numeric placeholders (these should not be quoted in JSON)
       Object.entries(numericPlaceholders).forEach(([placeholder, value]) => {
-        bodyString = bodyString.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), String(value));
+        // Check if the placeholder is within quotes in the JSON
+        const quotedPlaceholderRegex = new RegExp(`"${placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`, 'g');
+        const unquotedPlaceholderRegex = new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+        
+        // Replace quoted placeholders with unquoted numeric values
+        if (bodyString.includes(`"${placeholder}"`)) {
+          bodyString = bodyString.replace(quotedPlaceholderRegex, String(value));
+        } else {
+          // Replace unquoted placeholders
+          bodyString = bodyString.replace(unquotedPlaceholderRegex, String(value));
+        }
       });
 
       let finalRequestBody;
       try {
         finalRequestBody = JSON.parse(bodyString);
       } catch (jsonParseError) {
+        // Add debugging information to help identify the issue
+        const errorMessage = jsonParseError instanceof Error ? jsonParseError.message : String(jsonParseError);
+        
+        // Try to identify the problematic part of the JSON
+        let debugInfo = '';
+        if (errorMessage.includes('position')) {
+          const match = errorMessage.match(/position (\d+)/);
+          if (match) {
+            const position = parseInt(match[1]);
+            const start = Math.max(0, position - 50);
+            const end = Math.min(bodyString.length, position + 50);
+            const snippet = bodyString.slice(start, end);
+            debugInfo = `\n\nJSON snippet around error (position ${position}):\n"${snippet}"`;
+          }
+        }
+        
         return res.status(400).json({ 
           error: 'Invalid request body template in Switchboard Canvas settings',
-          details: `JSON parse error: ${jsonParseError.message}`
+          details: `JSON parse error: ${errorMessage}${debugInfo}`,
+          processedTemplate: bodyString.length > 1000 ? bodyString.slice(0, 1000) + '...' : bodyString
         });
       }
 
