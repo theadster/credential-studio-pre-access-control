@@ -117,21 +117,37 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       fieldMappings.forEach((mapping) => {
         const customFieldValue = attendee.customFieldValues.find(cfv => cfv.customField?.id === mapping.fieldId);
         
-        if (customFieldValue && mapping.jsonVariable) {
-          let finalValue: any = customFieldValue.value ?? '';
+        if (mapping.jsonVariable) {
+          let finalValue: any = '';
 
-          // Check if a mapping exists and apply it
-          if (mapping.valueMapping && typeof mapping.valueMapping === 'object') {
-            const originalValue = customFieldValue.value || '';
-            let lookupKey = originalValue;
+          // If we have a custom field value, use it
+          if (customFieldValue) {
+            finalValue = customFieldValue.value ?? '';
 
-            // For boolean fields, normalize the case for consistent lookup
-            if (mapping.fieldType === 'boolean') {
-              lookupKey = originalValue.toLowerCase();
+            // Check if a mapping exists and apply it
+            if (mapping.valueMapping && typeof mapping.valueMapping === 'object') {
+              const originalValue = customFieldValue.value || '';
+              let lookupKey = originalValue;
+
+              // For boolean fields, normalize the case for consistent lookup
+              if (mapping.fieldType === 'boolean') {
+                lookupKey = originalValue.toLowerCase();
+              }
+              
+              if (Object.prototype.hasOwnProperty.call(mapping.valueMapping, lookupKey)) {
+                finalValue = mapping.valueMapping[lookupKey];
+              }
             }
-            
-            if (Object.prototype.hasOwnProperty.call(mapping.valueMapping, lookupKey)) {
-              finalValue = mapping.valueMapping[lookupKey];
+          } else {
+            // If no custom field value exists, check if there's a default mapping
+            if (mapping.valueMapping && typeof mapping.valueMapping === 'object') {
+              // For boolean fields, default to 'no' if no value exists
+              if (mapping.fieldType === 'boolean') {
+                finalValue = mapping.valueMapping['no'] || '0';
+              } else {
+                // For other fields, use empty string or first available mapping
+                finalValue = '';
+              }
             }
           }
 
@@ -170,6 +186,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           bodyString = bodyString.replace(unquotedPlaceholderRegex, String(value));
         }
       });
+
+      // Check for any remaining unreplaced placeholders
+      const unreplacedPlaceholders = bodyString.match(/\{\{[^}]+\}\}/g);
+      if (unreplacedPlaceholders) {
+        console.log('Unreplaced placeholders found:', unreplacedPlaceholders);
+        console.log('Available placeholders:', Object.keys(placeholders));
+        console.log('Available numeric placeholders:', Object.keys(numericPlaceholders));
+        console.log('Field mappings:', fieldMappings);
+        
+        // Replace any remaining placeholders with empty string or default values
+        unreplacedPlaceholders.forEach(placeholder => {
+          // For numeric contexts, replace with 0
+          if (bodyString.includes(`"opacity": ${placeholder}`) || 
+              bodyString.includes(`"value": ${placeholder}`) ||
+              bodyString.includes(`"number": ${placeholder}`)) {
+            bodyString = bodyString.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '0');
+          } else {
+            // For string contexts, replace with empty string
+            bodyString = bodyString.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '""');
+          }
+        });
+      }
 
       let finalRequestBody;
       try {
