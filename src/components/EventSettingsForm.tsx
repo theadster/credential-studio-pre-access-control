@@ -1412,7 +1412,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                                 <div>
                                   <code className="bg-orange-100 dark:bg-orange-900 px-2 py-1 rounded">{`{{credentialUrls}}`}</code>
                                   <p className="text-xs text-muted-foreground mt-1">
-                                    Use this placeholder to generate a multi-page PDF from a list of credential URLs. The content within the `&lt;body&gt;` of your HTML will be repeated for each URL. The `{{credentialUrl}}` placeholder inside the loop will refer to the individual URL.
+                                    Use this placeholder to generate a multi-page PDF from a list of credential URLs. The content within the &lt;body&gt; of your HTML will be repeated for each URL. The &#123;&#123;credentialUrl&#125;&#125; placeholder inside the loop will refer to the individual URL.
                                   </p>
                                 </div>
                               </div>
