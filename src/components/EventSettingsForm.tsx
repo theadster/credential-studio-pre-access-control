@@ -81,6 +81,10 @@ interface EventSettings {
   switchboardRequestBody?: string;
   switchboardTemplateId?: string;
   switchboardFieldMappings?: FieldMapping[];
+  oneSimpleApiEnabled?: boolean;
+  oneSimpleApiKey?: string;
+  oneSimpleApiUrl?: string;
+  oneSimpleApiHtml?: string;
   bannerImageUrl?: string | null;
   signInBannerUrl?: string | null;
   customFields?: CustomField[];
@@ -1237,6 +1241,211 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                             </div>
                           </div>
                         )}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    OneSimpleAPI Integration
+                  </CardTitle>
+                  <CardDescription>Configure bulk PDF generation using existing credential URLs through OneSimpleAPI</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Enable OneSimpleAPI Toggle */}
+                  <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/50">
+                    <div className="space-y-1">
+                      <Label htmlFor="onesimpleapi-enabled" className="text-base font-medium">
+                        Enable OneSimpleAPI Integration
+                      </Label>
+                      <p className="text-sm text-muted-foreground">
+                        Allow bulk PDF generation from credential URLs using OneSimpleAPI
+                      </p>
+                    </div>
+                    <Switch
+                      id="onesimpleapi-enabled"
+                      checked={formData.oneSimpleApiEnabled || false}
+                      onCheckedChange={(checked) => handleInputChange("oneSimpleApiEnabled", checked)}
+                    />
+                  </div>
+                  
+                  {formData.oneSimpleApiEnabled && (
+                    <div className="space-y-6">
+                      {/* API Configuration Section */}
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <Settings className="h-4 w-4" />
+                          <h4 className="text-sm font-semibold">API Configuration</h4>
+                        </div>
+                        
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="oneSimpleApiUrl" className="text-sm font-medium">
+                              OneSimpleAPI URL *
+                            </Label>
+                            <Input
+                              id="oneSimpleApiUrl"
+                              value={formData.oneSimpleApiUrl || ""}
+                              onChange={(e) => handleInputChange("oneSimpleApiUrl", e.target.value)}
+                              placeholder="https://api.onesimpleapi.com/pdf"
+                              className="h-10"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              The OneSimpleAPI endpoint URL for PDF generation
+                            </p>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor="oneSimpleApiKey" className="text-sm font-medium">
+                              API Key *
+                            </Label>
+                            <Input
+                              id="oneSimpleApiKey"
+                              type="password"
+                              value={formData.oneSimpleApiKey || ""}
+                              onChange={(e) => handleInputChange("oneSimpleApiKey", e.target.value)}
+                              placeholder="your-onesimpleapi-key"
+                              className="h-10"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              Your OneSimpleAPI authentication key
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* HTML Template Section */}
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4" />
+                          <h4 className="text-sm font-semibold">HTML Template</h4>
+                        </div>
+                        
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="oneSimpleApiHtml" className="text-sm font-medium">
+                              HTML Content *
+                            </Label>
+                            <Textarea
+                              id="oneSimpleApiHtml"
+                              value={formData.oneSimpleApiHtml || ""}
+                              onChange={(e) => handleInputChange("oneSimpleApiHtml", e.target.value)}
+                              placeholder={`<!DOCTYPE html>
+<html>
+<head>
+    <title>Credential PDF</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .credential { text-align: center; }
+        .credential img { max-width: 100%; height: auto; }
+    </style>
+</head>
+<body>
+    <div class="credential">
+        <h1>{{eventName}}</h1>
+        <img src="{{credentialUrl}}" alt="Credential" />
+        <p>{{firstName}} {{lastName}}</p>
+        <p>Barcode: {{barcodeNumber}}</p>
+    </div>
+</body>
+</html>`}
+                              className="min-h-[300px] font-mono text-sm"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              HTML template for PDF generation. Use placeholders like {"{{credentialUrl}}"}, {"{{firstName}}"}, {"{{lastName}}"}, etc.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Available Placeholders */}
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <Hash className="h-4 w-4" />
+                          <h4 className="text-sm font-semibold">Available Placeholders</h4>
+                        </div>
+                        
+                        <div className="p-4 border rounded-lg bg-orange-50 dark:bg-orange-950/20">
+                          <p className="text-sm text-orange-800 dark:text-orange-200 mb-3">
+                            <strong>Placeholders</strong> are dynamic values that get replaced with actual attendee data when generating PDFs. 
+                            Use the format <code className="bg-orange-100 dark:bg-orange-900 px-1 rounded">{"{{placeholder_name}}"}</code> in your HTML template.
+                          </p>
+                          
+                          <div className="space-y-3">
+                            <div>
+                              <h5 className="text-sm font-medium text-orange-800 dark:text-orange-200 mb-2">Standard Fields:</h5>
+                              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                                <code className="bg-orange-100 dark:bg-orange-900 px-2 py-1 rounded">{"{{firstName}}"}</code>
+                                <code className="bg-orange-100 dark:bg-orange-900 px-2 py-1 rounded">{"{{lastName}}"}</code>
+                                <code className="bg-orange-100 dark:bg-orange-900 px-2 py-1 rounded">{"{{barcodeNumber}}"}</code>
+                                <code className="bg-orange-100 dark:bg-orange-900 px-2 py-1 rounded">{"{{photoUrl}}"}</code>
+                                <code className="bg-orange-100 dark:bg-orange-900 px-2 py-1 rounded">{"{{credentialUrl}}"}</code>
+                                <code className="bg-orange-100 dark:bg-orange-900 px-2 py-1 rounded">{"{{eventName}}"}</code>
+                                <code className="bg-orange-100 dark:bg-orange-900 px-2 py-1 rounded">{"{{eventDate}}"}</code>
+                                <code className="bg-orange-100 dark:bg-orange-900 px-2 py-1 rounded">{"{{eventTime}}"}</code>
+                                <code className="bg-orange-100 dark:bg-orange-900 px-2 py-1 rounded">{"{{eventLocation}}"}</code>
+                              </div>
+                            </div>
+                            
+                            {customFields.length > 0 && (
+                              <div>
+                                <h5 className="text-sm font-medium text-orange-800 dark:text-orange-200 mb-2">Custom Fields:</h5>
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                                  {customFields
+                                    .sort((a, b) => a.order - b.order)
+                                    .map((field) => (
+                                      <code key={field.id} className="bg-orange-100 dark:bg-orange-900 px-2 py-1 rounded">
+                                        {`{{${field.internalFieldName || generateInternalFieldName(field.fieldName)}}}`}
+                                      </code>
+                                    ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Usage Information */}
+                      <div className="space-y-4">
+                        <div className="p-4 border rounded-lg bg-blue-50 dark:bg-blue-950/20">
+                          <div className="flex items-center gap-2 mb-2">
+                            <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                            <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                              How it works
+                            </span>
+                          </div>
+                          <div className="text-sm text-blue-800 dark:text-blue-200 space-y-2">
+                            <p>
+                              1. <strong>Credential URLs:</strong> This integration uses the existing credential URLs stored in your attendee records (generated via Switchboard Canvas).
+                            </p>
+                            <p>
+                              2. <strong>HTML Template:</strong> Your HTML template will be processed with attendee data and credential images to create a PDF.
+                            </p>
+                            <p>
+                              3. <strong>Bulk Processing:</strong> Generate PDFs for multiple attendees at once using their stored credential URLs.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Connection Status */}
+                      <div className="p-4 border rounded-lg bg-green-50 dark:bg-green-950/20">
+                        <div className="flex items-center gap-2">
+                          <div className="h-2 w-2 bg-green-500 rounded-full"></div>
+                          <span className="text-sm font-medium text-green-700 dark:text-green-400">
+                            Integration Status
+                          </span>
+                        </div>
+                        <p className="text-sm text-green-600 dark:text-green-500 mt-1">
+                          {formData.oneSimpleApiUrl && formData.oneSimpleApiKey && formData.oneSimpleApiHtml
+                            ? "Ready to generate PDFs - all configuration provided"
+                            : "Waiting for API URL, API key, and HTML template configuration"
+                          }
+                        </p>
                       </div>
                     </div>
                   )}

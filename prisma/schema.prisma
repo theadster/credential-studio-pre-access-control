@@ -85,6 +85,10 @@ model EventSettings {
   switchboardRequestBody       String?
   switchboardTemplateId        String?
   switchboardFieldMappings     Json?    // Store field mappings as JSON
+  oneSimpleApiEnabled          Boolean? @default(false)
+  oneSimpleApiKey              String?
+  oneSimpleApiUrl              String?
+  oneSimpleApiHtml             String?
   bannerImageUrl               String?
   signInBannerUrl              String?
   createdAt                    DateTime @default(now())
