@@ -67,6 +67,8 @@ model EventSettings {
   barcodeUnique                Boolean
   forceFirstNameUppercase      Boolean? @default(false)
   forceLastNameUppercase       Boolean? @default(false)
+  attendeeSortField            String?  @default("lastName")
+  attendeeSortDirection        String?  @default("asc")
   cloudinaryEnabled            Boolean? @default(false)
   cloudinaryCloudName          String?
   cloudinaryApiKey             String?

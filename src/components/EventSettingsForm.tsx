@@ -63,6 +63,8 @@ interface EventSettings {
   barcodeUnique: boolean;
   forceFirstNameUppercase?: boolean;
   forceLastNameUppercase?: boolean;
+  attendeeSortField?: string;
+  attendeeSortDirection?: string;
   cloudinaryEnabled?: boolean;
   cloudinaryCloudName?: string;
   cloudinaryApiKey?: string;
@@ -209,6 +211,8 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
     barcodeType: "alphanumerical",
     barcodeLength: 8,
     barcodeUnique: true,
+    attendeeSortField: "lastName",
+    attendeeSortDirection: "asc",
     customFields: []
   });
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
@@ -272,6 +276,8 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
         barcodeType: "alphanumerical",
         barcodeLength: 8,
         barcodeUnique: true,
+        attendeeSortField: "lastName",
+        attendeeSortDirection: "asc",
         customFields: []
       });
       setCustomFields([]);
@@ -535,6 +541,42 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                       checked={formData.forceLastNameUppercase || false}
                       onCheckedChange={(checked) => handleInputChange("forceLastNameUppercase", checked)}
                     />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Attendee List Settings</CardTitle>
+                  <CardDescription>Configure default sorting for the attendee list</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="attendeeSortField">Sort By</Label>
+                      <Select value={formData.attendeeSortField || 'lastName'} onValueChange={(value) => handleInputChange("attendeeSortField", value)}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="lastName">Last Name</SelectItem>
+                          <SelectItem value="firstName">First Name</SelectItem>
+                          <SelectItem value="createdAt">Upload Date</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="attendeeSortDirection">Sort Direction</Label>
+                      <Select value={formData.attendeeSortDirection || 'asc'} onValueChange={(value) => handleInputChange("attendeeSortDirection", value)}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="asc">Ascending</SelectItem>
+                          <SelectItem value="desc">Descending</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

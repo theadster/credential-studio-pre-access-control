@@ -109,6 +109,8 @@ interface EventSettings {
   barcodeType: string;
   barcodeLength: number;
   barcodeUnique: boolean;
+  attendeeSortField?: string;
+  attendeeSortDirection?: string;
   bannerImageUrl: string | null;
   customFields: any[];
   createdAt: string;
@@ -684,6 +686,25 @@ export default function Dashboard() {
       }
     })
     .sort((a, b) => {
+      const field = eventSettings?.attendeeSortField || 'lastName';
+      const direction = eventSettings?.attendeeSortDirection === 'desc' ? -1 : 1;
+
+      let valA = (a as any)[field];
+      let valB = (b as any)[field];
+
+      if (field === 'createdAt') {
+        valA = new Date(valA).getTime();
+        valB = new Date(valB).getTime();
+      }
+
+      if (typeof valA === 'string' && typeof valB === 'string') {
+        return valA.localeCompare(valB) * direction;
+      }
+      
+      if (valA < valB) return -1 * direction;
+      if (valA > valB) return 1 * direction;
+      
+      // Secondary sort by last name, then first name
       const lastNameComparison = a.lastName.localeCompare(b.lastName);
       if (lastNameComparison !== 0) {
         return lastNameComparison;
