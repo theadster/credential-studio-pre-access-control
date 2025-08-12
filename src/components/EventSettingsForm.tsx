@@ -339,6 +339,11 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
     if (editingField?.id) {
       // Update existing field
       setCustomFields(prev => prev.map(f => f.id === editingField.id ? fieldData : f));
+      
+      // If this is a select field and we're editing an existing field, update field mappings
+      if (fieldData.fieldType === 'select' && fieldData.fieldOptions?.options) {
+        updateFieldMappingsForSelectField(fieldData, editingField);
+      }
     } else {
       // Add new field
       const newField = {
@@ -350,6 +355,55 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
     }
     setShowFieldForm(false);
     setEditingField(null);
+  };
+
+  // Helper function to update field mappings when select field options change
+  const updateFieldMappingsForSelectField = (updatedField: CustomField, originalField: CustomField) => {
+    if (updatedField.fieldType !== 'select' || !updatedField.fieldOptions?.options) {
+      return;
+    }
+
+    // Find existing field mapping for this field
+    const existingMappingIndex = fieldMappings.findIndex(mapping => mapping.fieldId === updatedField.id);
+    
+    if (existingMappingIndex === -1) {
+      return; // No existing mapping, nothing to update
+    }
+
+    const existingMapping = fieldMappings[existingMappingIndex];
+    const newOptions = updatedField.fieldOptions.options;
+    const oldOptions = originalField.fieldOptions?.options || [];
+
+    // Create updated value mapping
+    const updatedValueMapping: { [key: string]: string } = {};
+
+    // Keep existing mappings for options that still exist
+    if (existingMapping.valueMapping) {
+      newOptions.forEach((option: string) => {
+        if (existingMapping.valueMapping![option]) {
+          updatedValueMapping[option] = existingMapping.valueMapping![option];
+        } else {
+          // New option - initialize with empty mapping
+          updatedValueMapping[option] = '';
+        }
+      });
+    } else {
+      // No existing value mapping, initialize all options with empty mappings
+      newOptions.forEach((option: string) => {
+        updatedValueMapping[option] = '';
+      });
+    }
+
+    // Update the field mapping
+    const updatedMapping: FieldMapping = {
+      ...existingMapping,
+      fieldName: updatedField.fieldName, // Update field name in case it changed
+      valueMapping: updatedValueMapping
+    };
+
+    setFieldMappings(prev => prev.map((mapping, index) => 
+      index === existingMappingIndex ? updatedMapping : mapping
+    ));
   };
 
   const handleDeleteCustomField = (fieldId: string) => {
