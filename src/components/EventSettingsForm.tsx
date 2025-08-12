@@ -1405,6 +1405,18 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                                 </div>
                               </div>
                             )}
+
+                            <div>
+                              <h5 className="text-sm font-medium text-orange-800 dark:text-orange-200 mb-2">Bulk Generation:</h5>
+                              <div className="grid grid-cols-1 gap-2 text-xs">
+                                <div>
+                                  <code className="bg-orange-100 dark:bg-orange-900 px-2 py-1 rounded">{`{{credentialUrls}}`}</code>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    Use this placeholder to generate a multi-page PDF from a list of credential URLs. The content within the `&lt;body&gt;` of your HTML will be repeated for each URL. The `{{credentialUrl}}` placeholder inside the loop will refer to the individual URL.
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>

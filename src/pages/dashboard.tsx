@@ -40,7 +40,8 @@ import {
   Hash,
   ToggleLeft,
   ChevronDown,
-  FileText
+  FileText,
+  FileUp
 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -196,6 +197,7 @@ export default function Dashboard() {
   const [attendeeToDelete, setAttendeeToDelete] = useState<Attendee | null>(null);
   const [dropdownStates, setDropdownStates] = useState<{[key: string]: boolean}>({});
   const [selectedAttendees, setSelectedAttendees] = useState<string[]>([]);
+  const [exportingPdfs, setExportingPdfs] = useState(false);
 
   const supabase = createClient();
 
@@ -1479,6 +1481,61 @@ export default function Dashboard() {
     }
   };
 
+  const handleBulkExportPdf = async () => {
+    setExportingPdfs(true);
+    try {
+      const attendeesToExport = attendees.filter(
+        (a) => selectedAttendees.includes(a.id) && a.credentialUrl
+      );
+
+      if (attendeesToExport.length === 0) {
+        toast({
+          variant: "destructive",
+          title: "No Credentials to Export",
+          description: "None of the selected attendees have a generated credential.",
+        });
+        return;
+      }
+
+      const attendeeIds = attendeesToExport.map((a) => a.id);
+
+      const response = await fetch('/api/attendees/bulk-export-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ attendeeIds }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to parse error response' }));
+        throw new Error(errorData.error || 'Failed to export PDFs');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `credentials-${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Success",
+        description: `Successfully exported PDF for ${attendeeIds.length} attendees.`,
+      });
+
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
+    } finally {
+      setExportingPdfs(false);
+    }
+  };
+
   const handleBulkEdit = async () => {
     setIsBulkEditing(true);
     try {
@@ -2285,6 +2342,24 @@ export default function Dashboard() {
                                     </AlertDialogFooter>
                                   </AlertDialogContent>
                                 </AlertDialog>
+                              )}
+                              {hasPermission(currentUser?.role, 'attendees', 'export') && (eventSettings as any)?.oneSimpleApiEnabled && (
+                                <DropdownMenuItem
+                                  onClick={handleBulkExportPdf}
+                                  disabled={exportingPdfs}
+                                >
+                                  {exportingPdfs ? (
+                                    <>
+                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                                      Exporting...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <FileUp className="mr-2 h-4 w-4" />
+                                      Bulk Export PDFs
+                                    </>
+                                  )}
+                                </DropdownMenuItem>
                               )}
                             </DropdownMenuContent>
                           </DropdownMenu>
