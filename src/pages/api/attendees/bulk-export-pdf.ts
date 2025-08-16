@@ -32,8 +32,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    console.log('Fetching event settings...');
     const eventSettings = await prisma.eventSettings.findFirst();
+    console.log('Event settings found:', {
+      oneSimpleApiEnabled: eventSettings?.oneSimpleApiEnabled,
+      oneSimpleApiUrl: eventSettings?.oneSimpleApiUrl ? 'SET' : 'NOT SET',
+      oneSimpleApiFormDataKey: eventSettings?.oneSimpleApiFormDataKey ? 'SET' : 'NOT SET',
+      oneSimpleApiFormDataValue: eventSettings?.oneSimpleApiFormDataValue ? 'SET' : 'NOT SET',
+      oneSimpleApiRecordTemplate: eventSettings?.oneSimpleApiRecordTemplate ? 'SET' : 'NOT SET'
+    });
+    
     if (!eventSettings || !eventSettings.oneSimpleApiEnabled || !eventSettings.oneSimpleApiUrl || !eventSettings.oneSimpleApiFormDataKey || !eventSettings.oneSimpleApiFormDataValue) {
+      console.log('ERROR: OneSimpleAPI configuration incomplete');
       return res.status(400).json({ error: 'OneSimpleAPI is not configured' });
     }
 
