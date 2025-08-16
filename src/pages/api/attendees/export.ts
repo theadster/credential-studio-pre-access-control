@@ -132,7 +132,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           const customFieldConditions = [];
           
           for (const [fieldId, filter] of Object.entries(advFilters.customFields)) {
-            if (filter.searchEmpty) {
+            const { value, operator } = filter as any;
+            
+            if (operator === 'isEmpty') {
               // Search for records without this custom field value
               customFieldConditions.push({
                 NOT: {
@@ -144,16 +146,57 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                   }
                 }
               });
-            } else if (filter.value) {
-              // Search for records with this custom field value
+            } else if (operator === 'isNotEmpty') {
+              // Search for records with any value for this custom field
               customFieldConditions.push({
                 customFieldValues: {
                   some: {
                     customFieldId: fieldId,
-                    value: {
-                      contains: filter.value,
-                      mode: 'insensitive'
-                    }
+                    value: { not: null }
+                  }
+                }
+              });
+            } else if (value && operator) {
+              // Apply operator-based search
+              let condition: any = {};
+              
+              switch (operator) {
+                case 'contains':
+                  condition = {
+                    contains: value,
+                    mode: 'insensitive'
+                  };
+                  break;
+                case 'equals':
+                  condition = {
+                    equals: value,
+                    mode: 'insensitive'
+                  };
+                  break;
+                case 'startsWith':
+                  condition = {
+                    startsWith: value,
+                    mode: 'insensitive'
+                  };
+                  break;
+                case 'endsWith':
+                  condition = {
+                    endsWith: value,
+                    mode: 'insensitive'
+                  };
+                  break;
+                default:
+                  condition = {
+                    contains: value,
+                    mode: 'insensitive'
+                  };
+              }
+              
+              customFieldConditions.push({
+                customFieldValues: {
+                  some: {
+                    customFieldId: fieldId,
+                    value: condition
                   }
                 }
               });

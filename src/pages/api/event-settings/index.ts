@@ -242,8 +242,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             // We'll handle this with individual operations to preserve attendee data
             const operations: any[] = [];
             
-            // First, handle deletions (these will cascade delete attendee values)
+            // Get deleted field information for cleanup
+            let deletedFields: any[] = [];
             if (deletedFieldIds.length > 0) {
+              deletedFields = await prisma.customField.findMany({
+                where: { id: { in: deletedFieldIds } },
+                select: { id: true, fieldName: true, internalFieldName: true }
+              });
+              
               operations.push(
                 prisma.customField.deleteMany({
                   where: {
@@ -251,6 +257,53 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                   }
                 })
               );
+            }
+            
+            // Clean up integration templates if fields were deleted
+            if (deletedFields.length > 0) {
+              let needsIntegrationUpdate = false;
+              let updatedSwitchboardBody = updateData.switchboardRequestBody || currentSettings.switchboardRequestBody;
+              let updatedOneSimpleApiValue = updateData.oneSimpleApiFormDataValue || currentSettings.oneSimpleApiFormDataValue;
+              let updatedOneSimpleApiTemplate = updateData.oneSimpleApiRecordTemplate || currentSettings.oneSimpleApiRecordTemplate;
+              let updatedFieldMappings = updateData.switchboardFieldMappings || currentSettings.switchboardFieldMappings || [];
+              
+              for (const deletedField of deletedFields) {
+                const placeholder = `{{${deletedField.internalFieldName}}}`;
+                
+                // Clean up Switchboard Canvas request body
+                if (updatedSwitchboardBody && updatedSwitchboardBody.includes(placeholder)) {
+                  updatedSwitchboardBody = updatedSwitchboardBody.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '""');
+                  needsIntegrationUpdate = true;
+                }
+                
+                // Clean up OneSimpleAPI templates
+                if (updatedOneSimpleApiValue && updatedOneSimpleApiValue.includes(placeholder)) {
+                  updatedOneSimpleApiValue = updatedOneSimpleApiValue.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '');
+                  needsIntegrationUpdate = true;
+                }
+                
+                if (updatedOneSimpleApiTemplate && updatedOneSimpleApiTemplate.includes(placeholder)) {
+                  updatedOneSimpleApiTemplate = updatedOneSimpleApiTemplate.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '');
+                  needsIntegrationUpdate = true;
+                }
+                
+                // Clean up field mappings
+                if (Array.isArray(updatedFieldMappings)) {
+                  const originalLength = updatedFieldMappings.length;
+                  updatedFieldMappings = updatedFieldMappings.filter((mapping: any) => mapping.fieldId !== deletedField.id);
+                  if (updatedFieldMappings.length !== originalLength) {
+                    needsIntegrationUpdate = true;
+                  }
+                }
+              }
+              
+              // Update integration settings if cleanup was needed
+              if (needsIntegrationUpdate) {
+                updateData.switchboardRequestBody = updatedSwitchboardBody;
+                updateData.oneSimpleApiFormDataValue = updatedOneSimpleApiValue;
+                updateData.oneSimpleApiRecordTemplate = updatedOneSimpleApiTemplate;
+                updateData.switchboardFieldMappings = updatedFieldMappings;
+              }
             }
             
             // Handle modifications - update existing fields without deleting them

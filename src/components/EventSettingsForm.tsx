@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, Edit, Save, X, GripVertical, Type, Hash, Mail, Calendar, Link, List, CheckSquare, ToggleLeft, FileText, Settings } from "lucide-react";
 import { generateInternalFieldName } from "@/util/string";
 import { useToast } from "@/components/ui/use-toast";
+import { validateCustomFieldDeletion } from "@/lib/customFieldValidation";
 import {
   DndContext,
   closestCenter,
@@ -412,7 +413,44 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
   };
 
   const handleDeleteCustomField = (fieldId: string) => {
-    setCustomFields(prev => prev.filter(f => f.id !== fieldId));
+    const fieldToDelete = customFields.find(f => f.id === fieldId);
+    if (!fieldToDelete) return;
+
+    // Validate deletion and check for dependencies
+    const validation = validateCustomFieldDeletion(
+      fieldId,
+      fieldToDelete.fieldName,
+      fieldToDelete.internalFieldName || generateInternalFieldName(fieldToDelete.fieldName),
+      formData
+    );
+
+    if (validation.warnings.length > 0) {
+      // Show confirmation dialog with warnings
+      const confirmMessage = [
+        `Are you sure you want to delete the field "${fieldToDelete.fieldName}"?`,
+        '',
+        ...validation.warnings,
+        '',
+        'This action cannot be undone.'
+      ].join('\n');
+
+      if (window.confirm(confirmMessage)) {
+        setCustomFields(prev => prev.filter(f => f.id !== fieldId));
+        toast({
+          title: "Field Deleted",
+          description: `Custom field "${fieldToDelete.fieldName}" has been deleted. Integration references have been cleaned up.`,
+        });
+      }
+    } else {
+      // Simple deletion without warnings
+      if (window.confirm(`Are you sure you want to delete the field "${fieldToDelete.fieldName}"? This action cannot be undone.`)) {
+        setCustomFields(prev => prev.filter(f => f.id !== fieldId));
+        toast({
+          title: "Field Deleted",
+          description: `Custom field "${fieldToDelete.fieldName}" has been deleted.`,
+        });
+      }
+    }
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
