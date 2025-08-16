@@ -3,20 +3,31 @@ import { createClient } from '@/util/supabase/api';
 import prisma from '@/lib/prisma';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  console.log('=== BULK EXPORT PDF API CALLED ===');
+  console.log('Method:', req.method);
+  console.log('Request body:', req.body);
+  
   if (req.method !== 'POST') {
+    console.log('ERROR: Method not allowed');
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
+  console.log('Creating Supabase client...');
   const supabase = createClient(req, res);
   const { data: { user }, error: userError } = await supabase.auth.getUser();
 
   if (userError || !user) {
+    console.log('ERROR: Authentication failed', { userError, user: user?.id });
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
+  console.log('User authenticated:', user.id);
+
   const { attendeeIds } = req.body;
+  console.log('Received attendeeIds:', attendeeIds);
 
   if (!Array.isArray(attendeeIds) || attendeeIds.length === 0) {
+    console.log('ERROR: Invalid attendeeIds');
     return res.status(400).json({ error: 'Attendee IDs are required' });
   }
 
