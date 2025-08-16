@@ -65,16 +65,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(404).json({ error: 'No attendees with credentials found for the given IDs' });
     }
 
-    // Generate individual record HTML for each attendee
-    const recordTemplate = eventSettings.oneSimpleApiRecordTemplate || eventSettings.oneSimpleApiFormDataValue!;
-    
     console.log('=== ONESIMPLEAPI DEBUG: Starting HTML generation ===');
-    console.log('Record template:', recordTemplate);
-    console.log('Main template:', eventSettings.oneSimpleApiFormDataValue);
+    console.log('Main template (oneSimpleApiFormDataValue):', eventSettings.oneSimpleApiFormDataValue);
+    console.log('Record template (oneSimpleApiRecordTemplate):', eventSettings.oneSimpleApiRecordTemplate);
     console.log('Number of attendees to process:', attendees.length);
     console.log('Form data key:', eventSettings.oneSimpleApiFormDataKey);
     console.log('API URL:', eventSettings.oneSimpleApiUrl);
-    
+
+    // Check if we have both templates configured
+    if (!eventSettings.oneSimpleApiRecordTemplate) {
+      console.log('ERROR: No record template configured');
+      return res.status(400).json({ error: 'OneSimpleAPI record template is not configured' });
+    }
+
+    // Generate individual record HTML for each attendee using the record template
     const recordsHtml = attendees.map((attendee, index) => {
       console.log(`\n--- Processing attendee ${index + 1}/${attendees.length} ---`);
       console.log('Attendee data:', {
@@ -91,43 +95,49 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }))
       });
       
-      let html = recordTemplate;
+      let html = eventSettings.oneSimpleApiRecordTemplate!;
       
       const placeholders: { [key: string]: string } = {
-        '{{firstName}}': attendee.firstName,
-        '{{lastName}}': attendee.lastName,
-        '{{barcodeNumber}}': attendee.barcodeNumber,
+        '{{firstName}}': attendee.firstName || '',
+        '{{lastName}}': attendee.lastName || '',
+        '{{barcodeNumber}}': attendee.barcodeNumber || '',
         '{{photoUrl}}': attendee.photoUrl || '',
         '{{credentialUrl}}': attendee.credentialUrl || '',
-        '{{eventName}}': eventSettings.eventName,
-        '{{eventDate}}': new Date(eventSettings.eventDate).toLocaleDateString(),
+        '{{eventName}}': eventSettings.eventName || '',
+        '{{eventDate}}': eventSettings.eventDate ? new Date(eventSettings.eventDate).toLocaleDateString() : '',
         '{{eventTime}}': eventSettings.eventTime || '',
-        '{{eventLocation}}': eventSettings.eventLocation,
+        '{{eventLocation}}': eventSettings.eventLocation || '',
       };
 
-      attendee.customFieldValues.forEach(cfv => {
-        placeholders[`{{${cfv.customField.internalFieldName}}}`] = cfv.value;
-      });
+      // Add custom field placeholders
+      if (attendee.customFieldValues) {
+        attendee.customFieldValues.forEach(cfv => {
+          if (cfv.customField?.internalFieldName) {
+            placeholders[`{{${cfv.customField.internalFieldName}}}`] = cfv.value || '';
+          }
+        });
+      }
 
       console.log('Available placeholders for this attendee:', placeholders);
 
-      for (const key in placeholders) {
+      // Replace all placeholders in the record template
+      for (const [placeholder, value] of Object.entries(placeholders)) {
         const beforeReplace = html;
-        html = html.replace(new RegExp(key, 'g'), placeholders[key]);
+        html = html.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), value);
         if (beforeReplace !== html) {
-          console.log(`Replaced ${key} with "${placeholders[key]}"`);
+          console.log(`Replaced ${placeholder} with "${value}"`);
         }
       }
       
-      console.log('Final record HTML:', html);
+      console.log('Final record HTML for attendee:', html);
       return html;
-    }).join('\n\n');
+    }).join('\n');
 
     console.log('\n=== COMBINED RECORDS HTML ===');
     console.log('Records HTML length:', recordsHtml.length);
-    console.log('Records HTML preview (first 1000 chars):', recordsHtml.substring(0, 1000));
-    if (recordsHtml.length > 1000) {
-      console.log('Records HTML preview (last 1000 chars):', recordsHtml.substring(Math.max(0, recordsHtml.length - 1000)));
+    console.log('Records HTML preview (first 500 chars):', recordsHtml.substring(0, 500));
+    if (recordsHtml.length > 500) {
+      console.log('Records HTML preview (last 500 chars):', recordsHtml.substring(Math.max(0, recordsHtml.length - 500)));
     }
 
     // Generate final HTML by replacing {{credentialRecords}} in main template
@@ -135,21 +145,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     // Replace event-level placeholders in main template
     const eventPlaceholders: { [key: string]: string } = {
-      '{{eventName}}': eventSettings.eventName,
-      '{{eventDate}}': new Date(eventSettings.eventDate).toLocaleDateString(),
+      '{{eventName}}': eventSettings.eventName || '',
+      '{{eventDate}}': eventSettings.eventDate ? new Date(eventSettings.eventDate).toLocaleDateString() : '',
       '{{eventTime}}': eventSettings.eventTime || '',
-      '{{eventLocation}}': eventSettings.eventLocation,
+      '{{eventLocation}}': eventSettings.eventLocation || '',
       '{{credentialRecords}}': recordsHtml,
     };
 
     console.log('\n=== EVENT-LEVEL PLACEHOLDERS ===');
     console.log('Event placeholders:', eventPlaceholders);
 
-    for (const key in eventPlaceholders) {
+    // Replace placeholders in main template
+    for (const [placeholder, value] of Object.entries(eventPlaceholders)) {
       const beforeReplace = finalHtml;
-      finalHtml = finalHtml.replace(new RegExp(key, 'g'), eventPlaceholders[key]);
+      finalHtml = finalHtml.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), value);
       if (beforeReplace !== finalHtml) {
-        console.log(`Replaced ${key} in main template`);
+        console.log(`Replaced ${placeholder} in main template`);
       }
     }
 
@@ -160,6 +171,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log(finalHtml);
     console.log('--- END OF FINAL HTML ---');
 
+    // Validate that we have actual HTML content
+    if (!finalHtml || finalHtml.trim().length === 0) {
+      console.log('ERROR: Final HTML is empty');
+      return res.status(400).json({ error: 'Generated HTML is empty' });
+    }
+
     // Create form data for the request
     const formData = new FormData();
     formData.append(eventSettings.oneSimpleApiFormDataKey!, finalHtml);
@@ -168,11 +185,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log('POST URL:', eventSettings.oneSimpleApiUrl);
     console.log('Form data key:', eventSettings.oneSimpleApiFormDataKey);
     console.log('Form data value length:', finalHtml.length);
+    console.log('Form data value preview (first 200 chars):', finalHtml.substring(0, 200));
+    
+    // Log all form data entries
     console.log('Form data entries:');
     for (const [key, value] of formData.entries()) {
-      console.log(`  ${key}: ${typeof value === 'string' ? value.substring(0, 200) + '...' : '[File/Blob]'}`);
+      if (typeof value === 'string') {
+        console.log(`  ${key}: ${value.length} characters - "${value.substring(0, 100)}${value.length > 100 ? '...' : ''}"`);
+      } else {
+        console.log(`  ${key}: [File/Blob]`);
+      }
     }
 
+    console.log('\n=== MAKING API REQUEST ===');
     const response = await fetch(eventSettings.oneSimpleApiUrl, {
       method: 'POST',
       body: formData,

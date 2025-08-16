@@ -56,6 +56,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json(debugInfo);
     }
 
+    if (!eventSettings.oneSimpleApiRecordTemplate) {
+      debugInfo.error = 'OneSimpleAPI record template is not configured';
+      return res.status(400).json(debugInfo);
+    }
+
     debugInfo.step = 'fetching_attendees';
     const attendees = await prisma.attendee.findMany({
       where: {
@@ -88,42 +93,64 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     debugInfo.step = 'generating_html';
-    const recordTemplate = eventSettings.oneSimpleApiRecordTemplate || eventSettings.oneSimpleApiFormDataValue!;
     
     debugInfo.templates = {
-      recordTemplate: recordTemplate,
+      recordTemplate: eventSettings.oneSimpleApiRecordTemplate,
       mainTemplate: eventSettings.oneSimpleApiFormDataValue,
       formDataKey: eventSettings.oneSimpleApiFormDataKey,
       apiUrl: eventSettings.oneSimpleApiUrl
     };
 
-    // Generate HTML for first attendee as example
+    // Generate HTML for first attendee as example using the record template
     const firstAttendee = attendees[0];
-    let sampleHtml = recordTemplate;
+    let sampleRecordHtml = eventSettings.oneSimpleApiRecordTemplate!;
     
     const placeholders: { [key: string]: string } = {
-      '{{firstName}}': firstAttendee.firstName,
-      '{{lastName}}': firstAttendee.lastName,
-      '{{barcodeNumber}}': firstAttendee.barcodeNumber,
+      '{{firstName}}': firstAttendee.firstName || '',
+      '{{lastName}}': firstAttendee.lastName || '',
+      '{{barcodeNumber}}': firstAttendee.barcodeNumber || '',
       '{{photoUrl}}': firstAttendee.photoUrl || '',
       '{{credentialUrl}}': firstAttendee.credentialUrl || '',
-      '{{eventName}}': eventSettings.eventName,
-      '{{eventDate}}': new Date(eventSettings.eventDate).toLocaleDateString(),
+      '{{eventName}}': eventSettings.eventName || '',
+      '{{eventDate}}': eventSettings.eventDate ? new Date(eventSettings.eventDate).toLocaleDateString() : '',
       '{{eventTime}}': eventSettings.eventTime || '',
-      '{{eventLocation}}': eventSettings.eventLocation,
+      '{{eventLocation}}': eventSettings.eventLocation || '',
     };
 
-    firstAttendee.customFieldValues.forEach(cfv => {
-      placeholders[`{{${cfv.customField.internalFieldName}}}`] = cfv.value;
-    });
+    // Add custom field placeholders
+    if (firstAttendee.customFieldValues) {
+      firstAttendee.customFieldValues.forEach(cfv => {
+        if (cfv.customField?.internalFieldName) {
+          placeholders[`{{${cfv.customField.internalFieldName}}}`] = cfv.value || '';
+        }
+      });
+    }
 
     debugInfo.samplePlaceholders = placeholders;
 
-    for (const key in placeholders) {
-      sampleHtml = sampleHtml.replace(new RegExp(key, 'g'), placeholders[key]);
+    // Replace placeholders in record template
+    for (const [placeholder, value] of Object.entries(placeholders)) {
+      sampleRecordHtml = sampleRecordHtml.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), value);
     }
 
-    debugInfo.sampleGeneratedHtml = sampleHtml;
+    debugInfo.sampleGeneratedRecordHtml = sampleRecordHtml;
+
+    // Now generate the final HTML by combining with main template
+    let sampleFinalHtml = eventSettings.oneSimpleApiFormDataValue!;
+    const eventPlaceholders: { [key: string]: string } = {
+      '{{eventName}}': eventSettings.eventName || '',
+      '{{eventDate}}': eventSettings.eventDate ? new Date(eventSettings.eventDate).toLocaleDateString() : '',
+      '{{eventTime}}': eventSettings.eventTime || '',
+      '{{eventLocation}}': eventSettings.eventLocation || '',
+      '{{credentialRecords}}': sampleRecordHtml,
+    };
+
+    // Replace placeholders in main template
+    for (const [placeholder, value] of Object.entries(eventPlaceholders)) {
+      sampleFinalHtml = sampleFinalHtml.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), value);
+    }
+
+    debugInfo.sampleGeneratedHtml = sampleFinalHtml;
     debugInfo.step = 'complete';
 
     return res.status(200).json(debugInfo);
