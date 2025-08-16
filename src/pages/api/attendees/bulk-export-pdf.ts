@@ -229,28 +229,46 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(response.status).json({ error: `Failed to generate PDF: ${errorText}` });
     }
 
-    // Always expect JSON response with URL from OneSimpleAPI
-    const contentType = response.headers.get('content-type');
-    
-    if (!contentType || !contentType.includes('application/json')) {
-      return res.status(500).json({ 
-        error: 'OneSimpleAPI did not return JSON response. Expected JSON with URL field.' 
-      });
-    }
+    // Get response text first to handle both JSON and plain text responses
+    const responseText = await response.text();
+    console.log('OneSimpleAPI raw response:', responseText);
 
-    const jsonResponse = await response.json();
-    
-    if (!jsonResponse.url) {
-      return res.status(500).json({ 
-        error: 'No PDF URL returned from OneSimpleAPI',
-        response: jsonResponse 
-      });
+    let pdfUrl: string;
+
+    // Try to parse as JSON first
+    try {
+      const jsonResponse = JSON.parse(responseText);
+      if (jsonResponse.url) {
+        pdfUrl = jsonResponse.url;
+        console.log('OneSimpleAPI response URL (from JSON):', pdfUrl);
+      } else {
+        console.error('OneSimpleAPI JSON response missing URL field:', jsonResponse);
+        return res.status(500).json({ 
+          error: 'OneSimpleAPI JSON response missing URL field',
+          response: jsonResponse 
+        });
+      }
+    } catch (jsonError) {
+      // If JSON parsing fails, treat the response as a plain URL string
+      console.log('Response is not JSON, treating as plain URL string');
+      pdfUrl = responseText.trim();
+      
+      // Basic URL validation
+      if (!pdfUrl || (!pdfUrl.startsWith('http://') && !pdfUrl.startsWith('https://'))) {
+        console.error('OneSimpleAPI response is not a valid URL:', pdfUrl);
+        return res.status(500).json({ 
+          error: 'OneSimpleAPI response is not a valid URL',
+          response: responseText
+        });
+      }
+      
+      console.log('OneSimpleAPI response URL (plain text):', pdfUrl);
     }
 
     // Return the URL to the frontend instead of downloading the PDF
     res.status(200).json({ 
       success: true, 
-      url: jsonResponse.url,
+      url: pdfUrl,
       message: 'PDF generated successfully'
     });
 
