@@ -1492,6 +1492,28 @@ export default function Dashboard() {
       return;
     }
 
+    // Validate that all selected attendees have generated credentials
+    const selectedAttendeesData = attendees.filter(attendee => 
+      selectedAttendees.includes(attendee.id)
+    );
+    
+    const attendeesWithoutCredentials = selectedAttendeesData.filter(attendee => 
+      !attendee.credentialUrl || attendee.credentialUrl.trim() === ''
+    );
+
+    if (attendeesWithoutCredentials.length > 0) {
+      const attendeeNames = attendeesWithoutCredentials.map(attendee => 
+        `${attendee.firstName} ${attendee.lastName}`
+      ).join(', ');
+      
+      toast({
+        title: "Missing Credentials",
+        description: `Cannot export PDFs for attendees without generated credentials: ${attendeeNames}. Please generate credentials first using the "Generate Credential" action.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Filter selected attendees to only include those with credentialUrl
     const attendeesWithCredentials = filteredAttendees.filter(
       attendee => selectedAttendees.includes(attendee.id) && attendee.credentialUrl
