@@ -198,6 +198,7 @@ export default function Dashboard() {
   const [dropdownStates, setDropdownStates] = useState<{[key: string]: boolean}>({});
   const [selectedAttendees, setSelectedAttendees] = useState<string[]>([]);
   const [exportingPdfs, setExportingPdfs] = useState(false);
+  const [showPdfGenerationModal, setShowPdfGenerationModal] = useState(false);
 
   const supabase = createClient();
 
@@ -1506,6 +1507,7 @@ export default function Dashboard() {
     }
 
     setExportingPdfs(true);
+    setShowPdfGenerationModal(true);
 
     try {
       const response = await fetch('/api/attendees/bulk-export-pdf', {
@@ -1546,6 +1548,7 @@ export default function Dashboard() {
       });
     } finally {
       setExportingPdfs(false);
+      setShowPdfGenerationModal(false);
     }
   };
 
@@ -4000,6 +4003,32 @@ export default function Dashboard() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* PDF Generation Loading Modal */}
+      <Dialog open={showPdfGenerationModal} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md [&>button]:hidden">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+              <span>Generating PDFs</span>
+            </DialogTitle>
+            <DialogDescription>
+              Please wait while we generate your PDF. This may take a few minutes depending on the number of attendees selected.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center space-y-4 py-6">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            <div className="text-center">
+              <p className="text-sm text-muted-foreground">
+                Processing {selectedAttendees.length} attendee{selectedAttendees.length !== 1 ? 's' : ''}...
+              </p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Please do not navigate away from this page.
+              </p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
