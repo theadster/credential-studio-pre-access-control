@@ -1505,6 +1505,8 @@ export default function Dashboard() {
       return;
     }
 
+    setExportingPdfs(true);
+
     try {
       const response = await fetch('/api/attendees/bulk-export-pdf', {
         method: 'POST',
@@ -1521,22 +1523,19 @@ export default function Dashboard() {
         throw new Error(errorData.error || 'Failed to generate PDF');
       }
 
-      // Create a blob from the response and trigger download
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.style.display = 'none';
-      a.href = url;
-      a.download = 'credentials.pdf';
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
-      toast({
-        title: "Success",
-        description: `PDF generated successfully for ${attendeesWithCredentials.length} attendees.`,
-      });
+      const result = await response.json();
+      
+      if (result.success && result.url) {
+        // Open the PDF URL in a new tab
+        window.open(result.url, '_blank');
+        
+        toast({
+          title: "Success",
+          description: `PDF generated successfully for ${attendeesWithCredentials.length} attendees.`,
+        });
+      } else {
+        throw new Error('Invalid response from PDF generation service');
+      }
 
     } catch (error: any) {
       console.error('Error generating bulk PDF:', error);
@@ -1545,6 +1544,8 @@ export default function Dashboard() {
         description: error.message || "Failed to generate PDF",
         variant: "destructive",
       });
+    } finally {
+      setExportingPdfs(false);
     }
   };
 

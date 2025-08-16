@@ -229,37 +229,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(response.status).json({ error: `Failed to generate PDF: ${errorText}` });
     }
 
-    // Check if the response is JSON (containing a URL) or binary (PDF content)
+    // Always expect JSON response with URL from OneSimpleAPI
     const contentType = response.headers.get('content-type');
     
-    if (contentType && contentType.includes('application/json')) {
-      // OneSimpleAPI returned a JSON response with a URL
-      const jsonResponse = await response.json();
-      
-      if (jsonResponse.url) {
-        // Fetch the actual PDF from the URL
-        const pdfResponse = await fetch(jsonResponse.url);
-        
-        if (!pdfResponse.ok) {
-          return res.status(500).json({ error: 'Failed to download PDF from provided URL' });
-        }
-        
-        const pdfBuffer = await pdfResponse.arrayBuffer();
-        
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', 'attachment; filename="credentials.pdf"');
-        res.send(Buffer.from(pdfBuffer));
-      } else {
-        return res.status(500).json({ error: 'No PDF URL returned from OneSimpleAPI' });
-      }
-    } else {
-      // OneSimpleAPI returned the PDF content directly
-      const pdfBuffer = await response.arrayBuffer();
-      
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', 'attachment; filename="credentials.pdf"');
-      res.send(Buffer.from(pdfBuffer));
+    if (!contentType || !contentType.includes('application/json')) {
+      return res.status(500).json({ 
+        error: 'OneSimpleAPI did not return JSON response. Expected JSON with URL field.' 
+      });
     }
+
+    const jsonResponse = await response.json();
+    
+    if (!jsonResponse.url) {
+      return res.status(500).json({ 
+        error: 'No PDF URL returned from OneSimpleAPI',
+        response: jsonResponse 
+      });
+    }
+
+    // Return the URL to the frontend instead of downloading the PDF
+    res.status(200).json({ 
+      success: true, 
+      url: jsonResponse.url,
+      message: 'PDF generated successfully'
+    });
 
   } catch (error: any) {
     console.error('Error generating bulk PDF:', error);
