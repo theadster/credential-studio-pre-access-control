@@ -89,6 +89,7 @@ model EventSettings {
   oneSimpleApiUrl              String?
   oneSimpleApiFormDataKey      String?
   oneSimpleApiFormDataValue    String?
+  oneSimpleApiRecordTemplate   String?
   bannerImageUrl               String?
   signInBannerUrl              String?
   createdAt                    DateTime @default(now())

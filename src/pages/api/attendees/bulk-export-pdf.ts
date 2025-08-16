@@ -44,8 +44,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(404).json({ error: 'No attendees with credentials found for the given IDs' });
     }
 
-    const htmlPages = attendees.map(attendee => {
-      let html = eventSettings.oneSimpleApiFormDataValue!;
+    // Generate individual record HTML for each attendee
+    const recordTemplate = eventSettings.oneSimpleApiRecordTemplate || eventSettings.oneSimpleApiFormDataValue!;
+    const recordsHtml = attendees.map(attendee => {
+      let html = recordTemplate;
       
       const placeholders: { [key: string]: string } = {
         '{{firstName}}': attendee.firstName,
@@ -68,11 +70,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
       
       return html;
-    });
+    }).join('\n\n');
+
+    // Generate final HTML by replacing {{credentialRecords}} in main template
+    let finalHtml = eventSettings.oneSimpleApiFormDataValue!;
+    
+    // Replace event-level placeholders in main template
+    const eventPlaceholders: { [key: string]: string } = {
+      '{{eventName}}': eventSettings.eventName,
+      '{{eventDate}}': new Date(eventSettings.eventDate).toLocaleDateString(),
+      '{{eventTime}}': eventSettings.eventTime || '',
+      '{{eventLocation}}': eventSettings.eventLocation,
+      '{{credentialRecords}}': recordsHtml,
+    };
+
+    for (const key in eventPlaceholders) {
+      finalHtml = finalHtml.replace(new RegExp(key, 'g'), eventPlaceholders[key]);
+    }
 
     // Create form data for the request
     const formData = new FormData();
-    formData.append(eventSettings.oneSimpleApiFormDataKey!, htmlPages.join('\n\n'));
+    formData.append(eventSettings.oneSimpleApiFormDataKey!, finalHtml);
 
     const response = await fetch(eventSettings.oneSimpleApiUrl, {
       method: 'POST',

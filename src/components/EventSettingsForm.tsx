@@ -85,6 +85,7 @@ interface EventSettings {
   oneSimpleApiUrl?: string;
   oneSimpleApiFormDataKey?: string;
   oneSimpleApiFormDataValue?: string;
+  oneSimpleApiRecordTemplate?: string;
   bannerImageUrl?: string | null;
   signInBannerUrl?: string | null;
   customFields?: CustomField[];
@@ -1327,7 +1328,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                           
                           <div className="space-y-2">
                             <Label htmlFor="oneSimpleApiFormDataValue" className="text-sm font-medium">
-                              HTML Template *
+                              Main HTML Template *
                             </Label>
                             <Textarea
                               id="oneSimpleApiFormDataValue"
@@ -1336,26 +1337,44 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                               placeholder={`<!DOCTYPE html>
 <html>
 <head>
-    <title>Credential PDF</title>
+    <title>{{eventName}} - Credentials</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
-        .credential { text-align: center; }
+        .credential { text-align: center; page-break-after: always; }
+        .credential:last-child { page-break-after: avoid; }
         .credential img { max-width: 100%; height: auto; }
     </style>
 </head>
 <body>
-    <div class="credential">
-        <h1>{{eventName}}</h1>
-        <img src="{{credentialUrl}}" alt="Credential" />
-        <p>{{firstName}} {{lastName}}</p>
-        <p>Barcode: {{barcodeNumber}}</p>
-    </div>
+    {{credentialRecords}}
 </body>
 </html>`}
-                              className="min-h-[300px] font-mono text-sm"
+                              className="min-h-[200px] font-mono text-sm"
                             />
                             <p className="text-xs text-muted-foreground">
-                              {`HTML template for PDF generation. Use placeholders like {{credentialUrl}}, {{firstName}}, {{lastName}}, etc.`}
+                              {`Main HTML structure. Use {{credentialRecords}} placeholder where individual records should be inserted.`}
+                            </p>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor="oneSimpleApiRecordTemplate" className="text-sm font-medium">
+                              Record Template *
+                            </Label>
+                            <Textarea
+                              id="oneSimpleApiRecordTemplate"
+                              value={formData.oneSimpleApiRecordTemplate || ""}
+                              onChange={(e) => handleInputChange("oneSimpleApiRecordTemplate", e.target.value)}
+                              placeholder={`    <div class="credential">
+        <h1>{{eventName}}</h1>
+        <img src="{{credentialUrl}}" alt="Credential for {{firstName}} {{lastName}}" />
+        <h2>{{firstName}} {{lastName}}</h2>
+        <p>Barcode: {{barcodeNumber}}</p>
+        <p>{{eventDate}} at {{eventLocation}}</p>
+    </div>`}
+                              className="min-h-[200px] font-mono text-sm"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              {`HTML template that will be repeated for each selected attendee record. Use placeholders like {{credentialUrl}}, {{firstName}}, {{lastName}}, etc.`}
                             </p>
                           </div>
                         </div>
@@ -1440,9 +1459,9 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                           </span>
                         </div>
                         <p className="text-sm text-green-600 dark:text-green-500 mt-1">
-                          {formData.oneSimpleApiUrl && formData.oneSimpleApiFormDataKey && formData.oneSimpleApiFormDataValue
+                          {formData.oneSimpleApiUrl && formData.oneSimpleApiFormDataKey && formData.oneSimpleApiFormDataValue && formData.oneSimpleApiRecordTemplate
                             ? "Ready to generate PDFs - all configuration provided"
-                            : "Waiting for API URL, form data key, and HTML template configuration"
+                            : "Waiting for API URL, form data key, main template, and record template configuration"
                           }
                         </p>
                       </div>
