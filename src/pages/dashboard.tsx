@@ -4058,10 +4058,7 @@ export default function Dashboard() {
       <Dialog open={showPdfGenerationModal} onOpenChange={() => {}}>
         <DialogContent className="sm:max-w-md [&>button]:hidden">
           <DialogHeader>
-            <DialogTitle className="flex items-center space-x-2">
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
-              <span>Generating PDFs</span>
-            </DialogTitle>
+            <DialogTitle>Generating PDFs</DialogTitle>
             <DialogDescription>
               Please wait while we generate your PDF. This may take a few minutes depending on the number of attendees selected.
             </DialogDescription>
@@ -4084,10 +4081,7 @@ export default function Dashboard() {
       <Dialog open={showCredentialGenerationModal} onOpenChange={() => {}}>
         <DialogContent className="sm:max-w-md [&>button]:hidden">
           <DialogHeader>
-            <DialogTitle className="flex items-center space-x-2">
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
-              <span>Generating Credential</span>
-            </DialogTitle>
+            <DialogTitle>Generating Credential</DialogTitle>
             <DialogDescription>
               Please wait while we generate the credential. This may take a moment depending on the complexity of your template.
             </DialogDescription>
