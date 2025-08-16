@@ -3491,6 +3491,23 @@ export default function Dashboard() {
                                 {(eventSettings as any).switchboardEnabled ? 'Enabled' : 'Disabled'}
                               </Badge>
                             </div>
+
+                            {/* OneSimpleAPI Status */}
+                            <div className="flex items-center justify-between p-3 border rounded-lg">
+                              <div className="flex items-center gap-3">
+                                <div className={`h-2 w-2 rounded-full ${(eventSettings as any).oneSimpleApiEnabled ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                                <div>
+                                  <div className="font-medium">OneSimpleAPI Integration</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {(eventSettings as any).oneSimpleApiEnabled ? 'Active' : 'Disabled'}
+                                    {(eventSettings as any).oneSimpleApiEnabled && (eventSettings as any).oneSimpleApiUrl ? ' - Fully Configured' : (eventSettings as any).oneSimpleApiEnabled ? ' - Incomplete Configuration' : ''}
+                                  </div>
+                                </div>
+                              </div>
+                              <Badge variant={(eventSettings as any).oneSimpleApiEnabled ? "default" : "secondary"}>
+                                {(eventSettings as any).oneSimpleApiEnabled ? 'Enabled' : 'Disabled'}
+                              </Badge>
+                            </div>
                           </div>
                         </div>
 
