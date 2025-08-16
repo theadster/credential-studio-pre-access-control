@@ -199,6 +199,8 @@ export default function Dashboard() {
   const [selectedAttendees, setSelectedAttendees] = useState<string[]>([]);
   const [exportingPdfs, setExportingPdfs] = useState(false);
   const [showPdfGenerationModal, setShowPdfGenerationModal] = useState(false);
+  const [showCredentialGenerationModal, setShowCredentialGenerationModal] = useState(false);
+  const [credentialGenerationAttendeeName, setCredentialGenerationAttendeeName] = useState('');
 
   const supabase = createClient();
 
@@ -948,7 +950,14 @@ export default function Dashboard() {
   };
 
   const handleGenerateCredential = async (attendeeId: string) => {
+    // Find the attendee name for the loading modal
+    const attendee = attendees.find(a => a.id === attendeeId);
+    const attendeeName = attendee ? `${attendee.firstName} ${attendee.lastName}` : 'attendee';
+    
+    setCredentialGenerationAttendeeName(attendeeName);
     setGeneratingCredential(attendeeId);
+    setShowCredentialGenerationModal(true);
+
     try {
       const response = await fetch(`/api/attendees/${attendeeId}/generate-credential`, {
         method: 'POST',
@@ -985,6 +994,8 @@ export default function Dashboard() {
       });
     } finally {
       setGeneratingCredential(null);
+      setShowCredentialGenerationModal(false);
+      setCredentialGenerationAttendeeName('');
     }
   };
 
@@ -4060,6 +4071,32 @@ export default function Dashboard() {
             <div className="text-center">
               <p className="text-sm text-muted-foreground">
                 Processing {selectedAttendees.length} attendee{selectedAttendees.length !== 1 ? 's' : ''}...
+              </p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Please do not navigate away from this page.
+              </p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Credential Generation Loading Modal */}
+      <Dialog open={showCredentialGenerationModal} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md [&>button]:hidden">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+              <span>Generating Credential</span>
+            </DialogTitle>
+            <DialogDescription>
+              Please wait while we generate the credential. This may take a moment depending on the complexity of your template.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center space-y-4 py-6">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            <div className="text-center">
+              <p className="text-sm text-muted-foreground">
+                Processing credential for {credentialGenerationAttendeeName}...
               </p>
               <p className="text-xs text-muted-foreground mt-2">
                 Please do not navigate away from this page.
