@@ -57,39 +57,125 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Ensure credentialUrl is absolute
       let credentialUrl = attendee.credentialUrl || '';
       if (credentialUrl && !credentialUrl.startsWith('http')) {
-        credentialUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}${credentialUrl.startsWith('/') ? '' : '/'}${credentialUrl}`;
+        // Remove leading slash if present to avoid double slashes
+        const cleanPath = credentialUrl.startsWith('/') ? credentialUrl.substring(1) : credentialUrl;
+        const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+        credentialUrl = `${baseUrl}/${cleanPath}`;
       }
       
       // Ensure photoUrl is absolute
       let photoUrl = attendee.photoUrl || '';
       if (photoUrl && !photoUrl.startsWith('http')) {
-        photoUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}${photoUrl.startsWith('/') ? '' : '/'}${photoUrl}`;
+        // Remove leading slash if present to avoid double slashes
+        const cleanPath = photoUrl.startsWith('/') ? photoUrl.substring(1) : photoUrl;
+        const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+        photoUrl = `${baseUrl}/${cleanPath}`;
       }
 
+      // Create placeholders object with properly escaped values for HTML
       const placeholders: { [key: string]: string } = {
-        '{{firstName}}': attendee.firstName || '',
-        '{{lastName}}': attendee.lastName || '',
-        '{{barcodeNumber}}': attendee.barcodeNumber || '',
-        '{{photoUrl}}': photoUrl,
-        '{{credentialUrl}}': credentialUrl,
-        '{{eventName}}': eventSettings.eventName || '',
+        '{{firstName}}': (attendee.firstName || '').replace(/[&<>"']/g, (match) => {
+          const escapeMap: { [key: string]: string } = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+          };
+          return escapeMap[match];
+        }),
+        '{{lastName}}': (attendee.lastName || '').replace(/[&<>"']/g, (match) => {
+          const escapeMap: { [key: string]: string } = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+          };
+          return escapeMap[match];
+        }),
+        '{{barcodeNumber}}': (attendee.barcodeNumber || '').replace(/[&<>"']/g, (match) => {
+          const escapeMap: { [key: string]: string } = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+          };
+          return escapeMap[match];
+        }),
+        '{{photoUrl}}': photoUrl, // URLs don't need HTML escaping in src attributes
+        '{{credentialUrl}}': credentialUrl, // URLs don't need HTML escaping in src attributes
+        '{{eventName}}': (eventSettings.eventName || '').replace(/[&<>"']/g, (match) => {
+          const escapeMap: { [key: string]: string } = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+          };
+          return escapeMap[match];
+        }),
         '{{eventDate}}': eventSettings.eventDate ? new Date(eventSettings.eventDate).toLocaleDateString() : '',
-        '{{eventTime}}': eventSettings.eventTime || '',
-        '{{eventLocation}}': eventSettings.eventLocation || '',
+        '{{eventTime}}': (eventSettings.eventTime || '').replace(/[&<>"']/g, (match) => {
+          const escapeMap: { [key: string]: string } = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+          };
+          return escapeMap[match];
+        }),
+        '{{eventLocation}}': (eventSettings.eventLocation || '').replace(/[&<>"']/g, (match) => {
+          const escapeMap: { [key: string]: string } = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+          };
+          return escapeMap[match];
+        }),
       };
 
       // Add custom field placeholders
       if (attendee.customFieldValues) {
         attendee.customFieldValues.forEach(cfv => {
           if (cfv.customField?.internalFieldName) {
-            placeholders[`{{${cfv.customField.internalFieldName}}}`] = cfv.value || '';
+            const fieldValue = cfv.value || '';
+            // Escape HTML entities for custom field values
+            const escapedValue = fieldValue.replace(/[&<>"']/g, (match) => {
+              const escapeMap: { [key: string]: string } = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+              };
+              return escapeMap[match];
+            });
+            placeholders[`{{${cfv.customField.internalFieldName}}}`] = escapedValue;
           }
         });
       }
 
       // Replace all placeholders in the record template
+      // Use a more robust replacement that handles both escaped and unescaped placeholders
       for (const [placeholder, value] of Object.entries(placeholders)) {
-        html = html.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), value);
+        // Replace both the normal placeholder and any HTML-escaped versions
+        const normalPlaceholder = placeholder;
+        const escapedPlaceholder = placeholder.replace(/[{}]/g, (match) => {
+          return match === '{' ? '&#123;' : '&#125;';
+        });
+        
+        // Create regex that matches the placeholder with word boundaries
+        const normalRegex = new RegExp(normalPlaceholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+        const escapedRegex = new RegExp(escapedPlaceholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+        
+        // Replace both versions
+        html = html.replace(normalRegex, value);
+        html = html.replace(escapedRegex, value);
       }
       
       return html;
@@ -107,9 +193,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       '{{credentialRecords}}': recordsHtml,
     };
 
-    // Replace placeholders in main template
+    // Replace placeholders in main template using the same robust method
     for (const [placeholder, value] of Object.entries(eventPlaceholders)) {
-      finalHtml = finalHtml.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), value);
+      // Replace both the normal placeholder and any HTML-escaped versions
+      const normalPlaceholder = placeholder;
+      const escapedPlaceholder = placeholder.replace(/[{}]/g, (match) => {
+        return match === '{' ? '&#123;' : '&#125;';
+      });
+      
+      // Create regex that matches the placeholder
+      const normalRegex = new RegExp(normalPlaceholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+      const escapedRegex = new RegExp(escapedPlaceholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+      
+      // Replace both versions
+      finalHtml = finalHtml.replace(normalRegex, value);
+      finalHtml = finalHtml.replace(escapedRegex, value);
     }
 
     // Validate that we have actual HTML content
