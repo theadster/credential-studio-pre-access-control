@@ -1499,30 +1499,305 @@ export default function Dashboard() {
 
       const attendeeIds = attendeesToExport.map((a) => a.id);
 
-      const response = await fetch('/api/attendees/bulk-export-pdf', {
+      // Call the debug endpoint to get all the API POST data
+      const response = await fetch('/api/attendees/debug-bulk-export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ attendeeIds }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Failed to parse error response' }));
-        throw new Error(errorData.error || 'Failed to export PDFs');
+        const errorData = await response.json().catch(() => ({ error: 'Failed to get debug data' }));
+        throw new Error(errorData.error || 'Failed to get debug data');
       }
 
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `credentials-${new Date().toISOString().split('T')[0]}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
+      const debugData = await response.json();
+      
+      // Create a popup window to show the debug data
+      const popup = window.open('', '_blank', 'width=1200,height=900,scrollbars=yes,resizable=yes');
+      if (popup) {
+        popup.document.write(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>OneSimpleAPI Debug Data - API POST Request Details</title>
+            <style>
+              body { 
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+                margin: 0; 
+                padding: 20px; 
+                background: #f8fafc; 
+                line-height: 1.6;
+              }
+              .container { max-width: 1200px; margin: 0 auto; }
+              .header { 
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                color: white; 
+                padding: 20px; 
+                border-radius: 8px; 
+                margin-bottom: 20px; 
+                text-align: center;
+              }
+              .section { 
+                background: white; 
+                margin: 20px 0; 
+                padding: 20px; 
+                border-radius: 8px; 
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+                border-left: 4px solid #667eea;
+              }
+              .section h3 { 
+                margin-top: 0; 
+                color: #2d3748; 
+                border-bottom: 2px solid #e2e8f0; 
+                padding-bottom: 10px; 
+                display: flex;
+                align-items: center;
+                gap: 8px;
+              }
+              .code { 
+                background: #f7fafc; 
+                padding: 15px; 
+                border-radius: 6px; 
+                border: 1px solid #e2e8f0; 
+                white-space: pre-wrap; 
+                word-wrap: break-word; 
+                max-height: 400px; 
+                overflow-y: auto; 
+                font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+                font-size: 13px;
+                line-height: 1.4;
+              }
+              .highlight { 
+                background: #fef5e7; 
+                padding: 8px 12px; 
+                border-radius: 4px; 
+                border-left: 4px solid #f6ad55;
+                margin: 10px 0;
+                font-weight: 600;
+              }
+              .error { 
+                color: #e53e3e; 
+                background: #fed7d7; 
+                padding: 15px; 
+                border-radius: 6px; 
+                border-left: 4px solid #e53e3e;
+              }
+              .success { 
+                color: #38a169; 
+                background: #c6f6d5; 
+                padding: 15px; 
+                border-radius: 6px; 
+                border-left: 4px solid #38a169;
+              }
+              .grid { 
+                display: grid; 
+                grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); 
+                gap: 15px; 
+                margin: 15px 0;
+              }
+              .card { 
+                background: #f7fafc; 
+                padding: 15px; 
+                border-radius: 6px; 
+                border: 1px solid #e2e8f0;
+              }
+              .card h4 { 
+                margin: 0 0 10px 0; 
+                color: #4a5568; 
+                font-size: 14px;
+                font-weight: 600;
+              }
+              .icon { 
+                width: 20px; 
+                height: 20px; 
+                display: inline-block;
+              }
+              .api-request {
+                background: #1a202c;
+                color: #e2e8f0;
+                padding: 20px;
+                border-radius: 8px;
+                margin: 15px 0;
+              }
+              .api-request h4 {
+                color: #63b3ed;
+                margin-top: 0;
+              }
+              .method-post {
+                background: #38a169;
+                color: white;
+                padding: 4px 8px;
+                border-radius: 4px;
+                font-weight: bold;
+                font-size: 12px;
+              }
+              .copy-btn {
+                background: #4299e1;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                cursor: pointer;
+                margin: 10px 0;
+                font-size: 12px;
+              }
+              .copy-btn:hover {
+                background: #3182ce;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1>🔍 OneSimpleAPI Debug Information</h1>
+                <p>Complete API POST request details and HTML content analysis</p>
+                <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
+              </div>
+              
+              <div class="section">
+                <h3>
+                  <span class="icon">⚙️</span>
+                  API Configuration
+                </h3>
+                <div class="grid">
+                  <div class="card">
+                    <h4>API Endpoint</h4>
+                    <div class="highlight">${debugData.templates?.apiUrl || 'Not configured'}</div>
+                  </div>
+                  <div class="card">
+                    <h4>Form Data Key</h4>
+                    <div class="highlight">${debugData.templates?.formDataKey || 'Not configured'}</div>
+                  </div>
+                  <div class="card">
+                    <h4>Integration Status</h4>
+                    <div class="${debugData.error ? 'error' : 'success'}">
+                      ${debugData.error ? '❌ ' + debugData.error : '✅ Ready to send'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="section">
+                <h3>
+                  <span class="icon">👥</span>
+                  Selected Attendees (${debugData.attendeesFound || 0})
+                </h3>
+                <div class="code">${JSON.stringify(debugData.attendeesData || [], null, 2)}</div>
+              </div>
+              
+              <div class="section">
+                <h3>
+                  <span class="icon">📝</span>
+                  HTML Templates
+                </h3>
+                <h4>Record Template (per attendee):</h4>
+                <div class="code">${debugData.templates?.recordTemplate || 'Not set'}</div>
+                <h4>Main Template (wrapper):</h4>
+                <div class="code">${debugData.templates?.mainTemplate || 'Not set'}</div>
+              </div>
+              
+              <div class="section">
+                <h3>
+                  <span class="icon">🔄</span>
+                  Sample Placeholder Replacements
+                </h3>
+                <div class="code">${JSON.stringify(debugData.samplePlaceholders || {}, null, 2)}</div>
+              </div>
+              
+              <div class="section">
+                <h3>
+                  <span class="icon">📄</span>
+                  Sample Generated HTML (First Attendee)
+                </h3>
+                <div class="code">${debugData.sampleGeneratedHtml || 'Not generated'}</div>
+              </div>
+
+              ${!debugData.error ? `
+              <div class="section">
+                <h3>
+                  <span class="icon">🚀</span>
+                  Complete API Request That Would Be Sent
+                </h3>
+                <div class="api-request">
+                  <h4>HTTP Request Details</h4>
+                  <p><span class="method-post">POST</span> ${debugData.templates?.apiUrl}</p>
+                  <p><strong>Content-Type:</strong> multipart/form-data</p>
+                  <p><strong>Form Data Key:</strong> ${debugData.templates?.formDataKey}</p>
+                  <button class="copy-btn" onclick="copyToClipboard('${debugData.templates?.apiUrl}')">📋 Copy API URL</button>
+                </div>
+                
+                <h4>Form Data Value (Complete HTML that would be sent):</h4>
+                <button class="copy-btn" onclick="copyFullHtml()">📋 Copy Complete HTML</button>
+                <div class="code" id="fullHtmlContent">
+                  <!-- This would contain the complete final HTML that gets sent to OneSimpleAPI -->
+                  <!-- For now showing the sample, but in a real implementation this would be the complete combined HTML -->
+                  ${debugData.sampleGeneratedHtml || 'HTML would be generated here'}
+                  
+                  <!-- Note: This is just the sample for one attendee. The actual request would contain -->
+                  <!-- the main template with all attendee records inserted at the {{credentialRecords}} placeholder -->
+                </div>
+              </div>
+              ` : ''}
+              
+              <div class="section">
+                <h3>
+                  <span class="icon">📊</span>
+                  Debug Summary
+                </h3>
+                <div class="${debugData.error ? 'error' : 'success'}">
+                  <strong>Status:</strong> ${debugData.error ? 'Error - ' + debugData.error : 'Success - Ready to send to OneSimpleAPI'}<br>
+                  <strong>Processing Step:</strong> ${debugData.step}<br>
+                  <strong>Timestamp:</strong> ${debugData.timestamp}<br>
+                  <strong>Attendees to Process:</strong> ${debugData.attendeesFound || 0}
+                </div>
+              </div>
+              
+              <div class="section">
+                <h3>
+                  <span class="icon">🔍</span>
+                  Complete Debug Data (JSON)
+                </h3>
+                <button class="copy-btn" onclick="copyToClipboard(JSON.stringify(${JSON.stringify(debugData)}, null, 2))">📋 Copy Full Debug JSON</button>
+                <div class="code">${JSON.stringify(debugData, null, 2)}</div>
+              </div>
+            </div>
+            
+            <script>
+              function copyToClipboard(text) {
+                navigator.clipboard.writeText(text).then(function() {
+                  alert('Copied to clipboard!');
+                }).catch(function(err) {
+                  console.error('Could not copy text: ', err);
+                  // Fallback for older browsers
+                  const textArea = document.createElement('textarea');
+                  textArea.value = text;
+                  document.body.appendChild(textArea);
+                  textArea.select();
+                  document.execCommand('copy');
+                  document.body.removeChild(textArea);
+                  alert('Copied to clipboard!');
+                });
+              }
+              
+              function copyFullHtml() {
+                const htmlContent = document.getElementById('fullHtmlContent').textContent;
+                copyToClipboard(htmlContent);
+              }
+            </script>
+          </body>
+          </html>
+        `);
+        popup.document.close();
+      } else {
+        // Fallback: show in console if popup is blocked
+        console.log('OneSimpleAPI Debug Data:', debugData);
+        alert('Debug data logged to console (popup was blocked)');
+      }
 
       toast({
-        title: "Success",
-        description: `Successfully exported PDF for ${attendeeIds.length} attendees.`,
+        title: "Debug Data Generated",
+        description: `Debug information shown for ${attendeeIds.length} attendees with credentials.`,
       });
 
     } catch (error: any) {
