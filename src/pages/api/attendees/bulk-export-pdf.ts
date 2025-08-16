@@ -22,7 +22,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const eventSettings = await prisma.eventSettings.findFirst();
-    if (!eventSettings || !eventSettings.oneSimpleApiEnabled || !eventSettings.oneSimpleApiKey || !eventSettings.oneSimpleApiUrl || !eventSettings.oneSimpleApiHtml) {
+    if (!eventSettings || !eventSettings.oneSimpleApiEnabled || !eventSettings.oneSimpleApiUrl || !eventSettings.oneSimpleApiFormDataKey || !eventSettings.oneSimpleApiFormDataValue) {
       return res.status(400).json({ error: 'OneSimpleAPI is not configured' });
     }
 
@@ -45,7 +45,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const htmlPages = attendees.map(attendee => {
-      let html = eventSettings.oneSimpleApiHtml!;
+      let html = eventSettings.oneSimpleApiFormDataValue!;
       
       const placeholders: { [key: string]: string } = {
         '{{firstName}}': attendee.firstName,
@@ -70,19 +70,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return html;
     });
 
+    // Create form data for the request
+    const formData = new FormData();
+    formData.append(eventSettings.oneSimpleApiFormDataKey!, htmlPages.join('\n\n'));
+
     const response = await fetch(eventSettings.oneSimpleApiUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${eventSettings.oneSimpleApiKey}`,
-      },
-      body: JSON.stringify({
-        html: htmlPages,
-        options: {
-          pageSize: 'letter',
-          margin: '0.5in'
-        }
-      }),
+      body: formData,
     });
 
     if (!response.ok) {

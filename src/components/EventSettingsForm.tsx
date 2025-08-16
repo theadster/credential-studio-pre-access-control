@@ -82,9 +82,9 @@ interface EventSettings {
   switchboardTemplateId?: string;
   switchboardFieldMappings?: FieldMapping[];
   oneSimpleApiEnabled?: boolean;
-  oneSimpleApiKey?: string;
   oneSimpleApiUrl?: string;
-  oneSimpleApiHtml?: string;
+  oneSimpleApiFormDataKey?: string;
+  oneSimpleApiFormDataValue?: string;
   bannerImageUrl?: string | null;
   signInBannerUrl?: string | null;
   customFields?: CustomField[];
@@ -1285,55 +1285,54 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                         <div className="space-y-4">
                           <div className="space-y-2">
                             <Label htmlFor="oneSimpleApiUrl" className="text-sm font-medium">
-                              OneSimpleAPI URL *
+                              API URL *
                             </Label>
                             <Input
                               id="oneSimpleApiUrl"
                               value={formData.oneSimpleApiUrl || ""}
                               onChange={(e) => handleInputChange("oneSimpleApiUrl", e.target.value)}
-                              placeholder="https://api.onesimpleapi.com/pdf"
+                              placeholder="https://api.onesimpleapi.com/pdf?token=your-token-here"
                               className="h-10"
                             />
                             <p className="text-xs text-muted-foreground">
-                              The OneSimpleAPI endpoint URL for PDF generation
-                            </p>
-                          </div>
-                          
-                          <div className="space-y-2">
-                            <Label htmlFor="oneSimpleApiKey" className="text-sm font-medium">
-                              API Key *
-                            </Label>
-                            <Input
-                              id="oneSimpleApiKey"
-                              type="password"
-                              value={formData.oneSimpleApiKey || ""}
-                              onChange={(e) => handleInputChange("oneSimpleApiKey", e.target.value)}
-                              placeholder="your-onesimpleapi-key"
-                              className="h-10"
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              Your OneSimpleAPI authentication key
+                              The OneSimpleAPI endpoint URL with your authentication token included
                             </p>
                           </div>
                         </div>
                       </div>
 
-                      {/* HTML Template Section */}
+                      {/* Form Data Section */}
                       <div className="space-y-4">
                         <div className="flex items-center gap-2">
-                          <FileText className="h-4 w-4" />
-                          <h4 className="text-sm font-semibold">HTML Template</h4>
+                          <Hash className="h-4 w-4" />
+                          <h4 className="text-sm font-semibold">Form Data Configuration</h4>
                         </div>
                         
                         <div className="space-y-4">
                           <div className="space-y-2">
-                            <Label htmlFor="oneSimpleApiHtml" className="text-sm font-medium">
-                              HTML Content *
+                            <Label htmlFor="oneSimpleApiFormDataKey" className="text-sm font-medium">
+                              Form Data Key *
+                            </Label>
+                            <Input
+                              id="oneSimpleApiFormDataKey"
+                              value={formData.oneSimpleApiFormDataKey || ""}
+                              onChange={(e) => handleInputChange("oneSimpleApiFormDataKey", e.target.value)}
+                              placeholder="html"
+                              className="h-10"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              The key name for the form data field (e.g., "html", "content", "data")
+                            </p>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor="oneSimpleApiFormDataValue" className="text-sm font-medium">
+                              HTML Template *
                             </Label>
                             <Textarea
-                              id="oneSimpleApiHtml"
-                              value={formData.oneSimpleApiHtml || ""}
-                              onChange={(e) => handleInputChange("oneSimpleApiHtml", e.target.value)}
+                              id="oneSimpleApiFormDataValue"
+                              value={formData.oneSimpleApiFormDataValue || ""}
+                              onChange={(e) => handleInputChange("oneSimpleApiFormDataValue", e.target.value)}
                               placeholder={`<!DOCTYPE html>
 <html>
 <head>
@@ -1365,7 +1364,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                       {/* Available Placeholders */}
                       <div className="space-y-4">
                         <div className="flex items-center gap-2">
-                          <Hash className="h-4 w-4" />
+                          <FileText className="h-4 w-4" />
                           <h4 className="text-sm font-semibold">Available Placeholders</h4>
                         </div>
                         
@@ -1405,18 +1404,6 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                                 </div>
                               </div>
                             )}
-
-                            <div>
-                              <h5 className="text-sm font-medium text-orange-800 dark:text-orange-200 mb-2">Bulk Generation:</h5>
-                              <div className="grid grid-cols-1 gap-2 text-xs">
-                                <div>
-                                  <code className="bg-orange-100 dark:bg-orange-900 px-2 py-1 rounded">{`{{credentialUrls}}`}</code>
-                                  <p className="text-xs text-muted-foreground mt-1">
-                                    Use this placeholder to generate a multi-page PDF from a list of credential URLs. The content within the &lt;body&gt; of your HTML will be repeated for each URL. The &#123;&#123;credentialUrl&#125;&#125; placeholder inside the loop will refer to the individual URL.
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
                           </div>
                         </div>
                       </div>
@@ -1432,10 +1419,10 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                           </div>
                           <div className="text-sm text-blue-800 dark:text-blue-200 space-y-2">
                             <p>
-                              1. <strong>Credential URLs:</strong> This integration uses the existing credential URLs stored in your attendee records (generated via Switchboard Canvas).
+                              1. <strong>API URL:</strong> Include your authentication token directly in the URL for secure access.
                             </p>
                             <p>
-                              2. <strong>HTML Template:</strong> Your HTML template will be processed with attendee data and credential images to create a PDF.
+                              2. <strong>Form Data:</strong> The HTML template will be sent as form data using the specified key.
                             </p>
                             <p>
                               3. <strong>Bulk Processing:</strong> Generate PDFs for multiple attendees at once using their stored credential URLs.
@@ -1453,9 +1440,9 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                           </span>
                         </div>
                         <p className="text-sm text-green-600 dark:text-green-500 mt-1">
-                          {formData.oneSimpleApiUrl && formData.oneSimpleApiKey && formData.oneSimpleApiHtml
+                          {formData.oneSimpleApiUrl && formData.oneSimpleApiFormDataKey && formData.oneSimpleApiFormDataValue
                             ? "Ready to generate PDFs - all configuration provided"
-                            : "Waiting for API URL, API key, and HTML template configuration"
+                            : "Waiting for API URL, form data key, and HTML template configuration"
                           }
                         </p>
                       </div>
