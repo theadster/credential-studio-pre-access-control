@@ -12,6 +12,7 @@
     "lint": "next lint",
     "vercel-build": "prisma generate && prisma db push && next build",
     "postinstall": "prisma generate",
+    "setup": "node setup.js",
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset",
     "db:seed": "prisma db seed",
