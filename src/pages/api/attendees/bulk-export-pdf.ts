@@ -27,10 +27,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: 'OneSimpleAPI is not configured' });
     }
 
-    const attendees = await prisma.attendee.findMany({
+    // First, get all attendees regardless of credential status to check for missing credentials
+    const allAttendees = await prisma.attendee.findMany({
       where: {
         id: { in: attendeeIds },
-        credentialUrl: { not: null },
       },
       include: {
         customFieldValues: {
@@ -41,9 +41,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
     });
 
-    if (attendees.length === 0) {
-      return res.status(404).json({ error: 'No attendees with credentials found for the given IDs' });
+    if (allAttendees.length === 0) {
+      return res.status(404).json({ error: 'No attendees found for the given IDs' });
     }
+
+    // Check for attendees without credentials
+    const attendeesWithoutCredentials = allAttendees.filter(attendee => !attendee.credentialUrl);
+
+    if (attendeesWithoutCredentials.length > 0) {
+      return res.status(400).json({ 
+        error: 'Some attendees do not have generated credentials',
+        errorType: 'missing_credentials',
+        attendeesWithoutCredentials: attendeesWithoutCredentials.map(a => `${a.firstName} ${a.lastName}`)
+      });
+    }
+
+    // Now filter to only attendees with credentials for further processing
+    const attendees = allAttendees.filter(attendee => attendee.credentialUrl);
 
     // Check for outdated credentials
     const attendeesWithOutdatedCredentials = attendees.filter(attendee => {

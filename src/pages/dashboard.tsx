@@ -1556,6 +1556,18 @@ export default function Dashboard() {
       if (!response.ok) {
         const errorData = await response.json();
         
+        // Handle missing credentials error specifically
+        if (errorData.errorType === 'missing_credentials') {
+          const missingNames = errorData.attendeesWithoutCredentials?.join(', ') || 'some attendees';
+          toast({
+            title: "Missing Credentials Warning",
+            description: `The following attendees do not have generated credentials and cannot be included in PDF export: ${missingNames}. Please generate their credentials using the "Generate Credential" action and try again.`,
+            variant: "destructive",
+            duration: 10000, // Show longer for this important warning
+          });
+          return;
+        }
+        
         // Handle outdated credentials error specifically
         if (errorData.errorType === 'outdated_credentials') {
           const outdatedNames = errorData.attendeesWithOutdatedCredentials?.join(', ') || 'some attendees';
