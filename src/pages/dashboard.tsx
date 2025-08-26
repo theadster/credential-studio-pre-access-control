@@ -201,6 +201,9 @@ export default function Dashboard() {
   const [showPdfGenerationModal, setShowPdfGenerationModal] = useState(false);
   const [showCredentialGenerationModal, setShowCredentialGenerationModal] = useState(false);
   const [credentialGenerationAttendeeName, setCredentialGenerationAttendeeName] = useState('');
+  const [bulkGeneratingCredentials, setBulkGeneratingCredentials] = useState(false);
+  const [showBulkCredentialModal, setShowBulkCredentialModal] = useState(false);
+  const [bulkCredentialProgress, setBulkCredentialProgress] = useState({ current: 0, total: 0, currentName: '' });
 
   const supabase = createClient();
 
@@ -1610,6 +1613,118 @@ export default function Dashboard() {
     }
   };
 
+  const handleBulkGenerateCredentials = async () => {
+    if (selectedAttendees.length === 0) {
+      toast({
+        title: "No Selection",
+        description: "Please select attendees to generate credentials for.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Filter attendees that don't have credentials
+    const selectedAttendeesData = attendees.filter(attendee => 
+      selectedAttendees.includes(attendee.id)
+    );
+    
+    const attendeesWithoutCredentials = selectedAttendeesData.filter(attendee => 
+      !attendee.credentialUrl || attendee.credentialUrl.trim() === ''
+    );
+
+    if (attendeesWithoutCredentials.length === 0) {
+      toast({
+        title: "All Selected Attendees Have Credentials",
+        description: "All selected attendees already have credentials generated.",
+        variant: "default",
+      });
+      return;
+    }
+
+    setBulkGeneratingCredentials(true);
+    setShowBulkCredentialModal(true);
+    setBulkCredentialProgress({ current: 0, total: attendeesWithoutCredentials.length, currentName: '' });
+
+    let successCount = 0;
+    let errorCount = 0;
+    const errors: string[] = [];
+
+    try {
+      for (let i = 0; i < attendeesWithoutCredentials.length; i++) {
+        const attendee = attendeesWithoutCredentials[i];
+        const attendeeName = `${attendee.firstName} ${attendee.lastName}`;
+        
+        setBulkCredentialProgress({ 
+          current: i + 1, 
+          total: attendeesWithoutCredentials.length, 
+          currentName: attendeeName 
+        });
+
+        try {
+          const response = await fetch(`/api/attendees/${attendee.id}/generate-credential`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to generate credential');
+          }
+
+          const result = await response.json();
+          
+          // Update the attendee in the local state with the new credential URL and updated timestamp
+          setAttendees(prev => prev.map(a => 
+            a.id === attendee.id 
+              ? { ...a, credentialUrl: result.credentialUrl, credentialGeneratedAt: result.generatedAt, updatedAt: new Date().toISOString() }
+              : a
+          ));
+
+          successCount++;
+        } catch (error) {
+          errorCount++;
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          errors.push(`${attendeeName}: ${errorMessage}`);
+          console.error(`Error generating credential for ${attendeeName}:`, error);
+        }
+
+        // Small delay between requests to avoid overwhelming the API
+        if (i < attendeesWithoutCredentials.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+
+      // Show final results
+      if (successCount > 0 && errorCount === 0) {
+        toast({
+          title: "Success",
+          description: `Successfully generated ${successCount} credential${successCount === 1 ? '' : 's'}.`,
+        });
+      } else if (successCount > 0 && errorCount > 0) {
+        toast({
+          title: "Partial Success",
+          description: `Generated ${successCount} credential${successCount === 1 ? '' : 's'}, ${errorCount} failed. Check console for details.`,
+          variant: "destructive",
+          duration: 10000,
+        });
+      } else {
+        toast({
+          title: "Generation Failed",
+          description: `Failed to generate any credentials. ${errors.length > 0 ? 'Check console for details.' : ''}`,
+          variant: "destructive",
+          duration: 10000,
+        });
+      }
+
+    } finally {
+      setBulkGeneratingCredentials(false);
+      setShowBulkCredentialModal(false);
+      setBulkCredentialProgress({ current: 0, total: 0, currentName: '' });
+    }
+  };
+
   const handleBulkEdit = async () => {
     setIsBulkEditing(true);
     try {
@@ -2358,6 +2473,24 @@ export default function Dashboard() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                              {hasPermission(currentUser?.role, 'attendees', 'print') && (eventSettings as any)?.switchboardEnabled && (
+                                <DropdownMenuItem
+                                  onClick={handleBulkGenerateCredentials}
+                                  disabled={bulkGeneratingCredentials}
+                                >
+                                  {bulkGeneratingCredentials ? (
+                                    <>
+                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                                      Generating...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <FileImage className="mr-2 h-4 w-4" />
+                                      Bulk Generate Credentials
+                                    </>
+                                  )}
+                                </DropdownMenuItem>
+                              )}
                               {hasPermission(currentUser?.role, 'attendees', 'bulkEdit') && (
                                 <DropdownMenuItem
                                   onClick={() => setShowBulkEdit(true)}
@@ -4117,6 +4250,34 @@ export default function Dashboard() {
               <p className="text-sm text-muted-foreground">
                 Processing credential for {credentialGenerationAttendeeName}...
               </p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Please do not navigate away from this page.
+              </p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Credential Generation Loading Modal */}
+      <Dialog open={showBulkCredentialModal} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md [&>button]:hidden">
+          <DialogHeader>
+            <DialogTitle>Generating Credentials</DialogTitle>
+            <DialogDescription>
+              Please wait while we generate credentials for selected attendees. Each credential is processed individually to ensure quality.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center space-y-4 py-6">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            <div className="text-center">
+              <p className="text-sm text-muted-foreground">
+                Processing {bulkCredentialProgress.current} of {bulkCredentialProgress.total} credentials...
+              </p>
+              {bulkCredentialProgress.currentName && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Currently generating: {bulkCredentialProgress.currentName}
+                </p>
+              )}
               <p className="text-xs text-muted-foreground mt-2">
                 Please do not navigate away from this page.
               </p>
