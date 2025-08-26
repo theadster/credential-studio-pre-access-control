@@ -2473,6 +2473,15 @@ export default function Dashboard() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                              {hasPermission(currentUser?.role, 'attendees', 'bulkEdit') && (
+                                <DropdownMenuItem
+                                  onClick={() => setShowBulkEdit(true)}
+                                  disabled={isBulkEditing}
+                                >
+                                  <Wand2 className="mr-2 h-4 w-4" />
+                                  Bulk Edit
+                                </DropdownMenuItem>
+                              )}
                               {hasPermission(currentUser?.role, 'attendees', 'print') && (eventSettings as any)?.switchboardEnabled && (
                                 <DropdownMenuItem
                                   onClick={handleBulkGenerateCredentials}
@@ -2489,15 +2498,6 @@ export default function Dashboard() {
                                       Bulk Generate Credentials
                                     </>
                                   )}
-                                </DropdownMenuItem>
-                              )}
-                              {hasPermission(currentUser?.role, 'attendees', 'bulkEdit') && (
-                                <DropdownMenuItem
-                                  onClick={() => setShowBulkEdit(true)}
-                                  disabled={isBulkEditing}
-                                >
-                                  <Wand2 className="mr-2 h-4 w-4" />
-                                  Bulk Edit
                                 </DropdownMenuItem>
                               )}
                               {hasPermission(currentUser?.role, 'attendees', 'delete') && (
