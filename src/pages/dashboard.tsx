@@ -55,6 +55,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
 import AttendeeForm from "@/components/AttendeeForm";
 import UserForm from "@/components/UserForm";
 import EventSettingsForm from "@/components/EventSettingsForm";
@@ -4267,8 +4268,24 @@ export default function Dashboard() {
               Please wait while we generate credentials for selected attendees. Each credential is processed individually to ensure quality.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex flex-col items-center space-y-4 py-6">
+          <div className="flex flex-col items-center space-y-6 py-6">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            
+            {/* Progress Bar */}
+            <div className="w-full space-y-2">
+              <div className="flex justify-between text-sm text-muted-foreground">
+                <span>Progress</span>
+                <span>{bulkCredentialProgress.current} of {bulkCredentialProgress.total}</span>
+              </div>
+              <Progress 
+                value={bulkCredentialProgress.total > 0 ? (bulkCredentialProgress.current / bulkCredentialProgress.total) * 100 : 0} 
+                className="w-full h-2"
+              />
+              <div className="text-center text-xs text-muted-foreground">
+                {bulkCredentialProgress.total > 0 ? Math.round((bulkCredentialProgress.current / bulkCredentialProgress.total) * 100) : 0}% Complete
+              </div>
+            </div>
+
             <div className="text-center">
               <p className="text-sm text-muted-foreground">
                 Processing {bulkCredentialProgress.current} of {bulkCredentialProgress.total} credentials...
