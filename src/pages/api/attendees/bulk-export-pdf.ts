@@ -45,6 +45,34 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(404).json({ error: 'No attendees with credentials found for the given IDs' });
     }
 
+    // Check for outdated credentials
+    const attendeesWithOutdatedCredentials = attendees.filter(attendee => {
+      if (!attendee.credentialGeneratedAt) return true; // No generation timestamp means outdated
+      
+      const credentialGeneratedAt = new Date(attendee.credentialGeneratedAt);
+      const recordUpdatedAt = new Date(attendee.updatedAt);
+      
+      // Since generating a credential also updates the record, we need to account for this
+      // We'll consider the credential "current" if it was generated within a reasonable time
+      // of the last record update (e.g., within 5 seconds to account for processing time)
+      const timeDifference = Math.abs(credentialGeneratedAt.getTime() - recordUpdatedAt.getTime());
+      const isCredentialFromSameUpdate = timeDifference <= 5000; // 5 seconds tolerance
+      
+      if (isCredentialFromSameUpdate) {
+        return false; // Current
+      } else {
+        return credentialGeneratedAt < recordUpdatedAt; // Outdated if credential was generated before record was last updated
+      }
+    });
+
+    if (attendeesWithOutdatedCredentials.length > 0) {
+      return res.status(400).json({ 
+        error: 'Some attendees have outdated credentials that need to be regenerated',
+        errorType: 'outdated_credentials',
+        attendeesWithOutdatedCredentials: attendeesWithOutdatedCredentials.map(a => `${a.firstName} ${a.lastName}`)
+      });
+    }
+
     // Check if we have both templates configured
     if (!eventSettings.oneSimpleApiRecordTemplate) {
       return res.status(400).json({ error: 'OneSimpleAPI record template is not configured' });

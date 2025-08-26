@@ -1555,6 +1555,19 @@ export default function Dashboard() {
 
       if (!response.ok) {
         const errorData = await response.json();
+        
+        // Handle outdated credentials error specifically
+        if (errorData.errorType === 'outdated_credentials') {
+          const outdatedNames = errorData.attendeesWithOutdatedCredentials?.join(', ') || 'some attendees';
+          toast({
+            title: "Outdated Credentials Warning",
+            description: `The following attendees have outdated credentials that need to be regenerated before PDF export: ${outdatedNames}. Please regenerate their credentials using the "Generate Credential" action and try again.`,
+            variant: "destructive",
+            duration: 10000, // Show longer for this important warning
+          });
+          return;
+        }
+        
         throw new Error(errorData.error || 'Failed to generate PDF');
       }
 
