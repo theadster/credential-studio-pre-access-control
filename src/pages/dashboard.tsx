@@ -1624,19 +1624,47 @@ export default function Dashboard() {
       return;
     }
 
-    // Filter attendees that don't have credentials
+    // Filter attendees that don't have credentials OR have outdated credentials
     const selectedAttendeesData = attendees.filter(attendee => 
       selectedAttendees.includes(attendee.id)
     );
     
-    const attendeesWithoutCredentials = selectedAttendeesData.filter(attendee => 
-      !attendee.credentialUrl || attendee.credentialUrl.trim() === ''
-    );
+    const attendeesNeedingCredentials = selectedAttendeesData.filter(attendee => {
+      // No credential at all
+      if (!attendee.credentialUrl || attendee.credentialUrl.trim() === '') {
+        return true;
+      }
+      
+      // Has credential but it might be outdated
+      if (attendee.credentialGeneratedAt && attendee.updatedAt) {
+        const credentialGeneratedAt = new Date(attendee.credentialGeneratedAt);
+        const recordUpdatedAt = new Date(attendee.updatedAt);
+        
+        // Since generating a credential also updates the record, we need to account for this
+        // We'll consider the credential "outdated" if it was generated before the last record update
+        // with a 5-second tolerance for simultaneous updates
+        const timeDifference = Math.abs(credentialGeneratedAt.getTime() - recordUpdatedAt.getTime());
+        const isCredentialFromSameUpdate = timeDifference <= 5000; // 5 seconds tolerance
 
-    if (attendeesWithoutCredentials.length === 0) {
+        if (isCredentialFromSameUpdate) {
+          // If the credential was generated as part of the same update, it's current
+          return false;
+        } else if (credentialGeneratedAt > recordUpdatedAt) {
+          // If credential was generated after the record was last updated, it's current
+          return false;
+        } else {
+          // If credential was generated before the record was last updated, it's outdated
+          return true;
+        }
+      }
+      
+      return false;
+    });
+
+    if (attendeesNeedingCredentials.length === 0) {
       toast({
-        title: "All Selected Attendees Have Credentials",
-        description: "All selected attendees already have credentials generated.",
+        title: "All Selected Attendees Have Current Credentials",
+        description: "All selected attendees already have current credentials generated.",
         variant: "default",
       });
       return;
@@ -1644,20 +1672,20 @@ export default function Dashboard() {
 
     setBulkGeneratingCredentials(true);
     setShowBulkCredentialModal(true);
-    setBulkCredentialProgress({ current: 0, total: attendeesWithoutCredentials.length, currentName: '' });
+    setBulkCredentialProgress({ current: 0, total: attendeesNeedingCredentials.length, currentName: '' });
 
     let successCount = 0;
     let errorCount = 0;
     const errors: string[] = [];
 
     try {
-      for (let i = 0; i < attendeesWithoutCredentials.length; i++) {
-        const attendee = attendeesWithoutCredentials[i];
+      for (let i = 0; i < attendeesNeedingCredentials.length; i++) {
+        const attendee = attendeesNeedingCredentials[i];
         const attendeeName = `${attendee.firstName} ${attendee.lastName}`;
         
         setBulkCredentialProgress({ 
           current: i + 1, 
-          total: attendeesWithoutCredentials.length, 
+          total: attendeesNeedingCredentials.length, 
           currentName: attendeeName 
         });
 
@@ -1692,7 +1720,7 @@ export default function Dashboard() {
         }
 
         // Small delay between requests to avoid overwhelming the API
-        if (i < attendeesWithoutCredentials.length - 1) {
+        if (i < attendeesNeedingCredentials.length - 1) {
           await new Promise(resolve => setTimeout(resolve, 500));
         }
       }
