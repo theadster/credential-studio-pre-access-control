@@ -1,4 +1,4 @@
-# EventCredentialPro
+# CredentialStudio
 
 This is a comprehensive event credential management application that includes:
 
