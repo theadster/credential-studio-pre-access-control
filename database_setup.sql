@@ -5,346 +5,388 @@
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Create Users table
-CREATE TABLE "User" (
+-- Create users table (mapped from User model)
+CREATE TABLE "users" (
     "id" TEXT NOT NULL,
     "email" TEXT NOT NULL,
-    "firstName" TEXT,
-    "lastName" TEXT,
+    "name" TEXT,
     "roleId" TEXT,
+    "isInvited" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "User_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "users_pkey" PRIMARY KEY ("id")
 );
 
--- Create Roles table
-CREATE TABLE "Role" (
+-- Create invitations table
+CREATE TABLE "invitations" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "token" TEXT NOT NULL,
+    "expiresAt" TIMESTAMP(3) NOT NULL,
+    "usedAt" TIMESTAMP(3),
+    "createdBy" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "invitations_pkey" PRIMARY KEY ("id")
+);
+
+-- Create roles table
+CREATE TABLE "roles" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
-    "permissions" JSONB NOT NULL DEFAULT '{}',
+    "description" TEXT,
+    "permissions" JSONB NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "Role_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "roles_pkey" PRIMARY KEY ("id")
 );
 
--- Create EventSettings table
-CREATE TABLE "EventSettings" (
+-- Create event_settings table
+CREATE TABLE "event_settings" (
     "id" TEXT NOT NULL,
-    "eventName" TEXT NOT NULL DEFAULT 'My Event',
-    "eventDate" TIMESTAMP(3),
+    "eventName" TEXT NOT NULL,
+    "eventDate" TIMESTAMP(3) NOT NULL,
     "eventTime" TEXT,
-    "eventLocation" TEXT,
-    "eventTimezone" TEXT DEFAULT 'America/New_York',
-    "bannerImageUrl" TEXT,
-    "signInBannerUrl" TEXT,
-    "barcodeType" TEXT NOT NULL DEFAULT 'numerical',
-    "barcodeLength" INTEGER NOT NULL DEFAULT 8,
+    "eventLocation" TEXT NOT NULL,
+    "timeZone" TEXT NOT NULL,
+    "barcodeType" TEXT NOT NULL,
+    "barcodeLength" INTEGER NOT NULL,
+    "barcodeUnique" BOOLEAN NOT NULL,
+    "forceFirstNameUppercase" BOOLEAN DEFAULT false,
+    "forceLastNameUppercase" BOOLEAN DEFAULT false,
+    "attendeeSortField" TEXT DEFAULT 'lastName',
+    "attendeeSortDirection" TEXT DEFAULT 'asc',
+    "cloudinaryEnabled" BOOLEAN DEFAULT false,
     "cloudinaryCloudName" TEXT,
     "cloudinaryApiKey" TEXT,
     "cloudinaryApiSecret" TEXT,
     "cloudinaryUploadPreset" TEXT,
-    "cloudinaryEnabled" BOOLEAN NOT NULL DEFAULT false,
-    "cloudinaryCroppingEnabled" BOOLEAN NOT NULL DEFAULT true,
-    "cloudinaryCroppingAspectRatio" DOUBLE PRECISION,
-    "cloudinaryDisableSkipCrop" BOOLEAN NOT NULL DEFAULT false,
-    "switchboardEnabled" BOOLEAN NOT NULL DEFAULT false,
+    "cloudinaryAutoOptimize" BOOLEAN DEFAULT false,
+    "cloudinaryGenerateThumbnails" BOOLEAN DEFAULT false,
+    "cloudinaryDisableSkipCrop" BOOLEAN DEFAULT false,
+    "cloudinaryCropAspectRatio" TEXT DEFAULT '1',
+    "switchboardEnabled" BOOLEAN DEFAULT false,
     "switchboardApiEndpoint" TEXT,
-    "switchboardAuthType" TEXT,
-    "switchboardAuthValue" TEXT,
+    "switchboardAuthHeaderType" TEXT DEFAULT 'Bearer',
+    "switchboardApiKey" TEXT,
     "switchboardRequestBody" TEXT,
-    "switchboardFieldMappings" JSONB DEFAULT '{}',
-    "oneSimpleApiEnabled" BOOLEAN NOT NULL DEFAULT false,
+    "switchboardTemplateId" TEXT,
+    "switchboardFieldMappings" JSONB,
+    "oneSimpleApiEnabled" BOOLEAN DEFAULT false,
     "oneSimpleApiUrl" TEXT,
     "oneSimpleApiFormDataKey" TEXT,
     "oneSimpleApiFormDataValue" TEXT,
     "oneSimpleApiRecordTemplate" TEXT,
-    "forceUppercaseNames" BOOLEAN NOT NULL DEFAULT false,
-    "defaultSorting" TEXT NOT NULL DEFAULT 'lastName',
+    "bannerImageUrl" TEXT,
+    "signInBannerUrl" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "EventSettings_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "event_settings_pkey" PRIMARY KEY ("id")
 );
 
--- Create CustomField table
-CREATE TABLE "CustomField" (
+-- Create custom_fields table
+CREATE TABLE "custom_fields" (
     "id" TEXT NOT NULL,
-    "name" TEXT NOT NULL,
-    "internalName" TEXT NOT NULL,
-    "type" TEXT NOT NULL,
+    "eventSettingsId" TEXT NOT NULL,
+    "fieldName" TEXT NOT NULL,
+    "internalFieldName" TEXT,
+    "fieldType" TEXT NOT NULL,
+    "fieldOptions" JSONB,
     "required" BOOLEAN NOT NULL DEFAULT false,
-    "options" TEXT[],
-    "forceUppercase" BOOLEAN NOT NULL DEFAULT false,
-    "order" INTEGER NOT NULL DEFAULT 0,
+    "order" INTEGER NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "CustomField_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "custom_fields_pkey" PRIMARY KEY ("id")
 );
 
--- Create Attendee table
-CREATE TABLE "Attendee" (
+-- Create attendees table
+CREATE TABLE "attendees" (
     "id" TEXT NOT NULL,
     "firstName" TEXT NOT NULL,
     "lastName" TEXT NOT NULL,
-    "email" TEXT,
-    "barcode" TEXT NOT NULL,
+    "barcodeNumber" TEXT NOT NULL,
     "photoUrl" TEXT,
     "credentialUrl" TEXT,
     "credentialGeneratedAt" TIMESTAMP(3),
-    "customFieldValues" JSONB DEFAULT '{}',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "Attendee_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "attendees_pkey" PRIMARY KEY ("id")
 );
 
--- Create AttendeeCustomFieldValue table
-CREATE TABLE "AttendeeCustomFieldValue" (
+-- Create attendee_custom_field_values table
+CREATE TABLE "attendee_custom_field_values" (
     "id" TEXT NOT NULL,
     "attendeeId" TEXT NOT NULL,
     "customFieldId" TEXT NOT NULL,
-    "value" TEXT,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "value" TEXT NOT NULL,
 
-    CONSTRAINT "AttendeeCustomFieldValue_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "attendee_custom_field_values_pkey" PRIMARY KEY ("id")
 );
 
--- Create ActivityLog table
-CREATE TABLE "ActivityLog" (
+-- Create logs table
+CREATE TABLE "logs" (
     "id" TEXT NOT NULL,
-    "userId" TEXT,
+    "userId" TEXT NOT NULL,
+    "attendeeId" TEXT,
     "action" TEXT NOT NULL,
-    "details" TEXT,
-    "ipAddress" TEXT,
-    "userAgent" TEXT,
+    "details" JSONB,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "ActivityLog_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "logs_pkey" PRIMARY KEY ("id")
 );
 
--- Create LogSettings table
-CREATE TABLE "LogSettings" (
+-- Create log_settings table
+CREATE TABLE "log_settings" (
     "id" TEXT NOT NULL,
-    "settings" JSONB NOT NULL DEFAULT '{}',
+    "attendeeCreate" BOOLEAN NOT NULL DEFAULT true,
+    "attendeeUpdate" BOOLEAN NOT NULL DEFAULT true,
+    "attendeeDelete" BOOLEAN NOT NULL DEFAULT true,
+    "attendeeView" BOOLEAN NOT NULL DEFAULT false,
+    "attendeeBulkDelete" BOOLEAN NOT NULL DEFAULT true,
+    "attendeeImport" BOOLEAN NOT NULL DEFAULT true,
+    "attendeeExport" BOOLEAN NOT NULL DEFAULT true,
+    "credentialGenerate" BOOLEAN NOT NULL DEFAULT true,
+    "credentialClear" BOOLEAN NOT NULL DEFAULT true,
+    "userCreate" BOOLEAN NOT NULL DEFAULT true,
+    "userUpdate" BOOLEAN NOT NULL DEFAULT true,
+    "userDelete" BOOLEAN NOT NULL DEFAULT true,
+    "userView" BOOLEAN NOT NULL DEFAULT false,
+    "userInvite" BOOLEAN NOT NULL DEFAULT true,
+    "roleCreate" BOOLEAN NOT NULL DEFAULT true,
+    "roleUpdate" BOOLEAN NOT NULL DEFAULT true,
+    "roleDelete" BOOLEAN NOT NULL DEFAULT true,
+    "roleView" BOOLEAN NOT NULL DEFAULT false,
+    "eventSettingsUpdate" BOOLEAN NOT NULL DEFAULT true,
+    "customFieldCreate" BOOLEAN NOT NULL DEFAULT true,
+    "customFieldUpdate" BOOLEAN NOT NULL DEFAULT true,
+    "customFieldDelete" BOOLEAN NOT NULL DEFAULT true,
+    "customFieldReorder" BOOLEAN NOT NULL DEFAULT true,
+    "authLogin" BOOLEAN NOT NULL DEFAULT true,
+    "authLogout" BOOLEAN NOT NULL DEFAULT true,
+    "logsDelete" BOOLEAN NOT NULL DEFAULT true,
+    "logsExport" BOOLEAN NOT NULL DEFAULT true,
+    "logsView" BOOLEAN NOT NULL DEFAULT false,
+    "systemViewEventSettings" BOOLEAN NOT NULL DEFAULT false,
+    "systemViewAttendeeList" BOOLEAN NOT NULL DEFAULT false,
+    "systemViewRolesList" BOOLEAN NOT NULL DEFAULT false,
+    "systemViewUsersList" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "LogSettings_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "log_settings_pkey" PRIMARY KEY ("id")
 );
 
 -- Create unique indexes
-CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
-CREATE UNIQUE INDEX "Role_name_key" ON "Role"("name");
-CREATE UNIQUE INDEX "Attendee_barcode_key" ON "Attendee"("barcode");
-CREATE UNIQUE INDEX "AttendeeCustomFieldValue_attendeeId_customFieldId_key" ON "AttendeeCustomFieldValue"("attendeeId", "customFieldId");
+CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
+CREATE UNIQUE INDEX "invitations_token_key" ON "invitations"("token");
+CREATE UNIQUE INDEX "roles_name_key" ON "roles"("name");
+CREATE UNIQUE INDEX "attendees_barcodeNumber_key" ON "attendees"("barcodeNumber");
+CREATE UNIQUE INDEX "attendee_custom_field_values_attendeeId_customFieldId_key" ON "attendee_custom_field_values"("attendeeId", "customFieldId");
 
 -- Add foreign key constraints
-ALTER TABLE "User" ADD CONSTRAINT "User_roleId_fkey" FOREIGN KEY ("roleId") REFERENCES "Role"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-ALTER TABLE "AttendeeCustomFieldValue" ADD CONSTRAINT "AttendeeCustomFieldValue_attendeeId_fkey" FOREIGN KEY ("attendeeId") REFERENCES "Attendee"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "AttendeeCustomFieldValue" ADD CONSTRAINT "AttendeeCustomFieldValue_customFieldId_fkey" FOREIGN KEY ("customFieldId") REFERENCES "CustomField"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "ActivityLog" ADD CONSTRAINT "ActivityLog_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "users" ADD CONSTRAINT "users_roleId_fkey" FOREIGN KEY ("roleId") REFERENCES "roles"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "invitations" ADD CONSTRAINT "invitations_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "invitations" ADD CONSTRAINT "invitations_createdBy_fkey" FOREIGN KEY ("createdBy") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "custom_fields" ADD CONSTRAINT "custom_fields_eventSettingsId_fkey" FOREIGN KEY ("eventSettingsId") REFERENCES "event_settings"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "attendee_custom_field_values" ADD CONSTRAINT "attendee_custom_field_values_attendeeId_fkey" FOREIGN KEY ("attendeeId") REFERENCES "attendees"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "attendee_custom_field_values" ADD CONSTRAINT "attendee_custom_field_values_customFieldId_fkey" FOREIGN KEY ("customFieldId") REFERENCES "custom_fields"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "logs" ADD CONSTRAINT "logs_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "logs" ADD CONSTRAINT "logs_attendeeId_fkey" FOREIGN KEY ("attendeeId") REFERENCES "attendees"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
--- Insert default roles with comprehensive permissions
-INSERT INTO "Role" ("id", "name", "permissions", "createdAt", "updatedAt") VALUES
+-- Insert default roles with comprehensive permissions matching the application structure
+INSERT INTO "roles" ("id", "name", "description", "permissions", "createdAt", "updatedAt") VALUES
 (
-    'super-admin-role-id',
+    'clm0000001',
     'Super Administrator',
+    'Full system access with all permissions including user management and system configuration',
     '{
         "attendees": {
-            "view": true,
             "create": true,
-            "edit": true,
+            "read": true,
+            "update": true,
             "delete": true,
-            "import": true,
-            "export": true,
             "print": true,
-            "bulk_edit": true,
-            "bulk_delete": true
+            "export": true,
+            "import": true
         },
         "users": {
-            "view": true,
             "create": true,
-            "edit": true,
-            "delete": true,
-            "invite": true
+            "read": true,
+            "update": true,
+            "delete": true
         },
         "roles": {
-            "view": true,
-            "edit": true
+            "create": true,
+            "read": true,
+            "update": true,
+            "delete": true
         },
-        "event_settings": {
-            "view": true,
-            "edit": true
+        "eventSettings": {
+            "create": true,
+            "read": true,
+            "update": true,
+            "delete": true
         },
-        "activity_logs": {
-            "view": true,
-            "export": true,
+        "customFields": {
+            "create": true,
+            "read": true,
+            "update": true,
+            "delete": true
+        },
+        "logs": {
+            "read": true,
             "delete": true,
+            "export": true,
             "configure": true
+        },
+        "system": {
+            "configure": true,
+            "backup": true,
+            "restore": true
         }
     }',
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP
 ),
 (
-    'admin-role-id',
-    'Administrator',
+    'clm0000002',
+    'Event Manager',
+    'Full event management access including attendees, settings, and printing',
     '{
         "attendees": {
-            "view": true,
             "create": true,
-            "edit": true,
+            "read": true,
+            "update": true,
             "delete": true,
-            "import": true,
-            "export": true,
             "print": true,
-            "bulk_edit": true,
-            "bulk_delete": true
+            "export": true,
+            "import": true
         },
         "users": {
-            "view": true,
-            "create": true,
-            "edit": true,
-            "delete": false,
-            "invite": true
+            "read": true
         },
         "roles": {
-            "view": true,
-            "edit": false
+            "read": true
         },
-        "event_settings": {
-            "view": true,
-            "edit": true
+        "eventSettings": {
+            "create": true,
+            "read": true,
+            "update": true,
+            "delete": false
         },
-        "activity_logs": {
-            "view": true,
+        "customFields": {
+            "create": true,
+            "read": true,
+            "update": true,
+            "delete": true
+        },
+        "logs": {
+            "read": true,
             "export": true,
-            "delete": false,
             "configure": false
+        },
+        "system": {
+            "configure": false,
+            "backup": false,
+            "restore": false
         }
     }',
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP
 ),
 (
-    'manager-role-id',
-    'Manager',
+    'clm0000003',
+    'Registration Staff',
+    'Attendee management and credential printing access',
     '{
         "attendees": {
-            "view": true,
             "create": true,
-            "edit": true,
-            "delete": true,
-            "import": true,
-            "export": true,
+            "read": true,
+            "update": true,
+            "delete": false,
             "print": true,
-            "bulk_edit": true,
-            "bulk_delete": false
+            "export": false,
+            "import": false
         },
         "users": {
-            "view": true,
-            "create": false,
-            "edit": false,
-            "delete": false,
-            "invite": false
+            "read": false
         },
         "roles": {
-            "view": false,
-            "edit": false
+            "read": false
         },
-        "event_settings": {
-            "view": true,
-            "edit": false
+        "eventSettings": {
+            "create": false,
+            "read": true,
+            "update": false,
+            "delete": false
         },
-        "activity_logs": {
-            "view": true,
+        "customFields": {
+            "create": false,
+            "read": true,
+            "update": false,
+            "delete": false
+        },
+        "logs": {
+            "read": false,
             "export": false,
-            "delete": false,
             "configure": false
+        },
+        "system": {
+            "configure": false,
+            "backup": false,
+            "restore": false
         }
     }',
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP
 ),
 (
-    'editor-role-id',
-    'Editor',
-    '{
-        "attendees": {
-            "view": true,
-            "create": true,
-            "edit": true,
-            "delete": false,
-            "import": true,
-            "export": true,
-            "print": true,
-            "bulk_edit": false,
-            "bulk_delete": false
-        },
-        "users": {
-            "view": false,
-            "create": false,
-            "edit": false,
-            "delete": false,
-            "invite": false
-        },
-        "roles": {
-            "view": false,
-            "edit": false
-        },
-        "event_settings": {
-            "view": false,
-            "edit": false
-        },
-        "activity_logs": {
-            "view": false,
-            "export": false,
-            "delete": false,
-            "configure": false
-        }
-    }',
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP
-),
-(
-    'viewer-role-id',
+    'clm0000004',
     'Viewer',
+    'Read-only access to attendee information',
     '{
         "attendees": {
-            "view": true,
             "create": false,
-            "edit": false,
+            "read": true,
+            "update": false,
             "delete": false,
-            "import": false,
-            "export": true,
             "print": false,
-            "bulk_edit": false,
-            "bulk_delete": false
+            "export": false,
+            "import": false
         },
         "users": {
-            "view": false,
-            "create": false,
-            "edit": false,
-            "delete": false,
-            "invite": false
+            "read": false
         },
         "roles": {
-            "view": false,
-            "edit": false
+            "read": false
         },
-        "event_settings": {
-            "view": false,
-            "edit": false
+        "eventSettings": {
+            "create": false,
+            "read": true,
+            "update": false,
+            "delete": false
         },
-        "activity_logs": {
-            "view": false,
+        "customFields": {
+            "create": false,
+            "read": true,
+            "update": false,
+            "delete": false
+        },
+        "logs": {
+            "read": false,
             "export": false,
-            "delete": false,
             "configure": false
+        },
+        "system": {
+            "configure": false,
+            "backup": false,
+            "restore": false
         }
     }',
     CURRENT_TIMESTAMP,
@@ -352,9 +394,9 @@ INSERT INTO "Role" ("id", "name", "permissions", "createdAt", "updatedAt") VALUE
 );
 
 -- Insert default event settings
-INSERT INTO "EventSettings" ("id", "eventName", "eventDate", "eventTime", "eventLocation", "eventTimezone", "barcodeType", "barcodeLength", "cloudinaryEnabled", "cloudinaryCroppingEnabled", "cloudinaryDisableSkipCrop", "switchboardEnabled", "oneSimpleApiEnabled", "forceUppercaseNames", "defaultSorting", "createdAt", "updatedAt") VALUES
+INSERT INTO "event_settings" ("id", "eventName", "eventDate", "eventTime", "eventLocation", "timeZone", "barcodeType", "barcodeLength", "barcodeUnique", "createdAt", "updatedAt") VALUES
 (
-    'default-event-settings',
+    'clm0000001',
     'My Event',
     CURRENT_TIMESTAMP + INTERVAL '30 days',
     '09:00',
@@ -362,127 +404,55 @@ INSERT INTO "EventSettings" ("id", "eventName", "eventDate", "eventTime", "event
     'America/New_York',
     'numerical',
     8,
-    false,
     true,
-    false,
-    false,
-    false,
-    false,
-    'lastName',
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP
 );
 
--- Insert default log settings with all logging enabled
-INSERT INTO "LogSettings" ("id", "settings", "createdAt", "updatedAt") VALUES
+-- Insert default log settings
+INSERT INTO "log_settings" ("id", "createdAt", "updatedAt") VALUES
 (
-    'default-log-settings',
-    '{
-        "user_login": true,
-        "user_logout": true,
-        "user_create": true,
-        "user_update": true,
-        "user_delete": true,
-        "user_invite": true,
-        "attendee_create": true,
-        "attendee_update": true,
-        "attendee_delete": true,
-        "attendee_import": true,
-        "attendee_export": true,
-        "attendee_bulk_edit": true,
-        "attendee_bulk_delete": true,
-        "attendee_print": true,
-        "attendee_generate_credential": true,
-        "attendee_clear_credential": true,
-        "role_update": true,
-        "event_settings_update": true,
-        "custom_field_create": true,
-        "custom_field_update": true,
-        "custom_field_delete": true,
-        "custom_field_reorder": true,
-        "log_settings_update": true,
-        "log_delete": true,
-        "system_view_dashboard": false,
-        "system_view_attendees": false,
-        "system_view_users": false,
-        "system_view_roles": false,
-        "system_view_event_settings": false,
-        "system_view_activity_logs": false
-    }',
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP
-);
-
--- Insert sample custom fields (optional - remove if not needed)
-INSERT INTO "CustomField" ("id", "name", "internalName", "type", "required", "options", "forceUppercase", "order", "createdAt", "updatedAt") VALUES
-(
-    'sample-text-field',
-    'Company',
-    'company',
-    'text',
-    false,
-    '{}',
-    false,
-    1,
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP
-),
-(
-    'sample-select-field',
-    'Registration Type',
-    'registration_type',
-    'select',
-    false,
-    '{"Standard", "VIP", "Speaker"}',
-    false,
-    2,
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP
-),
-(
-    'sample-boolean-field',
-    'Dietary Restrictions',
-    'dietary_restrictions',
-    'boolean',
-    false,
-    '{}',
-    false,
-    3,
+    'clm0000001',
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP
 );
 
 -- Create indexes for better performance
-CREATE INDEX "User_roleId_idx" ON "User"("roleId");
-CREATE INDEX "User_createdAt_idx" ON "User"("createdAt");
-CREATE INDEX "Attendee_firstName_idx" ON "Attendee"("firstName");
-CREATE INDEX "Attendee_lastName_idx" ON "Attendee"("lastName");
-CREATE INDEX "Attendee_email_idx" ON "Attendee"("email");
-CREATE INDEX "Attendee_createdAt_idx" ON "Attendee"("createdAt");
-CREATE INDEX "Attendee_updatedAt_idx" ON "Attendee"("updatedAt");
-CREATE INDEX "AttendeeCustomFieldValue_attendeeId_idx" ON "AttendeeCustomFieldValue"("attendeeId");
-CREATE INDEX "AttendeeCustomFieldValue_customFieldId_idx" ON "AttendeeCustomFieldValue"("customFieldId");
-CREATE INDEX "ActivityLog_userId_idx" ON "ActivityLog"("userId");
-CREATE INDEX "ActivityLog_action_idx" ON "ActivityLog"("action");
-CREATE INDEX "ActivityLog_createdAt_idx" ON "ActivityLog"("createdAt");
-CREATE INDEX "CustomField_order_idx" ON "CustomField"("order");
+CREATE INDEX "users_roleId_idx" ON "users"("roleId");
+CREATE INDEX "users_createdAt_idx" ON "users"("createdAt");
+CREATE INDEX "invitations_userId_idx" ON "invitations"("userId");
+CREATE INDEX "invitations_createdBy_idx" ON "invitations"("createdBy");
+CREATE INDEX "invitations_expiresAt_idx" ON "invitations"("expiresAt");
+CREATE INDEX "custom_fields_eventSettingsId_idx" ON "custom_fields"("eventSettingsId");
+CREATE INDEX "custom_fields_order_idx" ON "custom_fields"("order");
+CREATE INDEX "attendees_firstName_idx" ON "attendees"("firstName");
+CREATE INDEX "attendees_lastName_idx" ON "attendees"("lastName");
+CREATE INDEX "attendees_createdAt_idx" ON "attendees"("createdAt");
+CREATE INDEX "attendees_updatedAt_idx" ON "attendees"("updatedAt");
+CREATE INDEX "attendee_custom_field_values_attendeeId_idx" ON "attendee_custom_field_values"("attendeeId");
+CREATE INDEX "attendee_custom_field_values_customFieldId_idx" ON "attendee_custom_field_values"("customFieldId");
+CREATE INDEX "logs_userId_idx" ON "logs"("userId");
+CREATE INDEX "logs_attendeeId_idx" ON "logs"("attendeeId");
+CREATE INDEX "logs_action_idx" ON "logs"("action");
+CREATE INDEX "logs_createdAt_idx" ON "logs"("createdAt");
 
 -- Add comments to tables for documentation
-COMMENT ON TABLE "User" IS 'Application users with role-based access control';
-COMMENT ON TABLE "Role" IS 'User roles with JSON-based permissions';
-COMMENT ON TABLE "EventSettings" IS 'Global event configuration and integration settings';
-COMMENT ON TABLE "CustomField" IS 'Dynamic custom fields for attendee data collection';
-COMMENT ON TABLE "Attendee" IS 'Event attendees with custom field support';
-COMMENT ON TABLE "AttendeeCustomFieldValue" IS 'Values for custom fields per attendee';
-COMMENT ON TABLE "ActivityLog" IS 'System activity and audit logging';
-COMMENT ON TABLE "LogSettings" IS 'Configuration for activity logging features';
+COMMENT ON TABLE "users" IS 'Application users with role-based access control';
+COMMENT ON TABLE "invitations" IS 'User invitation tokens and tracking';
+COMMENT ON TABLE "roles" IS 'User roles with JSON-based permissions';
+COMMENT ON TABLE "event_settings" IS 'Global event configuration and integration settings';
+COMMENT ON TABLE "custom_fields" IS 'Dynamic custom fields for attendee data collection';
+COMMENT ON TABLE "attendees" IS 'Event attendees with custom field support';
+COMMENT ON TABLE "attendee_custom_field_values" IS 'Values for custom fields per attendee';
+COMMENT ON TABLE "logs" IS 'System activity and audit logging';
+COMMENT ON TABLE "log_settings" IS 'Configuration for activity logging features';
 
 -- Success message
 DO $$
 BEGIN
     RAISE NOTICE 'CredentialStudio database setup completed successfully!';
-    RAISE NOTICE 'Created tables: User, Role, EventSettings, CustomField, Attendee, AttendeeCustomFieldValue, ActivityLog, LogSettings';
-    RAISE NOTICE 'Inserted default roles: Super Administrator, Administrator, Manager, Editor, Viewer';
+    RAISE NOTICE 'Created tables: users, invitations, roles, event_settings, custom_fields, attendees, attendee_custom_field_values, logs, log_settings';
+    RAISE NOTICE 'Inserted default roles: Super Administrator, Event Manager, Registration Staff, Viewer';
     RAISE NOTICE 'Inserted default event settings and log configuration';
     RAISE NOTICE 'Database is ready for use!';
 END $$;
