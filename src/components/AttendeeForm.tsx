@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -47,6 +47,8 @@ export default function AttendeeForm({
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [isCloudinaryOpen, setIsCloudinaryOpen] = useState(false);
+  const cloudinaryRef = useRef<any>(null);
+  const widgetRef = useRef<any>(null);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -54,6 +56,93 @@ export default function AttendeeForm({
     photoUrl: '',
     customFieldValues: {} as Record<string, string>
   });
+
+  // Initialize Cloudinary widget
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.cloudinary && eventSettings?.cloudinaryCloudName && eventSettings?.cloudinaryUploadPreset) {
+      cloudinaryRef.current = window.cloudinary;
+      
+      // Configure crop aspect ratio
+      let croppingAspectRatio = 1; // Default to square
+      if (eventSettings.cloudinaryCropAspectRatio && eventSettings.cloudinaryCropAspectRatio !== 'free') {
+        croppingAspectRatio = parseFloat(eventSettings.cloudinaryCropAspectRatio);
+      }
+
+      // Build widget configuration
+      const widgetConfig: any = {
+        cloudName: eventSettings.cloudinaryCloudName,
+        uploadPreset: eventSettings.cloudinaryUploadPreset,
+        sources: ['local', 'url', 'camera'],
+        defaultSource: 'local',
+        multiple: false,
+        cropping: true,
+        croppingShowDimensions: true,
+        croppingCoordinatesMode: 'custom',
+        showSkipCropButton: false,
+        folder: 'attendee-photos',
+        clientAllowedFormats: ['jpg', 'jpeg', 'png'],
+        maxFileSize: 5000000, // 5MB
+        maxImageWidth: 800,
+        maxImageHeight: 800,
+        theme: 'minimal',
+        styles: {
+          palette: {
+            window: "#FFFFFF",
+            windowBorder: "#90A0B3",
+            tabIcon: "#8B5CF6",
+            menuIcons: "#5A616A",
+            textDark: "#000000",
+            textLight: "#FFFFFF",
+            link: "#8B5CF6",
+            action: "#8B5CF6",
+            inactiveTabIcon: "#0E2F5A",
+            error: "#F44235",
+            inProgress: "#8B5CF6",
+            complete: "#20B832",
+            sourceBg: "#E4EBF1"
+          }
+        },
+        showAdvancedOptions: false,
+        showPoweredBy: false
+      };
+
+      // Set crop aspect ratio (only if not free form)
+      if (eventSettings.cloudinaryCropAspectRatio !== 'free') {
+        widgetConfig.croppingAspectRatio = croppingAspectRatio;
+      }
+
+      // Configure skip crop button behavior
+      if (eventSettings.cloudinaryDisableSkipCrop) {
+        widgetConfig.showSkipCropButton = false;
+        widgetConfig.croppingValidateMinSize = true;
+      } else {
+        widgetConfig.showSkipCropButton = true;
+      }
+
+      widgetRef.current = cloudinaryRef.current.createUploadWidget(
+        widgetConfig,
+        (error: any, result: any) => {
+          setIsCloudinaryOpen(false);
+          if (!error && result && result.event === 'success') {
+            setFormData(prev => ({ ...prev, photoUrl: result.info.secure_url }));
+            toast({
+              title: "Success",
+              description: "Photo uploaded successfully!",
+            });
+          } else if (error) {
+            // Don't show an error toast if the user just closes the widget
+            if (result && result.event !== 'close') {
+              toast({
+                variant: "destructive",
+                title: "Upload Error",
+                description: error?.message || "Failed to upload photo",
+              });
+            }
+          }
+        }
+      );
+    }
+  }, [eventSettings, toast]);
 
   useEffect(() => {
     if (attendee) {
@@ -111,94 +200,14 @@ export default function AttendeeForm({
       return;
     }
 
-    if (window.cloudinary) {
+    if (widgetRef.current) {
       setIsCloudinaryOpen(true);
-      // Configure crop aspect ratio
-      let croppingAspectRatio = 1; // Default to square
-      if (eventSettings.cloudinaryCropAspectRatio && eventSettings.cloudinaryCropAspectRatio !== 'free') {
-        croppingAspectRatio = parseFloat(eventSettings.cloudinaryCropAspectRatio);
-      }
-
-      // Build widget configuration
-      const widgetConfig: any = {
-        cloudName: eventSettings.cloudinaryCloudName,
-        uploadPreset: eventSettings.cloudinaryUploadPreset,
-        sources: ['local', 'url', 'camera'],
-        defaultSource: 'local',
-        multiple: false,
-        cropping: true,
-        croppingShowDimensions: true,
-        croppingCoordinatesMode: 'custom',
-        showSkipCropButton: false,
-        folder: 'attendee-photos',
-        clientAllowedFormats: ['jpg', 'jpeg', 'png'],
-        maxFileSize: 5000000, // 5MB
-        maxImageWidth: 800,
-        maxImageHeight: 800,
-        theme: 'minimal',
-        styles: {
-          palette: {
-            window: "#FFFFFF",
-            windowBorder: "#90A0B3",
-            tabIcon: "#8B5CF6",
-            menuIcons: "#5A616A",
-            textDark: "#000000",
-            textLight: "#FFFFFF",
-            link: "#8B5CF6",
-            action: "#8B5CF6",
-            inactiveTabIcon: "#0E2F5A",
-            error: "#F44235",
-            inProgress: "#8B5CF6",
-            complete: "#20B832",
-            sourceBg: "#E4EBF1"
-          }
-        },
-        showAdvancedOptions: false,
-        showPoweredBy: false
-      };
-
-      // Set crop aspect ratio (only if not free form)
-      if (eventSettings.cloudinaryCropAspectRatio !== 'free') {
-        widgetConfig.croppingAspectRatio = croppingAspectRatio;
-      }
-
-      // Configure skip crop button behavior according to Cloudinary documentation
-      if (eventSettings.cloudinaryDisableSkipCrop) {
-        // Disable the skip crop button and force cropping
-        widgetConfig.showSkipCropButton = false;
-        widgetConfig.croppingValidateMinSize = true;
-      } else {
-        // Allow skipping crop (default behavior)
-        widgetConfig.showSkipCropButton = true;
-      }
-
-      window.cloudinary.openUploadWidget(
-        widgetConfig,
-        (error: any, result: any) => {
-          setIsCloudinaryOpen(false);
-          if (!error && result && result.event === 'success') {
-            setFormData(prev => ({ ...prev, photoUrl: result.info.secure_url }));
-            toast({
-              title: "Success",
-              description: "Photo uploaded successfully!",
-            });
-          } else if (error) {
-            // Don't show an error toast if the user just closes the widget
-            if (result && result.event !== 'close') {
-              toast({
-                variant: "destructive",
-                title: "Upload Error",
-                description: error?.message || "Failed to upload photo",
-              });
-            }
-          }
-        }
-      );
+      widgetRef.current.open();
     } else {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Cloudinary widget not loaded. Please refresh the page.",
+        description: "Cloudinary widget not initialized. Please refresh the page.",
       });
     }
   };

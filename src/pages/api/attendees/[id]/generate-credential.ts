@@ -339,7 +339,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     } catch (parseError) {
       return res.status(400).json({ 
         error: 'Invalid request body template in Switchboard Canvas settings',
-        details: parseError.message
+        details: parseError instanceof Error ? parseError.message : String(parseError)
       });
     }
 
