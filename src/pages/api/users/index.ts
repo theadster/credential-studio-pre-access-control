@@ -2,6 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { randomUUID } from 'crypto';
 import prisma from '@/lib/prisma';
 import { createClient } from '@/util/supabase/api';
+import { createAuthUser, sendPasswordResetEmail, deleteAuthUser } from '@/util/supabase/admin';
 import { checkApiPermission } from '@/lib/permissions';
 import { shouldLog } from '@/lib/logSettings';
 
@@ -53,7 +54,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           return res.status(403).json({ error: 'Insufficient permissions to create users' });
         }
 
-        const { email, name, roleId } = req.body;
+        const { email, name, roleId, sendInvite = true } = req.body;
 
         if (!email || !name) {
           return res.status(400).json({ error: 'Email and name are required' });
@@ -69,6 +70,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
 
         // Validate role if provided
+        let roleName = 'Regular User'; // Default role
         if (roleId) {
           const role = await prisma.role.findUnique({
             where: { id: roleId }
@@ -77,42 +79,82 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           if (!role) {
             return res.status(400).json({ error: 'Invalid role ID' });
           }
+          roleName = role.name;
         }
 
-        // Create user in our database with a proper UUID
-        // The user will need to sign up separately to get a real Supabase auth account
-        const tempId = randomUUID();
-        
-        const newUser = await prisma.user.create({
-          data: {
-            id: tempId,
-            email,
+        try {
+          // Create user in Supabase Auth first
+          const authResult = await createAuthUser(email, undefined, {
             name,
-            roleId,
-            isInvited: true // Flag to indicate this is an invited user who hasn't signed up yet
-          },
-          include: {
-            role: true
-          }
-        });
+            role: roleName
+          });
 
-        // Log the create action
-        if (createPermission.user) {
-          await prisma.log.create({
+          if (!authResult.user) {
+            throw new Error('Failed to create Supabase auth user');
+          }
+
+          // Create user in our database using the Supabase user ID
+          const newUser = await prisma.user.create({
             data: {
-              userId: user.id,
-              action: 'create',
-              details: { 
-                type: 'user_invitation',
-                email: newUser.email,
-                name: newUser.name,
-                roleId: newUser.roleId
-              }
+              id: authResult.user.id, // Use Supabase user ID
+              email,
+              name,
+              roleId,
+              isInvited: true
+            },
+            include: {
+              role: true
             }
           });
-        }
 
-        return res.status(201).json(newUser);
+          // Send password reset email if requested (default behavior)
+          if (sendInvite) {
+            try {
+              await sendPasswordResetEmail(email);
+            } catch (emailError) {
+              console.warn('Failed to send invitation email:', emailError);
+              // Don't fail the user creation if email fails
+            }
+          }
+
+          // Log the create action
+           if (createPermission.user && user) {
+             await prisma.log.create({
+               data: {
+                 userId: user.id,
+                 action: 'create',
+                 details: { 
+                   type: 'user_invitation',
+                   email: newUser.email,
+                   name: newUser.name,
+                   roleId: newUser.roleId
+                 }
+               }
+             });
+           }
+
+           // Return user data with temporary password info
+           const responseData = {
+             ...newUser,
+             temporaryPassword: authResult.temporaryPassword,
+             invitationSent: sendInvite
+           };
+
+           return res.status(201).json(responseData);
+         } catch (authError: any) {
+           console.error('Error creating user:', authError);
+           
+           // If Supabase user creation failed, don't create internal user
+           if (authError.message?.includes('already registered')) {
+             return res.status(400).json({ 
+               error: 'A user with this email already exists in the authentication system' 
+             });
+           }
+           
+           return res.status(500).json({ 
+             error: 'Failed to create user account. Please try again.' 
+           });
+         }
 
       case 'PUT':
         // Check update permission for users
@@ -195,6 +237,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           return res.status(404).json({ error: 'User not found' });
         }
 
+        try {
+          // Delete user from Supabase Auth first
+          await deleteAuthUser(deleteId);
+        } catch (authError: any) {
+          console.warn('Failed to delete Supabase auth user:', authError);
+          // Continue with internal deletion even if Supabase deletion fails
+          // This handles cases where the auth user might not exist or already be deleted
+        }
+
         // Delete user from our database
         await prisma.user.delete({
           where: { id: deleteId }
@@ -209,13 +260,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               details: { 
                 type: 'user',
                 email: userToDelete.email,
-                name: userToDelete.name
+                name: userToDelete.name,
+                deletedFromAuth: true
               }
             }
           });
         }
 
-        return res.status(200).json({ message: 'User deleted successfully' });
+        return res.status(200).json({ message: 'User deleted successfully from both systems' });
 
       default:
         res.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']);

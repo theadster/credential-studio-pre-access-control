@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
@@ -13,7 +13,49 @@ const ResetPasswordPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const [sessionReady, setSessionReady] = useState(false);
   const supabase = createClient();
+
+  // Handle auth session from URL parameters
+  useEffect(() => {
+    const handleAuthSession = async () => {
+      try {
+        // Check if we have URL parameters for auth
+        const urlParams = new URLSearchParams(window.location.search);
+        const accessToken = urlParams.get('access_token');
+        const refreshToken = urlParams.get('refresh_token');
+        
+        if (accessToken && refreshToken) {
+          // Set the session using the tokens from the URL
+          const { data, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          });
+          
+          if (error) {
+            console.error('Error setting session:', error);
+            setSessionError('Invalid or expired reset link. Please request a new password reset.');
+          } else {
+            setSessionReady(true);
+          }
+        } else {
+          // Check if we already have a valid session
+          const { data: { session }, error } = await supabase.auth.getSession();
+          if (session) {
+            setSessionReady(true);
+          } else {
+            setSessionError('Invalid reset link. Please request a new password reset.');
+          }
+        }
+      } catch (error) {
+        console.error('Error handling auth session:', error);
+        setSessionError('An error occurred. Please try again.');
+      }
+    };
+
+    handleAuthSession();
+  }, [supabase]);
 
   const validationSchema = Yup.object().shape({
     password: Yup.string()
@@ -35,6 +77,10 @@ const ResetPasswordPage = () => {
     onSubmit: async (values) => {
       setIsLoading(true);
       try {
+        if (!sessionReady) {
+          throw new Error('Session not ready. Please try again.');
+        }
+
         const { data, error } = await supabase.auth.updateUser({ password: values.password });
         
         if (error) throw error;
@@ -44,9 +90,9 @@ const ResetPasswordPage = () => {
 
         // Redirect to dashboard or show success message
         router.push('/dashboard');
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error resetting password:', error);
-        // Handle error (show error message to user)
+        setSessionError(error.message || 'Failed to reset password. Please try again.');
       } finally {
         setIsLoading(false);
       }
@@ -72,6 +118,18 @@ const ResetPasswordPage = () => {
             <p className="text-sm text-neutral-300 text-center">
               Enter your new password below.
             </p>
+
+            {sessionError && (
+              <div className="p-3 text-sm text-red-400 bg-red-900/20 border border-red-800 rounded-lg text-center">
+                {sessionError}
+              </div>
+            )}
+
+            {!sessionReady && !sessionError && (
+              <div className="p-3 text-sm text-blue-400 bg-blue-900/20 border border-blue-800 rounded-lg text-center">
+                Verifying reset link...
+              </div>
+            )}
 
             <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-2">
@@ -134,9 +192,9 @@ const ResetPasswordPage = () => {
             <button
               type="submit"
               className={`w-full py-2 text-sm font-medium text-neutral-100 bg-primary-600 rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition duration-200 ${
-                isLoading || !formik.isValid ? 'opacity-50 cursor-not-allowed' : ''
+                isLoading || !formik.isValid || !sessionReady || sessionError ? 'opacity-50 cursor-not-allowed' : ''
               }`}
-              disabled={isLoading || !formik.isValid}
+              disabled={isLoading || !formik.isValid || !sessionReady || !!sessionError}
             >
               {isLoading ? 'Resetting...' : 'Reset Password'}
             </button>
@@ -149,6 +207,17 @@ const ResetPasswordPage = () => {
                 Back to Login
               </span>
             </div>
+
+            {sessionError && (
+              <div className="flex justify-center">
+                <span
+                  className="text-primary-400 text-sm font-medium cursor-pointer hover:underline"
+                  onClick={() => router.push('/forgot-password')}
+                >
+                  Request New Reset Link
+                </span>
+              </div>
+            )}
           </div>
         </form>
       </div>

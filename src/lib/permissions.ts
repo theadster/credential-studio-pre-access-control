@@ -7,6 +7,9 @@ interface Permission {
   export?: boolean;
   import?: boolean;
   bulkEdit?: boolean;
+  bulkDelete?: boolean;
+  bulkGenerateCredentials?: boolean;
+  bulkGeneratePDFs?: boolean;
   configure?: boolean;
   backup?: boolean;
   restore?: boolean;

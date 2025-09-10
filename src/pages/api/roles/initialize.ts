@@ -7,7 +7,7 @@ const DEFAULT_ROLES = [
     name: 'Super Administrator',
     description: 'Full system access with all permissions including user management and system configuration',
     permissions: {
-      attendees: { create: true, read: true, update: true, delete: true, print: true, export: true, import: true },
+      attendees: { create: true, read: true, update: true, delete: true, print: true, export: true, import: true, bulkEdit: true, bulkDelete: true, bulkGenerateCredentials: true, bulkGeneratePDFs: true },
       users: { create: true, read: true, update: true, delete: true },
       roles: { create: true, read: true, update: true, delete: true },
       eventSettings: { create: true, read: true, update: true, delete: true },
@@ -20,7 +20,7 @@ const DEFAULT_ROLES = [
     name: 'Event Manager',
     description: 'Full event management access including attendees, settings, and printing',
     permissions: {
-      attendees: { create: true, read: true, update: true, delete: true, print: true, export: true, import: true },
+      attendees: { create: true, read: true, update: true, delete: true, print: true, export: true, import: true, bulkEdit: true, bulkDelete: true, bulkGenerateCredentials: true, bulkGeneratePDFs: true },
       users: { read: true },
       roles: { read: true },
       eventSettings: { create: true, read: true, update: true, delete: false },
@@ -33,7 +33,7 @@ const DEFAULT_ROLES = [
     name: 'Registration Staff',
     description: 'Attendee management and credential printing access',
     permissions: {
-      attendees: { create: true, read: true, update: true, delete: false, print: true, export: false, import: false },
+      attendees: { create: true, read: true, update: true, delete: false, print: true, export: false, import: false, bulkEdit: false, bulkDelete: false, bulkGenerateCredentials: true, bulkGeneratePDFs: true },
       users: { read: false },
       roles: { read: false },
       eventSettings: { create: false, read: true, update: false, delete: false },
@@ -46,7 +46,7 @@ const DEFAULT_ROLES = [
     name: 'Viewer',
     description: 'Read-only access to attendee information',
     permissions: {
-      attendees: { create: false, read: true, update: false, delete: false, print: false, export: false, import: false },
+      attendees: { create: false, read: true, update: false, delete: false, print: false, export: false, import: false, bulkEdit: false, bulkDelete: false, bulkGenerateCredentials: false, bulkGeneratePDFs: false },
       users: { read: false },
       roles: { read: false },
       eventSettings: { create: false, read: true, update: false, delete: false },

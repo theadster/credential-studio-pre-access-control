@@ -21,6 +21,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    // Check permissions
+    const currentUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      include: { role: true }
+    });
+
+    if (!currentUser?.role) {
+      return res.status(403).json({ error: 'Access denied: No role assigned' });
+    }
+
+    const permissions = currentUser.role.permissions as any;
+    const hasBulkGeneratePDFsPermission = permissions?.attendees?.bulkGeneratePDFs === true || permissions?.all === true;
+
+    if (!hasBulkGeneratePDFsPermission) {
+      return res.status(403).json({ error: 'Access denied: Insufficient permissions for bulk PDF generation' });
+    }
     const eventSettings = await prisma.eventSettings.findFirst();
     
     if (!eventSettings || !eventSettings.oneSimpleApiEnabled || !eventSettings.oneSimpleApiUrl || !eventSettings.oneSimpleApiFormDataKey || !eventSettings.oneSimpleApiFormDataValue) {

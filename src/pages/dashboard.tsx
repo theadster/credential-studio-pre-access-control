@@ -2509,7 +2509,7 @@ export default function Dashboard() {
                         <span className="text-sm text-muted-foreground">
                           {selectedAttendees.length} selected
                         </span>
-                        {(hasPermission(currentUser?.role, 'attendees', 'bulkEdit') || hasPermission(currentUser?.role, 'attendees', 'delete')) && (
+                        {(hasPermission(currentUser?.role, 'attendees', 'bulkEdit') || hasPermission(currentUser?.role, 'attendees', 'bulkDelete')) && (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="outline" className="flex items-center space-x-2">
@@ -2528,7 +2528,7 @@ export default function Dashboard() {
                                   Bulk Edit
                                 </DropdownMenuItem>
                               )}
-                              {hasPermission(currentUser?.role, 'attendees', 'print') && (eventSettings as any)?.switchboardEnabled && (
+                              {hasPermission(currentUser?.role, 'attendees', 'bulkGenerateCredentials') && (eventSettings as any)?.switchboardEnabled && (
                                 <DropdownMenuItem
                                   onClick={handleBulkGenerateCredentials}
                                   disabled={bulkGeneratingCredentials}
@@ -2546,7 +2546,7 @@ export default function Dashboard() {
                                   )}
                                 </DropdownMenuItem>
                               )}
-                              {hasPermission(currentUser?.role, 'attendees', 'delete') && (
+                              {hasPermission(currentUser?.role, 'attendees', 'bulkDelete') && (
                                 <AlertDialog>
                                   <AlertDialogTrigger asChild>
                                     <DropdownMenuItem
@@ -2596,7 +2596,7 @@ export default function Dashboard() {
                                   </AlertDialogContent>
                                 </AlertDialog>
                               )}
-                              {hasPermission(currentUser?.role, 'attendees', 'export') && (eventSettings as any)?.oneSimpleApiEnabled && (
+                              {hasPermission(currentUser?.role, 'attendees', 'bulkGeneratePDFs') && (eventSettings as any)?.oneSimpleApiEnabled && (
                                 <DropdownMenuItem
                                   onClick={handleBulkExportPdf}
                                   disabled={exportingPdfs}
@@ -3220,14 +3220,35 @@ export default function Dashboard() {
                                 </Button>
                               )}
                               {hasPermission(currentUser?.role, 'users', 'delete') && canManageUser(currentUser?.role, user.role) && (
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm" 
-                                  className="text-destructive"
-                                  onClick={() => handleDeleteUser(user.id)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm" 
+                                      className="text-destructive"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        This action cannot be undone. This will permanently delete the user{' '}
+                                        <strong>{user.name || user.email}</strong> from the database. All associated data and logs will be lost.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction
+                                        onClick={() => handleDeleteUser(user.id)}
+                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                      >
+                                        Delete User
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
                               )}
                             </div>
                           </TableCell>

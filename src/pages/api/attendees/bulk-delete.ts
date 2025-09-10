@@ -33,10 +33,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Check permissions
     const permissions = currentUser.role.permissions as any;
-    const hasDeletePermission = permissions?.attendees?.delete === true || permissions?.all === true;
+    const hasBulkDeletePermission = permissions?.attendees?.bulkDelete === true || permissions?.all === true;
 
-    if (!hasDeletePermission) {
-      return res.status(403).json({ error: 'Access denied: Insufficient permissions' });
+    if (!hasBulkDeletePermission) {
+      return res.status(403).json({ error: 'Access denied: Insufficient permissions for bulk delete' });
     }
 
     // Get attendee details for logging before deletion
