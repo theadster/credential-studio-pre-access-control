@@ -118,7 +118,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
 
           // Handle date properly to avoid timezone issues
-          let createParsedEventDate;
+          let createParsedEventDate: Date | undefined;
           if (eventDate) {
             if (typeof eventDate === 'string' && eventDate.includes('-') && !eventDate.includes('T')) {
               // If it's a date string (YYYY-MM-DD), parse it as local date to avoid UTC conversion
@@ -132,7 +132,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           const newEventSettings = await prisma.eventSettings.create({
             data: {
               eventName,
-              eventDate: createParsedEventDate,
+              eventDate: createParsedEventDate || new Date(),
               eventTime,
               eventLocation,
               timeZone,

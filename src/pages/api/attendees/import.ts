@@ -100,7 +100,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                   let processedValue = String(value);
                   
                   // Apply uppercase transformation for text fields if enabled
-                  if (fieldInfo?.fieldType === 'text' && fieldInfo?.fieldOptions?.uppercase === true) {
+                  if (fieldInfo?.fieldType === 'text' && (fieldInfo?.fieldOptions as any)?.uppercase === true) {
                     processedValue = processedValue.toUpperCase();
                   }
                   

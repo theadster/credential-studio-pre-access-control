@@ -115,7 +115,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Log the login event
       try {
         await logAuthEvent('auth_login', data.user.id, {
-          email: data.user.email,
+          email: data.user.email || '',
           loginMethod: 'password',
           timestamp: new Date().toISOString()
         });
@@ -165,27 +165,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const signInWithMagicLink = async (email: string) => {
-    const { data, error } = await supabase.auth.signInWithOtp({
+    const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
         shouldCreateUser: false,
         emailRedirectTo: `${window.location.origin}/dashboard`,
       },
     });
-    if (!error && data.user) {
-      await createUser(data.user);
-      
-      // Log the login event
-      try {
-        await logAuthEvent('auth_login', data.user.id, {
-          email: data.user.email,
-          loginMethod: 'magic_link',
-          timestamp: new Date().toISOString()
-        });
-      } catch (logError) {
-        console.error('Failed to log magic link login event:', logError);
-      }
-    }
+    
     if (error) {
       toast({
         variant: "destructive",

@@ -74,7 +74,7 @@ interface User {
   role: {
     id: string;
     name: string;
-    permissions: any;
+    permissions: Record<string, boolean>;
   } | null;
   isInvited?: boolean;
   createdAt: string;
@@ -84,7 +84,7 @@ interface Role {
   id: string;
   name: string;
   description: string | null;
-  permissions: any;
+  permissions: Record<string, boolean>;
   createdAt: string;
 }
 
@@ -98,7 +98,16 @@ interface Attendee {
   credentialGeneratedAt?: string | null;
   createdAt: string;
   updatedAt: string;
-  customFieldValues: any[];
+  customFieldValues: {
+    id: string;
+    value: string;
+    customField: {
+      id: string;
+      fieldName: string;
+      fieldType: string;
+      internalFieldName?: string;
+    };
+  }[];
 }
 
 interface EventSettings {
@@ -114,7 +123,15 @@ interface EventSettings {
   attendeeSortField?: string;
   attendeeSortDirection?: string;
   bannerImageUrl: string | null;
-  customFields: any[];
+  customFields: {
+    id: string;
+    fieldName: string;
+    internalFieldName?: string;
+    fieldType: string;
+    fieldOptions?: { options: string[] };
+    required: boolean;
+    order: number;
+  }[];
   createdAt: string;
   updatedAt: string;
 }
@@ -122,7 +139,7 @@ interface EventSettings {
 interface Log {
   id: string;
   action: string;
-  details: any;
+  details: Record<string, unknown>;
   createdAt: string;
   user: {
     name: string | null;
@@ -2688,7 +2705,10 @@ export default function Dashboard() {
                     {hasPermission(currentUser?.role, 'attendees', 'import') && (
                       <ImportDialog 
                         onImportSuccess={refreshAttendees}
-                        customFields={eventSettings?.customFields || []}
+                        customFields={(eventSettings?.customFields || []).map(field => ({
+                          ...field,
+                          internalFieldName: field.internalFieldName || field.fieldName.toLowerCase().replace(/\s+/g, '_')
+                        }))}
                       >
                         <Button variant="outline">
                           <Upload className="mr-2 h-4 w-4" />
@@ -2703,7 +2723,18 @@ export default function Dashboard() {
                         isFiltered={showAdvancedSearch || searchTerm !== '' || photoFilter !== 'all'}
                         searchTerm={searchTerm}
                         photoFilter={photoFilter}
-                        advancedFilters={showAdvancedSearch ? advancedSearchFilters : null}
+                        advancedFilters={showAdvancedSearch ? {
+                           firstName: advancedSearchFilters.firstName.value,
+                           lastName: advancedSearchFilters.lastName.value,
+                           barcode: advancedSearchFilters.barcode.value,
+                           photoFilter: advancedSearchFilters.photoFilter,
+                           customFields: Object.fromEntries(
+                             Object.entries(advancedSearchFilters.customFields).map(([key, field]) => [
+                               key,
+                               { value: field.value, searchEmpty: field.operator === 'isEmpty' }
+                             ])
+                           )
+                         } : null}
                         eventSettings={eventSettings}
                       >
                         <Button variant="outline">
@@ -3986,10 +4017,10 @@ export default function Dashboard() {
                                     </div>
                                   ) : (
                                     <div>
-                                      <div className="font-medium">{log.details?.type || "System"}</div>
+                                      <div className="font-medium">{String(log.details?.type) || "System"}</div>
                                       <div className="text-xs text-muted-foreground">
                                         {log.details?.firstName && log.details?.lastName 
-                                          ? `${log.details.firstName} ${log.details.lastName}`
+                                          ? `${String(log.details.firstName)} ${String(log.details.lastName)}`
                                           : 'System Operation'
                                         }
                                       </div>
@@ -3999,30 +4030,30 @@ export default function Dashboard() {
                               </TableCell>
                               <TableCell>
                                 <div className="text-sm text-muted-foreground max-w-xs">
-                                  {log.details?.changes && (
+                                  {log.details?.changes ? (
                                     <div className="text-xs">
                                       {Array.isArray(log.details.changes) ? (
                                         // Handle array format (new format)
-                                        <>Changed: {log.details.changes.join(', ')}</>
+                                        <>Changed: {(log.details.changes as string[]).join(', ')}</>
                                       ) : typeof log.details.changes === 'object' && log.details.changes !== null ? (
                                         // Handle object format (legacy format)
-                                        <>Changed: {Object.entries(log.details.changes)
+                                        <>Changed: {Object.entries(log.details.changes as Record<string, boolean>)
                                           .filter(([, changed]) => changed)
                                           .map(([field]) => field)
-                                          .join(', ')
-                                        }</>
+                                          .join(', ')}
+                                        </>
                                       ) : (
                                         // Handle string format (fallback)
                                         <>Changed: {String(log.details.changes)}</>
                                       )}
                                     </div>
-                                  )}
-                                  {log.details?.count && (
-                                    <div className="text-xs">Count: {log.details.count}</div>
-                                  )}
-                                  {log.details?.barcodeNumber && (
-                                    <div className="text-xs">Barcode: {log.details.barcodeNumber}</div>
-                                  )}
+                                  ) : null}
+                                  {log.details?.count ? (
+                                    <div className="text-xs">Count: {String(log.details.count || '')}</div>
+                                  ) : null}
+                                  {log.details?.barcodeNumber ? (
+                                    <div className="text-xs">Barcode: {String(log.details.barcodeNumber || '')}</div>
+                                  ) : null}
                                 </div>
                               </TableCell>
                               <TableCell>
