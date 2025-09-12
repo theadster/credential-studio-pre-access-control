@@ -4,7 +4,6 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { 
   IdCard,
   Users, 
@@ -14,7 +13,6 @@ import {
   Printer,
   CheckCircle,
   ArrowRight,
-  Zap,
   Lock,
   Cloud
 } from "lucide-react";

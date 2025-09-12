@@ -9,8 +9,12 @@ import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
-import { useIsIFrame } from '@/hooks/useIsIFrame';
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+
+interface FormValues {
+  email: string;
+  password: string;
+}
 
 const LoginPage = () => {
   const router = useRouter();
@@ -18,7 +22,6 @@ const LoginPage = () => {
   const [showPw, setShowPw] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [signInBannerUrl, setSignInBannerUrl] = useState<string | null>(null);
-  const { isIframe } = useIsIFrame();
   const { toast } = useToast();
 
   // Fetch event settings to get the sign-in banner URL
@@ -40,11 +43,10 @@ const LoginPage = () => {
     fetchEventSettings();
   }, []);
 
-  const handleLogin = async (e: any) => {
-    e.preventDefault();
+  const handleLogin = async (values: FormValues) => {
     setIsLoading(true);
     try {
-      const { email, password } = formik.values;
+      const { email, password } = values;
       await signIn(email, password);
       router.push('/dashboard');
     } catch (error) {
@@ -67,7 +69,7 @@ const LoginPage = () => {
       .max(40, "Must not exceed 40 characters"),
   });
 
-  const formik = useFormik({
+  const formik = useFormik<FormValues>({
     initialValues: {
       email: '',
       password: '',
@@ -79,7 +81,7 @@ const LoginPage = () => {
   const handleKeyPress = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      handleLogin(e);
+      formik.handleSubmit();
     }
   };
 
@@ -105,7 +107,7 @@ const LoginPage = () => {
             <CardTitle className="text-center">Log in</CardTitle>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleLogin}>
+            <form onSubmit={formik.handleSubmit}>
               <div className="flex flex-col gap-6">
                 <div className="flex flex-col gap-6">
                   <p className="text-center text-sm text-muted-foreground">Enter your credentials</p>
@@ -172,7 +174,6 @@ const LoginPage = () => {
                   type="submit"
                   className="w-full"
                   disabled={isLoading || initializing || !formik.values.email || !formik.values.password || !formik.isValid}
-                  onClick={handleLogin}
                 >
                   Continue
                 </Button>

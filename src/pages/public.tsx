@@ -1,6 +1,10 @@
 import { createClient } from '@/util/supabase/static-props'
 
-export default function PublicPage({ data }: { data?: any[] }) {
+interface Country {
+  [key: string]: unknown;
+}
+
+export default function PublicPage({ data }: { data?: Country[] }) {
   return <pre>{data && JSON.stringify(data, null, 2)}</pre>
 }
 

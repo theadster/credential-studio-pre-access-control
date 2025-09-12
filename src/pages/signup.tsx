@@ -19,7 +19,15 @@ const SignUpPage = () => {
   const [showPw, setShowPw] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [invitationToken, setInvitationToken] = useState<string | null>(null);
-  const [invitationData, setInvitationData] = useState<any>(null);
+interface InvitationData {
+  email: string;
+  role?: {
+    name: string;
+  };
+  [key: string]: unknown;
+}
+
+  const [invitationData, setInvitationData] = useState<InvitationData | null>(null);
   const [validatingInvitation, setValidatingInvitation] = useState(false);
   const { toast } = useToast();
 
@@ -50,7 +58,7 @@ const SignUpPage = () => {
         });
         router.push('/signup');
       }
-    } catch (error) {
+    } catch {
       toast({
         variant: "destructive",
         title: "Error",
@@ -62,11 +70,15 @@ const SignUpPage = () => {
     }
   };
 
-  const handleSignUp = async (e: any) => {
-    e.preventDefault();
+interface FormValues {
+  email: string;
+  password: string;
+}
+
+  const handleSignUp = async (values: FormValues) => {
     setIsLoading(true);
     try {
-      const { email, password } = formik.values;
+      const { email, password } = values;
       
       // Create Supabase auth user
       const { data, error } = await fetch('/api/auth/signup', {
@@ -109,12 +121,13 @@ const SignUpPage = () => {
       }
 
       router.push('/login');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error);
+      const errorMessage = error instanceof Error ? error.message : "Please try again.";
       toast({
         variant: "destructive",
         title: "Sign up failed",
-        description: error.message || "Please try again.",
+        description: errorMessage,
       });
     } finally {
       setIsLoading(false);
@@ -141,7 +154,7 @@ const SignUpPage = () => {
   const handleKeyPress = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      handleSignUp(e);
+      formik.handleSubmit();
     }
   };
 
@@ -159,7 +172,7 @@ const SignUpPage = () => {
             </CardTitle>
             {invitationData && (
               <div className="text-center text-sm text-muted-foreground">
-                You've been invited to join as <span className="font-semibold">{invitationData.role?.name || 'User'}</span>
+                You&apos;ve been invited to join as <span className="font-semibold">{invitationData.role?.name || 'User'}</span>
               </div>
             )}
           </CardHeader>
@@ -172,7 +185,7 @@ const SignUpPage = () => {
                 </div>
               </div>
             ) : (
-              <form onSubmit={handleSignUp}>
+              <form onSubmit={formik.handleSubmit}>
                 <div className="flex flex-col gap-6">
                   {!invitationToken && (
                     <>
@@ -271,7 +284,6 @@ const SignUpPage = () => {
                     type="submit"
                     className="w-full"
                     disabled={isLoading || initializing || !formik.values.email || !formik.values.password || !formik.isValid}
-                    onClick={handleSignUp}
                   >
                     {invitationToken ? 'Complete Registration' : 'Sign Up'}
                   </Button>

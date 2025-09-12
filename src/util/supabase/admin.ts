@@ -74,7 +74,7 @@ export async function updateAuthUser(
   updates: {
     email?: string
     password?: string
-    user_metadata?: Record<string, any>
+    user_metadata?: Record<string, unknown>
   }
 ) {
   const adminClient = createAdminClient()

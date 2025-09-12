@@ -8,31 +8,75 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/components/ui/use-toast';
-import { Upload, Camera, X, Save, Loader2, User, Users, Hash, FileText, Link, ToggleLeft, Calendar, Mail, ChevronDown, Type, Hash as NumberIcon } from 'lucide-react';
+import { Camera, X, Save, Loader2, User, Users, Hash, FileText, Link, ToggleLeft, Calendar, Mail, ChevronDown, Type, Hash as NumberIcon } from 'lucide-react';
+
+interface CustomFieldOptions {
+  uppercase?: boolean;
+  options?: string[];
+  [key: string]: unknown;
+}
 
 interface CustomField {
   id: string;
   fieldName: string;
   fieldType: string;
-  fieldOptions?: any;
+  fieldOptions?: CustomFieldOptions;
   required: boolean;
   order: number;
+}
+
+interface CustomFieldValue {
+  customFieldId: string;
+  value: string;
+}
+
+interface Attendee {
+  id?: string;
+  firstName: string;
+  lastName: string;
+  barcodeNumber: string;
+  profileImageUrl?: string;
+  photoUrl?: string | null;
+  customFieldValues?: CustomFieldValue[];
+  [key: string]: unknown; // For custom fields
+}
+
+interface EventSettings {
+  id?: string;
+  eventName?: string;
+  eventDate?: string;
+  barcodeType?: string;
+  barcodeLength?: number;
+  cloudinaryCloudName?: string;
+  cloudinaryUploadPreset?: string;
+  cloudinaryCropAspectRatio?: string;
+  cloudinaryDisableSkipCrop?: boolean;
+  [key: string]: unknown;
 }
 
 interface AttendeeFormProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (attendee: any) => void;
-  attendee?: any;
+  onSave: (attendee: Attendee) => void;
+  attendee?: Attendee;
   customFields: CustomField[];
-  eventSettings?: any;
+  eventSettings?: EventSettings;
+}
+
+interface CloudinaryWidget {
+  open: () => void;
+  close: () => void;
+  destroy: () => void;
+}
+
+interface CloudinaryInstance {
+  createUploadWidget: (config: Record<string, unknown>, callback: (error: unknown, result: unknown) => void) => CloudinaryWidget;
 }
 
 declare global {
   interface Window {
-    cloudinary: any;
+    cloudinary: CloudinaryInstance;
   }
 }
 
@@ -47,8 +91,8 @@ export default function AttendeeForm({
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [isCloudinaryOpen, setIsCloudinaryOpen] = useState(false);
-  const cloudinaryRef = useRef<any>(null);
-  const widgetRef = useRef<any>(null);
+  const cloudinaryRef = useRef<CloudinaryInstance | null>(null);
+  const widgetRef = useRef<CloudinaryWidget | null>(null);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -151,7 +195,7 @@ export default function AttendeeForm({
         lastName: attendee.lastName || '',
         barcodeNumber: attendee.barcodeNumber || '',
         photoUrl: attendee.photoUrl || '',
-        customFieldValues: attendee.customFieldValues?.reduce((acc: any, cfv: any) => {
+        customFieldValues: attendee.customFieldValues?.reduce((acc: Record<string, string>, cfv: CustomFieldValue) => {
           acc[cfv.customFieldId] = cfv.value;
           return acc;
         }, {}) || {}
@@ -173,7 +217,8 @@ export default function AttendeeForm({
   const generateBarcode = () => {
     if (!eventSettings) return;
     
-    const { barcodeType, barcodeLength } = eventSettings;
+    const barcodeType = eventSettings.barcodeType || 'alphanumeric';
+    const barcodeLength = eventSettings.barcodeLength || 8;
     let barcode = '';
     
     if (barcodeType === 'numerical') {

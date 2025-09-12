@@ -28,7 +28,7 @@ const ResetPasswordPage = () => {
         
         if (accessToken && refreshToken) {
           // Set the session using the tokens from the URL
-          const { data, error } = await supabase.auth.setSession({
+          const { error } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken
           });
@@ -41,7 +41,7 @@ const ResetPasswordPage = () => {
           }
         } else {
           // Check if we already have a valid session
-          const { data: { session }, error } = await supabase.auth.getSession();
+          const { data: { session } } = await supabase.auth.getSession();
           if (session) {
             setSessionReady(true);
           } else {
@@ -90,9 +90,10 @@ const ResetPasswordPage = () => {
 
         // Redirect to dashboard or show success message
         router.push('/dashboard');
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Error resetting password:', error);
-        setSessionError(error.message || 'Failed to reset password. Please try again.');
+        const errorMessage = error instanceof Error ? error.message : 'Failed to reset password. Please try again.';
+        setSessionError(errorMessage);
       } finally {
         setIsLoading(false);
       }

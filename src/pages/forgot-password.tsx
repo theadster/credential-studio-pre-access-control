@@ -64,7 +64,7 @@ const ForgotPasswordPage = () => {
             <form onSubmit={formik.handleSubmit}>
               <div className="flex flex-col gap-6">
                 <p className="text-center text-sm text-muted-foreground">
-                  Enter your email address and we'll send you a link to reset your password.
+                  Enter your email address and we&apos;ll send you a link to reset your password.
                 </p>
 
                 <div className="flex flex-col gap-2">

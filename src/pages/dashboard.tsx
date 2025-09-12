@@ -88,6 +88,11 @@ interface Role {
   createdAt: string;
 }
 
+interface CustomFieldValue {
+  customFieldId: string;
+  value: string;
+}
+
 interface Attendee {
   id: string;
   firstName: string;
@@ -98,16 +103,8 @@ interface Attendee {
   credentialGeneratedAt?: string | null;
   createdAt: string;
   updatedAt: string;
-  customFieldValues: {
-    id: string;
-    value: string;
-    customField: {
-      id: string;
-      fieldName: string;
-      fieldType: string;
-      internalFieldName?: string;
-    };
-  }[];
+  customFieldValues: CustomFieldValue[];
+  [key: string]: unknown;
 }
 
 interface EventSettings {
@@ -123,6 +120,15 @@ interface EventSettings {
   attendeeSortField?: string;
   attendeeSortDirection?: string;
   bannerImageUrl: string | null;
+  oneSimpleApiEnabled?: boolean;
+  oneSimpleApiUrl?: string;
+  switchboardEnabled?: boolean;
+  switchboardApiEndpoint?: string;
+  switchboardApiKey?: string;
+  cloudinaryEnabled?: boolean;
+  cloudinaryCloudName?: string;
+  cloudinaryApiKey?: string;
+  cloudinaryUploadPreset?: string;
   customFields: {
     id: string;
     fieldName: string;
@@ -134,6 +140,7 @@ interface EventSettings {
   }[];
   createdAt: string;
   updatedAt: string;
+  [key: string]: unknown;
 }
 
 interface Log {
@@ -2735,7 +2742,7 @@ export default function Dashboard() {
                              ])
                            )
                          } : null}
-                        eventSettings={eventSettings}
+                        eventSettings={eventSettings || undefined}
                       >
                         <Button variant="outline">
                           <Download className="mr-2 h-4 w-4" />
@@ -2873,17 +2880,17 @@ export default function Dashboard() {
 
                                       return (
                                         <div className={`grid ${gridCols} gap-x-4 gap-y-1`}>
-                                          {customFieldsWithValues.map((field: any, index: number) => (
+                                          {customFieldsWithValues.map((field, index: number) => (
                                             <div key={index} className="text-xs text-muted-foreground">
                                               <span className="font-medium">{field.fieldName}:</span>{' '}
                                               {field.fieldType === 'url' ? (
                                                 <a 
-                                                  href={field.value} 
+                                                  href={field.value || ''} 
                                                   target="_blank" 
                                                   rel="noopener noreferrer"
                                                   className="text-blue-600 hover:text-blue-800 underline"
                                                 >
-                                                  {field.value}
+                                                  {field.value || ''}
                                                 </a>
                                               ) : (
                                                 field.value
@@ -3454,7 +3461,7 @@ export default function Dashboard() {
                             <div className="space-y-3">
                               <div className="text-sm font-medium text-foreground">Permissions Overview</div>
                               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                {Object.entries(role.permissions || {}).map(([resource, perms]: [string, any]) => {
+                                {Object.entries(role.permissions || {}).map(([resource, perms]: [string, boolean | Record<string, boolean>]) => {
                                   const resourcePermissions = typeof perms === 'object' && perms !== null 
                                     ? Object.entries(perms).filter(([, allowed]) => allowed).map(([action]) => action)
                                     : perms ? [String(perms)] : [];
@@ -3711,51 +3718,51 @@ export default function Dashboard() {
                             {/* Cloudinary Status */}
                             <div className="flex items-center justify-between p-3 border rounded-lg">
                               <div className="flex items-center gap-3">
-                                <div className={`h-2 w-2 rounded-full ${(eventSettings as any).cloudinaryEnabled ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                                <div className={`h-2 w-2 rounded-full ${eventSettings?.cloudinaryEnabled ? 'bg-green-500' : 'bg-gray-400'}`}></div>
                                 <div>
                                   <div className="font-medium">Cloudinary Integration</div>
                                   <div className="text-xs text-muted-foreground">
-                                    {(eventSettings as any).cloudinaryEnabled ? 'Active' : 'Disabled'}
-                                    {(eventSettings as any).cloudinaryEnabled && (eventSettings as any).cloudinaryCloudName && (eventSettings as any).cloudinaryApiKey && (eventSettings as any).cloudinaryUploadPreset ? ' - Fully Configured' : (eventSettings as any).cloudinaryEnabled ? ' - Incomplete Configuration' : ''}
+                                    {eventSettings?.cloudinaryEnabled ? 'Active' : 'Disabled'}
+                                    {eventSettings?.cloudinaryEnabled && eventSettings?.cloudinaryCloudName && eventSettings?.cloudinaryApiKey && eventSettings?.cloudinaryUploadPreset ? ' - Fully Configured' : eventSettings?.cloudinaryEnabled ? ' - Incomplete Configuration' : ''}
                                   </div>
                                 </div>
                               </div>
-                              <Badge variant={(eventSettings as any).cloudinaryEnabled ? "default" : "secondary"}>
-                                {(eventSettings as any).cloudinaryEnabled ? 'Enabled' : 'Disabled'}
+                              <Badge variant={eventSettings?.cloudinaryEnabled ? "default" : "secondary"}>
+                                {eventSettings?.cloudinaryEnabled ? 'Enabled' : 'Disabled'}
                               </Badge>
                             </div>
 
                             {/* Switchboard Status */}
                             <div className="flex items-center justify-between p-3 border rounded-lg">
                               <div className="flex items-center gap-3">
-                                <div className={`h-2 w-2 rounded-full ${(eventSettings as any).switchboardEnabled ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                                <div className={`h-2 w-2 rounded-full ${eventSettings?.switchboardEnabled ? 'bg-green-500' : 'bg-gray-400'}`}></div>
                                 <div>
                                   <div className="font-medium">Switchboard Canvas Integration</div>
                                   <div className="text-xs text-muted-foreground">
-                                    {(eventSettings as any).switchboardEnabled ? 'Active' : 'Disabled'}
-                                    {(eventSettings as any).switchboardEnabled && (eventSettings as any).switchboardApiEndpoint && (eventSettings as any).switchboardApiKey ? ' - Fully Configured' : (eventSettings as any).switchboardEnabled ? ' - Incomplete Configuration' : ''}
+                                    {eventSettings?.switchboardEnabled ? 'Active' : 'Disabled'}
+                                    {eventSettings?.switchboardEnabled && eventSettings?.switchboardApiEndpoint && eventSettings?.switchboardApiKey ? ' - Fully Configured' : eventSettings?.switchboardEnabled ? ' - Incomplete Configuration' : ''}
                                   </div>
                                 </div>
                               </div>
-                              <Badge variant={(eventSettings as any).switchboardEnabled ? "default" : "secondary"}>
-                                {(eventSettings as any).switchboardEnabled ? 'Enabled' : 'Disabled'}
+                              <Badge variant={eventSettings?.switchboardEnabled ? "default" : "secondary"}>
+                                {eventSettings?.switchboardEnabled ? 'Enabled' : 'Disabled'}
                               </Badge>
                             </div>
 
                             {/* OneSimpleAPI Status */}
                             <div className="flex items-center justify-between p-3 border rounded-lg">
                               <div className="flex items-center gap-3">
-                                <div className={`h-2 w-2 rounded-full ${(eventSettings as any).oneSimpleApiEnabled ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                                <div className={`h-2 w-2 rounded-full ${eventSettings?.oneSimpleApiEnabled ? 'bg-green-500' : 'bg-gray-400'}`}></div>
                                 <div>
                                   <div className="font-medium">OneSimpleAPI Integration</div>
                                   <div className="text-xs text-muted-foreground">
-                                    {(eventSettings as any).oneSimpleApiEnabled ? 'Active' : 'Disabled'}
-                                    {(eventSettings as any).oneSimpleApiEnabled && (eventSettings as any).oneSimpleApiUrl ? ' - Fully Configured' : (eventSettings as any).oneSimpleApiEnabled ? ' - Incomplete Configuration' : ''}
+                                    {eventSettings?.oneSimpleApiEnabled ? 'Active' : 'Disabled'}
+                                    {eventSettings?.oneSimpleApiEnabled && eventSettings?.oneSimpleApiUrl ? ' - Fully Configured' : eventSettings?.oneSimpleApiEnabled ? ' - Incomplete Configuration' : ''}
                                   </div>
                                 </div>
                               </div>
-                              <Badge variant={(eventSettings as any).oneSimpleApiEnabled ? "default" : "secondary"}>
-                                {(eventSettings as any).oneSimpleApiEnabled ? 'Enabled' : 'Disabled'}
+                              <Badge variant={eventSettings?.oneSimpleApiEnabled ? "default" : "secondary"}>
+                                {eventSettings?.oneSimpleApiEnabled ? 'Enabled' : 'Disabled'}
                               </Badge>
                             </div>
                           </div>
@@ -3790,7 +3797,7 @@ export default function Dashboard() {
                       </CardHeader>
                       <CardContent>
                         <div className="space-y-3">
-                          {eventSettings.customFields.map((field: any) => (
+                          {eventSettings.customFields.map((field) => (
                             <div key={field.id} className="flex items-center justify-between p-3 border rounded-lg">
                               <div className="flex-1">
                                 <div className="flex items-center space-x-2">
@@ -3831,7 +3838,7 @@ export default function Dashboard() {
                       <Calendar className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
                     </div>
                     <div className="ml-4">
-                      <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Today's Activities</p>
+                      <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Today&apos;s Activities</p>
                       <p className="text-4xl font-bold text-emerald-900 dark:text-emerald-100">
                         {logs.filter(log => {
                           const logDate = new Date(log.createdAt).toDateString();
@@ -3864,11 +3871,11 @@ export default function Dashboard() {
                       <p className="text-sm font-medium text-amber-700 dark:text-amber-300">Most Common</p>
                       <p className="text-2xl font-bold text-amber-900 dark:text-amber-100">
                         {(() => {
-                          const actionCounts = logs.reduce((acc: any, log) => {
+                          const actionCounts = logs.reduce((acc: Record<string, number>, log) => {
                             acc[log.action] = (acc[log.action] || 0) + 1;
                             return acc;
                           }, {});
-                          const mostCommon = Object.entries(actionCounts).sort(([,a]: any, [,b]: any) => b - a)[0];
+                          const mostCommon = Object.entries(actionCounts).sort(([,a], [,b]) => (b as number) - (a as number))[0];
                           return mostCommon ? capitalizeFirst(mostCommon[0]) : 'N/A';
                         })()}
                       </p>
@@ -4124,7 +4131,7 @@ export default function Dashboard() {
                                 const totalPages = logsPagination.totalPages;
                                 
                                 let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
-                                let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+                                const endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
                                 
                                 if (endPage - startPage + 1 < maxVisiblePages) {
                                   startPage = Math.max(1, endPage - maxVisiblePages + 1);
@@ -4232,9 +4239,9 @@ export default function Dashboard() {
           setEditingAttendee(null);
         }}
         onSave={handleSaveAttendee}
-        attendee={editingAttendee}
+        attendee={editingAttendee || undefined}
         customFields={eventSettings?.customFields || []}
-        eventSettings={eventSettings}
+        eventSettings={eventSettings || undefined}
       />
 
       {/* User Form Modal */}
