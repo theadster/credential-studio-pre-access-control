@@ -1,0 +1,168 @@
+# Implementation Plan
+
+- [x] 1. Fix GET endpoint integration field mapping
+  - Update the GET handler in src/pages/api/event-settings/index.ts to use the flattenEventSettings helper for complete field mapping
+  - Replace the manual field mapping with the helper function that correctly maps all integration fields
+  - Ensure all three integrations (Cloudinary, Switchboard, OneSimpleAPI) have complete field mapping
+  - Fix the OneSimpleAPI field name errors (apiUrl → url, remove apiKey, add formDataKey/formDataValue/recordTemplate)
+  - Verify the response includes all integration fields with correct default values when integration data is null
+  - _Requirements: 1.1, 1.2, 2.1, 2.2, 3.1, 3.2, 5.1, 5.3, 5.4, 6.1_
+
+- [x] 2. Implement integration field extraction and update logic
+  - [x] 2.1 Create extractIntegrationFields helper function
+    - Add function to extract Cloudinary fields from update payload (all 9 fields)
+    - Add function to extract Switchboard fields from update payload (all 7 fields)
+    - Add function to extract OneSimpleAPI fields from update payload (all 5 fields)
+    - Filter out undefined values to avoid overwriting with undefined
+    - _Requirements: 4.1, 4.2, 4.3, 4.4, 6.2_
+  - [x] 2.2 Create getCoreEventSettingsFields helper function
+    - Exclude all integration-specific fields from the update payload
+    - Exclude customFields from the update payload
+    - Exclude cache metadata fields (timestamp) from the update payload
+    - Return only core event settings fields
+    - _Requirements: 4.1, 6.2_
+  - [x] 2.3 Update PUT handler to use integration update functions
+    - Extract integration fields using the new helper
+    - Call updateCloudinaryIntegration with extracted Cloudinary fields
+    - Call updateSwitchboardIntegration with extracted Switchboard fields
+    - Call updateOneSimpleApiIntegration with extracted OneSimpleAPI fields
+    - Update integrations in parallel using Promise.all
+    - Handle integration update errors gracefully (log but don't fail entire request)
+    - Handle IntegrationConflictError with 409 response
+    - Invalidate cache after successful updates
+    - _Requirements: 4.2, 4.3, 4.4, 4.5, 4.6, 6.2, 6.3_
+
+- [x] 3. Verify and enhance integration collection interfaces
+  - Review CloudinaryIntegration interface in src/lib/appwrite-integrations.ts
+  - Review SwitchboardIntegration interface in src/lib/appwrite-integrations.ts
+  - Review OneSimpleApiIntegration interface in src/lib/appwrite-integrations.ts
+  - Ensure all interfaces match the actual collection schemas
+  - Fix flattenEventSettings helper to handle empty string in switchboardFieldMappings (prevent JSON.parse error)
+  - _Requirements: 5.4, 6.1, 2.4_
+
+- [x] 4. Add integration update error handling
+  - Wrap each integration update in try-catch to handle individual failures
+  - Log integration update errors without failing the entire request
+  - Return partial success responses when some integrations fail
+  - Add specific handling for IntegrationConflictError (optimistic locking)
+  - _Requirements: 4.5, 6.3_
+
+- [x] 5. Update cache handling for integration fields
+  - Verify cached response includes all integration fields
+  - Ensure cache invalidation occurs after integration updates
+  - Test cache hit/miss behavior with complete integration data
+  - _Requirements: 1.5, 4.6_
+
+- [x] 6. Create integration tests for complete field mapping
+  - [x] 6.1 Test GET endpoint with all Cloudinary fields
+    - Create test event settings with all Cloudinary fields populated
+    - Fetch via GET endpoint
+    - Verify all 9 Cloudinary fields are present in response
+    - Verify correct data types (booleans, strings)
+    - Verify default values when integration document doesn't exist
+    - _Requirements: 1.1, 1.2, 1.4, 1.5_
+  - [x] 6.2 Test GET endpoint with all Switchboard fields
+    - Create test event settings with all Switchboard fields populated
+    - Fetch via GET endpoint
+    - Verify all 7 Switchboard fields are present in response
+    - Verify fieldMappings is correctly parsed from JSON string
+    - Verify default values when integration document doesn't exist
+    - _Requirements: 2.1, 2.2, 2.4, 2.5_
+  - [x] 6.3 Test GET endpoint with all OneSimpleAPI fields
+    - Create test event settings with all OneSimpleAPI fields populated
+    - Fetch via GET endpoint
+    - Verify all 5 OneSimpleAPI fields are present in response
+    - Verify correct field names (url not apiUrl, formDataKey/Value not apiKey)
+    - Verify default values when integration document doesn't exist
+    - _Requirements: 3.1, 3.2, 3.4_
+  - [x] 6.4 Test PUT endpoint updates all Cloudinary fields
+    - Update all Cloudinary fields including booleans
+    - Verify updates are saved to Cloudinary integration collection
+    - Verify version number increments
+    - Fetch settings and verify all fields persisted
+    - _Requirements: 1.3, 4.2, 6.2, 6.3_
+  - [x] 6.5 Test PUT endpoint updates all Switchboard fields
+    - Update all Switchboard fields including authHeaderType, requestBody, templateId
+    - Verify updates are saved to Switchboard integration collection
+    - Verify fieldMappings is correctly serialized to JSON string
+    - Verify version number increments
+    - Fetch settings and verify all fields persisted
+    - _Requirements: 2.3, 4.3, 6.2, 6.3_
+  - [x] 6.6 Test PUT endpoint updates all OneSimpleAPI fields
+    - Update all OneSimpleAPI fields
+    - Verify updates are saved to OneSimpleAPI integration collection
+    - Verify version number increments
+    - Fetch settings and verify all fields persisted
+    - _Requirements: 3.3, 4.4, 6.2, 6.3_
+  - [x] 6.7 Test partial integration updates
+    - Update only some fields for each integration
+    - Verify unchanged fields remain the same
+    - Verify only updated fields change
+    - _Requirements: 4.1, 6.2_
+  - [x] 6.8 Test integration update error handling
+    - Simulate integration update failure
+    - Verify error is logged but request doesn't fail
+    - Verify partial success is handled correctly
+    - _Requirements: 4.5_
+  - [x] 6.9 Test optimistic locking conflict handling
+    - Create concurrent update scenario
+    - Verify IntegrationConflictError is thrown
+    - Verify 409 response is returned
+    - _Requirements: 6.3_
+  - [x] 6.10 Test cache invalidation after integration updates
+    - Fetch event settings (cache miss)
+    - Fetch again (cache hit)
+    - Update integration fields
+    - Fetch again (cache miss with updated data)
+    - Verify all updated fields are reflected
+    - _Requirements: 1.5, 4.6_
+
+- [x] 7. Manual testing and verification
+  - [x] 7.1 Test Cloudinary integration UI
+    - Open event settings form
+    - Verify all Cloudinary fields display current values
+    - Toggle "Auto-optimize images" switch
+    - Toggle "Generate thumbnails" switch
+    - Toggle "Disable Skip Crop button" switch
+    - Change "Crop Aspect Ratio" dropdown
+    - Save settings
+    - Reload page and verify all settings persisted
+    - _Requirements: 1.1, 1.2, 1.3_
+  - [x] 7.2 Test Switchboard integration UI
+    - Open event settings form
+    - Verify all Switchboard fields display current values
+    - Change "Auth Header Type" field
+    - Update "Request Body" template
+    - Change "Template ID" field
+    - Update field mappings
+    - Save settings
+    - Reload page and verify all settings persisted
+    - _Requirements: 2.1, 2.2, 2.3_
+  - [x] 7.3 Test OneSimpleAPI integration UI
+    - Open event settings form
+    - Verify all OneSimpleAPI fields display current values
+    - Update URL field
+    - Change form data key and value
+    - Update record template
+    - Save settings
+    - Reload page and verify all settings persisted
+    - _Requirements: 3.1, 3.2, 3.3_
+  - [x] 7.4 Test with missing integration data
+    - Delete integration documents from Appwrite
+    - Fetch event settings
+    - Verify default values are shown in UI
+    - Update integration settings
+    - Verify new integration documents are created
+    - _Requirements: 1.4, 2.5, 3.4, 5.3, 6.4_
+  - [x] 7.5 Test backward compatibility
+    - Verify existing event settings continue to work
+    - Verify no UI changes are required
+    - Verify API responses match expected format
+    - _Requirements: 5.1, 5.2, 5.3_
+
+- [x] 8. Documentation updates
+  - Update INTEGRATION_OPTIMISTIC_LOCKING_API_USAGE.md if needed
+  - Document the complete field mapping for all integrations
+  - Add examples of correct integration field usage
+  - Document error handling for integration updates
+  - _Requirements: 6.5_

@@ -1,0 +1,151 @@
+# Documentation
+
+This directory contains all project documentation organized by category.
+
+## Directory Structure
+
+```
+docs/
+├── fixes/          # Bug fixes and issue resolutions
+├── migration/      # Supabase to Appwrite migration documentation
+├── testing/        # Test summaries and testing guides
+├── guides/         # User guides and how-to documentation
+└── misc/           # Miscellaneous documentation
+```
+
+## Quick Links
+
+### Recent Fixes
+- [**CRITICAL: Bulk Edit Data Loss Fix**](./fixes/CRITICAL_BULK_EDIT_DATA_LOSS_FIX.md) - 🚨 Fixed data loss bug in bulk edit
+- [Credential Generation Empty Placeholder Fix](./fixes/CREDENTIAL_GENERATION_EMPTY_PLACEHOLDER_FIX.md) - Fixed invalid JSON from empty placeholders
+- [Bulk Credential Generation Timestamp Fix](./fixes/BULK_CREDENTIAL_GENERATION_TIMESTAMP_FIX.md) - Fixed timestamp mismatch between UI and bulk generation
+- [Custom Field Validation Fix](./fixes/CUSTOM_FIELD_VALIDATION_FIX.md) - Handle deleted custom fields gracefully
+- [Token Refresh Session Expiration Fix](./fixes/TOKEN_REFRESH_SESSION_EXPIRATION_FIX.md) - Session validation and error handling
+- [Session Timeout Improvements](./fixes/SESSION_TIMEOUT_IMPROVEMENTS.md) - Enhanced session management
+- [Credential Generation Fixes](./fixes/CREDENTIAL_GENERATION_FIXES_SUMMARY.md) - Complete fix summary
+- [Credential Status Fix](./fixes/CREDENTIAL_STATUS_FIX.md) - CURRENT vs OUTDATED status
+- [Custom Field Values Fix](./fixes/CUSTOM_FIELD_VALUES_FIX.md) - Array/object format mismatch
+- [Integration Architecture Fix](./fixes/INTEGRATION_ARCHITECTURE_FIX.md) - Separate collections
+- [Template ID Fix](./fixes/TEMPLATE_ID_FIX.md) - Missing UI field
+- [Regex Escape Bug Fix](./fixes/REGEX_ESCAPE_BUG_FIX.md) - Corrupted regex patterns
+- [Debug Tools Moved](./fixes/DEBUG_TOOLS_MOVED.md) - Debug tools reorganization
+
+### Migration Documentation
+- [Migration Status](./migration/MIGRATION_STATUS.md) - Overall migration progress
+- [Migration Complete Summary](./migration/MIGRATION_COMPLETE_SUMMARY.md) - Final summary
+- [Appwrite Configuration](./migration/APPWRITE_CONFIGURATION.md) - Database structure
+- [Appwrite Setup](./migration/APPWRITE_SETUP.md) - Setup instructions
+- [Integration Collections Migration](./migration/INTEGRATION_COLLECTIONS_MIGRATION.md) - Normalized design
+
+### Testing Documentation
+- [Test Summary](./testing/TEST_SUMMARY.md) - Overall test coverage
+- [E2E Tests Summary](./testing/E2E_TESTS_SUMMARY.md) - End-to-end tests
+- [Auth User Linking Integration Tests](./testing/AUTH_USER_LINKING_INTEGRATION_TESTS_SUMMARY.md) - Auth user linking tests
+- [Attendee API Tests](./testing/ATTENDEE_API_TESTS_SUMMARY.md)
+- [Custom Field API Tests](./testing/CUSTOM_FIELD_API_TESTS_SUMMARY.md)
+- [Invitation API Tests](./testing/INVITATION_API_TESTS_SUMMARY.md)
+- [Logs API Tests](./testing/LOGS_API_TESTS_SUMMARY.md)
+- [Realtime Tests](./testing/REALTIME_TESTS_SUMMARY.md)
+- [User Management API Tests](./testing/USER_MANAGEMENT_API_TESTS_SUMMARY.md)
+
+### Guides
+- [**Auth User Linking API Guide**](./guides/AUTH_USER_LINKING_API_GUIDE.md) - Complete API documentation for auth user linking
+- [**Auth User Linking Admin Guide**](./guides/AUTH_USER_LINKING_ADMIN_GUIDE.md) - Administrator guide for linking users
+- [Bulk Credential Generation Logic](./guides/BULK_CREDENTIAL_GENERATION_LOGIC.md) - How bulk generation determines credential status
+- [Switchboard Configuration Guide](./guides/SWITCHBOARD_CONFIGURATION_GUIDE.md) - Setup Switchboard
+- [Manual Testing Guide](./guides/MANUAL_TESTING_GUIDE.md) - Manual testing procedures
+- [Cache Usage Example](./guides/CACHE_USAGE_EXAMPLE.md) - Caching patterns
+- [Integration Interfaces Verification](./guides/INTEGRATION_INTERFACES_VERIFICATION.md)
+- [Error Handling Guide](./guides/ERROR_HANDLING_GUIDE.md) - Centralized error handling patterns
+
+## Spec-Related Documentation
+
+Documentation related to specific specs is located in `.kiro/specs/[spec-name]/`:
+
+### Auth User Linking System
+`.kiro/specs/auth-user-linking-system/`
+- requirements.md - Feature requirements
+- design.md - System design
+- tasks.md - Implementation tasks
+- TASK_1 through TASK_16 summaries (complete implementation)
+
+### Integration Fields Mapping Fix
+`.kiro/specs/integration-fields-mapping-fix/`
+- TASK_6_COMPLETE_FIELD_MAPPING_TESTS_SUMMARY.md
+- TASK_6.1 through TASK_6.10 summaries
+
+### Integration Optimistic Locking
+`.kiro/specs/integration-optimistic-locking/`
+- INTEGRATION_OPTIMISTIC_LOCKING_API_USAGE.md
+
+### API Performance Optimization
+`.kiro/specs/api-performance-optimization/`
+- TASK_7_ERROR_HANDLING_SUMMARY.md
+- TASK_8_INTEGRATION_TESTS_SUMMARY.md
+- TASK_9_PERFORMANCE_BENCHMARKING_SUMMARY.md
+
+### Supabase to Appwrite Migration
+`.kiro/specs/supabase-to-appwrite-migration/`
+- TASK_9_MIGRATION_SCRIPT_SUMMARY.md
+
+### Multi-Session Authentication
+`.kiro/specs/multi-session-authentication/`
+- LOGIN_FIX_SUMMARY.md
+- USER_LOGS_FIX_SUMMARY.md
+
+## Finding Documentation
+
+### By Topic
+
+**Authentication & Users:**
+- Multi-session authentication spec folder
+- User Management Enhancement (misc/)
+
+**Credentials & Printing:**
+- Credential Generation Fixes (fixes/)
+- Switchboard Configuration Guide (guides/)
+
+**Custom Fields:**
+- Custom Field Values Fix (fixes/)
+- Custom Field API Tests (testing/)
+
+**Database & Migration:**
+- Migration documentation folder
+- Appwrite Configuration (migration/)
+
+**Testing:**
+- Testing documentation folder
+- Manual Testing Guide (guides/)
+
+### By Date
+
+Most recent documentation is in `fixes/` folder, created during the credential generation debugging session.
+
+## Contributing
+
+When adding new documentation:
+
+1. **Fixes** - Bug fixes and issue resolutions → `docs/fixes/`
+2. **Migration** - Migration-related docs → `docs/migration/`
+3. **Testing** - Test summaries → `docs/testing/`
+4. **Guides** - How-to and user guides → `docs/guides/`
+5. **Spec-related** - Spec task summaries → `.kiro/specs/[spec-name]/`
+6. **Other** - Everything else → `docs/misc/`
+
+## Maintenance
+
+### Archiving Old Documentation
+
+Consider archiving documentation that is:
+- No longer relevant
+- Superseded by newer docs
+- Related to completed migrations
+
+Create an `archive/` folder when needed.
+
+### Updating Documentation
+
+When fixing bugs or making changes:
+1. Update relevant documentation
+2. Add new summary to appropriate folder
+3. Update this README if adding new categories

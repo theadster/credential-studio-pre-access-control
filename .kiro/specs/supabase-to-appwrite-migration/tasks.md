@@ -1,0 +1,466 @@
+# Implementation Plan
+
+- [x] 1. Set up Appwrite infrastructure and configuration
+  - Create Appwrite database and all required collections with proper attributes, indexes, and permissions
+  - Configure environment variables for Appwrite endpoints and collection IDs
+  - Update .env.local template with Appwrite configuration
+  - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 7.1, 7.2, 7.3, 7.4, 7.5, 10.6_
+
+- [x] 2. Implement core Appwrite utilities and helpers
+  - [x] 2.1 Update src/lib/appwrite.ts with session client and admin client functions
+    - Implement createBrowserClient for client-side operations
+    - Implement createSessionClient for API routes with session handling
+    - Implement createAdminClient for admin operations
+    - Add proper TypeScript types and error handling
+    - _Requirements: 3.1, 3.2, 4.1, 6.5_
+  - [x] 2.2 Create src/lib/appwriteQueries.ts query helper utilities
+    - Implement query builder functions (equal, notEqual, lessThan, greaterThan, search)
+    - Implement pagination helper functions
+    - Implement sorting helper functions
+    - Add TypeScript types for query builders
+    - _Requirements: 3.6, 3.7, 3.8_
+  - [x] 2.3 Create src/hooks/useRealtimeSubscription.ts for real-time functionality
+    - Implement useRealtimeSubscription hook with proper cleanup
+    - Add TypeScript generics for type safety
+    - Handle subscription errors gracefully
+    - _Requirements: 5.1, 5.2, 5.3_
+
+- [x] 3. Migrate authentication system
+  - [x] 3.1 Rewrite src/contexts/AuthContext.tsx to use Appwrite Auth
+    - Replace Supabase auth calls with Appwrite account methods
+    - Implement signIn using createEmailPasswordSession
+    - Implement signUp using create account method
+    - Implement signOut with session deletion
+    - Implement resetPassword using createRecovery
+    - Implement updatePassword for password changes
+    - Store session in cookies for SSR compatibility
+    - Fetch user profile from Appwrite database after authentication
+    - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.7, 1.8, 6.2_
+  - [x] 3.2 Implement OAuth authentication with Google
+    - Update signInWithGoogle to use Appwrite OAuth
+    - Configure OAuth callback handling
+    - Update auth/callback.tsx page for Appwrite OAuth flow
+    - _Requirements: 1.5_
+  - [x] 3.3 Implement magic link authentication
+    - Update signInWithMagicLink to use Appwrite magic URL
+    - Configure magic link redirect URLs
+    - _Requirements: 1.6_
+  - [x] 3.4 Update ProtectedRoute component to use Appwrite auth state
+    - Replace Supabase session checks with Appwrite account.get()
+    - Update loading and redirect logic
+    - _Requirements: 6.3_
+
+- [x] 4. Migrate user management API routes
+  - [x] 4.1 Migrate src/pages/api/users/index.ts
+    - Replace Prisma queries with Appwrite database operations
+    - Implement GET to list users with role information
+    - Implement POST to create users with Appwrite Auth and database profile
+    - Implement PUT to update user profiles and roles
+    - Implement DELETE to remove users from both Auth and database
+    - Add proper permission checks using role-based access
+    - Create log entries for all operations
+    - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 4.1, 4.6_
+  - [x] 4.2 Migrate src/pages/api/profile/index.ts
+    - Replace Prisma user query with Appwrite database query
+    - Fetch user profile by userId from Appwrite Auth
+    - Include role information in response
+    - _Requirements: 3.2, 4.1_
+
+- [x] 5. Migrate role and permission API routes
+  - [x] 5.1 Migrate src/pages/api/roles/index.ts
+    - Replace Prisma role queries with Appwrite database operations
+    - Implement GET to list all roles
+    - Implement POST to create new roles with permissions JSON
+    - Parse and validate permissions JSON structure
+    - Add permission checks for role management
+    - _Requirements: 3.1, 3.2, 3.3, 4.5_
+  - [x] 5.2 Migrate src/pages/api/roles/[id].ts
+    - Implement GET to fetch single role by ID
+    - Implement PUT to update role name, description, and permissions
+    - Implement DELETE to remove role
+    - Validate that role is not assigned to users before deletion
+    - _Requirements: 3.3, 3.4, 3.5, 4.5_
+  - [x] 5.3 Migrate src/pages/api/roles/initialize.ts
+    - Create default roles in Appwrite database if they don't exist
+    - Set up Super Administrator role with full permissions
+    - _Requirements: 3.1_
+  - [x] 5.4 Migrate src/pages/api/roles/fix-logs-permission.ts
+    - Update to use Appwrite database operations
+    - Fix permissions JSON for Super Administrator role
+    - _Requirements: 3.3_
+
+- [x] 6. Migrate attendee management API routes
+  - [x] 6.1 Migrate src/pages/api/attendees/index.ts
+    - Replace Prisma attendee queries with Appwrite database operations
+    - Implement GET with filtering, sorting, and pagination using Appwrite queries
+    - Implement POST to create attendees with custom field values as JSON
+    - Handle barcode generation and uniqueness validation
+    - Store custom field values in denormalized JSON format
+    - Add permission checks and logging
+    - _Requirements: 3.1, 3.2, 3.6, 3.7, 3.8, 4.2_
+  - [x] 6.2 Migrate src/pages/api/attendees/[id].ts
+    - Implement GET to fetch single attendee with custom fields
+    - Implement PUT to update attendee including custom field values
+    - Implement DELETE to remove attendee
+    - Parse and update customFieldValues JSON
+    - _Requirements: 3.2, 3.3, 3.4, 3.5, 4.2_
+  - [x] 6.3 Migrate src/pages/api/attendees/bulk-delete.ts
+    - Implement bulk delete using multiple Appwrite deleteDocument calls
+    - Handle partial failures and return success/error arrays
+    - Create log entries for bulk operations
+    - _Requirements: 3.5, 3.10, 4.2_
+  - [x] 6.4 Migrate src/pages/api/attendees/bulk-edit.ts
+    - Implement bulk update using multiple Appwrite updateDocument calls
+    - Handle partial failures gracefully
+    - Update custom field values in JSON format
+    - _Requirements: 3.3, 3.10, 4.2_
+  - [x] 6.5 Migrate src/pages/api/attendees/export.ts
+    - Fetch attendees from Appwrite database with filters
+    - Parse custom field values from JSON
+    - Generate CSV export with custom fields
+    - _Requirements: 3.2, 4.2_
+  - [x] 6.6 Migrate src/pages/api/attendees/import.ts
+    - Parse CSV import data
+    - Create attendees in Appwrite database with custom field values as JSON
+    - Handle barcode generation and validation
+    - Return import results with success/error counts
+    - _Requirements: 3.1, 4.2_
+  - [x] 6.7 Migrate src/pages/api/attendees/bulk-export-pdf.ts
+    - Fetch attendees from Appwrite database
+    - Generate PDF credentials (no database changes needed)
+    - _Requirements: 3.2_
+  - [x] 6.8 Migrate src/pages/api/attendees/[id]/generate-credential.ts
+    - Fetch attendee from Appwrite database
+    - Update credentialUrl and credentialGeneratedAt
+    - Create log entry
+    - _Requirements: 3.3, 4.2_
+  - [x] 6.9 Migrate src/pages/api/attendees/[id]/clear-credential.ts
+    - Update attendee to clear credential fields
+    - Create log entry
+    - _Requirements: 3.3, 4.2_
+  - [x] 6.10 Migrate src/pages/api/attendees/[id]/print.ts
+    - Fetch attendee from Appwrite database
+    - Return attendee data for printing
+    - _Requirements: 3.2_
+
+- [x] 7. Migrate custom field API routes
+  - [x] 7.1 Migrate src/pages/api/custom-fields/index.ts
+    - Replace Prisma custom field queries with Appwrite database operations
+    - Implement GET to list custom fields ordered by order field
+    - Implement POST to create custom fields with proper ordering
+    - Store fieldOptions as JSON string
+    - Add permission checks and logging
+    - _Requirements: 3.1, 3.2, 4.3_
+  - [x] 7.2 Migrate src/pages/api/custom-fields/[id].ts
+    - Implement GET to fetch single custom field
+    - Implement PUT to update custom field properties
+    - Implement DELETE to remove custom field
+    - Parse and serialize fieldOptions JSON
+    - _Requirements: 3.2, 3.3, 3.4, 3.5, 4.3_
+  - [x] 7.3 Migrate src/pages/api/custom-fields/reorder.ts
+    - Update multiple custom field order values using Appwrite
+    - Handle batch updates with error handling
+    - Create log entry for reorder action
+    - _Requirements: 3.3, 3.10, 4.3_
+
+- [x] 8. Migrate event settings API routes
+  - [x] 8.1 Migrate src/pages/api/event-settings/index.ts
+    - Replace Prisma event settings queries with Appwrite database operations
+    - Implement GET to fetch event settings
+    - Implement PUT to update event settings
+    - Store switchboardFieldMappings as JSON string
+    - Add permission checks and logging
+    - _Requirements: 3.2, 3.3, 4.4_
+
+- [x] 9. Migrate invitation API routes
+  - [x] 9.1 Migrate src/pages/api/invitations/index.ts
+    - Replace Prisma invitation queries with Appwrite database operations
+    - Implement GET to list invitations
+    - Implement POST to create invitations with unique tokens
+    - Set expiration dates appropriately
+    - _Requirements: 3.1, 3.2, 4.7_
+  - [x] 9.2 Migrate src/pages/api/invitations/validate.ts
+    - Fetch invitation by token from Appwrite database
+    - Validate expiration and usage status
+    - _Requirements: 3.2, 4.7_
+  - [x] 9.3 Migrate src/pages/api/invitations/complete.ts
+    - Update invitation as used in Appwrite database
+    - Update user profile with Appwrite Auth user ID
+    - Create log entry for invitation completion
+    - _Requirements: 3.3, 4.7_
+
+- [x] 10. Migrate logging API routes
+  - [x] 10.1 Migrate src/pages/api/logs/index.ts
+    - Replace Prisma log queries with Appwrite database operations
+    - Implement GET with filtering, sorting, and pagination
+    - Implement POST to create log entries with details as JSON
+    - _Requirements: 3.1, 3.2, 3.6, 3.7, 3.8, 4.8_
+  - [x] 10.2 Migrate src/pages/api/logs/delete.ts
+    - Implement bulk log deletion using Appwrite queries
+    - Handle date range filtering
+    - Create log entry for deletion action
+    - _Requirements: 3.5, 4.8_
+  - [x] 10.3 Migrate src/pages/api/logs/export.ts
+    - Fetch logs from Appwrite database with filters
+    - Parse details JSON for export
+    - Generate CSV export
+    - _Requirements: 3.2, 4.8_
+
+- [x] 11. Migrate log settings API routes
+  - [x] 11.1 Migrate src/pages/api/log-settings/index.ts
+    - Replace Prisma log settings queries with Appwrite database operations
+    - Implement GET to fetch log settings
+    - Implement PUT to update log settings
+    - _Requirements: 3.2, 3.3_
+
+- [x] 12. Migrate authentication API routes
+  - [x] 12.1 Migrate src/pages/api/auth/signup.ts
+    - Update to use Appwrite Auth for user creation
+    - Create user profile in Appwrite database
+    - Handle invitation token validation
+    - _Requirements: 1.2, 4.1_
+
+- [x] 12.5 Enhance user management to support linking existing Appwrite Auth users
+  - [x] 12.5.1 Create API endpoint to list unlinked Appwrite Auth users
+    - Create src/pages/api/users/available.ts
+    - Fetch all Appwrite Auth users using admin client
+    - Query database to find users already linked
+    - Return list of Auth users not yet in database (email, name, userId)
+    - Add permission check (only admins can view)
+    - _Requirements: 4.1, 6.1_
+  - [x] 12.5.2 Create API endpoint to link existing Auth user to database
+    - Create src/pages/api/users/link.ts
+    - Accept userId (from Appwrite Auth) and roleId
+    - Validate that Auth user exists and is not already linked
+    - Create user profile document in database
+    - Send notification email to user about access granted
+    - Create log entry for linking action
+    - _Requirements: 4.1, 4.6, 6.1_
+  - [x] 12.5.3 Update user management UI to support both workflows
+    - Add "Link Existing User" button/dialog in user management page
+    - Show list of available Auth users to link
+    - Allow admin to select user and assign role
+    - Keep existing "Create New User" functionality
+    - Add visual indicator for linked vs created users
+    - _Requirements: 6.1, 6.4_
+  - [x] 12.5.4 Update user deletion to handle both scenarios
+    - Add option to delete from database only (unlink)
+    - Add option to delete from both database and Auth (full delete)
+    - Show warning about implications of each option
+    - Update DELETE endpoint to support deleteFromAuth flag
+    - _Requirements: 4.4, 6.4_
+
+- [x] 13. Update client-side components and pages
+  - [x] 13.1 Update authentication pages
+    - Update src/pages/login.tsx to use new AuthContext
+    - Update src/pages/signup.tsx to use new AuthContext
+    - Update src/pages/forgot-password.tsx to use new AuthContext
+    - Update src/pages/reset-password.tsx to use new AuthContext
+    - Update src/pages/magic-link-login.tsx to use new AuthContext
+    - _Requirements: 6.1, 6.4_
+  - [x] 13.2 Update dashboard and main pages
+    - Update src/pages/dashboard.tsx to fetch data from Appwrite-based APIs
+    - Update src/pages/private.tsx authentication checks
+    - Update src/pages/public.tsx if needed
+    - _Requirements: 6.1, 6.4_
+  - [x] 13.2.1 Integrate Link User and Delete User dialogs into dashboard
+    - Import LinkUserDialog and DeleteUserDialog components
+    - Add state variables for showLinkUserDialog, showDeleteUserDialog, and userToDelete
+    - Update user management header to include "Link Existing User" button
+    - Replace existing delete confirmation with DeleteUserDialog component
+    - Add visual indicators (badges) in user table for invited users
+    - Follow integration steps in LINK_USER_INTEGRATION.md
+    - _Requirements: 4.1, 4.4, 6.1, 6.4_
+  - [x] 13.3 Update form components
+    - Update src/components/AttendeeForm.tsx to work with new API structure
+    - Update src/components/UserForm.tsx to work with new API structure
+    - Update src/components/RoleForm.tsx to work with new API structure
+    - Update src/components/EventSettingsForm.tsx to work with new API structure
+    - _Requirements: 6.4_
+  - [x] 13.4 Implement real-time updates in dashboard
+    - Add real-time subscription for attendees collection
+    - Add real-time subscription for logs collection
+    - Handle real-time events and update UI accordingly
+    - Implement proper cleanup on component unmount
+    - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6_
+
+- [x] 14. Create data migration script
+  - [x] 14.1 Create migration script src/scripts/migrate-to-appwrite.ts
+    - Connect to both Supabase and Appwrite
+    - Export all data from Supabase tables
+    - Transform data to Appwrite format (handle JSON fields, relationships)
+    - Create Appwrite Auth users from Supabase auth.users
+    - Import users to Appwrite users collection
+    - Import roles to Appwrite roles collection
+    - Import event settings to Appwrite collection
+    - Import custom fields to Appwrite collection
+    - Import attendees with denormalized custom field values
+    - Import logs to Appwrite collection
+    - Import log settings to Appwrite collection
+    - Import invitations to Appwrite collection
+    - Handle errors gracefully and log progress
+    - Generate migration summary report
+    - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8, 8.9_
+
+- [x] 15. Remove Supabase and Prisma dependencies
+  - [x] 15.1 Remove Supabase utility files
+    - Delete src/util/supabase/api.ts
+    - Delete src/util/supabase/component.ts
+    - Delete src/util/supabase/server-props.ts
+    - Delete src/util/supabase/static-props.ts
+    - Delete src/util/supabase directory
+    - _Requirements: 9.4_
+  - [x] 15.2 Remove Prisma files and configuration
+    - Delete prisma/schema.prisma
+    - Delete prisma directory
+    - Delete src/lib/prisma.ts
+    - _Requirements: 9.3, 9.5_
+  - [x] 15.3 Update package.json
+    - Remove @supabase/ssr package
+    - Remove @supabase/supabase-js package
+    - Remove @prisma/client package
+    - Remove prisma package
+    - Remove database-related npm scripts (db:migrate, db:reset, db:seed, db:studio)
+    - Update build script to remove prisma generate
+    - Add appwrite package if not already present
+    - _Requirements: 9.1, 9.2, 9.8_
+  - [x] 15.4 Remove Supabase-related database setup files
+    - Delete database_setup.sql
+    - Delete setup.js
+    - Delete check-rls-status.js
+    - Delete complete-rls-policies.js
+    - Delete enable-rls-security.js
+    - Delete reset-and-enable-rls.js
+    - Delete test-rls-functionality.js
+    - _Requirements: 9.7_
+  - [x] 15.5 Clean up environment variables
+    - Remove DATABASE_URL from .env.local
+    - Remove DIRECT_URL from .env.local
+    - Remove NEXT_PUBLIC_SUPABASE_URL from .env.local
+    - Remove NEXT_PUBLIC_SUPABASE_ANON_KEY from .env.local
+    - Remove SUPABASE_SERVICE_ROLE_KEY from .env.local
+    - _Requirements: 9.9_
+
+- [x] 16. Update documentation
+  - [x] 16.1 Update README.md
+    - Replace Supabase setup instructions with Appwrite setup
+    - Update environment variables section
+    - Update database setup instructions
+    - Update development workflow
+    - Add Appwrite project creation steps
+    - _Requirements: 10.1, 10.4_
+  - [x] 16.2 Update .kiro/steering/tech.md
+    - Replace Supabase references with Appwrite
+    - Update database section to mention Appwrite Database
+    - Update authentication section to mention Appwrite Auth
+    - Remove Prisma references
+    - Update common commands section
+    - _Requirements: 10.2, 10.5_
+  - [x] 16.3 Update or remove Supabase-specific documentation
+    - Delete DATABASE_SETUP_README.md (Supabase-specific)
+    - Delete RLS_SECURITY_DOCUMENTATION.md (Supabase-specific)
+    - Update BOLT_SETUP.md if it references Supabase
+    - Update BOLT_CHECKLIST.md if it references Supabase
+    - _Requirements: 10.3, 10.6_
+  - [x] 16.4 Create Appwrite setup guide
+    - Document Appwrite project creation
+    - Document collection creation process
+    - Document attribute and index configuration
+    - Document permission setup
+    - Document OAuth provider configuration
+    - _Requirements: 10.1, 10.4_
+  - [x] 16.5 Update .kiro/steering/product.md
+    - Update technology stack section to mention Appwrite
+    - Remove references to Supabase and Prisma
+    - _Requirements: 10.2_
+
+- [-] 17. Implement comprehensive testing suite
+  - [x] 17.1 Create unit tests for Appwrite utilities
+    - Write tests for createBrowserClient, createSessionClient, createAdminClient
+    - Write tests for query builder functions in appwriteQueries.ts
+    - Write tests for useRealtimeSubscription hook
+    - Test error handling in all utility functions
+    - _Requirements: 3.1, 3.2, 3.6, 3.7, 3.8, 5.1, 5.2, 5.3_
+  - [x] 17.2 Create unit tests for AuthContext
+    - Test signIn, signUp, signOut functions
+    - Test password reset and update functions
+    - Test OAuth and magic link flows
+    - Test session management and state updates
+    - Test error handling for authentication failures
+    - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8_
+  - [x] 17.3 Create integration tests for user management APIs
+    - Test GET /api/users with various filters and permissions
+    - Test POST /api/users for user creation
+    - Test PUT /api/users for profile and role updates
+    - Test DELETE /api/users for user deletion
+    - Test permission enforcement for each endpoint
+    - Test error cases (unauthorized, invalid data, etc.)
+    - _Requirements: 4.1, 4.6_
+  - [x] 17.4 Create integration tests for attendee management APIs
+    - Test GET /api/attendees with filtering, sorting, pagination
+    - Test POST /api/attendees with custom field values
+    - Test PUT /api/attendees/[id] for updates
+    - Test DELETE /api/attendees/[id]
+    - Test bulk operations (bulk-delete, bulk-edit)
+    - Test import/export functionality
+    - Test credential generation and clearing
+    - Test barcode uniqueness validation
+    - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.10, 4.2_
+  - [x] 17.5 Create integration tests for role and permission APIs
+    - Test GET /api/roles for listing roles
+    - Test POST /api/roles for creating roles
+    - Test PUT /api/roles/[id] for updating roles
+    - Test DELETE /api/roles/[id] with validation
+    - Test permission JSON parsing and validation
+    - Test role initialization endpoint
+    - _Requirements: 4.5, 7.1, 7.2, 7.3, 7.4, 7.5_
+  - [x] 17.6 Create integration tests for custom field APIs
+    - Test GET /api/custom-fields for listing fields
+    - Test POST /api/custom-fields for creating fields
+    - Test PUT /api/custom-fields/[id] for updates
+    - Test DELETE /api/custom-fields/[id]
+    - Test reorder endpoint
+    - Test fieldOptions JSON handling
+    - _Requirements: 4.3_
+  - [x] 17.7 Create integration tests for logging system
+    - Test POST /api/logs for creating log entries
+    - Test GET /api/logs with filtering and pagination
+    - Test DELETE /api/logs for bulk deletion
+    - Test log export functionality
+    - Test log settings endpoints
+    - Verify log creation for all tracked actions
+    - _Requirements: 4.8_
+  - [x] 17.8 Create integration tests for invitation system
+    - Test POST /api/invitations for creating invitations
+    - Test GET /api/invitations/validate for token validation
+    - Test POST /api/invitations/complete for completing invitations
+    - Test expiration handling
+    - _Requirements: 4.7_
+  - [x] 17.9 Create end-to-end tests for critical user flows
+    - Test complete signup and login flow
+    - Test creating attendee with custom fields end-to-end
+    - Test bulk import and export workflow
+    - Test credential generation workflow
+    - Test user invitation and completion flow
+    - _Requirements: 1.1, 1.2, 4.2, 4.7_
+  - [x] 17.10 Test real-time functionality
+    - Test real-time attendee updates in dashboard
+    - Test real-time log updates
+    - Test subscription setup and cleanup
+    - Test handling of connection errors
+    - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6_
+  - [x] 17.11 Validate data migration script
+    - Test migration script with sample Supabase data
+    - Verify all data types are correctly transformed
+    - Verify relationships are preserved
+    - Test error handling for invalid data
+    - Compare record counts and data integrity
+    - Test migration rollback scenarios
+    - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8, 8.9_
+  - [x] 17.12 Perform manual testing of all features
+    - Test all authentication flows manually
+    - Test all CRUD operations for each entity
+    - Test permission enforcement across different roles
+    - Test UI responsiveness and error messages
+    - Test with production-like data volumes
+    - _Requirements: All requirements_
