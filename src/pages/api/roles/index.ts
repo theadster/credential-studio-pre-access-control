@@ -1,109 +1,139 @@
-import { NextApiRequest, NextApiResponse } from 'next';
-import prisma from '@/lib/prisma';
-import { createClient } from '@/util/supabase/api';
-import { shouldLog } from '@/lib/logSettings';
+import { NextApiResponse } from 'next';
+import { createSessionClient } from '@/lib/appwrite';
+import { Query, ID } from 'appwrite';
+import { hasPermission } from '@/lib/permissions';
+import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const supabase = createClient(req, res);
+export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
+  // User and userProfile are already attached by middleware
+  const { user, userProfile } = req;
+  const { databases } = createSessionClient(req);
   
-  // Get the authenticated user
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  
-  if (authError || !user) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
+  // Extract role from userProfile for permission checks
+  const role = userProfile.role;
 
-  try {
     switch (req.method) {
       case 'GET':
-        const roles = await prisma.role.findMany({
-          include: {
-            _count: {
-              select: {
-                users: true
-              }
-            }
-          },
-          orderBy: {
-            createdAt: 'asc'
-          }
-        });
+        // List all roles with user count
+        const rolesResponse = await databases.listDocuments(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+          [Query.orderAsc('$createdAt')]
+        );
 
-        // Log the view action if enabled (defensive check)
-        const existingUser = await prisma.user.findUnique({
-          where: { id: user.id }
-        });
-        
-        if (existingUser && await shouldLog('systemViewRolesList')) {
-          await prisma.log.create({
-            data: {
-              userId: user.id,
+        // Get user count for each role and parse permissions
+        const rolesWithCount = await Promise.all(
+          rolesResponse.documents.map(async (roleDoc) => {
+            const usersWithRole = await databases.listDocuments(
+              process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+              process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+              [Query.equal('roleId', roleDoc.$id), Query.limit(1)]
+            );
+            
+            return {
+              ...roleDoc,
+              permissions: typeof roleDoc.permissions === 'string' 
+                ? JSON.parse(roleDoc.permissions) 
+                : roleDoc.permissions,
+              _count: {
+                users: usersWithRole.total
+              }
+            };
+          })
+        );
+
+        // Log the view action
+        try {
+          await databases.createDocument(
+            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+            ID.unique(),
+            {
+              userId: user.$id,
               action: 'view',
-              details: { type: 'roles_list', count: roles.length }
+              details: JSON.stringify({ type: 'roles_list', count: rolesWithCount.length })
             }
-          });
+          );
+        } catch (logError) {
+          console.error('Error creating log:', logError);
+          // Continue even if logging fails
         }
 
-        return res.status(200).json(roles);
+        return res.status(200).json(rolesWithCount);
 
       case 'POST':
+        // Check permission to create roles
+        if (!role || !hasPermission(role, 'roles', 'create')) {
+          return res.status(403).json({ error: 'Insufficient permissions' });
+        }
+
         const { name, description, permissions } = req.body;
 
         if (!name || !permissions) {
           return res.status(400).json({ error: 'Missing required fields' });
         }
 
-        // Check if role name already exists
-        const existingRole = await prisma.role.findUnique({
-          where: { name }
-        });
+        // Validate permissions structure
+        if (typeof permissions !== 'object') {
+          return res.status(400).json({ error: 'Permissions must be a valid JSON object' });
+        }
 
-        if (existingRole) {
+        // Check if role name already exists
+        const existingRoles = await databases.listDocuments(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+          [Query.equal('name', name)]
+        );
+
+        if (existingRoles.documents.length > 0) {
           return res.status(400).json({ error: 'Role name already exists' });
         }
 
-        const newRole = await prisma.role.create({
-          data: {
+        // Create new role
+        const newRole = await databases.createDocument(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+          ID.unique(),
+          {
             name,
-            description,
-            permissions
-          },
-          include: {
-            _count: {
-              select: {
-                users: true
-              }
-            }
+            description: description || '',
+            permissions: JSON.stringify(permissions)
           }
-        });
+        );
 
-        // Log the create action (defensive check)
-        const existingUserForCreate = await prisma.user.findUnique({
-          where: { id: user.id }
-        });
-        
-        if (existingUserForCreate) {
-          await prisma.log.create({
-            data: {
-              userId: user.id,
+        // Add user count (0 for new role)
+        const newRoleWithCount = {
+          ...newRole,
+          _count: {
+            users: 0
+          }
+        };
+
+        // Log the create action
+        try {
+          await databases.createDocument(
+            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+            ID.unique(),
+            {
+              userId: user.$id,
               action: 'create',
-              details: { 
+              details: JSON.stringify({ 
                 type: 'role',
                 roleName: newRole.name,
                 permissions: Object.keys(permissions)
-              }
+              })
             }
-          });
+          );
+        } catch (logError) {
+          console.error('Error creating log:', logError);
+          // Continue even if logging fails
         }
 
-        return res.status(201).json(newRole);
+        return res.status(201).json(newRoleWithCount);
 
       default:
         res.setHeader('Allow', ['GET', 'POST']);
         return res.status(405).json({ error: `Method ${req.method} not allowed` });
     }
-  } catch (error) {
-    console.error('API Error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-}
+});

@@ -1,51 +1,46 @@
-import { NextApiRequest, NextApiResponse } from 'next';
-import prisma from '@/lib/prisma';
-import { createClient } from '@/util/supabase/api';
+import { NextApiResponse } from 'next';
+import { createSessionClient } from '@/lib/appwrite';
+import { Query, ID } from 'appwrite';
 import { generateInternalFieldName } from '@/util/string';
+import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const supabase = createClient(req, res);
-  
-  // Get the authenticated user
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  
-  if (authError || !user) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
+export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   try {
+    // User and userProfile are already attached by middleware
+    const { user, userProfile } = req;
+    const { databases } = createSessionClient(req);
+
+    const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
+    const customFieldsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID!;
+    const eventSettingsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID!;
+    const logsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!;
+
     switch (req.method) {
       case 'GET':
-        let customFields = await prisma.customField.findMany({
-          orderBy: {
-            order: 'asc'
-          }
-        });
+        // Fetch custom fields ordered by order field
+        const customFieldsResult = await databases.listDocuments(
+          dbId,
+          customFieldsCollectionId,
+          [Query.orderAsc('order'), Query.limit(100)]
+        );
 
-        // Generate internal field names for existing records that don't have them
-        const fieldsToUpdate = customFields.filter(field => !field.internalFieldName);
-        
-        if (fieldsToUpdate.length > 0) {
-          await prisma.$transaction(
-            fieldsToUpdate.map(field =>
-              prisma.customField.update({
-                where: { id: field.id },
-                data: { internalFieldName: generateInternalFieldName(field.fieldName) }
-              })
-            )
-          );
-
-          // Refetch the updated fields
-          customFields = await prisma.customField.findMany({
-            orderBy: {
-              order: 'asc'
-            }
-          });
-        }
+        // Generate internal field names on-the-fly for display without persisting them
+        const customFields = customFieldsResult.documents.map((field: any) => ({
+          ...field,
+          internalFieldName: field.internalFieldName || generateInternalFieldName(field.fieldName as string)
+        }));
 
         return res.status(200).json(customFields);
 
       case 'POST':
+        // Check permissions
+        const permissions = userProfile.role ? userProfile.role.permissions : {};
+        const hasAdminPermission = permissions?.all === true || permissions?.customFields?.create === true;
+
+        if (!hasAdminPermission) {
+          return res.status(403).json({ error: 'Insufficient permissions to create custom fields' });
+        }
+
         const { eventSettingsId, fieldName, fieldType, fieldOptions, required, order } = req.body;
 
         if (!eventSettingsId || !fieldName || !fieldType) {
@@ -53,57 +48,68 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
 
         // Check if event settings exist
-        const eventSettings = await prisma.eventSettings.findUnique({
-          where: { id: eventSettingsId }
-        });
-
-        if (!eventSettings) {
+        try {
+          await databases.getDocument(dbId, eventSettingsCollectionId, eventSettingsId);
+        } catch (error) {
           return res.status(404).json({ error: 'Event settings not found' });
         }
 
         // Get the next order number if not provided
         let fieldOrder = order;
         if (!fieldOrder) {
-          const lastField = await prisma.customField.findFirst({
-            where: { eventSettingsId },
-            orderBy: { order: 'desc' }
-          });
-          fieldOrder = lastField ? lastField.order + 1 : 1;
+          const lastFieldResult = await databases.listDocuments(
+            dbId,
+            customFieldsCollectionId,
+            [
+              Query.equal('eventSettingsId', eventSettingsId),
+              Query.orderDesc('order'),
+              Query.limit(1)
+            ]
+          );
+          
+          fieldOrder = lastFieldResult.documents.length > 0 
+            ? (lastFieldResult.documents[0].order as number) + 1 
+            : 1;
         }
 
         // Generate internal field name
         const internalFieldName = generateInternalFieldName(fieldName);
 
-        const newCustomField = await prisma.customField.create({
-          data: {
+        // Serialize fieldOptions as JSON string if it's an object
+        const fieldOptionsStr = fieldOptions ? 
+          (typeof fieldOptions === 'string' ? fieldOptions : JSON.stringify(fieldOptions)) : 
+          null;
+
+        const newCustomField = await databases.createDocument(
+          dbId,
+          customFieldsCollectionId,
+          ID.unique(),
+          {
             eventSettingsId,
             fieldName,
             internalFieldName,
             fieldType,
-            fieldOptions: fieldOptions || null,
+            fieldOptions: fieldOptionsStr,
             required: required || false,
             order: fieldOrder
           }
-        });
+        );
 
-        // Log the create action (defensive check)
-        const existingUser = await prisma.user.findUnique({
-          where: { id: user.id }
-        });
-        
-        if (existingUser) {
-          await prisma.log.create({
-            data: {
-              userId: user.id,
-              action: 'create',
-              details: { 
-                type: 'custom_field',
-                fieldName: newCustomField.fieldName,
-                fieldType: newCustomField.fieldType
-              }
-            }
-          });
-        }
+        // Log the create action
+        await databases.createDocument(
+          dbId,
+          logsCollectionId,
+          ID.unique(),
+          {
+            userId: user.$id,
+            action: 'create',
+            details: JSON.stringify({ 
+              type: 'custom_field',
+              fieldName: newCustomField.fieldName,
+              fieldType: newCustomField.fieldType
+            })
+          }
+        );
 
         return res.status(201).json(newCustomField);
 
@@ -111,8 +117,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         res.setHeader('Allow', ['GET', 'POST']);
         return res.status(405).json({ error: `Method ${req.method} not allowed` });
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('API Error:', error);
+    
+    // Handle Appwrite-specific errors
+    if (error.code === 401) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    } else if (error.code === 404) {
+      return res.status(404).json({ error: 'Resource not found' });
+    } else if (error.code === 409) {
+      return res.status(409).json({ error: 'Conflict - resource already exists' });
+    }
+    
     return res.status(500).json({ error: 'Internal server error' });
   }
-}
+});

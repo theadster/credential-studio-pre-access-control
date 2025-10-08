@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@/util/supabase/api';
-import prisma from '@/lib/prisma';
+import { Client, Databases, Query } from 'node-appwrite';
+import { getEventSettingsWithIntegrations } from '@/lib/appwrite-integrations';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -15,40 +16,59 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    // Get event settings
-    const eventSettings = await prisma.eventSettings.findFirst();
+    // Initialize Appwrite
+    const client = new Client()
+      .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!)
+      .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!)
+      .setKey(process.env.APPWRITE_API_KEY!);
+    
+    const databases = new Databases(client);
+    const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
+    const eventSettingsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID!;
 
-    if (!eventSettings) {
+    // Get first event settings
+    const eventSettingsList = await databases.listDocuments(dbId, eventSettingsCollectionId, [Query.limit(1)]);
+    
+    if (eventSettingsList.documents.length === 0) {
       return res.status(400).json({ error: 'Event settings not configured' });
     }
 
+    const eventSettingsId = eventSettingsList.documents[0].$id;
+    
+    // Get event settings with integrations
+    const settings = await getEventSettingsWithIntegrations(databases, eventSettingsId);
+
+    if (!settings) {
+      return res.status(400).json({ error: 'Event settings not found' });
+    }
+
     // Check if Switchboard Canvas is enabled and configured
-    if (!eventSettings.switchboardEnabled) {
+    if (!settings.switchboard?.enabled) {
       return res.status(400).json({ error: 'Switchboard Canvas integration is not enabled' });
     }
 
-    if (!eventSettings.switchboardApiEndpoint || !eventSettings.switchboardApiKey) {
+    if (!settings.switchboard.apiEndpoint || !settings.switchboard.apiKey) {
       return res.status(400).json({ error: 'Switchboard Canvas is not properly configured' });
     }
 
     // Create a test request body
     const testRequestBody = {
-      template_id: eventSettings.switchboardTemplateId || "test-template",
+      template_id: settings.switchboard.templateId || "test-template",
       data: {
         firstName: "Test",
         lastName: "User",
         barcodeNumber: "TEST123",
-        eventName: eventSettings.eventName || "Test Event",
+        eventName: settings.eventName || "Test Event",
         eventDate: "2024-01-01",
-        eventLocation: eventSettings.eventLocation || "Test Location"
+        eventLocation: settings.eventLocation || "Test Location"
       }
     };
 
     // Try to parse the configured request body if it exists
     let configuredRequestBody = testRequestBody;
-    if (eventSettings.switchboardRequestBody) {
+    if (settings.switchboard.requestBody) {
       try {
-        configuredRequestBody = JSON.parse(eventSettings.switchboardRequestBody);
+        configuredRequestBody = JSON.parse(settings.switchboard.requestBody);
       } catch (parseError) {
         console.log('Could not parse configured request body, using test body');
       }
@@ -59,21 +79,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     };
 
     // Set the authentication header based on the configured type
-    const authHeaderType = eventSettings.switchboardAuthHeaderType || 'Bearer';
+    const authHeaderType = settings.switchboard.authHeaderType || 'Bearer';
     if (authHeaderType === 'Bearer') {
-      headers['Authorization'] = `Bearer ${eventSettings.switchboardApiKey}`;
+      headers['Authorization'] = `Bearer ${settings.switchboard.apiKey}`;
     } else {
-      headers[authHeaderType] = eventSettings.switchboardApiKey || '';
+      headers[authHeaderType] = settings.switchboard.apiKey || '';
     }
 
     console.log('=== SWITCHBOARD TEST REQUEST ===');
-    console.log('Endpoint:', eventSettings.switchboardApiEndpoint);
+    console.log('Endpoint:', settings.switchboard.apiEndpoint);
     console.log('Auth Header Type:', authHeaderType);
     console.log('Headers:', { ...headers, [authHeaderType === 'Bearer' ? 'Authorization' : authHeaderType]: '[REDACTED]' });
     console.log('Request Body:', JSON.stringify(configuredRequestBody, null, 2));
 
     try {
-      const response = await fetch(eventSettings.switchboardApiEndpoint, {
+      const response = await fetch(settings.switchboard.apiEndpoint, {
         method: 'POST',
         headers,
         body: JSON.stringify(configuredRequestBody)
@@ -99,7 +119,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         headers: Object.fromEntries(response.headers.entries()),
         response: responseData,
         requestSent: {
-          endpoint: eventSettings.switchboardApiEndpoint,
+          endpoint: settings.switchboard.apiEndpoint,
           authHeaderType,
           body: configuredRequestBody
         }

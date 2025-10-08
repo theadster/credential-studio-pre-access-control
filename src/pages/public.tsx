@@ -1,21 +1,12 @@
-import { createClient } from '@/util/supabase/static-props'
-
-interface Country {
-  [key: string]: unknown;
-}
-
-export default function PublicPage({ data }: { data?: Country[] }) {
-  return <pre>{data && JSON.stringify(data, null, 2)}</pre>
-}
-
-export async function getStaticProps() {
-  const supabase = createClient()
-
-  const { data, error } = await supabase.from('countries').select()
-
-  if (error || !data) {
-    return { props: {} }
-  }
-
-  return { props: { data } }
+export default function PublicPage() {
+  return (
+    <div className="flex h-screen items-center justify-center">
+      <div className="text-center">
+        <h1 className="text-4xl font-bold mb-4">Welcome to CredentialStudio</h1>
+        <p className="text-muted-foreground">
+          This is a public page accessible to everyone.
+        </p>
+      </div>
+    </div>
+  );
 }

@@ -1,3 +1,5 @@
+import { EventSettingsWithIntegrations } from './appwrite-integrations';
+
 interface CustomFieldDependency {
   type: 'switchboard_template' | 'switchboard_mapping' | 'onesimpleapi_template' | 'onesimpleapi_record';
   location: string;
@@ -9,13 +11,14 @@ export function findCustomFieldDependencies(
   fieldId: string,
   fieldName: string,
   internalFieldName: string,
-  eventSettings: any
+  eventSettings: EventSettingsWithIntegrations | any
 ): CustomFieldDependency[] {
   const dependencies: CustomFieldDependency[] = [];
   const placeholder = `{{${internalFieldName}}}`;
 
   // Check Switchboard Canvas request body
-  if (eventSettings.switchboardRequestBody && eventSettings.switchboardRequestBody.includes(placeholder)) {
+  const switchboardRequestBody = eventSettings.switchboard?.requestBody || eventSettings.switchboardRequestBody;
+  if (switchboardRequestBody && switchboardRequestBody.includes(placeholder)) {
     dependencies.push({
       type: 'switchboard_template',
       location: 'Switchboard Canvas Request Body',
@@ -25,8 +28,12 @@ export function findCustomFieldDependencies(
   }
 
   // Check Switchboard Canvas field mappings
-  if (eventSettings.switchboardFieldMappings && Array.isArray(eventSettings.switchboardFieldMappings)) {
-    const hasMapping = eventSettings.switchboardFieldMappings.some((mapping: any) => mapping.fieldId === fieldId);
+  const switchboardFieldMappings = eventSettings.switchboard?.fieldMappings 
+    ? JSON.parse(eventSettings.switchboard.fieldMappings)
+    : eventSettings.switchboardFieldMappings;
+    
+  if (switchboardFieldMappings && Array.isArray(switchboardFieldMappings)) {
+    const hasMapping = switchboardFieldMappings.some((mapping: any) => mapping.fieldId === fieldId);
     if (hasMapping) {
       dependencies.push({
         type: 'switchboard_mapping',
@@ -38,7 +45,8 @@ export function findCustomFieldDependencies(
   }
 
   // Check OneSimpleAPI form data value
-  if (eventSettings.oneSimpleApiFormDataValue && eventSettings.oneSimpleApiFormDataValue.includes(placeholder)) {
+  const oneSimpleApiFormDataValue = eventSettings.oneSimpleApi?.formDataValue || eventSettings.oneSimpleApiFormDataValue;
+  if (oneSimpleApiFormDataValue && oneSimpleApiFormDataValue.includes(placeholder)) {
     dependencies.push({
       type: 'onesimpleapi_template',
       location: 'OneSimpleAPI Form Data Template',
@@ -48,7 +56,8 @@ export function findCustomFieldDependencies(
   }
 
   // Check OneSimpleAPI record template
-  if (eventSettings.oneSimpleApiRecordTemplate && eventSettings.oneSimpleApiRecordTemplate.includes(placeholder)) {
+  const oneSimpleApiRecordTemplate = eventSettings.oneSimpleApi?.recordTemplate || eventSettings.oneSimpleApiRecordTemplate;
+  if (oneSimpleApiRecordTemplate && oneSimpleApiRecordTemplate.includes(placeholder)) {
     dependencies.push({
       type: 'onesimpleapi_record',
       location: 'OneSimpleAPI Record Template',
@@ -64,7 +73,7 @@ export function validateCustomFieldDeletion(
   fieldId: string,
   fieldName: string,
   internalFieldName: string,
-  eventSettings: any
+  eventSettings: EventSettingsWithIntegrations | any
 ): { canDelete: boolean; dependencies: CustomFieldDependency[]; warnings: string[] } {
   const dependencies = findCustomFieldDependencies(fieldId, fieldName, internalFieldName, eventSettings);
   const warnings: string[] = [];

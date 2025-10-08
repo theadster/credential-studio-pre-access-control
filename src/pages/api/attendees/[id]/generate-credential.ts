@@ -1,33 +1,30 @@
-import { NextApiRequest, NextApiResponse } from 'next';
-import { createClient } from '@/util/supabase/api';
-import prisma from '@/lib/prisma';
+import { NextApiResponse } from 'next';
+import { createSessionClient } from '@/lib/appwrite';
+import { Query, ID } from 'appwrite';
+import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
+import { getSwitchboardIntegration } from '@/lib/appwrite-integrations';
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+// Helper function to escape regex special characters
+const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    const supabase = createClient(req, res);
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    // User and userProfile are already attached by middleware
+    const { user, userProfile } = req;
+    const { databases } = createSessionClient(req);
 
-    if (authError || !user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    // Get current user's role for permission checking
-    const currentUser = await prisma.user.findUnique({
-      where: { id: user.id },
-      include: { role: true }
-    });
-
-    if (!currentUser?.role) {
-      return res.status(403).json({ error: 'No role assigned' });
-    }
+    const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
+    const attendeesCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID!;
+    const logsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!;
+    const customFieldsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID!;
+    const eventSettingsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID!;
 
     // Check permissions
-    const userRole = currentUser.role;
-    const permissions = userRole.permissions as any;
+    const permissions = userProfile.role ? userProfile.role.permissions : {};
     const hasPermission = permissions?.attendees?.print || permissions?.all;
     
     if (!hasPermission) {
@@ -40,50 +37,79 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: 'Invalid attendee ID' });
     }
 
-    // Get attendee with custom field values
-    const attendee = await prisma.attendee.findUnique({
-      where: { id },
-      include: {
-        customFieldValues: {
-          include: {
-            customField: true
-          }
-        }
-      }
-    });
+    // Get attendee
+    const attendee = await databases.getDocument(dbId, attendeesCollectionId, id);
 
     if (!attendee) {
       return res.status(404).json({ error: 'Attendee not found' });
     }
 
     // Get event settings
-    const eventSettings = await prisma.eventSettings.findFirst({
-      include: {
-        customFields: true
-      }
-    });
+    const eventSettingsDocs = await databases.listDocuments(dbId, eventSettingsCollectionId);
+    const eventSettings = eventSettingsDocs.documents[0];
 
     if (!eventSettings) {
       return res.status(400).json({ error: 'Event settings not configured' });
     }
 
+    // Get Switchboard integration from separate collection
+    const switchboardIntegration = await getSwitchboardIntegration(databases, eventSettings.$id);
+
+    if (!switchboardIntegration) {
+      return res.status(400).json({ error: 'Switchboard Canvas integration not found' });
+    }
+
     // Check if Switchboard Canvas is enabled and configured
-    if (!eventSettings.switchboardEnabled) {
+    if (!switchboardIntegration.enabled) {
       return res.status(400).json({ error: 'Switchboard Canvas integration is not enabled' });
     }
 
-    if (!eventSettings.switchboardApiEndpoint || !eventSettings.switchboardApiKey) {
+    if (!switchboardIntegration.apiKey || !switchboardIntegration.apiEndpoint) {
       return res.status(400).json({ error: 'Switchboard Canvas is not properly configured' });
     }
 
+    // Get custom fields
+    const customFieldsDocs = await databases.listDocuments(
+      dbId,
+      customFieldsCollectionId,
+      [Query.limit(100)]
+    );
+    const customFields = customFieldsDocs.documents;
+
     // Build the request body with placeholders replaced
-    let requestBody = eventSettings.switchboardRequestBody || '{}';
+    const requestBody = switchboardIntegration.requestBody || '{}';
     
     try {
-      // Fix common JSON syntax issues
-      let cleanedRequestBody = requestBody;
-      cleanedRequestBody = cleanedRequestBody.replace(/\t/g, '  ');
-      cleanedRequestBody = cleanedRequestBody.replace(/([}\]])\s*("[^"]+":)/g, '$1,\n$2');
+      // Parse custom field values
+      console.log('=== Attendee Custom Fields Debug ===');
+      console.log('Raw customFieldValues:', attendee.customFieldValues);
+      console.log('Type:', typeof attendee.customFieldValues);
+      
+      let customFieldValues: Record<string, string> = {};
+      
+      if (attendee.customFieldValues) {
+        const parsed = typeof attendee.customFieldValues === 'string' 
+          ? JSON.parse(attendee.customFieldValues) 
+          : attendee.customFieldValues;
+        
+        // Convert array format to object format
+        if (Array.isArray(parsed)) {
+          console.log('Converting array format to object format');
+          parsed.forEach((item: any) => {
+            if (item.customFieldId && item.value !== undefined) {
+              customFieldValues[item.customFieldId] = String(item.value);
+            }
+          });
+        } else if (typeof parsed === 'object') {
+          // Already in object format
+          console.log('Already in object format');
+          customFieldValues = parsed;
+        }
+      }
+
+      console.log('Final customFieldValues:', customFieldValues);
+      console.log('Keys:', Object.keys(customFieldValues));
+      console.log('====================================');
 
       // Define basic placeholders
       const placeholders: Record<string, string> = {
@@ -92,42 +118,53 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         '{{barcodeNumber}}': attendee.barcodeNumber || '',
         '{{photoUrl}}': attendee.photoUrl || '',
         '{{eventName}}': eventSettings.eventName || '',
-        '{{eventDate}}': eventSettings.eventDate ? eventSettings.eventDate.toISOString().split('T')[0] : '',
+        '{{eventDate}}': eventSettings.eventDate ? new Date(eventSettings.eventDate).toISOString().split('T')[0] : '',
         '{{eventTime}}': eventSettings.eventTime || '',
         '{{eventLocation}}': eventSettings.eventLocation || '',
-        '{{template_id}}': eventSettings.switchboardTemplateId || ''
+        '{{template_id}}': switchboardIntegration.templateId || ''
       };
 
-      const fieldMappings = eventSettings.switchboardFieldMappings as any[] || [];
+      // Parse field mappings from JSON string
+      let fieldMappings: any[] = [];
+      try {
+        fieldMappings = switchboardIntegration.fieldMappings 
+          ? JSON.parse(switchboardIntegration.fieldMappings) 
+          : [];
+      } catch (e) {
+        console.error('Error parsing field mappings:', e);
+        fieldMappings = [];
+      }
+
       const numericPlaceholders: Record<string, number> = {};
       
       // Create a set of field IDs that have mappings
-      const mappedFieldIds = new Set(fieldMappings.map(m => m.fieldId));
+      const mappedFieldIds = new Set(fieldMappings.map((m: any) => m.fieldId));
 
       // Add placeholders for unmapped custom fields
-      attendee.customFieldValues.forEach(cfv => {
-        if (cfv.customField && !mappedFieldIds.has(cfv.customField.id)) {
-          if (cfv.customField.internalFieldName) {
-            placeholders[`{{${cfv.customField.internalFieldName}}}`] = cfv.value || '';
+      for (const [fieldId, fieldValue] of Object.entries(customFieldValues)) {
+        const customField = customFields.find((cf: any) => cf.$id === fieldId);
+        if (customField && !mappedFieldIds.has(fieldId)) {
+          if ((customField as any).internalFieldName) {
+            placeholders[`{{${(customField as any).internalFieldName}}}`] = String(fieldValue || '');
           }
         }
-      });
+      }
 
       // Process mapped fields
-      fieldMappings.forEach((mapping) => {
-        const customFieldValue = attendee.customFieldValues.find(cfv => cfv.customField?.id === mapping.fieldId);
+      fieldMappings.forEach((mapping: any) => {
+        const customFieldValue = customFieldValues[mapping.fieldId];
         
         if (mapping.jsonVariable) {
           let finalValue: any = '';
 
           // If we have a custom field value, use it
-          if (customFieldValue) {
-            finalValue = customFieldValue.value ?? '';
+          if (customFieldValue !== undefined && customFieldValue !== null) {
+            finalValue = customFieldValue ?? '';
 
             // Check if a mapping exists and apply it
             if (mapping.valueMapping && typeof mapping.valueMapping === 'object') {
-              const originalValue = customFieldValue.value || '';
-              let lookupKey = originalValue;
+              const originalValue = customFieldValue || '';
+              let lookupKey = String(originalValue);
 
               // For boolean fields, normalize the case for consistent lookup
               if (mapping.fieldType === 'boolean') {
@@ -145,7 +182,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               if (mapping.fieldType === 'boolean') {
                 finalValue = mapping.valueMapping['no'] || '0';
               } else {
-                // For other fields, use empty string or first available mapping
+                // For other fields, use empty string
                 finalValue = '';
               }
             }
@@ -163,20 +200,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       });
 
-      // Perform replacements on the cleaned request body string
-      let bodyString = cleanedRequestBody;
+      // Perform replacements on the request body string
+      let bodyString = requestBody;
 
       // Replace string placeholders
       Object.entries(placeholders).forEach(([placeholder, value]) => {
         const jsonEscapedValue = JSON.stringify(value).slice(1, -1);
-        bodyString = bodyString.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), jsonEscapedValue);
+        const escapedPlaceholder = escapeRegex(placeholder);
+        bodyString = bodyString.replace(new RegExp(escapedPlaceholder, 'g'), jsonEscapedValue);
       });
 
       // Replace numeric placeholders (these should not be quoted in JSON)
       Object.entries(numericPlaceholders).forEach(([placeholder, value]) => {
+        const escapedPlaceholder = escapeRegex(placeholder);
         // Check if the placeholder is within quotes in the JSON
-        const quotedPlaceholderRegex = new RegExp(`"${placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`, 'g');
-        const unquotedPlaceholderRegex = new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+        const quotedPlaceholderRegex = new RegExp(`"${escapedPlaceholder}"`, 'g');
+        const unquotedPlaceholderRegex = new RegExp(escapedPlaceholder, 'g');
         
         // Replace quoted placeholders with unquoted numeric values
         if (bodyString.includes(`"${placeholder}"`)) {
@@ -193,21 +232,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         console.log('Unreplaced placeholders found:', unreplacedPlaceholders);
         console.log('Available placeholders:', Object.keys(placeholders));
         console.log('Available numeric placeholders:', Object.keys(numericPlaceholders));
-        console.log('Field mappings:', fieldMappings);
         
         // Replace any remaining placeholders with empty string or default values
         unreplacedPlaceholders.forEach(placeholder => {
+          const escapedPlaceholder = escapeRegex(placeholder);
           // For numeric contexts, replace with 0
           if (bodyString.includes(`"opacity": ${placeholder}`) || 
               bodyString.includes(`"value": ${placeholder}`) ||
               bodyString.includes(`"number": ${placeholder}`)) {
-            bodyString = bodyString.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '0');
+            bodyString = bodyString.replace(new RegExp(escapedPlaceholder, 'g'), '0');
           } else {
-            // For string contexts, replace with empty string
-            bodyString = bodyString.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '""');
+            // For string contexts, replace with empty string (no quotes, as it's already in a JSON string)
+            bodyString = bodyString.replace(new RegExp(escapedPlaceholder, 'g'), '');
           }
         });
       }
+
+      // Log the processed template for debugging
+      console.log('=== Switchboard Template Processing ===');
+      console.log('Original template length:', requestBody.length);
+      console.log('Processed template length:', bodyString.length);
+      console.log('Placeholders replaced:', Object.keys(placeholders).length);
+      console.log('Numeric placeholders replaced:', Object.keys(numericPlaceholders).length);
+      console.log('Processed template:', bodyString);
+      console.log('=======================================');
 
       let finalRequestBody;
       try {
@@ -215,6 +263,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       } catch (jsonParseError) {
         // Add debugging information to help identify the issue
         const errorMessage = jsonParseError instanceof Error ? jsonParseError.message : String(jsonParseError);
+        
+        console.error('JSON Parse Error:', errorMessage);
+        console.error('Processed template:', bodyString);
         
         // Try to identify the problematic part of the JSON
         let debugInfo = '';
@@ -232,7 +283,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(400).json({ 
           error: 'Invalid request body template in Switchboard Canvas settings',
           details: `JSON parse error: ${errorMessage}${debugInfo}`,
-          processedTemplate: bodyString.length > 1000 ? bodyString.slice(0, 1000) + '...' : bodyString
+          processedTemplate: bodyString,
+          originalTemplate: requestBody,
+          placeholders: Object.keys(placeholders),
+          numericPlaceholders: Object.keys(numericPlaceholders)
         });
       }
 
@@ -244,14 +298,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         };
 
         // Set the authentication header based on the configured type
-        const authHeaderType = eventSettings.switchboardAuthHeaderType || 'Bearer';
+        const authHeaderType = switchboardIntegration.authHeaderType || 'Bearer';
         if (authHeaderType === 'Bearer') {
-          headers['Authorization'] = `Bearer ${eventSettings.switchboardApiKey}`;
+          headers['Authorization'] = `Bearer ${switchboardIntegration.apiKey}`;
         } else {
-          headers[authHeaderType] = eventSettings.switchboardApiKey || '';
+          headers[authHeaderType] = switchboardIntegration.apiKey || '';
         }
 
-        switchboardResponse = await fetch(eventSettings.switchboardApiEndpoint, {
+        switchboardResponse = await fetch(switchboardIntegration.apiEndpoint, {
           method: 'POST',
           headers,
           body: JSON.stringify(finalRequestBody)
@@ -304,35 +358,42 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
 
       // Update the attendee record with the credential URL and timestamp
-      const now = new Date();
-      const updatedAttendee = await prisma.attendee.update({
-        where: { id },
-        data: {
+      // Use the same timestamp for both to ensure they match
+      const now = new Date().toISOString();
+      const updatedAttendee = await databases.updateDocument(
+        dbId,
+        attendeesCollectionId,
+        id,
+        {
           credentialUrl,
           credentialGeneratedAt: now
         }
-      });
+      );
 
       // Log the activity
-      await prisma.log.create({
-        data: {
+      await databases.createDocument(
+        dbId,
+        logsCollectionId,
+        ID.unique(),
+        {
           action: 'generate_credential',
-          userId: user.id,
-          attendeeId: attendee.id,
-          details: {
-            attendeeId: attendee.id,
+          userId: user.$id,
+          attendeeId: attendee.$id,
+          details: JSON.stringify({
+            attendeeId: attendee.$id,
             firstName: attendee.firstName,
             lastName: attendee.lastName,
             barcodeNumber: attendee.barcodeNumber,
             credentialUrl
-          }
+          })
         }
-      });
+      );
 
       return res.status(200).json({
         success: true,
         credentialUrl,
-        generatedAt: now.toISOString(),
+        generatedAt: now,
+        updatedAt: updatedAttendee.$updatedAt, // Include Appwrite's actual update timestamp
         attendee: updatedAttendee
       });
 
@@ -343,8 +404,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error generating credential:', error);
+    
+    // Handle Appwrite-specific errors
+    if (error.code === 401) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    } else if (error.code === 404) {
+      return res.status(404).json({ error: 'Resource not found' });
+    }
+    
     return res.status(500).json({ error: 'Internal server error' });
   }
-}
+});

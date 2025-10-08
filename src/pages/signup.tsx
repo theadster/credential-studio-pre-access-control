@@ -80,40 +80,29 @@ interface FormValues {
     try {
       const { email, password } = values;
       
-      // Create Supabase auth user
-      const { data, error } = await fetch('/api/auth/signup', {
+      // Use the signup API endpoint which handles both regular and invitation signups
+      const response = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      }).then(res => res.json());
+        body: JSON.stringify({ 
+          email, 
+          password,
+          invitationToken: invitationToken || undefined
+        })
+      });
 
-      if (error) {
-        throw new Error(error);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to sign up');
       }
 
-      // If this is an invitation signup, complete the invitation process
-      if (invitationToken && data.user) {
-        const completeResponse = await fetch('/api/invitations/complete', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            token: invitationToken,
-            supabaseUserId: data.user.id
-          })
-        });
-
-        if (!completeResponse.ok) {
-          const errorData = await completeResponse.json();
-          throw new Error(errorData.error || 'Failed to complete invitation');
-        }
-
+      if (invitationToken) {
         toast({
           title: "Success",
           description: "Your account has been created successfully! You can now log in.",
         });
       } else {
-        // Regular signup
-        await signUp(email, password);
         toast({
           title: "Success",
           description: "Sign up successful! Please login to continue.",

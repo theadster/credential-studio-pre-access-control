@@ -49,13 +49,10 @@ const LoginPage = () => {
       const { email, password } = values;
       await signIn(email, password);
       router.push('/dashboard');
-    } catch (error) {
-      console.error(error);
-      toast({
-        variant: "destructive",
-        title: "Login failed",
-        description: "Please check your credentials and try again.",
-      });
+    } catch (error: any) {
+      console.error('[Login] Login failed:', error);
+      // Error toast is already shown by AuthContext.signIn()
+      // No need to show another toast here to avoid duplication
     } finally {
       setIsLoading(false);
     }

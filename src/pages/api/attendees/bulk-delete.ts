@@ -1,19 +1,17 @@
-import { NextApiRequest, NextApiResponse } from 'next';
-import { createClient } from '@/util/supabase/api';
-import prisma from '@/lib/prisma';
+import { NextApiResponse } from 'next';
+import { createSessionClient } from '@/lib/appwrite';
+import { ID } from 'appwrite';
+import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   if (req.method !== 'DELETE') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    const supabase = createClient(req, res);
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    // User and userProfile are already attached by middleware
+    const { user, userProfile } = req;
+    const { databases } = createSessionClient(req);
 
     const { attendeeIds } = req.body;
 
@@ -21,18 +19,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: 'Invalid attendee IDs provided' });
     }
 
-    // Get current user with role information
-    const currentUser = await prisma.user.findUnique({
-      where: { id: user.id },
-      include: { role: true }
-    });
-
-    if (!currentUser?.role) {
-      return res.status(403).json({ error: 'Access denied: No role assigned' });
-    }
+    const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
+    const attendeesCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID!;
+    const logsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!;
 
     // Check permissions
-    const permissions = currentUser.role.permissions as any;
+    const permissions = userProfile.role ? userProfile.role.permissions : {};
     const hasBulkDeletePermission = permissions?.attendees?.bulkDelete === true || permissions?.all === true;
 
     if (!hasBulkDeletePermission) {
@@ -40,52 +32,69 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Get attendee details for logging before deletion
-    const attendeesToDelete = await prisma.attendee.findMany({
-      where: {
-        id: { in: attendeeIds }
-      },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        barcodeNumber: true
+    const attendeesToDelete: any[] = [];
+    for (const id of attendeeIds) {
+      try {
+        const attendee = await databases.getDocument(dbId, attendeesCollectionId, id);
+        attendeesToDelete.push({
+          id: attendee.$id,
+          firstName: attendee.firstName,
+          lastName: attendee.lastName,
+          barcodeNumber: attendee.barcodeNumber
+        });
+      } catch (error) {
+        // Attendee might not exist, continue with others
+        console.warn(`Attendee ${id} not found`);
       }
-    });
+    }
 
-    // Delete attendees and their related data
-    // Prisma will handle cascading deletes for related records (customFieldValues)
-    const deleteResult = await prisma.attendee.deleteMany({
-      where: {
-        id: { in: attendeeIds }
+    // Delete attendees - Appwrite doesn't support bulk delete, so we do it one by one
+    const deleted: string[] = [];
+    const errors: Array<{ id: string; error: string }> = [];
+
+    for (const id of attendeeIds) {
+      try {
+        await databases.deleteDocument(dbId, attendeesCollectionId, id);
+        deleted.push(id);
+      } catch (error: any) {
+        errors.push({ id, error: error.message || 'Failed to delete' });
       }
-    });
+    }
 
     // Log the bulk delete action
-    await prisma.log.create({
-      data: {
+    await databases.createDocument(
+      dbId,
+      logsCollectionId,
+      ID.unique(),
+      {
         action: 'delete',
-        userId: user.id,
-        details: {
+        userId: user.$id,
+        details: JSON.stringify({
           type: 'bulk_delete',
-          count: deleteResult.count,
-          attendees: attendeesToDelete.map(a => ({
-            id: a.id,
-            firstName: a.firstName,
-            lastName: a.lastName,
-            barcodeNumber: a.barcodeNumber
-          }))
-        }
+          count: deleted.length,
+          attendees: attendeesToDelete
+        })
       }
-    });
+    );
 
     res.status(200).json({ 
       success: true, 
-      deletedCount: deleteResult.count,
-      message: `Successfully deleted ${deleteResult.count} attendees`
+      deletedCount: deleted.length,
+      deleted,
+      errors,
+      message: `Successfully deleted ${deleted.length} attendees`
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Bulk delete error:', error);
+    
+    // Handle Appwrite-specific errors
+    if (error.code === 401) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    } else if (error.code === 404) {
+      return res.status(404).json({ error: 'Resource not found' });
+    }
+    
     res.status(500).json({ error: 'Failed to delete attendees' });
   }
-}
+});

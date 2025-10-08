@@ -1032,6 +1032,22 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                               </p>
                             </div>
                           </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="switchboardTemplateId" className="text-sm font-medium">
+                              Template ID *
+                            </Label>
+                            <Input
+                              id="switchboardTemplateId"
+                              value={formData.switchboardTemplateId || ""}
+                              onChange={(e) => handleInputChange("switchboardTemplateId", e.target.value)}
+                              placeholder="template_abc123"
+                              className="h-10"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              Your Switchboard Canvas template ID (will replace {`{{template_id}}`} placeholder)
+                            </p>
+                          </div>
                         </div>
                       </div>
 
@@ -1719,7 +1735,7 @@ function CustomFieldForm({ isOpen, field, onSave, onCancel }: CustomFieldFormPro
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    let fieldOptions: any = {};
+    const fieldOptions: any = {};
     
     if (fieldData.fieldType === "select") {
       fieldOptions.options = selectOptions;

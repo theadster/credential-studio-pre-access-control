@@ -1,21 +1,18 @@
-import { NextApiRequest, NextApiResponse } from 'next';
-import prisma from '@/lib/prisma';
-import { createClient } from '@/util/supabase/api';
+import { NextApiResponse } from 'next';
+import { createSessionClient } from '@/lib/appwrite';
+import { Query, ID } from 'appwrite';
+import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['POST']);
     return res.status(405).end(`Method ${req.method} Not Allowed`);
   }
 
   try {
-    // Authentication
-    const supabase = createClient(req, res);
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    // User and userProfile are already attached by middleware
+    const { user, userProfile } = req;
+    const { databases } = createSessionClient(req);
 
     // Validate request body
     const { attendeeIds, changes } = req.body;
@@ -28,51 +25,68 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: 'Invalid changes object' });
     }
 
+    const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
+    const attendeesCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID!;
+    const logsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!;
+    const customFieldsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID!;
+
     // Check permissions
-    const dbUser = await prisma.user.findUnique({
-      where: { id: user.id },
-      include: { role: true }
-    });
-
-    if (!dbUser || !dbUser.role) {
-      return res.status(403).json({ error: 'User role not found' });
-    }
-
-    const permissions = dbUser.role.permissions as any;
+    const permissions = userProfile.role ? userProfile.role.permissions : {};
     if (!permissions?.attendees?.bulkEdit) {
       return res.status(403).json({ error: 'Insufficient permissions to bulk edit attendees' });
     }
 
     // Get custom fields
-    const customFields = await prisma.customField.findMany();
+    const customFieldsDocs = await databases.listDocuments(
+      dbId,
+      customFieldsCollectionId,
+      [Query.limit(100)]
+    );
+    const customFields = customFieldsDocs.documents;
 
-    // Use a transaction to perform bulk updates efficiently
-    const updatedCount = await prisma.$transaction(async (tx) => {
-      // Get all attendees and their existing custom field values in one query
-      const attendees = await tx.attendee.findMany({
-        where: { id: { in: attendeeIds } },
-        include: { customFieldValues: true }
-      });
+    // Process bulk updates
+    let updatedCount = 0;
+    const errors: Array<{ id: string; error: string }> = [];
 
-      if (attendees.length === 0) {
-        return 0;
-      }
+    for (const attendeeId of attendeeIds) {
+      try {
+        // Get current attendee
+        const attendee = await databases.getDocument(dbId, attendeesCollectionId, attendeeId);
+        
+        // Parse current custom field values - handle both array and object formats
+        let currentCustomFieldValues: Array<{customFieldId: string, value: string}> = [];
+        
+        if (attendee.customFieldValues) {
+          const parsed = typeof attendee.customFieldValues === 'string' ? 
+            JSON.parse(attendee.customFieldValues) : attendee.customFieldValues;
+          
+          // Convert to array format if it's an object
+          if (Array.isArray(parsed)) {
+            currentCustomFieldValues = parsed;
+          } else if (typeof parsed === 'object') {
+            // Convert object format to array format
+            currentCustomFieldValues = Object.entries(parsed)
+              .filter(([key]) => !key.match(/^\d+$/)) // Skip numeric keys (array indices)
+              .map(([customFieldId, value]) => ({
+                customFieldId,
+                value: String(value)
+              }));
+          }
+        }
 
-      // Prepare batch operations
-      const valuesToUpdate: { id: string; value: string }[] = [];
-      const valuesToCreate: { attendeeId: string; customFieldId: string; value: string }[] = [];
-      const attendeesToUpdate: string[] = [];
-
-      // Process changes for each attendee
-      for (const attendee of attendees) {
         let hasChanges = false;
+        // Create a map for easier lookup and updates
+        const customFieldMap = new Map(
+          currentCustomFieldValues.map(cfv => [cfv.customFieldId, cfv.value])
+        );
 
+        // Process changes
         for (const [fieldId, value] of Object.entries(changes)) {
           if (!value || value === 'no-change') {
             continue;
           }
 
-          const customField = customFields.find(cf => cf.id === fieldId);
+          const customField = customFields.find(cf => cf.$id === fieldId);
           if (!customField) {
             continue;
           }
@@ -82,98 +96,73 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             processedValue = processedValue.toUpperCase();
           }
 
-          const existingValue = attendee.customFieldValues.find(cfv => cfv.customFieldId === fieldId);
-
-          if (existingValue) {
-            // Update existing value if different
-            if (existingValue.value !== String(processedValue)) {
-              valuesToUpdate.push({
-                id: existingValue.id,
-                value: String(processedValue)
-              });
-              hasChanges = true;
-            }
-          } else {
-            // Create new value
-            valuesToCreate.push({
-              attendeeId: attendee.id,
-              customFieldId: fieldId,
-              value: String(processedValue)
-            });
+          // Update the custom field value in the map
+          const currentValue = customFieldMap.get(fieldId);
+          if (currentValue !== String(processedValue)) {
+            customFieldMap.set(fieldId, String(processedValue));
             hasChanges = true;
           }
         }
 
+        // Update attendee if there are changes
         if (hasChanges) {
-          attendeesToUpdate.push(attendee.id);
-        }
-      }
+          // Convert map back to array format
+          const updatedCustomFieldValues = Array.from(customFieldMap.entries()).map(([customFieldId, value]) => ({
+            customFieldId,
+            value
+          }));
 
-      // Execute batch operations
-      const operations = [];
-
-      // Batch update existing values
-      if (valuesToUpdate.length > 0) {
-        for (const update of valuesToUpdate) {
-          operations.push(
-            tx.attendeeCustomFieldValue.update({
-              where: { id: update.id },
-              data: { value: update.value }
-            })
+          await databases.updateDocument(
+            dbId,
+            attendeesCollectionId,
+            attendeeId,
+            {
+              customFieldValues: JSON.stringify(updatedCustomFieldValues)
+            }
           );
+          updatedCount++;
         }
+      } catch (error: any) {
+        errors.push({ id: attendeeId, error: error.message || 'Failed to update' });
       }
-
-      // Batch create new values
-      if (valuesToCreate.length > 0) {
-        operations.push(
-          tx.attendeeCustomFieldValue.createMany({
-            data: valuesToCreate,
-            skipDuplicates: true
-          })
-        );
-      }
-
-      // Update attendee timestamps
-      if (attendeesToUpdate.length > 0) {
-        operations.push(
-          tx.attendee.updateMany({
-            where: { id: { in: attendeesToUpdate } },
-            data: { updatedAt: new Date() }
-          })
-        );
-      }
-
-      // Execute all operations
-      await Promise.all(operations);
-
-      return attendeesToUpdate.length;
-    });
+    }
 
     // Log the action
-    await prisma.log.create({
-      data: {
-        userId: user.id,
+    await databases.createDocument(
+      dbId,
+      logsCollectionId,
+      ID.unique(),
+      {
+        userId: user.$id,
         action: 'bulk_update',
-        details: {
+        details: JSON.stringify({
           type: 'attendees',
           count: attendeeIds.length,
           updatedCount,
           changes: Object.keys(changes),
-        },
-      },
-    });
+        })
+      }
+    );
 
     return res.status(200).json({ 
       message: 'Attendees updated successfully', 
-      updatedCount 
+      updatedCount,
+      errors
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Bulk edit API error:', error);
+    
+    // Handle Appwrite-specific errors
+    if (error.code === 401) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    } else if (error.code === 404) {
+      return res.status(404).json({ error: 'Resource not found' });
+    }
+    
     return res.status(500).json({ 
       error: 'Internal server error',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      details: error.message || 'Unknown error'
     });
   }
-}
+});

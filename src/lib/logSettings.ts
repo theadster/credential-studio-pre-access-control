@@ -1,4 +1,5 @@
-import prisma from '@/lib/prisma';
+import { createAdminClient } from '@/lib/appwrite';
+import { Query, ID } from 'appwrite';
 
 // Cache for log settings to avoid repeated database queries
 let logSettingsCache: any = null;
@@ -14,13 +15,60 @@ export async function getLogSettings() {
   }
   
   try {
-    let logSettings = await prisma.logSettings.findFirst();
+    const { databases } = createAdminClient();
+    const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
+    const logSettingsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_LOG_SETTINGS_COLLECTION_ID!;
+
+    const logSettingsResult = await databases.listDocuments(
+      dbId,
+      logSettingsCollectionId,
+      [Query.limit(1)]
+    );
     
-    if (!logSettings) {
+    let logSettings;
+    if (logSettingsResult.documents.length === 0) {
       // Create default log settings if none exist
-      logSettings = await prisma.logSettings.create({
-        data: {}
-      });
+      logSettings = await databases.createDocument(
+        dbId,
+        logSettingsCollectionId,
+        ID.unique(),
+        {
+          attendeeCreate: true,
+          attendeeUpdate: true,
+          attendeeDelete: true,
+          attendeeView: false,
+          attendeeBulkDelete: true,
+          attendeeImport: true,
+          attendeeExport: true,
+          credentialGenerate: true,
+          credentialClear: true,
+          userCreate: true,
+          userUpdate: true,
+          userDelete: true,
+          userView: false,
+          userInvite: true,
+          roleCreate: true,
+          roleUpdate: true,
+          roleDelete: true,
+          roleView: false,
+          eventSettingsUpdate: true,
+          customFieldCreate: true,
+          customFieldUpdate: true,
+          customFieldDelete: true,
+          customFieldReorder: true,
+          authLogin: true,
+          authLogout: true,
+          logsDelete: true,
+          logsExport: true,
+          logsView: false,
+          systemViewEventSettings: false,
+          systemViewAttendeeList: false,
+          systemViewRolesList: false,
+          systemViewUsersList: false
+        }
+      );
+    } else {
+      logSettings = logSettingsResult.documents[0];
     }
     
     // Update cache
@@ -32,11 +80,38 @@ export async function getLogSettings() {
     console.error('Error fetching log settings:', error);
     // Return default settings if database query fails
     return {
+      attendeeCreate: true,
+      attendeeUpdate: true,
+      attendeeDelete: true,
+      attendeeView: false,
+      attendeeBulkDelete: true,
+      attendeeImport: true,
+      attendeeExport: true,
+      credentialGenerate: true,
+      credentialClear: true,
+      userCreate: true,
+      userUpdate: true,
+      userDelete: true,
+      userView: false,
+      userInvite: true,
+      roleCreate: true,
+      roleUpdate: true,
+      roleDelete: true,
+      roleView: false,
+      eventSettingsUpdate: true,
+      customFieldCreate: true,
+      customFieldUpdate: true,
+      customFieldDelete: true,
+      customFieldReorder: true,
+      authLogin: true,
+      authLogout: true,
+      logsDelete: true,
+      logsExport: true,
+      logsView: false,
       systemViewEventSettings: false,
       systemViewAttendeeList: false,
       systemViewRolesList: false,
-      systemViewUsersList: false,
-      // Add other default values as needed
+      systemViewUsersList: false
     };
   }
 }

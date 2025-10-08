@@ -1,61 +1,343 @@
 import React, { createContext, useState, ReactNode, useContext, useEffect } from 'react';
-import { createClient } from '@/util/supabase/component';
-import { User, Provider } from '@supabase/supabase-js';
+import { createBrowserClient } from '@/lib/appwrite';
+import { Models, OAuthProvider, ID, Query } from 'appwrite';
 import { useToast } from "@/components/ui/use-toast";
 import { useRouter } from 'next/router';
-import { shouldLog } from '@/lib/logSettings';
+import { TokenRefreshManager } from '@/lib/tokenRefresh';
+import { createTabCoordinator, TabCoordinator } from '@/lib/tabCoordinator';
+
+interface UserProfile {
+  $id: string;
+  userId: string;
+  email: string;
+  name: string | null;
+  roleId: string | null;
+  isInvited: boolean;
+  $createdAt: string;
+  $updatedAt: string;
+}
 
 interface AuthContextType {
-  user: User | null;
-  createUser: (user: User) => Promise<void>;
+  user: Models.User<Models.Preferences> | null;
+  userProfile: UserProfile | null;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, name?: string) => Promise<void>;
   signInWithMagicLink: (email: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
+  updatePassword: (newPassword: string) => Promise<void>;
   initializing: boolean;
+  refreshToken: () => Promise<boolean>;
+  isTokenRefreshing: () => boolean;
 }
 
 export const AuthContext = createContext<AuthContextType>({
   user: null,
-  createUser: async () => {},
+  userProfile: null,
   signIn: async () => {},
   signUp: async () => {},
   signInWithMagicLink: async () => {},
   signInWithGoogle: async () => {},
   signOut: async () => {},
   resetPassword: async () => {},
-  initializing: false
+  updatePassword: async () => {},
+  initializing: false,
+  refreshToken: async () => false,
+  isTokenRefreshing: () => false,
 });
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<Models.User<Models.Preferences> | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [initializing, setInitializing] = useState(true);
-  const supabase = createClient();
+  const { account, databases } = createBrowserClient();
   const { toast } = useToast();
+  
+  // Initialize TokenRefreshManager and TabCoordinator
+  const [tokenRefreshManager] = useState(() => new TokenRefreshManager());
+  const [tabCoordinator] = useState<TabCoordinator>(() => createTabCoordinator());
+  
+  // Track if we've already shown a session expiration notification
+  // This prevents spam from multiple failed API calls
+  const [hasShownExpirationNotification, setHasShownExpirationNotification] = useState(false);
+
+  // Setup token refresh callbacks and cleanup
+  useEffect(() => {
+    // Handle token refresh success/failure
+    const handleRefreshResult = (success: boolean, error?: Error) => {
+      if (!success) {
+        console.error('[AuthContext] Token refresh failed:', error);
+        
+        // Check if this is a session expiration error
+        const isSessionExpired = error && (
+          (error as any).code === 401 || 
+          (error as any).type === 'session_expired' ||
+          (error as any).type === 'user_unauthorized' ||
+          error.message.toLowerCase().includes('session expired')
+        );
+        
+        if (isSessionExpired) {
+          // Session is truly expired - force logout
+          console.error('[AuthContext] Session expired, forcing logout', {
+            timestamp: new Date().toISOString(),
+            error: error?.message,
+          });
+          
+          // Clear state
+          setUser(null);
+          setUserProfile(null);
+          tokenRefreshManager.stop();
+          tokenRefreshManager.clearUserContext();
+          
+          // Clear session cookie
+          document.cookie = 'appwrite-session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+          
+          // Show notification and redirect to login
+          if (!hasShownExpirationNotification) {
+            setHasShownExpirationNotification(true);
+            
+            toast({
+              variant: "destructive",
+              title: "Session Expired",
+              description: "Your session has expired. Please log in again.",
+              duration: 5000,
+            });
+          }
+          
+          // Preserve current URL for post-login redirect
+          const currentPath = router.pathname;
+          const protectedPaths = ['/dashboard', '/private', '/profile'];
+          const isProtectedPath = protectedPaths.some(path => currentPath.startsWith(path));
+          
+          if (isProtectedPath) {
+            sessionStorage.setItem('returnUrl', router.asPath);
+          }
+          
+          router.push('/login');
+        } else {
+          // Network or temporary error - show warning but don't logout
+          if (!hasShownExpirationNotification) {
+            setHasShownExpirationNotification(true);
+            
+            toast({
+              variant: "destructive",
+              title: "Session Warning",
+              description: "Unable to refresh your session. You may need to log in again if you encounter errors.",
+              duration: 10000, // Show for 10 seconds
+            });
+          }
+          
+          console.warn('[AuthContext] Token refresh failed (temporary), keeping user logged in. They will be prompted to login if API calls fail.');
+        }
+      } else {
+        console.log('[AuthContext] Token refresh successful');
+        // Reset notification flag on successful refresh
+        setHasShownExpirationNotification(false);
+      }
+    };
+    
+    // Handle refresh completion from other tabs
+    const handleTabRefreshComplete = (success: boolean) => {
+      if (!success) {
+        console.error('[AuthContext] Token refresh failed in another tab');
+        
+        // Only show notification if we haven't already shown one
+        if (!hasShownExpirationNotification) {
+          setHasShownExpirationNotification(true);
+          
+          toast({
+            variant: "destructive",
+            title: "Session Warning",
+            description: "Unable to refresh your session in another tab. You may need to log in again if you encounter errors.",
+            duration: 10000, // Show for 10 seconds
+          });
+        }
+        
+        // Don't auto-logout if refresh failed in another tab
+        // Let the user continue working
+        console.warn('[AuthContext] Token refresh failed in another tab, but keeping user logged in.');
+      } else {
+        console.log('[AuthContext] Token refresh successful in another tab');
+        // Reset notification flag on successful refresh
+        setHasShownExpirationNotification(false);
+      }
+    };
+    
+    // Register callbacks
+    tokenRefreshManager.onRefresh(handleRefreshResult);
+    tabCoordinator.onRefreshComplete(handleTabRefreshComplete);
+    
+    // Cleanup on unmount
+    return () => {
+      console.log('[AuthContext] Cleaning up token refresh and tab coordination');
+      tokenRefreshManager.stop();
+      tabCoordinator.cleanup();
+    };
+  }, [hasShownExpirationNotification]);
+  
+  // Fetch user profile from database
+  const fetchUserProfile = async (userId: string): Promise<UserProfile | null> => {
+    try {
+      const response = await databases.listDocuments(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+        [Query.equal('userId', userId)]
+      );
+
+      if (response.documents.length > 0) {
+        return response.documents[0] as unknown as UserProfile;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+      return null;
+    }
+  };
 
   React.useEffect(() => {
     const fetchSession = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-      setInitializing(false);
+      const startTime = Date.now();
+      
+      try {
+        console.log('[AuthContext] Initializing session restoration', {
+          timestamp: new Date().toISOString(),
+          currentPath: router.pathname,
+        });
+        
+        // Validate existing session
+        const currentUser = await account.get();
+        console.log('[AuthContext] ✓ Session valid, user found', {
+          timestamp: new Date().toISOString(),
+          userId: currentUser.$id,
+          email: currentUser.email,
+          name: currentUser.name,
+        });
+        
+        setUser(currentUser);
+        
+        // Fetch user profile from database
+        const profile = await fetchUserProfile(currentUser.$id);
+        setUserProfile(profile);
+        
+        console.log('[AuthContext] User profile fetched', {
+          timestamp: new Date().toISOString(),
+          userId: currentUser.$id,
+          hasRole: !!profile?.roleId,
+          roleId: profile?.roleId || 'none',
+        });
+        
+        // Create fresh JWT for this session
+        // This ensures we have a valid token even if the previous one expired
+        console.log('[AuthContext] Creating fresh JWT for session restoration', {
+          timestamp: new Date().toISOString(),
+          userId: currentUser.$id,
+        });
+        
+        try {
+          const jwt = await account.createJWT();
+          
+          // Update session cookie with fresh JWT
+          document.cookie = `appwrite-session=${jwt.jwt}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax${
+            window.location.protocol === 'https:' ? '; Secure' : ''
+          }`;
+          
+          // Set user context for token refresh logging
+          tokenRefreshManager.setUserContext(currentUser.$id);
+          
+          // Start token refresh timer with the new JWT expiry
+          const jwtExpiry = (jwt as any).expire || Math.floor(Date.now() / 1000) + (15 * 60);
+          tokenRefreshManager.start(jwtExpiry);
+          
+          const duration = Date.now() - startTime;
+          console.log('[AuthContext] ✓ Session restoration successful', {
+            timestamp: new Date().toISOString(),
+            userId: currentUser.$id,
+            durationMs: duration,
+            jwtExpiry: new Date(jwtExpiry * 1000).toISOString(),
+          });
+          
+          // Show success notification for session restoration
+          // Only show on protected pages to avoid notification spam on public pages
+          const currentPath = router.pathname;
+          const protectedPaths = ['/dashboard', '/private', '/profile'];
+          const isProtectedPath = protectedPaths.some(path => currentPath.startsWith(path));
+          
+          if (isProtectedPath) {
+            toast({
+              title: "Welcome Back",
+              description: "Your session has been restored successfully.",
+            });
+          }
+        } catch (jwtError) {
+          console.error('[AuthContext] ✗ Failed to create JWT during session restoration', {
+            timestamp: new Date().toISOString(),
+            userId: currentUser.$id,
+            error: jwtError instanceof Error ? jwtError.message : 'Unknown error',
+            errorType: (jwtError as any)?.type || 'unknown',
+          });
+          // If JWT creation fails, we still have a valid session but token refresh won't work
+          // This is a degraded state - log the user out to be safe
+          throw jwtError;
+        }
+        
+      } catch (error) {
+        const duration = Date.now() - startTime;
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        const errorType = (error as any)?.type || 'unknown';
+        
+        console.log('[AuthContext] ✗ Session restoration failed', {
+          timestamp: new Date().toISOString(),
+          durationMs: duration,
+          error: errorMessage,
+          errorType,
+          currentPath: router.pathname,
+        });
+        
+        // Session is invalid or expired - cleanup and redirect to login
+        setUser(null);
+        setUserProfile(null);
+        tokenRefreshManager.stop();
+        tokenRefreshManager.clearUserContext();
+        
+        // Clear any stale session cookies
+        document.cookie = 'appwrite-session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+        
+        // If we're on a protected page, preserve the URL for post-login redirect
+        const currentPath = router.pathname;
+        const protectedPaths = ['/dashboard', '/private', '/profile'];
+        const isProtectedPath = protectedPaths.some(path => currentPath.startsWith(path));
+        
+        if (isProtectedPath && currentPath !== '/login') {
+          console.log('[AuthContext] Preserving return URL for post-login redirect', {
+            timestamp: new Date().toISOString(),
+            returnUrl: router.asPath,
+          });
+          
+          // Store the return URL in sessionStorage for post-login redirect
+          sessionStorage.setItem('returnUrl', router.asPath);
+          
+          // Only show notification if we haven't already shown one
+          if (!hasShownExpirationNotification) {
+            setHasShownExpirationNotification(true);
+            
+            // Redirect to login with a message
+            toast({
+              variant: "destructive",
+              title: "Session Expired",
+              description: "Your session has expired. Please log in again.",
+            });
+          }
+          
+          router.push('/login');
+        }
+      } finally {
+        setInitializing(false);
+      }
     };
 
     fetchSession();
-
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      // The setTimeout is necessary to allow Supabase functions to trigger inside onAuthStateChange
-      setTimeout(async () => {
-        setUser(session?.user ?? null);
-        setInitializing(false);
-      }, 0);
-    });
-
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
   }, []);
 
   const logAuthEvent = async (action: string, userId: string, details?: any) => {
@@ -76,199 +358,458 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const createUser = async (user: User) => {
+  const createUserProfile = async (userId: string, email: string, name?: string) => {
     try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('id')
-        .eq('id', user.id)
-        .maybeSingle();
-      if (error && error.code !== 'PGRST116') {
-        throw error;
-      }
-      if (!data) {
-        const { error: insertError } = await supabase
-          .from('users')
-          .insert({
-            id: user.id,
-            email: user.email,
-            name: user.user_metadata?.full_name || user.email?.split('@')[0] || null,
-          });
-        if (insertError) {
-          throw insertError;
-        }
-      }
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to create user profile",
+      console.log('[AuthContext] Checking for existing user profile', {
+        timestamp: new Date().toISOString(),
+        userId,
+        email,
       });
+      
+      // Check if user profile already exists
+      const existingProfile = await fetchUserProfile(userId);
+      
+      if (!existingProfile) {
+        console.log('[AuthContext] Creating new user profile', {
+          timestamp: new Date().toISOString(),
+          userId,
+          email,
+          name: name || email.split('@')[0] || null,
+        });
+        
+        // Create user profile in database
+        await databases.createDocument(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+          ID.unique(),
+          {
+            userId,
+            email,
+            name: name || email.split('@')[0] || null,
+            isInvited: false,
+          }
+        );
+        
+        console.log('[AuthContext] ✓ User profile created successfully', {
+          timestamp: new Date().toISOString(),
+          userId,
+        });
+      } else {
+        console.log('[AuthContext] User profile already exists', {
+          timestamp: new Date().toISOString(),
+          userId,
+          profileId: existingProfile.$id,
+        });
+      }
+    } catch (error: any) {
+      console.error('[AuthContext] ✗ Failed to create user profile', {
+        timestamp: new Date().toISOString(),
+        userId,
+        email,
+        error: error.message || 'Unknown error',
+        errorType: error.type || 'unknown',
+        errorCode: error.code || 'unknown',
+        fullError: error,
+      });
+      
+      // Don't show toast here - let the calling function handle it
+      // This prevents duplicate error messages
+      throw error;
     }
   };
 
   const signIn = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (!error && data.user) {
-      await createUser(data.user);
+    try {
+      console.log('[AuthContext] Starting sign in', {
+        timestamp: new Date().toISOString(),
+        email,
+        loginMethod: 'password',
+      });
+      
+      // Reset notification flag on new login
+      setHasShownExpirationNotification(false);
+      
+      // Delete any existing session first to prevent "session already active" error
+      // This can happen after a refresh or if the user was logged out but session wasn't cleared
+      try {
+        await account.deleteSession('current');
+        console.log('[AuthContext] Cleared existing session before login');
+      } catch (error) {
+        // Ignore errors - there might not be an existing session
+        console.log('[AuthContext] No existing session to clear (expected on first login)');
+      }
+      
+      // Create new session - this creates a session in Appwrite
+      const session = await account.createEmailPasswordSession(email, password);
+      
+      // Create a JWT for this session
+      // JWTs are session-specific but don't invalidate other sessions
+      const jwt = await account.createJWT();
+      
+      // Store JWT in a cookie that our API routes can access
+      // This JWT is tied to the current session but won't affect other sessions
+      document.cookie = `appwrite-session=${jwt.jwt}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax${
+        window.location.protocol === 'https:' ? '; Secure' : ''
+      }`;
+      
+      // Get user account
+      const currentUser = await account.get();
+      setUser(currentUser);
+      
+      console.log('[AuthContext] ✓ User authenticated', {
+        timestamp: new Date().toISOString(),
+        userId: currentUser.$id,
+        email: currentUser.email,
+        sessionId: session.$id,
+      });
+      
+      // Ensure user profile exists
+      try {
+        await createUserProfile(currentUser.$id, currentUser.email, currentUser.name);
+      } catch (profileError: any) {
+        console.error('[AuthContext] Profile creation failed, but continuing with login', {
+          timestamp: new Date().toISOString(),
+          userId: currentUser.$id,
+          error: profileError.message || 'Unknown error',
+        });
+        // Continue with login even if profile creation fails
+        // The user can still access the app, but some features may not work
+      }
+      
+      // Fetch user profile
+      const profile = await fetchUserProfile(currentUser.$id);
+      setUserProfile(profile);
+      
+      if (!profile) {
+        console.warn('[AuthContext] User profile not found after login', {
+          timestamp: new Date().toISOString(),
+          userId: currentUser.$id,
+        });
+      }
+      
+      // Set user context for token refresh logging
+      tokenRefreshManager.setUserContext(currentUser.$id, session.$id);
+      
+      // Start token refresh timer (JWT expires in 15 minutes, refresh at 10 minutes)
+      console.log('[AuthContext] Starting token refresh timer after login', {
+        timestamp: new Date().toISOString(),
+        userId: currentUser.$id,
+        sessionId: session.$id,
+      });
+      
+      // JWT object has jwt (string) and expire (number) properties
+      const jwtExpiry = (jwt as any).expire || Math.floor(Date.now() / 1000) + (15 * 60);
+      tokenRefreshManager.start(jwtExpiry);
       
       // Log the login event
       try {
-        await logAuthEvent('auth_login', data.user.id, {
-          email: data.user.email || '',
+        await logAuthEvent('auth_login', currentUser.$id, {
+          email: currentUser.email,
           loginMethod: 'password',
           timestamp: new Date().toISOString()
         });
       } catch (logError) {
-        console.error('Failed to log login event:', logError);
+        console.error('[AuthContext] Failed to log login event:', logError);
       }
-    }
-    
-    if (error) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message,
-      });
-      throw error;
-    } else {
+      
       toast({
         title: "Success",
         description: "You have successfully signed in",
       });
+      
+      // Check for return URL from session expiration
+      const returnUrl = sessionStorage.getItem('returnUrl');
+      if (returnUrl) {
+        console.log('[AuthContext] Redirecting to preserved URL after session expiration', {
+          timestamp: new Date().toISOString(),
+          returnUrl,
+        });
+        sessionStorage.removeItem('returnUrl');
+        router.push(returnUrl);
+      }
+    } catch (error: any) {
+      console.error('[AuthContext] ✗ Sign in failed', {
+        timestamp: new Date().toISOString(),
+        email,
+        error: error.message || 'Unknown error',
+        errorType: error.type || 'unknown',
+        errorCode: error.code || 'unknown',
+        fullError: error,
+      });
+      
+      // Provide more specific error messages based on error type
+      let errorTitle = "Login Failed";
+      let errorMessage = error.message || "Failed to sign in";
+      
+      if (error.code === 401 || error.type === 'user_invalid_credentials') {
+        errorMessage = "Invalid email or password. Please check your credentials and try again.";
+      } else if (error.code === 429 || error.type === 'general_rate_limit_exceeded') {
+        errorTitle = "Too Many Attempts";
+        errorMessage = "You've made too many login attempts. Please wait a few minutes and try again.";
+      } else if (error.type === 'user_blocked') {
+        errorTitle = "Account Blocked";
+        errorMessage = "Your account has been blocked. Please contact support for assistance.";
+      } else if (error.message && error.message.includes('network')) {
+        errorTitle = "Connection Error";
+        errorMessage = "Unable to connect. Please check your internet connection and try again.";
+      } else if (error.message && error.message.toLowerCase().includes('rate limit')) {
+        errorTitle = "Too Many Attempts";
+        errorMessage = "You've made too many login attempts. Please wait 5-10 minutes before trying again.";
+      }
+      
+      toast({
+        variant: "destructive",
+        title: errorTitle,
+        description: errorMessage,
+      });
+      throw error;
     }
   };
 
-  const signUp = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password
-    });
-
-    if (data.user) {
-      await createUser(data.user);
-    }
-
-    if (error) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message,
-      });
-      throw error;
-    } else {
+  const signUp = async (email: string, password: string, name?: string) => {
+    try {
+      // Create account in Appwrite Auth
+      const newUser = await account.create(
+        ID.unique(),
+        email,
+        password,
+        name
+      );
+      
+      // Create user profile in database
+      await createUserProfile(newUser.$id, newUser.email, name);
+      
       toast({
         title: "Success",
         description: "Sign up successful! Please login to continue.",
       });
+    } catch (error: any) {
+      console.error('Sign up error:', error);
+      
+      let errorTitle = "Sign Up Failed";
+      let errorMessage = error.message || "Failed to sign up";
+      
+      if (error.code === 429 || error.type === 'general_rate_limit_exceeded') {
+        errorTitle = "Too Many Attempts";
+        errorMessage = "You've made too many sign up attempts. Please wait a few minutes and try again.";
+      } else if (error.message && error.message.toLowerCase().includes('rate limit')) {
+        errorTitle = "Too Many Attempts";
+        errorMessage = "You've made too many sign up attempts. Please wait 5-10 minutes before trying again.";
+      }
+      
+      toast({
+        variant: "destructive",
+        title: errorTitle,
+        description: errorMessage,
+      });
+      throw error;
     }
   };
 
   const signInWithMagicLink = async (email: string) => {
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        shouldCreateUser: false,
-        emailRedirectTo: `${window.location.origin}/dashboard`,
-      },
-    });
-    
-    if (error) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message,
-      });
-      throw error;
-    } else {
+    try {
+      // Create magic URL token
+      await account.createMagicURLToken(
+        ID.unique(),
+        email,
+        `${window.location.origin}/auth/callback`
+      );
+      
       toast({
         title: "Success",
         description: "Check your email for the login link",
       });
+    } catch (error: any) {
+      console.error('Magic link error:', error);
+      
+      let errorTitle = "Magic Link Failed";
+      let errorMessage = error.message || "Failed to send magic link";
+      
+      if (error.code === 429 || error.type === 'general_rate_limit_exceeded') {
+        errorTitle = "Too Many Attempts";
+        errorMessage = "You've made too many magic link requests. Please wait a few minutes and try again.";
+      } else if (error.message && error.message.toLowerCase().includes('rate limit')) {
+        errorTitle = "Too Many Attempts";
+        errorMessage = "You've made too many magic link requests. Please wait 5-10 minutes before trying again.";
+      }
+      
+      toast({
+        variant: "destructive",
+        title: errorTitle,
+        description: errorMessage,
+      });
+      throw error;
     }
   };
 
   const signInWithGoogle = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google' as Provider,
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`
-      }
-    });
-    
-    if (error) {
+    try {
+      // Initiate OAuth flow with Google
+      account.createOAuth2Session(
+        OAuthProvider.Google,
+        `${window.location.origin}/auth/callback`,
+        `${window.location.origin}/login`
+      );
+    } catch (error: any) {
+      console.error('Google OAuth error:', error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message,
+        description: error.message || "Failed to sign in with Google",
       });
       throw error;
     }
   };
 
   const signOut = async () => {
-    // Capture current user before signing out
     const currentUser = user;
     
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message,
+    try {
+      console.log('[AuthContext] Starting sign out', {
+        timestamp: new Date().toISOString(),
+        userId: currentUser?.$id || 'unknown',
       });
-    } else {
-      // Log the logout event if we had a user
+      
+      // Stop token refresh timer
+      tokenRefreshManager.stop();
+      tokenRefreshManager.clearUserContext();
+      
+      // Reset notification flag
+      setHasShownExpirationNotification(false);
+      
+      // Log the logout event before signing out
       if (currentUser) {
         try {
-          await logAuthEvent('auth_logout', currentUser.id, {
+          await logAuthEvent('auth_logout', currentUser.$id, {
             email: currentUser.email,
             timestamp: new Date().toISOString()
           });
         } catch (logError) {
-          console.error('Failed to log logout event:', logError);
+          console.error('[AuthContext] Failed to log logout event:', logError);
         }
       }
+      
+      // Delete current session in Appwrite
+      await account.deleteSession('current');
+      
+      // Clear our custom session cookie
+      document.cookie = 'appwrite-session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+      
+      // Clear state
+      setUser(null);
+      setUserProfile(null);
+      
+      console.log('[AuthContext] ✓ Sign out successful', {
+        timestamp: new Date().toISOString(),
+        userId: currentUser?.$id || 'unknown',
+      });
       
       toast({
         title: "Success",
         description: "You have successfully signed out",
       });
+      
       router.push('/');
+    } catch (error: any) {
+      console.error('[AuthContext] ✗ Sign out failed', {
+        timestamp: new Date().toISOString(),
+        userId: currentUser?.$id || 'unknown',
+        error: error.message || 'Unknown error',
+        errorType: error.type || 'unknown',
+      });
+      
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to sign out",
+      });
     }
   };
 
   const resetPassword = async (email: string) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
-    if (error) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message,
-      });
-      throw error;
-    } else {
+    try {
+      await account.createRecovery(
+        email,
+        `${window.location.origin}/reset-password`
+      );
+      
       toast({
         title: "Success",
         description: "Check your email for the password reset link",
       });
+    } catch (error: any) {
+      console.error('Password reset error:', error);
+      
+      let errorTitle = "Password Reset Failed";
+      let errorMessage = error.message || "Failed to send password reset email";
+      
+      if (error.code === 429 || error.type === 'general_rate_limit_exceeded') {
+        errorTitle = "Too Many Attempts";
+        errorMessage = "You've made too many password reset requests. Please wait a few minutes and try again.";
+      } else if (error.message && error.message.toLowerCase().includes('rate limit')) {
+        errorTitle = "Too Many Attempts";
+        errorMessage = "You've made too many password reset requests. Please wait 5-10 minutes before trying again.";
+      }
+      
+      toast({
+        variant: "destructive",
+        title: errorTitle,
+        description: errorMessage,
+      });
+      throw error;
     }
+  };
+
+  const updatePassword = async (newPassword: string) => {
+    try {
+      await account.updatePassword(newPassword);
+      
+      toast({
+        title: "Success",
+        description: "Password updated successfully",
+      });
+    } catch (error: any) {
+      console.error('Password update error:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to update password",
+      });
+      throw error;
+    }
+  };
+  
+  /**
+   * Manually trigger a token refresh
+   * @returns Promise that resolves to true if refresh succeeded
+   */
+  const refreshToken = async (): Promise<boolean> => {
+    console.log('[AuthContext] Manual token refresh requested');
+    return await tokenRefreshManager.refresh();
+  };
+  
+  /**
+   * Check if token refresh is currently in progress
+   * @returns true if refresh is in progress
+   */
+  const isTokenRefreshing = (): boolean => {
+    return tokenRefreshManager.isRefreshing();
   };
 
   return (
     <AuthContext.Provider value={{
       user,
-      createUser,
+      userProfile,
       signIn,
       signUp,
       signInWithMagicLink,
       signInWithGoogle,
       signOut,
       resetPassword,
+      updatePassword,
       initializing,
-
+      refreshToken,
+      isTokenRefreshing,
     }}>
       {children}
     </AuthContext.Provider>

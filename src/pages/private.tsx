@@ -1,29 +1,36 @@
-import type { User } from '@supabase/supabase-js'
 import type { GetServerSidePropsContext } from 'next'
+import { createSessionClient } from '@/lib/appwrite'
 
-import { createClient } from '@/util/supabase/server-props'
+interface User {
+  $id: string;
+  email: string;
+  name: string;
+}
 
 export default function PrivatePage({ user }: { user: User }) {
   return <h1>Hello, {user.email || 'user'}!</h1>
 }
 
 export async function getServerSideProps(context: GetServerSidePropsContext) {
-  const supabase = createClient(context)
+  try {
+    const { account } = createSessionClient(context.req as any);
+    const user = await account.get();
 
-  const { data, error } = await supabase.auth.getUser()
-
-  if (error || !data) {
+    return {
+      props: {
+        user: {
+          $id: user.$id,
+          email: user.email,
+          name: user.name,
+        },
+      },
+    };
+  } catch (error) {
     return {
       redirect: {
         destination: '/',
         permanent: false,
       },
-    }
-  }
-
-  return {
-    props: {
-      user: data.user,
-    },
+    };
   }
 }

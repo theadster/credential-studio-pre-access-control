@@ -1,0 +1,108 @@
+import { useEffect, useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { Button } from '@/components/ui/button';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+
+export default function TestAuthPage() {
+  const { user, userProfile } = useAuth();
+  const [sessionTest, setSessionTest] = useState<any>(null);
+  const [apiTest, setApiTest] = useState<any>(null);
+
+  const testSession = async () => {
+    try {
+      const response = await fetch('/api/auth/test-session');
+      const data = await response.json();
+      setSessionTest(data);
+    } catch (error) {
+      setSessionTest({ error: String(error) });
+    }
+  };
+
+  const testApiCall = async () => {
+    try {
+      const response = await fetch('/api/profile');
+      const data = await response.json();
+      setApiTest({ success: true, data });
+    } catch (error) {
+      setApiTest({ success: false, error: String(error) });
+    }
+  };
+
+  useEffect(() => {
+    if (user) {
+      testSession();
+      testApiCall();
+    }
+  }, [user]);
+
+  return (
+    <div className="container mx-auto p-8">
+      <h1 className="text-3xl font-bold mb-8">Authentication Test Page</h1>
+
+      <div className="grid gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Client-Side Auth State</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {user ? (
+              <div>
+                <p><strong>User ID:</strong> {user.$id}</p>
+                <p><strong>Email:</strong> {user.email}</p>
+                <p><strong>Name:</strong> {user.name}</p>
+                {userProfile && (
+                  <div className="mt-4">
+                    <p><strong>Profile ID:</strong> {userProfile.$id}</p>
+                    <p><strong>Role ID:</strong> {userProfile.roleId || 'None'}</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p>Not authenticated</p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Server-Side Session Test</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={testSession} className="mb-4">Test Session</Button>
+            {sessionTest && (
+              <pre className="bg-gray-100 p-4 rounded overflow-auto">
+                {JSON.stringify(sessionTest, null, 2)}
+              </pre>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>API Call Test</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={testApiCall} className="mb-4">Test API Call</Button>
+            {apiTest && (
+              <pre className="bg-gray-100 p-4 rounded overflow-auto">
+                {JSON.stringify(apiTest, null, 2)}
+              </pre>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Cookie Information</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="mb-2"><strong>All Cookies:</strong></p>
+            <pre className="bg-gray-100 p-4 rounded overflow-auto">
+              {document.cookie || 'No cookies found'}
+            </pre>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}

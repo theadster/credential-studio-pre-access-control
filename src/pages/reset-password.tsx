@@ -5,48 +5,36 @@ import * as Yup from 'yup';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import { AuthContext } from '@/contexts/AuthContext';
 import Logo from '@/components/Logo';
-import { createClient } from '@/util/supabase/component';
+import { useToast } from "@/components/ui/use-toast";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 
 const ResetPasswordPage = () => {
   const router = useRouter();
-  const { signIn } = useContext(AuthContext);
+  const { updatePassword } = useContext(AuthContext);
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [sessionReady, setSessionReady] = useState(false);
-  const supabase = createClient();
+  const { toast } = useToast();
 
   // Handle auth session from URL parameters
   useEffect(() => {
     const handleAuthSession = async () => {
       try {
-        // Check if we have URL parameters for auth
+        // Check if we have URL parameters for auth (Appwrite recovery flow)
         const urlParams = new URLSearchParams(window.location.search);
-        const accessToken = urlParams.get('access_token');
-        const refreshToken = urlParams.get('refresh_token');
+        const userId = urlParams.get('userId');
+        const secret = urlParams.get('secret');
         
-        if (accessToken && refreshToken) {
-          // Set the session using the tokens from the URL
-          const { error } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken
-          });
-          
-          if (error) {
-            console.error('Error setting session:', error);
-            setSessionError('Invalid or expired reset link. Please request a new password reset.');
-          } else {
-            setSessionReady(true);
-          }
+        if (userId && secret) {
+          // Appwrite sends userId and secret in the recovery URL
+          setSessionReady(true);
         } else {
-          // Check if we already have a valid session
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session) {
-            setSessionReady(true);
-          } else {
-            setSessionError('Invalid reset link. Please request a new password reset.');
-          }
+          setSessionError('Invalid reset link. Please request a new password reset.');
         }
       } catch (error) {
         console.error('Error handling auth session:', error);
@@ -55,7 +43,7 @@ const ResetPasswordPage = () => {
     };
 
     handleAuthSession();
-  }, [supabase]);
+  }, []);
 
   const validationSchema = Yup.object().shape({
     password: Yup.string()
@@ -81,19 +69,48 @@ const ResetPasswordPage = () => {
           throw new Error('Session not ready. Please try again.');
         }
 
-        const { data, error } = await supabase.auth.updateUser({ password: values.password });
-        
-        if (error) throw error;
+        // Get URL parameters for Appwrite recovery
+        const urlParams = new URLSearchParams(window.location.search);
+        const userId = urlParams.get('userId');
+        const secret = urlParams.get('secret');
 
-        // Sign in the user with the new password
-        await signIn(data.user.email ?? '', values.password);
+        if (!userId || !secret) {
+          throw new Error('Invalid reset link parameters.');
+        }
 
-        // Redirect to dashboard or show success message
-        router.push('/dashboard');
+        // Complete the password recovery using Appwrite
+        const response = await fetch('/api/auth/complete-recovery', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId,
+            secret,
+            password: values.password,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to reset password');
+        }
+
+        toast({
+          title: "Success",
+          description: "Password reset successfully! Please login with your new password.",
+        });
+
+        // Redirect to login page
+        router.push('/login');
       } catch (error: unknown) {
         console.error('Error resetting password:', error);
         const errorMessage = error instanceof Error ? error.message : 'Failed to reset password. Please try again.';
         setSessionError(errorMessage);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: errorMessage,
+        });
       } finally {
         setIsLoading(false);
       }
@@ -101,126 +118,126 @@ const ResetPasswordPage = () => {
   });
 
   return (
-    <div className="flex h-screen bg-neutral-900 justify-center items-center">
-      <div className="flex flex-col gap-7 h-[600px]">
+    <div className="flex h-screen bg-background justify-center items-center">
+      <div className="flex flex-col gap-5 h-auto">
         <div className="w-full flex justify-center cursor-pointer" onClick={() => router.push("/")}>
           <Logo />
         </div>
 
-        <form
-          onSubmit={formik.handleSubmit}
-          className="w-full md:w-[440px] p-0 md:p-12 rounded-lg bg-transparent md:bg-neutral-800 border-0 md:border border-neutral-700"
-        >
-          <div className="flex flex-col gap-6">
-            <h2 className="font-medium text-2xl text-neutral-100 text-center">
-              Reset Password
-            </h2>
+        <Card className="w-full md:w-[440px]">
+          <CardHeader>
+            <CardTitle className="text-center">Reset Password</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={formik.handleSubmit}>
+              <div className="flex flex-col gap-6">
+                <p className="text-center text-sm text-muted-foreground">
+                  Enter your new password below.
+                </p>
 
-            <p className="text-sm text-neutral-300 text-center">
-              Enter your new password below.
-            </p>
+                {sessionError && (
+                  <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive rounded-lg text-center">
+                    {sessionError}
+                  </div>
+                )}
 
-            {sessionError && (
-              <div className="p-3 text-sm text-red-400 bg-red-900/20 border border-red-800 rounded-lg text-center">
-                {sessionError}
-              </div>
-            )}
+                {!sessionReady && !sessionError && (
+                  <div className="p-3 text-sm text-blue-600 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg text-center">
+                    Verifying reset link...
+                  </div>
+                )}
 
-            {!sessionReady && !sessionError && (
-              <div className="p-3 text-sm text-blue-400 bg-blue-900/20 border border-blue-800 rounded-lg text-center">
-                Verifying reset link...
-              </div>
-            )}
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="password">New Password</Label>
+                    <div className="relative">
+                      <Input
+                        type={showPassword ? 'text' : 'password'}
+                        id="password"
+                        name="password"
+                        placeholder="Enter your new password"
+                        value={formik.values.password}
+                        onChange={formik.handleChange}
+                        onBlur={formik.handleBlur}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? <FaEye className="text-muted-foreground" /> : <FaEyeSlash className="text-muted-foreground" />}
+                      </Button>
+                    </div>
+                    {formik.touched.password && formik.errors.password && (
+                      <p className="text-destructive text-xs">{formik.errors.password}</p>
+                    )}
+                  </div>
 
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-2">
-                <div className="flex justify-between">
-                  <label htmlFor="password" className="text-sm text-neutral-300">New Password</label>
-                  {formik.touched.password && formik.errors.password && (
-                    <span className="text-red-500 text-xs">{formik.errors.password}</span>
-                  )}
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                    <div className="relative">
+                      <Input
+                        type={showConfirmPassword ? 'text' : 'password'}
+                        id="confirmPassword"
+                        name="confirmPassword"
+                        placeholder="Confirm your new password"
+                        value={formik.values.confirmPassword}
+                        onChange={formik.handleChange}
+                        onBlur={formik.handleBlur}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      >
+                        {showConfirmPassword ? <FaEye className="text-muted-foreground" /> : <FaEyeSlash className="text-muted-foreground" />}
+                      </Button>
+                    </div>
+                    {formik.touched.confirmPassword && formik.errors.confirmPassword && (
+                      <p className="text-destructive text-xs">{formik.errors.confirmPassword}</p>
+                    )}
+                  </div>
                 </div>
-                <div className="relative">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    id="password"
-                    name="password"
-                    className="w-full p-2.5 text-sm text-neutral-100 bg-neutral-700 border border-neutral-600 rounded-lg focus:ring-primary-500 focus:border-primary-500"
-                    placeholder="Enter your new password"
-                    value={formik.values.password}
-                    onChange={formik.handleChange}
-                    onBlur={formik.handleBlur}
-                  />
-                  <button
-                    type="button"
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-sm leading-5"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? <FaEye className="text-neutral-400" /> : <FaEyeSlash className="text-neutral-400" />}
-                  </button>
-                </div>
-              </div>
 
-              <div className="flex flex-col gap-2">
-                <div className="flex justify-between">
-                  <label htmlFor="confirmPassword" className="text-sm text-neutral-300">Confirm New Password</label>
-                  {formik.touched.confirmPassword && formik.errors.confirmPassword && (
-                    <span className="text-red-500 text-xs">{formik.errors.confirmPassword}</span>
-                  )}
-                </div>
-                <div className="relative">
-                  <input
-                    type={showConfirmPassword ? 'text' : 'password'}
-                    id="confirmPassword"
-                    name="confirmPassword"
-                    className="w-full p-2.5 text-sm text-neutral-100 bg-neutral-700 border border-neutral-600 rounded-lg focus:ring-primary-500 focus:border-primary-500"
-                    placeholder="Confirm your new password"
-                    value={formik.values.confirmPassword}
-                    onChange={formik.handleChange}
-                    onBlur={formik.handleBlur}
-                  />
-                  <button
-                    type="button"
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-sm leading-5"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  >
-                    {showConfirmPassword ? <FaEye className="text-neutral-400" /> : <FaEyeSlash className="text-neutral-400" />}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              className={`w-full py-2 text-sm font-medium text-neutral-100 bg-primary-600 rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition duration-200 ${
-                isLoading || !formik.isValid || !sessionReady || sessionError ? 'opacity-50 cursor-not-allowed' : ''
-              }`}
-              disabled={isLoading || !formik.isValid || !sessionReady || !!sessionError}
-            >
-              {isLoading ? 'Resetting...' : 'Reset Password'}
-            </button>
-
-            <div className="flex justify-center">
-              <span
-                className="text-primary-400 text-sm font-medium cursor-pointer hover:underline"
-                onClick={() => router.push('/login')}
-              >
-                Back to Login
-              </span>
-            </div>
-
-            {sessionError && (
-              <div className="flex justify-center">
-                <span
-                  className="text-primary-400 text-sm font-medium cursor-pointer hover:underline"
-                  onClick={() => router.push('/forgot-password')}
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={isLoading || !formik.isValid || !sessionReady || !!sessionError}
                 >
-                  Request New Reset Link
-                </span>
+                  {isLoading ? 'Resetting...' : 'Reset Password'}
+                </Button>
+
+                <div className="flex justify-center">
+                  <Button
+                    type="button"
+                    variant="link"
+                    className="p-0"
+                    onClick={() => router.push('/login')}
+                  >
+                    Back to Login
+                  </Button>
+                </div>
+
+                {sessionError && (
+                  <div className="flex justify-center">
+                    <Button
+                      type="button"
+                      variant="link"
+                      className="p-0"
+                      onClick={() => router.push('/forgot-password')}
+                    >
+                      Request New Reset Link
+                    </Button>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        </form>
+            </form>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

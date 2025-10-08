@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import prisma from '@/lib/prisma';
-import { createClient } from '@/util/supabase/api';
+import { createSessionClient } from '@/lib/appwrite';
+import { Query, ID } from 'appwrite';
 
 const DEFAULT_ROLES = [
   {
@@ -58,53 +58,63 @@ const DEFAULT_ROLES = [
 ];
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const supabase = createClient(req, res);
-  
-  // Get the authenticated user
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  
-  if (authError || !user) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
-  if (req.method !== 'POST') {
-    res.setHeader('Allow', ['POST']);
-    return res.status(405).json({ error: `Method ${req.method} not allowed` });
-  }
-
   try {
-    // Check if roles already exist
-    const existingRoles = await prisma.role.findMany();
+    // Create session client
+    const { account, databases } = createSessionClient(req);
     
-    if (existingRoles.length > 0) {
+    // Verify authentication
+    const user = await account.get();
+
+    if (req.method !== 'POST') {
+      res.setHeader('Allow', ['POST']);
+      return res.status(405).json({ error: `Method ${req.method} not allowed` });
+    }
+
+    // Check if roles already exist
+    const existingRoles = await databases.listDocuments(
+      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+      process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+      [Query.limit(1)]
+    );
+    
+    if (existingRoles.total > 0) {
       return res.status(400).json({ error: 'Roles already initialized' });
     }
 
     // Create the default roles
     const createdRoles: any[] = [];
     for (const roleData of DEFAULT_ROLES) {
-      const role = await prisma.role.create({
-        data: roleData
-      });
+      const role = await databases.createDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+        ID.unique(),
+        {
+          name: roleData.name,
+          description: roleData.description,
+          permissions: JSON.stringify(roleData.permissions)
+        }
+      );
       createdRoles.push(role);
     }
 
-    // Log the initialization action (defensive check)
-    const existingUser = await prisma.user.findUnique({
-      where: { id: user.id }
-    });
-    
-    if (existingUser) {
-      await prisma.log.create({
-        data: {
-          userId: user.id,
+    // Log the initialization action
+    try {
+      await databases.createDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+        ID.unique(),
+        {
+          userId: user.$id,
           action: 'create',
-          details: { 
+          details: JSON.stringify({ 
             type: 'roles_initialization',
             rolesCreated: createdRoles.map((r: any) => r.name)
-          }
+          })
         }
-      });
+      );
+    } catch (logError) {
+      console.error('Error creating log:', logError);
+      // Continue even if logging fails
     }
 
     return res.status(201).json({
@@ -112,8 +122,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       roles: createdRoles
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('API Error:', error);
+    
+    // Handle Appwrite-specific errors
+    if (error.code === 401) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    
     return res.status(500).json({ error: 'Internal server error' });
   }
 }

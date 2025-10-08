@@ -1,20 +1,26 @@
-import { NextApiRequest, NextApiResponse } from 'next';
+import { NextApiResponse } from 'next';
 import { randomUUID } from 'crypto';
-import prisma from '@/lib/prisma';
-import { createClient } from '@/util/supabase/api';
+import { createSessionClient } from '@/lib/appwrite';
+import { ID, Query } from 'appwrite';
+import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const supabase = createClient(req, res);
-  
-  // Get the authenticated user
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  
-  if (authError || !user) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
+export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   try {
+    // User and userProfile are already attached by middleware
+    const { user } = req;
+    const { databases } = createSessionClient(req);
+
     switch (req.method) {
+      case 'GET':
+        // List invitations
+        const invitations = await databases.listDocuments(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          process.env.NEXT_PUBLIC_APPWRITE_INVITATIONS_COLLECTION_ID!,
+          [Query.orderDesc('$createdAt')]
+        );
+
+        return res.status(200).json(invitations.documents);
+
       case 'POST':
         const { userId } = req.body;
 
@@ -23,13 +29,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
 
         // Check if user exists and is invited
-        const invitedUser = await prisma.user.findUnique({
-          where: { id: userId }
-        });
+        const invitedUserDocs = await databases.listDocuments(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+          [Query.equal('userId', userId)]
+        );
 
-        if (!invitedUser) {
+        if (invitedUserDocs.documents.length === 0) {
           return res.status(404).json({ error: 'User not found' });
         }
+
+        const invitedUser = invitedUserDocs.documents[0];
 
         if (!invitedUser.isInvited) {
           return res.status(400).json({ error: 'User is not in invited status' });
@@ -41,38 +51,37 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         expiresAt.setDate(expiresAt.getDate() + 7); // Token expires in 7 days
 
         // Create invitation record
-        const invitation = await prisma.invitation.create({
-          data: {
-            id: randomUUID(),
+        const invitation = await databases.createDocument(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          process.env.NEXT_PUBLIC_APPWRITE_INVITATIONS_COLLECTION_ID!,
+          ID.unique(),
+          {
             userId: userId,
             token: invitationToken,
-            expiresAt: expiresAt,
-            createdBy: user.id
+            expiresAt: expiresAt.toISOString(),
+            createdBy: user.$id
           }
-        });
+        );
 
         // Generate invitation URL
         const invitationUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/signup?invitation=${invitationToken}`;
 
-        // Log the invitation creation (defensive check)
-        const existingUser = await prisma.user.findUnique({
-          where: { id: user.id }
-        });
-        
-        if (existingUser) {
-          await prisma.log.create({
-            data: {
-              userId: user.id,
-              action: 'create',
-              details: { 
-                type: 'invitation',
-                invitedUserEmail: invitedUser.email,
-                invitedUserName: invitedUser.name,
-                expiresAt: expiresAt.toISOString()
-              }
-            }
-          });
-        }
+        // Log the invitation creation
+        await databases.createDocument(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+          ID.unique(),
+          {
+            userId: user.$id,
+            action: 'create',
+            details: JSON.stringify({ 
+              type: 'invitation',
+              invitedUserEmail: invitedUser.email,
+              invitedUserName: invitedUser.name,
+              expiresAt: expiresAt.toISOString()
+            })
+          }
+        );
 
         return res.status(201).json({
           invitation,
@@ -80,11 +89,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
 
       default:
-        res.setHeader('Allow', ['POST']);
+        res.setHeader('Allow', ['GET', 'POST']);
         return res.status(405).json({ error: `Method ${req.method} not allowed` });
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('API Error:', error);
+    
+    if (error.code === 401) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    
     return res.status(500).json({ error: 'Internal server error' });
   }
-}
+});

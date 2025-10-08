@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { createClient } from '@/util/supabase/api';
-import prisma from '@/lib/prisma';
+import { createSessionClient } from '@/lib/appwrite';
+import { Query, ID } from 'appwrite';
 import { hasPermission } from '@/lib/permissions';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -9,79 +9,140 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const supabase = createClient(req, res);
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    // Create session client
+    const { account, databases } = createSessionClient(req);
+    
+    // Verify authentication
+    const user = await account.get();
 
     // Get user profile with role
-    const userProfile = await prisma.user.findUnique({
-      where: { id: user.id },
-      include: { role: true }
-    });
+    const userDocs = await databases.listDocuments(
+      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+      process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+      [Query.equal('userId', user.$id)]
+    );
 
-    if (!userProfile) {
-      return res.status(404).json({ error: 'User not found' });
+    if (userDocs.documents.length === 0) {
+      return res.status(404).json({ error: 'User profile not found' });
+    }
+
+    const userProfile = userDocs.documents[0];
+
+    // Get role if exists
+    let role = null;
+    if (userProfile.roleId) {
+      role = await databases.getDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+        userProfile.roleId
+      );
+      
+      // Parse permissions JSON
+      try {
+        role.permissions = JSON.parse(role.permissions);
+      } catch (error) {
+        console.error('Error parsing role permissions:', error);
+        role.permissions = {};
+      }
     }
 
     // Check permissions for log deletion
-    if (!hasPermission(userProfile.role, 'logs', 'delete')) {
+    if (!hasPermission(role, 'logs', 'delete')) {
       return res.status(403).json({ error: 'Insufficient permissions to delete logs' });
     }
 
     const { beforeDate, action, userId } = req.body;
 
-    // Build the where clause based on provided filters
-    const whereClause: any = {};
+    // Build queries array based on provided filters
+    const queries: string[] = [];
 
     if (beforeDate) {
-      whereClause.createdAt = {
-        lt: new Date(beforeDate)
-      };
+      queries.push(Query.lessThan('$createdAt', new Date(beforeDate).toISOString()));
     }
 
     if (action) {
-      whereClause.action = action;
+      queries.push(Query.equal('action', action));
     }
 
     if (userId) {
-      whereClause.userId = userId;
+      queries.push(Query.equal('userId', userId));
     }
 
-    // Count logs that will be deleted for logging purposes
-    const logsToDelete = await prisma.log.count({
-      where: whereClause
-    });
+    // Fetch all logs that match the criteria
+    // Note: We need to fetch in batches since Appwrite has a limit
+    let allLogsToDelete: any[] = [];
+    let hasMore = true;
+    let offset = 0;
+    const batchSize = 100;
 
-    // Delete the logs
-    const deletedLogs = await prisma.log.deleteMany({
-      where: whereClause
-    });
+    while (hasMore) {
+      const batchQueries = [...queries, Query.limit(batchSize), Query.offset(offset)];
+      const logsResponse = await databases.listDocuments(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+        batchQueries
+      );
+
+      allLogsToDelete = allLogsToDelete.concat(logsResponse.documents);
+      
+      if (logsResponse.documents.length < batchSize) {
+        hasMore = false;
+      } else {
+        offset += batchSize;
+      }
+    }
+
+    const logsToDeleteCount = allLogsToDelete.length;
+
+    // Delete the logs one by one
+    let deletedCount = 0;
+    const errors: any[] = [];
+
+    for (const log of allLogsToDelete) {
+      try {
+        await databases.deleteDocument(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+          log.$id
+        );
+        deletedCount++;
+      } catch (error: any) {
+        console.error(`Error deleting log ${log.$id}:`, error);
+        errors.push({ id: log.$id, error: error.message });
+      }
+    }
 
     // Log this deletion activity
-    await prisma.log.create({
-      data: {
+    await databases.createDocument(
+      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+      process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+      ID.unique(),
+      {
         action: 'delete_logs',
-        userId: userProfile.id,
-        details: {
+        userId: user.$id,
+        attendeeId: null,
+        details: JSON.stringify({
           type: 'logs',
           filters: { beforeDate, action, userId },
-          deletedCount: deletedLogs.count,
-          expectedCount: logsToDelete
-        }
+          deletedCount,
+          expectedCount: logsToDeleteCount,
+          errors: errors.length > 0 ? errors : undefined
+        })
       }
-    });
+    );
 
     res.status(200).json({ 
       success: true, 
-      deletedCount: deletedLogs.count,
-      message: `Successfully deleted ${deletedLogs.count} log entries`
+      deletedCount,
+      message: `Successfully deleted ${deletedCount} log entries`,
+      errors: errors.length > 0 ? errors : undefined
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error deleting logs:', error);
+    if (error.code === 401) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
     res.status(500).json({ error: 'Failed to delete logs' });
   }
 }

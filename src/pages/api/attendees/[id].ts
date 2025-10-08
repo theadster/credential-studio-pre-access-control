@@ -1,314 +1,352 @@
-import { NextApiRequest, NextApiResponse } from 'next';
-import prisma from '@/lib/prisma';
-import { createClient } from '@/util/supabase/api';
-import { checkApiPermission } from '@/lib/permissions';
+import { NextApiResponse } from 'next';
+import { createSessionClient } from '@/lib/appwrite';
+import { Query, ID } from 'appwrite';
+import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const supabase = createClient(req, res);
+export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   const { id } = req.query;
   
-  // Get the authenticated user
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  
-  if (authError || !user) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
   if (!id || typeof id !== 'string') {
     return res.status(400).json({ error: 'Invalid attendee ID' });
   }
 
   try {
+    // User and userProfile are already attached by middleware
+    const { user, userProfile } = req;
+    const { databases } = createSessionClient(req);
+
+    const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
+    const attendeesCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID!;
+    const logsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!;
+    const customFieldsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID!;
+
     switch (req.method) {
       case 'GET':
-        // Check read permission for attendees
-        const readPermission = await checkApiPermission(user.id, 'attendees', 'read', prisma);
-        if (!readPermission.hasPermission) {
+        // Check permissions
+        const readPermissions = userProfile.role ? userProfile.role.permissions : {};
+        const hasReadPermission = readPermissions?.attendees?.read === true || readPermissions?.all === true;
+
+        if (!hasReadPermission) {
           return res.status(403).json({ error: 'Insufficient permissions to view attendee details' });
         }
 
-        const attendee = await prisma.attendee.findUnique({
-          where: { id },
-          include: {
-            customFieldValues: {
-              include: {
-                customField: true
-              }
-            }
-          }
-        });
+        // Get attendee
+        const attendee = await databases.getDocument(dbId, attendeesCollectionId, id);
 
         if (!attendee) {
           return res.status(404).json({ error: 'Attendee not found' });
         }
 
         // Log the view action
-        if (readPermission.user) {
-          await prisma.log.create({
-            data: {
-              userId: user.id,
-              attendeeId: attendee.id,
-              action: 'view',
-              details: { 
-                type: 'attendee_detail',
-                firstName: attendee.firstName,
-                lastName: attendee.lastName
-              }
-            }
-          });
-        }
+        await databases.createDocument(
+          dbId,
+          logsCollectionId,
+          ID.unique(),
+          {
+            userId: user.$id,
+            attendeeId: attendee.$id,
+            action: 'view',
+            details: JSON.stringify({ 
+              type: 'attendee_detail',
+              firstName: attendee.firstName,
+              lastName: attendee.lastName
+            })
+          }
+        );
 
-        return res.status(200).json(attendee);
+        // Parse customFieldValues from JSON string to array format
+        let parsedCustomFieldValues = [];
+        if (attendee.customFieldValues) {
+          const parsed = typeof attendee.customFieldValues === 'string' 
+            ? JSON.parse(attendee.customFieldValues) 
+            : attendee.customFieldValues;
+          
+          // Convert object format {fieldId: value} to array format [{customFieldId, value}]
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            parsedCustomFieldValues = Object.entries(parsed).map(([customFieldId, value]) => ({
+              customFieldId,
+              value: String(value)
+            }));
+          } else if (Array.isArray(parsed)) {
+            parsedCustomFieldValues = parsed;
+          }
+        }
+        
+        const attendeeWithParsedFields = {
+          ...attendee,
+          id: attendee.$id, // Map $id to id for frontend compatibility
+          customFieldValues: parsedCustomFieldValues
+        };
+
+        return res.status(200).json(attendeeWithParsedFields);
 
       case 'PUT':
-        // Check update permission for attendees
-        const updatePermission = await checkApiPermission(user.id, 'attendees', 'update', prisma);
-        if (!updatePermission.hasPermission) {
+        // Check permissions
+        const updatePermissions = userProfile.role ? userProfile.role.permissions : {};
+        const hasUpdatePermission = updatePermissions?.attendees?.update === true || updatePermissions?.all === true;
+
+        if (!hasUpdatePermission) {
           return res.status(403).json({ error: 'Insufficient permissions to update attendees' });
         }
 
         const { firstName, lastName, barcodeNumber, photoUrl, customFieldValues } = req.body;
 
-        // Check if attendee exists and get current custom field values BEFORE making changes
-        const existingAttendee = await prisma.attendee.findUnique({
-          where: { id },
-          include: {
-            customFieldValues: {
-              include: {
-                customField: true
-              }
-            }
-          }
-        });
+        // Check if attendee exists and get current values BEFORE making changes
+        let existingAttendee;
+        try {
+          existingAttendee = await databases.getDocument(dbId, attendeesCollectionId, id);
+        } catch (error: any) {
+          console.error('Error fetching attendee:', error);
+          return res.status(404).json({ error: 'Attendee not found', details: error.message });
+        }
 
         if (!existingAttendee) {
           return res.status(404).json({ error: 'Attendee not found' });
         }
 
         // Store current custom field values for comparison
-        const currentCustomFieldValues = existingAttendee.customFieldValues;
+        const currentCustomFieldValues = existingAttendee.customFieldValues ? 
+          (typeof existingAttendee.customFieldValues === 'string' ? 
+            JSON.parse(existingAttendee.customFieldValues) : existingAttendee.customFieldValues) : {};
 
         // Check if barcode is unique (excluding current attendee)
         if (barcodeNumber && barcodeNumber !== existingAttendee.barcodeNumber) {
-          const duplicateBarcode = await prisma.attendee.findUnique({
-            where: { barcodeNumber }
-          });
+          const duplicateBarcodeDocs = await databases.listDocuments(
+            dbId,
+            attendeesCollectionId,
+            [Query.equal('barcodeNumber', barcodeNumber)]
+          );
 
-          if (duplicateBarcode) {
+          if (duplicateBarcodeDocs.documents.length > 0) {
             return res.status(400).json({ error: 'Barcode number already exists' });
           }
         }
 
-        // Update attendee
-        const updatedAttendee = await prisma.attendee.update({
-          where: { id },
-          data: {
-            firstName: firstName || existingAttendee.firstName,
-            lastName: lastName || existingAttendee.lastName,
-            barcodeNumber: barcodeNumber || existingAttendee.barcodeNumber,
-            photoUrl: photoUrl !== undefined ? photoUrl : existingAttendee.photoUrl,
-          },
-          include: {
-            customFieldValues: {
-              include: {
-                customField: true
-              }
-            }
-          }
-        });
+        // Prepare update data
+        const updateData: any = {
+          firstName: firstName || existingAttendee.firstName,
+          lastName: lastName || existingAttendee.lastName,
+          barcodeNumber: barcodeNumber || existingAttendee.barcodeNumber,
+          photoUrl: photoUrl !== undefined ? photoUrl : existingAttendee.photoUrl,
+        };
 
         // Update custom field values if provided
-        if (customFieldValues && Array.isArray(customFieldValues)) {
-          // Validate that all custom field IDs exist
-          const customFieldIds = customFieldValues.map((cfv: any) => cfv.customFieldId);
-          const existingCustomFields = await prisma.customField.findMany({
-            where: {
-              id: {
-                in: customFieldIds
+        if (customFieldValues !== undefined) {
+          console.log('Received customFieldValues:', customFieldValues);
+          
+          if (Array.isArray(customFieldValues)) {
+            // Validate that all custom field IDs exist
+            const customFieldIds = customFieldValues.map((cfv: any) => cfv.customFieldId).filter(Boolean);
+            
+            if (customFieldIds.length > 0) {
+              // Fetch custom fields to validate IDs
+              const customFieldsDocs = await databases.listDocuments(
+                dbId,
+                customFieldsCollectionId,
+                [Query.limit(100)]
+              );
+
+              const existingCustomFieldIds = customFieldsDocs.documents.map(cf => cf.$id);
+              const invalidCustomFieldIds = customFieldIds.filter(id => !existingCustomFieldIds.includes(id));
+
+              if (invalidCustomFieldIds.length > 0) {
+                console.error('Invalid custom field IDs:', invalidCustomFieldIds);
+                return res.status(400).json({ 
+                  error: 'Some custom fields no longer exist. Please refresh the page and try again.',
+                  invalidIds: invalidCustomFieldIds
+                });
               }
-            },
-            select: { id: true }
-          });
+            }
 
-          const existingCustomFieldIds = existingCustomFields.map(cf => cf.id);
-          const invalidCustomFieldIds = customFieldIds.filter(id => !existingCustomFieldIds.includes(id));
-
-          if (invalidCustomFieldIds.length > 0) {
-            console.error('Invalid custom field IDs:', invalidCustomFieldIds);
-            return res.status(400).json({ 
-              error: 'Some custom fields no longer exist. Please refresh the page and try again.',
-              invalidIds: invalidCustomFieldIds
-            });
-          }
-
-          // Delete existing custom field values
-          await prisma.attendeeCustomFieldValue.deleteMany({
-            where: { attendeeId: id }
-          });
-
-          // Create new custom field values (only for non-empty values)
-          const validCustomFieldValues = customFieldValues.filter((cfv: any) => 
-            cfv.customFieldId && cfv.value !== null && cfv.value !== undefined && cfv.value !== ''
-          );
-
-          if (validCustomFieldValues.length > 0) {
-            await prisma.attendeeCustomFieldValue.createMany({
-              data: validCustomFieldValues.map((cfv: any) => ({
-                attendeeId: id,
+            // Convert custom field values array to JSON array format (not object)
+            // Filter out entries without customFieldId but keep all values including empty ones
+            const validCustomFieldValues = customFieldValues
+              .filter((cfv: any) => cfv.customFieldId)
+              .map((cfv: any) => ({
                 customFieldId: cfv.customFieldId,
-                value: String(cfv.value)
-              }))
-            });
+                value: cfv.value !== null && cfv.value !== undefined ? String(cfv.value) : ''
+              }));
+
+            updateData.customFieldValues = JSON.stringify(validCustomFieldValues);
+            console.log('Storing customFieldValues as:', updateData.customFieldValues);
           }
         }
 
-        // Fetch the final updated attendee with all custom field values
-        const finalAttendee = await prisma.attendee.findUnique({
-          where: { id },
-          include: {
-            customFieldValues: {
-              include: {
-                customField: true
-              }
-            }
-          }
-        });
+        // Update attendee
+        const updatedAttendee = await databases.updateDocument(
+          dbId,
+          attendeesCollectionId,
+          id,
+          updateData
+        );
+
+        // Fetch the final updated attendee
+        const finalAttendee = await databases.getDocument(dbId, attendeesCollectionId, id);
 
         // Log the update action with detailed before/after values
-        if (updatePermission.user) {
-          const changeDetails: string[] = [];
+        const changeDetails: string[] = [];
+        
+        // Check for basic field changes with before/after values
+        if (firstName && firstName !== existingAttendee.firstName) {
+          changeDetails.push(`First Name: "${existingAttendee.firstName}" → "${firstName}"`);
+        }
+        if (lastName && lastName !== existingAttendee.lastName) {
+          changeDetails.push(`Last Name: "${existingAttendee.lastName}" → "${lastName}"`);
+        }
+        if (barcodeNumber && barcodeNumber !== existingAttendee.barcodeNumber) {
+          changeDetails.push(`Barcode Number: "${existingAttendee.barcodeNumber}" → "${barcodeNumber}"`);
+        }
+        if (photoUrl !== undefined && photoUrl !== existingAttendee.photoUrl) {
+          const oldPhoto = existingAttendee.photoUrl ? 'has photo' : 'no photo';
+          const newPhoto = photoUrl ? 'has photo' : 'no photo';
+          changeDetails.push(`Photo: ${oldPhoto} → ${newPhoto}`);
+        }
+        
+        // Check for custom field changes with detailed before/after values
+        if (customFieldValues && Array.isArray(customFieldValues)) {
+          // Get all custom fields to map IDs to names
+          const allCustomFieldsDocs = await databases.listDocuments(
+            dbId,
+            customFieldsCollectionId,
+            [Query.limit(100)]
+          );
           
-          // Check for basic field changes with before/after values
-          if (firstName && firstName !== existingAttendee.firstName) {
-            changeDetails.push(`First Name: "${existingAttendee.firstName}" → "${firstName}"`);
-          }
-          if (lastName && lastName !== existingAttendee.lastName) {
-            changeDetails.push(`Last Name: "${existingAttendee.lastName}" → "${lastName}"`);
-          }
-          if (barcodeNumber && barcodeNumber !== existingAttendee.barcodeNumber) {
-            changeDetails.push(`Barcode Number: "${existingAttendee.barcodeNumber}" → "${barcodeNumber}"`);
-          }
-          if (photoUrl !== undefined && photoUrl !== existingAttendee.photoUrl) {
-            const oldPhoto = existingAttendee.photoUrl ? 'has photo' : 'no photo';
-            const newPhoto = photoUrl ? 'has photo' : 'no photo';
-            changeDetails.push(`Photo: ${oldPhoto} → ${newPhoto}`);
-          }
+          const customFieldMap = new Map(
+            allCustomFieldsDocs.documents.map(cf => [cf.$id, { name: cf.fieldName, type: cf.fieldType }])
+          );
           
-          // Check for custom field changes with detailed before/after values
-          if (customFieldValues && Array.isArray(customFieldValues)) {
-            // Get all custom fields to map IDs to names
-            const allCustomFields = await prisma.customField.findMany({
-              select: { id: true, fieldName: true, fieldType: true }
-            });
-            const customFieldMap = new Map(allCustomFields.map(cf => [cf.id, { name: cf.fieldName, type: cf.fieldType }]));
-            
-            // Helper function to format values based on field type
-            const formatValue = (value: any, fieldType: string) => {
-              if (value === null || value === undefined || value === '') {
-                return 'empty';
+          // Helper function to format values based on field type
+          const formatValue = (value: any, fieldType: string) => {
+            if (value === null || value === undefined || value === '') {
+              return 'empty';
+            }
+            if (fieldType === 'boolean') {
+              // Handle both string and boolean values
+              if (typeof value === 'string') {
+                return value.toLowerCase() === 'yes' ? 'Yes' : 'No';
               }
-              if (fieldType === 'boolean') {
-                // Handle both string and boolean values
-                if (typeof value === 'string') {
-                  return value.toLowerCase() === 'yes' ? 'Yes' : 'No';
-                }
-                return value ? 'Yes' : 'No';
-              }
-              return `"${value}"`;
-            };
+              return value ? 'Yes' : 'No';
+            }
+            return `"${value}"`;
+          };
+          
+          // Check each incoming custom field value against the stored current values
+          for (const newValue of customFieldValues) {
+            const currentValue = currentCustomFieldValues[newValue.customFieldId];
+            const fieldInfo = customFieldMap.get(newValue.customFieldId);
             
-            // Check each incoming custom field value against the stored current values
-            for (const newValue of customFieldValues) {
-              const currentValue = currentCustomFieldValues.find(cv => cv.customFieldId === newValue.customFieldId);
-              const fieldInfo = customFieldMap.get(newValue.customFieldId);
+            if (fieldInfo) {
+              const oldVal = currentValue || null;
+              const newVal = newValue.value;
               
-              if (fieldInfo) {
-                const oldVal = currentValue ? currentValue.value : null;
-                const newVal = newValue.value;
-                
-                // Only log if there's actually a change
-                if (String(oldVal || '') !== String(newVal || '')) {
-                  const formattedOldValue = formatValue(oldVal, fieldInfo.type);
-                  const formattedNewValue = formatValue(newVal, fieldInfo.type);
-                  changeDetails.push(`${fieldInfo.name}: ${formattedOldValue} → ${formattedNewValue}`);
-                }
-              }
-            }
-            
-            // Check for removed custom field values (fields that existed before but are not in the new data)
-            for (const currentValue of currentCustomFieldValues) {
-              const newValue = customFieldValues.find(nv => nv.customFieldId === currentValue.customFieldId);
-              const fieldInfo = customFieldMap.get(currentValue.customFieldId);
-              
-              if (fieldInfo && (!newValue || newValue.value === null || newValue.value === undefined || newValue.value === '')) {
-                // Only log if the current value is not already empty
-                if (currentValue.value !== null && currentValue.value !== undefined && currentValue.value !== '') {
-                  const formattedOldValue = formatValue(currentValue.value, fieldInfo.type);
-                  const formattedNewValue = formatValue(null, fieldInfo.type);
-                  changeDetails.push(`${fieldInfo.name}: ${formattedOldValue} → ${formattedNewValue}`);
-                }
+              // Only log if there's actually a change
+              if (String(oldVal || '') !== String(newVal || '')) {
+                const formattedOldValue = formatValue(oldVal, fieldInfo.type);
+                const formattedNewValue = formatValue(newVal, fieldInfo.type);
+                changeDetails.push(`${fieldInfo.name}: ${formattedOldValue} → ${formattedNewValue}`);
               }
             }
           }
           
-          // If no specific changes detected, fall back to generic message
-          if (changeDetails.length === 0) {
-            changeDetails.push('No changes detected');
-          }
-
-          await prisma.log.create({
-            data: {
-              userId: user.id,
-              attendeeId: updatedAttendee.id,
-              action: 'update',
-              details: { 
-                type: 'attendee',
-                firstName: updatedAttendee.firstName,
-                lastName: updatedAttendee.lastName,
-                changes: changeDetails
+          // Check for removed custom field values (fields that existed before but are not in the new data)
+          for (const [fieldId, currentValue] of Object.entries(currentCustomFieldValues)) {
+            const newValue = customFieldValues.find(nv => nv.customFieldId === fieldId);
+            const fieldInfo = customFieldMap.get(fieldId);
+            
+            if (fieldInfo && (!newValue || newValue.value === null || newValue.value === undefined || newValue.value === '')) {
+              // Only log if the current value is not already empty
+              if (currentValue !== null && currentValue !== undefined && currentValue !== '') {
+                const formattedOldValue = formatValue(currentValue, fieldInfo.type);
+                const formattedNewValue = formatValue(null, fieldInfo.type);
+                changeDetails.push(`${fieldInfo.name}: ${formattedOldValue} → ${formattedNewValue}`);
               }
             }
-          });
+          }
+        }
+        
+        // If no specific changes detected, fall back to generic message
+        if (changeDetails.length === 0) {
+          changeDetails.push('No changes detected');
         }
 
-        return res.status(200).json(finalAttendee);
+        await databases.createDocument(
+          dbId,
+          logsCollectionId,
+          ID.unique(),
+          {
+            userId: user.$id,
+            attendeeId: updatedAttendee.$id,
+            action: 'update',
+            details: JSON.stringify({ 
+              type: 'attendee',
+              firstName: updatedAttendee.firstName,
+              lastName: updatedAttendee.lastName,
+              changes: changeDetails
+            })
+          }
+        );
+
+        // Parse and return the updated attendee with proper structure
+        let customFieldValuesArray = [];
+        if (finalAttendee.customFieldValues) {
+          const parsed = typeof finalAttendee.customFieldValues === 'string' 
+            ? JSON.parse(finalAttendee.customFieldValues) 
+            : finalAttendee.customFieldValues;
+          
+          // Convert object format {fieldId: value} to array format [{customFieldId, value}]
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            customFieldValuesArray = Object.entries(parsed).map(([customFieldId, value]) => ({
+              customFieldId,
+              value: String(value)
+            }));
+          } else if (Array.isArray(parsed)) {
+            customFieldValuesArray = parsed;
+          }
+        }
+        
+        const finalAttendeeWithParsedFields = {
+          ...finalAttendee,
+          id: finalAttendee.$id, // Map $id to id for frontend compatibility
+          customFieldValues: customFieldValuesArray
+        };
+
+        return res.status(200).json(finalAttendeeWithParsedFields);
 
       case 'DELETE':
-        // Check delete permission for attendees
-        const deletePermission = await checkApiPermission(user.id, 'attendees', 'delete', prisma);
-        if (!deletePermission.hasPermission) {
+        // Check permissions
+        const deletePermissions = userProfile.role ? userProfile.role.permissions : {};
+        const hasDeletePermission = deletePermissions?.attendees?.delete === true || deletePermissions?.all === true;
+
+        if (!hasDeletePermission) {
           return res.status(403).json({ error: 'Insufficient permissions to delete attendees' });
         }
 
         // Check if attendee exists
-        const attendeeToDelete = await prisma.attendee.findUnique({
-          where: { id }
-        });
+        const attendeeToDelete = await databases.getDocument(dbId, attendeesCollectionId, id);
 
         if (!attendeeToDelete) {
           return res.status(404).json({ error: 'Attendee not found' });
         }
 
-        // Delete attendee (cascade will handle custom field values)
-        await prisma.attendee.delete({
-          where: { id }
-        });
+        // Delete attendee
+        await databases.deleteDocument(dbId, attendeesCollectionId, id);
 
         // Log the delete action
-        if (deletePermission.user) {
-          await prisma.log.create({
-            data: {
-              userId: user.id,
-              action: 'delete',
-              details: { 
-                type: 'attendee',
-                firstName: attendeeToDelete.firstName,
-                lastName: attendeeToDelete.lastName,
-                barcodeNumber: attendeeToDelete.barcodeNumber
-              }
-            }
-          });
-        }
+        await databases.createDocument(
+          dbId,
+          logsCollectionId,
+          ID.unique(),
+          {
+            userId: user.$id,
+            action: 'delete',
+            details: JSON.stringify({ 
+              type: 'attendee',
+              firstName: attendeeToDelete.firstName,
+              lastName: attendeeToDelete.lastName,
+              barcodeNumber: attendeeToDelete.barcodeNumber
+            })
+          }
+        );
 
         return res.status(200).json({ message: 'Attendee deleted successfully' });
 
@@ -316,8 +354,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         res.setHeader('Allow', ['GET', 'PUT', 'DELETE']);
         return res.status(405).json({ error: `Method ${req.method} not allowed` });
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('API Error:', error);
+    
+    // Handle Appwrite-specific errors
+    if (error.code === 401) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    } else if (error.code === 404) {
+      return res.status(404).json({ error: 'Resource not found' });
+    } else if (error.code === 409) {
+      return res.status(409).json({ error: 'Conflict - resource already exists' });
+    }
+    
     return res.status(500).json({ error: 'Internal server error' });
   }
-}
+});

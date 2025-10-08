@@ -190,15 +190,23 @@ export default function AttendeeForm({
 
   useEffect(() => {
     if (attendee) {
+      // Get current custom field IDs to filter out deleted fields
+      const currentCustomFieldIds = new Set(customFields.map(cf => cf.id));
+      
       setFormData({
         firstName: attendee.firstName || '',
         lastName: attendee.lastName || '',
         barcodeNumber: attendee.barcodeNumber || '',
         photoUrl: attendee.photoUrl || '',
-        customFieldValues: attendee.customFieldValues?.reduce((acc: Record<string, string>, cfv: CustomFieldValue) => {
-          acc[cfv.customFieldId] = cfv.value;
-          return acc;
-        }, {}) || {}
+        customFieldValues: Array.isArray(attendee.customFieldValues)
+          ? attendee.customFieldValues.reduce((acc: Record<string, string>, cfv: CustomFieldValue) => {
+              // Only include custom field values for fields that still exist
+              if (currentCustomFieldIds.has(cfv.customFieldId)) {
+                acc[cfv.customFieldId] = cfv.value;
+              }
+              return acc;
+            }, {})
+          : {}
       });
     } else {
       // Reset form for new attendee
@@ -212,7 +220,7 @@ export default function AttendeeForm({
       // Generate barcode for new attendee
       generateBarcode();
     }
-  }, [attendee, eventSettings]);
+  }, [attendee, eventSettings, customFields]);
 
   const generateBarcode = () => {
     if (!eventSettings) return;
@@ -309,8 +317,13 @@ export default function AttendeeForm({
       }
 
       // Prepare custom field values for API
+      // Only include values for custom fields that currently exist
+      const currentCustomFieldIds = new Set(customFields.map(cf => cf.id));
       const customFieldValues = Object.entries(formData.customFieldValues)
-        .filter(([_, value]) => value)
+        .filter(([customFieldId, value]) => {
+          // Filter out empty values and deleted custom fields
+          return value && currentCustomFieldIds.has(customFieldId);
+        })
         .map(([customFieldId, value]) => ({
           customFieldId,
           value

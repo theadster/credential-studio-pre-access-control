@@ -1,156 +1,221 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import prisma from '@/lib/prisma';
-import { createClient } from '@/util/supabase/api';
+import { createSessionClient } from '@/lib/appwrite';
+import { Query, ID } from 'appwrite';
 import { hasPermission } from '@/lib/permissions';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const supabase = createClient(req, res);
-  
-  // Get the authenticated user
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  
-  if (authError || !user) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
-  // Get current user's role for permission checking
-  const currentUser = await prisma.user.findUnique({
-    where: { id: user.id },
-    include: { role: true }
-  });
-
-  if (!currentUser) {
-    return res.status(404).json({ error: 'User not found' });
-  }
-
-  // Check if user has permission to manage roles
-  if (!hasPermission(currentUser.role, 'roles', 'update') && req.method !== 'GET') {
-    return res.status(403).json({ error: 'Insufficient permissions' });
-  }
-
-  const { id } = req.query;
-
-  if (!id || typeof id !== 'string') {
-    return res.status(400).json({ error: 'Role ID is required' });
-  }
-
   try {
+    // Create session client
+    const { account, databases } = createSessionClient(req);
+    
+    // Verify authentication
+    const user = await account.get();
+    
+    // Get user profile with role
+    const userDocs = await databases.listDocuments(
+      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+      process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+      [Query.equal('userId', user.$id)]
+    );
+    
+    if (userDocs.documents.length === 0) {
+      return res.status(404).json({ error: 'User profile not found' });
+    }
+    
+    const userProfile = userDocs.documents[0];
+    
+    // Get role if exists
+    let currentUserRole = null;
+    if (userProfile.roleId) {
+      currentUserRole = await databases.getDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+        userProfile.roleId
+      );
+      // Parse permissions JSON
+      if (currentUserRole.permissions) {
+        currentUserRole.permissions = JSON.parse(currentUserRole.permissions);
+      }
+    }
+
+    const { id } = req.query;
+
+    if (!id || typeof id !== 'string') {
+      return res.status(400).json({ error: 'Role ID is required' });
+    }
+
     switch (req.method) {
       case 'GET':
         // Check read permission
-        if (!hasPermission(currentUser.role, 'roles', 'read')) {
+        if (!currentUserRole || !hasPermission(currentUserRole, 'roles', 'read')) {
           return res.status(403).json({ error: 'Insufficient permissions' });
         }
 
-        const role = await prisma.role.findUnique({
-          where: { id },
-          include: {
-            _count: {
-              select: {
-                users: true
-              }
-            }
+        // Get the role
+        let role;
+        try {
+          role = await databases.getDocument(
+            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+            id
+          );
+        } catch (error: any) {
+          if (error.code === 404) {
+            return res.status(404).json({ error: 'Role not found' });
           }
-        });
-
-        if (!role) {
-          return res.status(404).json({ error: 'Role not found' });
+          throw error;
         }
 
-        // Log the view action
-        await prisma.log.create({
-          data: {
-            userId: user.id,
-            action: 'view',
-            details: { type: 'role', roleId: role.id, roleName: role.name }
-          }
-        });
+        // Get user count for this role
+        const usersWithRole = await databases.listDocuments(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+          [Query.equal('roleId', role.$id), Query.limit(1)]
+        );
 
-        return res.status(200).json(role);
+        const roleWithCount = {
+          ...role,
+          _count: {
+            users: usersWithRole.total
+          }
+        };
+
+        // Log the view action
+        try {
+          await databases.createDocument(
+            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+            ID.unique(),
+            {
+              userId: user.$id,
+              action: 'view',
+              details: JSON.stringify({ type: 'role', roleId: role.$id, roleName: role.name })
+            }
+          );
+        } catch (logError) {
+          console.error('Error creating log:', logError);
+        }
+
+        return res.status(200).json(roleWithCount);
 
       case 'PUT':
+        // Check update permission
+        if (!currentUserRole || !hasPermission(currentUserRole, 'roles', 'update')) {
+          return res.status(403).json({ error: 'Insufficient permissions' });
+        }
+
         const { name, description, permissions } = req.body;
 
         if (!name || !permissions) {
           return res.status(400).json({ error: 'Missing required fields' });
         }
 
-        // Check if role exists
-        const existingRole = await prisma.role.findUnique({
-          where: { id }
-        });
+        // Validate permissions structure
+        if (typeof permissions !== 'object') {
+          return res.status(400).json({ error: 'Permissions must be a valid JSON object' });
+        }
 
-        if (!existingRole) {
-          return res.status(404).json({ error: 'Role not found' });
+        // Check if role exists
+        let existingRole;
+        try {
+          existingRole = await databases.getDocument(
+            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+            id
+          );
+        } catch (error: any) {
+          if (error.code === 404) {
+            return res.status(404).json({ error: 'Role not found' });
+          }
+          throw error;
         }
 
         // Check if new name conflicts with another role
         if (name !== existingRole.name) {
-          const nameConflict = await prisma.role.findUnique({
-            where: { name }
-          });
+          const nameConflictDocs = await databases.listDocuments(
+            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+            [Query.equal('name', name)]
+          );
 
-          if (nameConflict) {
+          if (nameConflictDocs.documents.length > 0) {
             return res.status(400).json({ error: 'Role name already exists' });
           }
         }
 
         // Prevent modification of Super Administrator role by non-super admins
-        if (existingRole.name === 'Super Administrator' && currentUser.role?.name !== 'Super Administrator') {
+        if (existingRole.name === 'Super Administrator' && currentUserRole?.name !== 'Super Administrator') {
           return res.status(403).json({ error: 'Cannot modify Super Administrator role' });
         }
 
-        const updatedRole = await prisma.role.update({
-          where: { id },
-          data: {
+        // Update the role
+        const updatedRole = await databases.updateDocument(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+          id,
+          {
             name,
-            description,
-            permissions
-          },
-          include: {
-            _count: {
-              select: {
-                users: true
-              }
-            }
+            description: description || '',
+            permissions: JSON.stringify(permissions)
           }
-        });
+        );
+
+        // Get user count for updated role
+        const usersWithUpdatedRole = await databases.listDocuments(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+          [Query.equal('roleId', updatedRole.$id), Query.limit(1)]
+        );
+
+        const updatedRoleWithCount = {
+          ...updatedRole,
+          _count: {
+            users: usersWithUpdatedRole.total
+          }
+        };
 
         // Log the update action
-        await prisma.log.create({
-          data: {
-            userId: user.id,
-            action: 'update',
-            details: { 
-              type: 'role',
-              roleId: updatedRole.id,
-              roleName: updatedRole.name,
-              changes: { name, description, permissions }
+        try {
+          await databases.createDocument(
+            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+            ID.unique(),
+            {
+              userId: user.$id,
+              action: 'update',
+              details: JSON.stringify({ 
+                type: 'role',
+                roleId: updatedRole.$id,
+                roleName: updatedRole.name,
+                changes: { name, description, permissions }
+              })
             }
-          }
-        });
+          );
+        } catch (logError) {
+          console.error('Error creating log:', logError);
+        }
 
-        return res.status(200).json(updatedRole);
+        return res.status(200).json(updatedRoleWithCount);
 
       case 'DELETE':
         // Check delete permission
-        if (!hasPermission(currentUser.role, 'roles', 'delete')) {
+        if (!currentUserRole || !hasPermission(currentUserRole, 'roles', 'delete')) {
           return res.status(403).json({ error: 'Insufficient permissions' });
         }
 
-        const roleToDelete = await prisma.role.findUnique({
-          where: { id },
-          include: {
-            _count: {
-              select: {
-                users: true
-              }
-            }
+        // Get the role to delete
+        let roleToDelete;
+        try {
+          roleToDelete = await databases.getDocument(
+            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+            id
+          );
+        } catch (error: any) {
+          if (error.code === 404) {
+            return res.status(404).json({ error: 'Role not found' });
           }
-        });
-
-        if (!roleToDelete) {
-          return res.status(404).json({ error: 'Role not found' });
+          throw error;
         }
 
         // Prevent deletion of Super Administrator role
@@ -159,28 +224,44 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
 
         // Check if role has users assigned
-        if (roleToDelete._count.users > 0) {
+        const usersWithRoleToDelete = await databases.listDocuments(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+          [Query.equal('roleId', roleToDelete.$id), Query.limit(1)]
+        );
+
+        if (usersWithRoleToDelete.total > 0) {
           return res.status(400).json({ 
-            error: `Cannot delete role with ${roleToDelete._count.users} assigned users. Please reassign users first.` 
+            error: `Cannot delete role with ${usersWithRoleToDelete.total} assigned users. Please reassign users first.` 
           });
         }
 
-        await prisma.role.delete({
-          where: { id }
-        });
+        // Delete the role
+        await databases.deleteDocument(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+          id
+        );
 
         // Log the delete action
-        await prisma.log.create({
-          data: {
-            userId: user.id,
-            action: 'delete',
-            details: { 
-              type: 'role',
-              roleId: roleToDelete.id,
-              roleName: roleToDelete.name
+        try {
+          await databases.createDocument(
+            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+            ID.unique(),
+            {
+              userId: user.$id,
+              action: 'delete',
+              details: JSON.stringify({ 
+                type: 'role',
+                roleId: roleToDelete.$id,
+                roleName: roleToDelete.name
+              })
             }
-          }
-        });
+          );
+        } catch (logError) {
+          console.error('Error creating log:', logError);
+        }
 
         return res.status(200).json({ message: 'Role deleted successfully' });
 
@@ -188,8 +269,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         res.setHeader('Allow', ['GET', 'PUT', 'DELETE']);
         return res.status(405).json({ error: `Method ${req.method} not allowed` });
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('API Error:', error);
+    
+    // Handle Appwrite-specific errors
+    if (error.code === 401) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    
     return res.status(500).json({ error: 'Internal server error' });
   }
 }

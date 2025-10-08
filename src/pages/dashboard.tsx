@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { createClient } from "@/util/supabase/component";
 import { useAuth } from "@/contexts/AuthContext";
+import { useRealtimeSubscription } from "@/hooks/useRealtimeSubscription";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -60,6 +60,8 @@ import AttendeeForm from "@/components/AttendeeForm";
 import UserForm from "@/components/UserForm";
 import EventSettingsForm from "@/components/EventSettingsForm";
 import RoleForm from "@/components/RoleForm";
+import LinkUserDialog from "@/components/LinkUserDialog";
+import DeleteUserDialog from "@/components/DeleteUserDialog";
 import ExportDialog from "@/components/ExportDialog";
 import ImportDialog from "@/components/ImportDialog";
 import LogsExportDialog from "@/components/LogsExportDialog";
@@ -210,6 +212,9 @@ export default function Dashboard() {
   const [showUserForm, setShowUserForm] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [showLinkUserDialog, setShowLinkUserDialog] = useState(false);
+  const [showDeleteUserDialog, setShowDeleteUserDialog] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [initializingRoles, setInitializingRoles] = useState(false);
   const [showEventSettingsForm, setShowEventSettingsForm] = useState(false);
   const [invitingUser, setInvitingUser] = useState<string | null>(null);
@@ -229,8 +234,6 @@ export default function Dashboard() {
   const [bulkGeneratingCredentials, setBulkGeneratingCredentials] = useState(false);
   const [showBulkCredentialModal, setShowBulkCredentialModal] = useState(false);
   const [bulkCredentialProgress, setBulkCredentialProgress] = useState({ current: 0, total: 0, currentName: '' });
-
-  const supabase = createClient();
 
   const refreshAttendees = useCallback(async () => {
     try {
@@ -347,6 +350,9 @@ export default function Dashboard() {
         const response = await fetch('/api/profile');
         if (response.ok) {
           const currentUserData = await response.json();
+          console.log('Current user data:', currentUserData);
+          console.log('Role:', currentUserData.role);
+          console.log('Permissions:', currentUserData.role?.permissions);
           setCurrentUser(currentUserData);
         } else {
           console.error('Failed to fetch user profile:', response.status);
@@ -358,10 +364,10 @@ export default function Dashboard() {
       }
     };
 
-    if (user?.id) {
+    if (user?.$id) {
       getCurrentUser();
     }
-  }, [user?.id]);
+  }, [user?.$id]);
 
   // Load real data from APIs
   useEffect(() => {
@@ -549,7 +555,7 @@ export default function Dashboard() {
 
   // Real-time subscriptions with debouncing to prevent excessive API calls
   useEffect(() => {
-    let refreshTimeouts: { [key: string]: NodeJS.Timeout } = {};
+    const refreshTimeouts: { [key: string]: NodeJS.Timeout } = {};
 
     const debouncedRefresh = (key: string, refreshFunction: () => void, delay: number = 1000) => {
       if (refreshTimeouts[key]) {
@@ -561,72 +567,59 @@ export default function Dashboard() {
       }, delay);
     };
 
-    const channel = supabase
-      .channel('all-tables-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'attendees' },
-        (payload) => {
-          console.log('Attendee change received!', payload);
-          debouncedRefresh('attendees', refreshAttendees, 2000);
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'attendee_custom_field_values' },
-        (payload) => {
-          console.log('Attendee custom field value change received!', payload);
-          debouncedRefresh('attendees', refreshAttendees, 2000);
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'users' },
-        (payload) => {
-          console.log('Users change received!', payload);
-          debouncedRefresh('users', refreshUsers, 1500);
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'roles' },
-        (payload) => {
-          console.log('Roles change received!', payload);
-          debouncedRefresh('roles', refreshRoles, 1500);
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'event_settings' },
-        (payload) => {
-          console.log('Event settings change received!', payload);
-          debouncedRefresh('eventSettings', refreshEventSettings, 1000);
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'custom_fields' },
-        (payload) => {
-          console.log('Custom fields change received!', payload);
-          debouncedRefresh('eventSettings', refreshEventSettings, 1000);
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'logs' },
-        (payload) => {
-          console.log('Logs change received!', payload);
-          debouncedRefresh('logs', () => loadLogs(), 2000);
-        }
-      )
-      .subscribe();
-
     return () => {
       // Clear any pending timeouts
       Object.values(refreshTimeouts).forEach(timeout => clearTimeout(timeout));
-      supabase.removeChannel(channel);
     };
-  }, [refreshAttendees, refreshUsers, refreshRoles, refreshEventSettings, loadLogs]);
+  }, []);
+
+  // Appwrite real-time subscriptions for attendees
+  useRealtimeSubscription({
+    channels: [`databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID}.documents`],
+    callback: useCallback((response: any) => {
+      console.log('Attendee change received!', response);
+      setTimeout(() => refreshAttendees(), 2000);
+    }, [refreshAttendees])
+  });
+
+  // Appwrite real-time subscriptions for users
+  useRealtimeSubscription({
+    channels: [`databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID}.documents`],
+    callback: useCallback((response: any) => {
+      console.log('Users change received!', response);
+      setTimeout(() => refreshUsers(), 1500);
+    }, [refreshUsers])
+  });
+
+  // Appwrite real-time subscriptions for roles
+  useRealtimeSubscription({
+    channels: [`databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID}.documents`],
+    callback: useCallback((response: any) => {
+      console.log('Roles change received!', response);
+      setTimeout(() => refreshRoles(), 1500);
+    }, [refreshRoles])
+  });
+
+  // Appwrite real-time subscriptions for event settings and custom fields
+  useRealtimeSubscription({
+    channels: [
+      `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID}.documents`,
+      `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID}.documents`
+    ],
+    callback: useCallback((response: any) => {
+      console.log('Event settings or custom fields change received!', response);
+      setTimeout(() => refreshEventSettings(), 1000);
+    }, [refreshEventSettings])
+  });
+
+  // Appwrite real-time subscriptions for logs
+  useRealtimeSubscription({
+    channels: [`databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID}.documents`],
+    callback: useCallback((response: any) => {
+      console.log('Logs change received!', response);
+      setTimeout(() => loadLogs(), 2000);
+    }, [loadLogs])
+  });
 
   // Enhanced filtering function for attendees including custom fields and photo filter
   const filteredAttendees = attendees
@@ -671,7 +664,9 @@ export default function Dashboard() {
         
         // Custom fields filter
         const customFieldsMatch = Object.entries(advancedSearchFilters.customFields).every(([fieldId, filter]) => {
-          const attendeeValueObj = attendee.customFieldValues?.find((cfv: any) => cfv.customFieldId === fieldId);
+          const attendeeValueObj = Array.isArray(attendee.customFieldValues)
+            ? attendee.customFieldValues.find((cfv: any) => cfv.customFieldId === fieldId)
+            : null;
           const attendeeValue = attendeeValueObj?.value || '';
           const hasValue = !!attendeeValue;
 
@@ -706,9 +701,11 @@ export default function Dashboard() {
           attendee.barcodeNumber.toLowerCase().includes(searchTerm.toLowerCase());
         
         // Search in custom field values
-        const customFieldMatch = attendee.customFieldValues?.some((cfv: any) => 
-          cfv.value && cfv.value.toLowerCase().includes(searchTerm.toLowerCase())
-        ) || false;
+        const customFieldMatch = Array.isArray(attendee.customFieldValues) 
+          ? attendee.customFieldValues.some((cfv: any) => 
+              cfv.value && cfv.value.toLowerCase().includes(searchTerm.toLowerCase())
+            )
+          : false;
         
         // Photo filter
         const photoMatch = photoFilter === 'all' || 
@@ -1001,7 +998,12 @@ export default function Dashboard() {
       // Update the attendee in the local state with the new credential URL and updated timestamp
       setAttendees(prev => prev.map(a => 
         a.id === attendeeId 
-          ? { ...a, credentialUrl: result.credentialUrl, credentialGeneratedAt: result.generatedAt, updatedAt: new Date().toISOString() }
+          ? { 
+              ...a, 
+              credentialUrl: result.credentialUrl, 
+              credentialGeneratedAt: result.generatedAt,
+              $updatedAt: result.updatedAt || result.generatedAt // Use the actual Appwrite timestamp
+            }
           : a
       ));
 
@@ -1277,14 +1279,35 @@ export default function Dashboard() {
           description: "User updated successfully!",
         });
       } else {
+        // Handle new user linking response
         setUsers(prev => [savedUser, ...prev]);
-        toast({
-          title: "Success",
-          description: "User created successfully!",
-        });
+        
+        // Check team membership status and display appropriate message
+        if (savedUser.teamMembership) {
+          if (savedUser.teamMembership.status === 'success') {
+            toast({
+              title: "Success",
+              description: "User linked successfully and added to team!",
+            });
+          } else if (savedUser.teamMembership.status === 'failed') {
+            toast({
+              title: "Warning",
+              description: `User linked successfully, but team membership failed: ${savedUser.teamMembership.error || 'Unknown error'}`,
+              variant: "default",
+            });
+          }
+        } else {
+          toast({
+            title: "Success",
+            description: "User linked successfully!",
+          });
+        }
       }
 
       setEditingUser(null);
+      
+      // Refresh user list to ensure we have the latest data
+      await refreshUsers();
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -1450,7 +1473,7 @@ export default function Dashboard() {
             new Date(log.createdAt).toLocaleDateString(),
             new Date(log.createdAt).toLocaleTimeString(),
             log.action,
-            log.user.name || log.user.email,
+            log.user ? (log.user.name || log.user.email) : 'Unknown User',
             log.attendee ? `${log.attendee.firstName} ${log.attendee.lastName}` : (log.details?.type || 'System'),
             JSON.stringify(log.details || {}).replace(/"/g, '""')
           ].join(','))
@@ -1654,15 +1677,33 @@ export default function Dashboard() {
     );
     
     const attendeesNeedingCredentials = selectedAttendeesData.filter(attendee => {
+      console.log('[Bulk Credential Check]', {
+        name: `${attendee.firstName} ${attendee.lastName}`,
+        hasCredentialUrl: !!attendee.credentialUrl,
+        credentialUrl: attendee.credentialUrl,
+        hasGeneratedAt: !!attendee.credentialGeneratedAt,
+        credentialGeneratedAt: attendee.credentialGeneratedAt,
+        updatedAt: attendee.updatedAt,
+      });
+
       // No credential at all
       if (!attendee.credentialUrl || attendee.credentialUrl.trim() === '') {
+        console.log('[Bulk Credential Check] → NEEDS GENERATION (no credential URL)');
         return true;
       }
       
-      // Has credential but it might be outdated
-      if (attendee.credentialGeneratedAt && attendee.updatedAt) {
+      // Has credential but no generation timestamp - treat as outdated (legacy data)
+      if (!attendee.credentialGeneratedAt) {
+        console.log('[Bulk Credential Check] → NEEDS GENERATION (no timestamp - legacy)');
+        return true;
+      }
+      
+      // Has credential with timestamp - check if it's outdated
+      // Use $updatedAt from Appwrite if available, otherwise fall back to updatedAt
+      const updatedAtField = (attendee as any).$updatedAt || attendee.updatedAt;
+      if (updatedAtField) {
         const credentialGeneratedAt = new Date(attendee.credentialGeneratedAt);
-        const recordUpdatedAt = new Date(attendee.updatedAt);
+        const recordUpdatedAt = new Date(updatedAtField);
         
         // Since generating a credential also updates the record, we need to account for this
         // We'll consider the credential "outdated" if it was generated before the last record update
@@ -1670,19 +1711,38 @@ export default function Dashboard() {
         const timeDifference = Math.abs(credentialGeneratedAt.getTime() - recordUpdatedAt.getTime());
         const isCredentialFromSameUpdate = timeDifference <= 5000; // 5 seconds tolerance
 
+        console.log('[Bulk Credential Check] Timestamp comparison:', {
+          credentialGeneratedAt: credentialGeneratedAt.toISOString(),
+          recordUpdatedAt: recordUpdatedAt.toISOString(),
+          timeDifference: `${timeDifference}ms`,
+          isCredentialFromSameUpdate,
+          credentialIsNewer: credentialGeneratedAt > recordUpdatedAt,
+        });
+
         if (isCredentialFromSameUpdate) {
-          // If the credential was generated as part of the same update, it's current
+          // If the credential was generated as part of the same update, it's CURRENT
+          console.log('[Bulk Credential Check] → CURRENT (same update)');
           return false;
         } else if (credentialGeneratedAt > recordUpdatedAt) {
-          // If credential was generated after the record was last updated, it's current
+          // If credential was generated after the record was last updated, it's CURRENT
+          console.log('[Bulk Credential Check] → CURRENT (credential newer)');
           return false;
         } else {
-          // If credential was generated before the record was last updated, it's outdated
+          // If credential was generated before the record was last updated, it's OUTDATED
+          console.log('[Bulk Credential Check] → NEEDS GENERATION (outdated)');
           return true;
         }
       }
       
+      // Has credential and timestamp but no updatedAt (shouldn't happen) - treat as current
+      console.log('[Bulk Credential Check] → CURRENT (no updatedAt - edge case)');
       return false;
+    });
+
+    console.log('[Bulk Credential Summary]', {
+      totalSelected: selectedAttendeesData.length,
+      needingCredentials: attendeesNeedingCredentials.length,
+      attendeesNeedingCredentials: attendeesNeedingCredentials.map(a => `${a.firstName} ${a.lastName}`),
     });
 
     if (attendeesNeedingCredentials.length === 0) {
@@ -1731,7 +1791,12 @@ export default function Dashboard() {
           // Update the attendee in the local state with the new credential URL and updated timestamp
           setAttendees(prev => prev.map(a => 
             a.id === attendee.id 
-              ? { ...a, credentialUrl: result.credentialUrl, credentialGeneratedAt: result.generatedAt, updatedAt: new Date().toISOString() }
+              ? { 
+                  ...a, 
+                  credentialUrl: result.credentialUrl, 
+                  credentialGeneratedAt: result.generatedAt,
+                  $updatedAt: result.updatedAt || result.generatedAt // Use the actual Appwrite timestamp
+                }
               : a
           ));
 
@@ -1837,7 +1902,9 @@ export default function Dashboard() {
     }
 
     const credentialGeneratedAt = new Date(attendee.credentialGeneratedAt);
-    const recordUpdatedAt = new Date(attendee.updatedAt);
+    // Use $updatedAt from Appwrite if available, otherwise fall back to updatedAt
+    const updatedAtField = (attendee as any).$updatedAt || attendee.updatedAt;
+    const recordUpdatedAt = new Date(updatedAtField);
 
     // Since generating a credential also updates the record, we need to account for this
     // We'll consider the credential "current" if it was generated within a reasonable time
@@ -2028,14 +2095,13 @@ export default function Dashboard() {
         <div className="flex-shrink-0 p-6 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="flex items-center space-x-3 mb-3">
             <Avatar className="h-8 w-8">
-              <AvatarImage src={user?.user_metadata?.avatar_url} />
               <AvatarFallback>
                 {user?.email?.charAt(0).toUpperCase()}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">
-                {currentUser?.name || user?.user_metadata?.full_name || user?.email?.split('@')[0]}
+                {currentUser?.name || user?.name || user?.email?.split('@')[0]}
               </p>
               <p className="text-xs text-muted-foreground truncate">
                 {user?.email}
@@ -2080,10 +2146,15 @@ export default function Dashboard() {
             </div>
             <div className="flex items-center space-x-2">
               {activeTab === "users" && hasPermission(currentUser?.role, 'users', 'create') && (
-                <Button onClick={() => setShowUserForm(true)}>
-                  <UserPlus className="mr-2 h-4 w-4" />
-                  Add User
-                </Button>
+                <>
+                  <Button onClick={() => {
+                    setEditingUser(null);
+                    setShowUserForm(true);
+                  }}>
+                    <UserPlus className="mr-2 h-4 w-4" />
+                    Link User
+                  </Button>
+                </>
               )}
               {activeTab === "roles" && hasPermission(currentUser?.role, 'roles', 'create') && (
                 <Button onClick={() => setShowRoleForm(true)}>
@@ -2798,7 +2869,9 @@ export default function Dashboard() {
                         const customFieldsWithValues = eventSettings?.customFields
                           ?.sort((a: any, b: any) => a.order - b.order)
                           ?.map((field: any) => {
-                            const value = attendee.customFieldValues?.find((cfv: any) => cfv.customFieldId === field.id);
+                            const value = Array.isArray(attendee.customFieldValues)
+                              ? attendee.customFieldValues.find((cfv: any) => cfv.customFieldId === field.id)
+                              : null;
                             let displayValue = value?.value || null;
                             
                             // Format display value based on field type
@@ -3183,7 +3256,14 @@ export default function Dashboard() {
                                 >
                                   <div className="font-medium text-lg hover:text-primary">{user.name || user.email.split('@')[0]}</div>
                                 </button>
-                                <div className="text-sm text-muted-foreground">{user.email}</div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm text-muted-foreground">{user.email}</span>
+                                  {user.isInvited && (
+                                    <Badge variant="secondary" className="text-xs">
+                                      Invited
+                                    </Badge>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </TableCell>
@@ -3227,35 +3307,17 @@ export default function Dashboard() {
                                 </Button>
                               )}
                               {hasPermission(currentUser?.role, 'users', 'delete') && canManageUser(currentUser?.role, user.role) && (
-                                <AlertDialog>
-                                  <AlertDialogTrigger asChild>
-                                    <Button 
-                                      variant="ghost" 
-                                      size="sm" 
-                                      className="text-destructive"
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        This action cannot be undone. This will permanently delete the user{' '}
-                                        <strong>{user.name || user.email}</strong> from the database. All associated data and logs will be lost.
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                      <AlertDialogAction
-                                        onClick={() => handleDeleteUser(user.id)}
-                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                      >
-                                        Delete User
-                                      </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="text-destructive"
+                                  onClick={() => {
+                                    setUserToDelete(user);
+                                    setShowDeleteUserDialog(true);
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
                               )}
                             </div>
                           </TableCell>
@@ -3857,7 +3919,7 @@ export default function Dashboard() {
                     <div className="ml-4">
                       <p className="text-sm font-medium text-purple-700 dark:text-purple-300">Active Users</p>
                       <p className="text-4xl font-bold text-purple-900 dark:text-purple-100">
-                        {new Set(logs.map(log => log.user.email)).size}
+                        {new Set(logs.filter(log => log.user).map(log => log.user.email)).size}
                       </p>
                     </div>
                   </CardContent>
@@ -4027,12 +4089,16 @@ export default function Dashboard() {
                                 <div className="flex items-center space-x-2">
                                   <Avatar className="h-6 w-6">
                                     <AvatarFallback className="text-xs">
-                                      {(log.user.name || log.user.email).charAt(0).toUpperCase()}
+                                      {log.user ? (log.user.name || log.user.email).charAt(0).toUpperCase() : '?'}
                                     </AvatarFallback>
                                   </Avatar>
                                   <div>
-                                    <div className="font-medium text-sm">{log.user.name || log.user.email.split('@')[0]}</div>
-                                    <div className="text-xs text-muted-foreground">{log.user.email}</div>
+                                    <div className="font-medium text-sm">
+                                      {log.user ? (log.user.name || log.user.email.split('@')[0]) : 'Unknown User'}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      {log.user ? log.user.email : 'User deleted'}
+                                    </div>
                                   </div>
                                 </div>
                               </TableCell>
@@ -4254,6 +4320,66 @@ export default function Dashboard() {
         onSave={handleSaveUser}
         user={editingUser}
         roles={roles}
+        mode={editingUser ? 'edit' : 'link'}
+      />
+
+      {/* Link User Dialog */}
+      <LinkUserDialog
+        isOpen={showLinkUserDialog}
+        onClose={() => setShowLinkUserDialog(false)}
+        onLink={async () => {
+          await refreshUsers();
+        }}
+        roles={roles}
+      />
+
+      {/* Delete User Dialog */}
+      <DeleteUserDialog
+        isOpen={showDeleteUserDialog}
+        onClose={() => {
+          setShowDeleteUserDialog(false);
+          setUserToDelete(null);
+        }}
+        onConfirm={async (deleteFromAuth) => {
+          if (!userToDelete) return;
+          
+          try {
+            const response = await fetch('/api/users', {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                id: userToDelete.id,
+                deleteFromAuth 
+              }),
+            });
+
+            if (response.ok) {
+              const data = await response.json();
+              toast({
+                title: "Success",
+                description: data.message,
+              });
+              await refreshUsers();
+            } else {
+              const error = await response.json();
+              toast({
+                variant: "destructive",
+                title: "Error",
+                description: error.error || "Failed to delete user",
+              });
+            }
+          } catch (error) {
+            toast({
+              variant: "destructive",
+              title: "Error",
+              description: "Failed to delete user",
+            });
+          } finally {
+            setShowDeleteUserDialog(false);
+            setUserToDelete(null);
+          }
+        }}
+        user={userToDelete}
       />
 
       {/* Event Settings Form Modal */}

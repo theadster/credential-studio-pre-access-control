@@ -1,7 +1,7 @@
-import { NextApiRequest, NextApiResponse } from 'next';
-import { createClient } from '@/util/supabase/api';
-import prisma from '@/lib/prisma';
-import { checkApiPermission } from '@/lib/permissions';
+import { NextApiResponse } from 'next';
+import { createSessionClient } from '@/lib/appwrite';
+import { Query, ID } from 'appwrite';
+import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
 
 interface ExportRequest {
   scope: 'all' | 'filtered';
@@ -19,23 +19,43 @@ interface ExportRequest {
   };
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    // Get user from Supabase
-    const supabase = createClient(req, res);
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    // User and userProfile are already attached by middleware
+    const { user, userProfile } = req;
+    const { databases } = createSessionClient(req);
 
-    if (authError || !user) {
-      return res.status(401).json({ error: 'Unauthorized' });
+    // Validate required environment variables
+    const requiredEnvVars = [
+      'NEXT_PUBLIC_APPWRITE_DATABASE_ID',
+      'NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID',
+      'NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID',
+      'NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID',
+      'NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID'
+    ];
+
+    for (const envVar of requiredEnvVars) {
+      if (!process.env[envVar]) {
+        console.error(`Missing environment variable: ${envVar}`);
+        return res.status(500).json({ error: 'Server configuration error' });
+      }
     }
 
-    // Check export permission for attendees
-    const exportPermission = await checkApiPermission(user.id, 'attendees', 'export', prisma);
-    if (!exportPermission.hasPermission) {
+    const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
+    const attendeesCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID!;
+    const logsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!;
+    const customFieldsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID!;
+    const eventSettingsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID!;
+
+    // Check export permission
+    const permissions = userProfile.role ? userProfile.role.permissions : {};
+    const hasExportPermission = permissions?.attendees?.export === true || permissions?.all === true;
+
+    if (!hasExportPermission) {
       return res.status(403).json({ error: 'Insufficient permissions to export attendees' });
     }
 
@@ -46,50 +66,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: 'Invalid export parameters' });
     }
 
-    // Build the query based on scope and filters
-    let whereClause: any = {};
+    // Build queries based on scope and filters
+    const queries: string[] = [];
 
     if (scope === 'filtered' && filters) {
       // Apply basic search filter
       if (filters.searchTerm) {
-        whereClause.OR = [
-          {
-            firstName: {
-              contains: filters.searchTerm,
-              mode: 'insensitive'
-            }
-          },
-          {
-            lastName: {
-              contains: filters.searchTerm,
-              mode: 'insensitive'
-            }
-          },
-          {
-            barcodeNumber: {
-              contains: filters.searchTerm,
-              mode: 'insensitive'
-            }
-          },
-          {
-            customFieldValues: {
-              some: {
-                value: {
-                  contains: filters.searchTerm,
-                  mode: 'insensitive'
-                }
-              }
-            }
-          }
-        ];
+        queries.push(Query.search('firstName', filters.searchTerm));
       }
 
       // Apply photo filter
       if (filters.photoFilter && filters.photoFilter !== 'all') {
         if (filters.photoFilter === 'with') {
-          whereClause.photoUrl = { not: null };
+          queries.push(Query.isNotNull('photoUrl'));
         } else if (filters.photoFilter === 'without') {
-          whereClause.photoUrl = null;
+          queries.push(Query.isNull('photoUrl'));
         }
       }
 
@@ -98,139 +89,73 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const advFilters = filters.advancedFilters;
         
         if (advFilters.firstName) {
-          whereClause.firstName = {
-            contains: advFilters.firstName,
-            mode: 'insensitive'
-          };
+          queries.push(Query.search('firstName', advFilters.firstName));
         }
 
         if (advFilters.lastName) {
-          whereClause.lastName = {
-            contains: advFilters.lastName,
-            mode: 'insensitive'
-          };
+          queries.push(Query.search('lastName', advFilters.lastName));
         }
 
         if (advFilters.barcode) {
-          whereClause.barcodeNumber = {
-            contains: advFilters.barcode,
-            mode: 'insensitive'
-          };
+          queries.push(Query.search('barcodeNumber', advFilters.barcode));
         }
 
         // Override photo filter if specified in advanced filters
         if (advFilters.photoFilter && advFilters.photoFilter !== 'all') {
           if (advFilters.photoFilter === 'with') {
-            whereClause.photoUrl = { not: null };
+            queries.push(Query.isNotNull('photoUrl'));
           } else if (advFilters.photoFilter === 'without') {
-            whereClause.photoUrl = null;
-          }
-        }
-
-        // Apply custom field filters
-        if (advFilters.customFields) {
-          const customFieldConditions = [];
-          
-          for (const [fieldId, filter] of Object.entries(advFilters.customFields)) {
-            const { value, operator } = filter as any;
-            
-            if (operator === 'isEmpty') {
-              // Search for records without this custom field value
-              customFieldConditions.push({
-                NOT: {
-                  customFieldValues: {
-                    some: {
-                      customFieldId: fieldId,
-                      value: { not: null }
-                    }
-                  }
-                }
-              });
-            } else if (operator === 'isNotEmpty') {
-              // Search for records with any value for this custom field
-              customFieldConditions.push({
-                customFieldValues: {
-                  some: {
-                    customFieldId: fieldId,
-                    value: { not: null }
-                  }
-                }
-              });
-            } else if (value && operator) {
-              // Apply operator-based search
-              let condition: any = {};
-              
-              switch (operator) {
-                case 'contains':
-                  condition = {
-                    contains: value,
-                    mode: 'insensitive'
-                  };
-                  break;
-                case 'equals':
-                  condition = {
-                    equals: value,
-                    mode: 'insensitive'
-                  };
-                  break;
-                case 'startsWith':
-                  condition = {
-                    startsWith: value,
-                    mode: 'insensitive'
-                  };
-                  break;
-                case 'endsWith':
-                  condition = {
-                    endsWith: value,
-                    mode: 'insensitive'
-                  };
-                  break;
-                default:
-                  condition = {
-                    contains: value,
-                    mode: 'insensitive'
-                  };
-              }
-              
-              customFieldConditions.push({
-                customFieldValues: {
-                  some: {
-                    customFieldId: fieldId,
-                    value: condition
-                  }
-                }
-              });
-            }
-          }
-
-          if (customFieldConditions.length > 0) {
-            whereClause.AND = customFieldConditions;
+            queries.push(Query.isNull('photoUrl'));
           }
         }
       }
     }
 
-    // Fetch attendees with custom field values
-    const attendees = await prisma.attendee.findMany({
-      where: whereClause,
-      include: {
-        customFieldValues: {
-          include: {
-            customField: true
-          }
-        }
-      },
-      orderBy: {
-        createdAt: 'desc'
-      }
-    });
+    // Add ordering
+    queries.push(Query.orderDesc('$createdAt'));
 
-    // Get event settings to include custom field names
-    const eventSettings = await prisma.eventSettings.findFirst({
-      include: {
-        customFields: true
-      }
-    });
+    // Fetch attendees
+    const attendeesResult = await databases.listDocuments(
+      dbId,
+      attendeesCollectionId,
+      queries
+    );
+
+    let attendees = attendeesResult.documents;
+
+    // Apply custom field filters in memory if needed
+    if (scope === 'filtered' && filters?.advancedFilters?.customFields) {
+      const customFieldFilters = filters.advancedFilters.customFields;
+      
+      attendees = attendees.filter((attendee: any) => {
+        const customFieldValues = attendee.customFieldValues ? 
+          (typeof attendee.customFieldValues === 'string' ? 
+            JSON.parse(attendee.customFieldValues) : attendee.customFieldValues) : {};
+
+// in src/pages/api/attendees/export.ts
+
+export interface ExportAttendeesRequest {
+  advancedFilters?: {
+    firstName: string;
+    lastName: string;
+    barcode: string;
+    photoFilter: 'all' | 'with' | 'without';
+   customFields: { [key: string]: { value: string; operator: string } };
+  };
+  // … other properties …
+}
+    }
+
+    // Get event settings and custom fields
+    const eventSettingsDocs = await databases.listDocuments(dbId, eventSettingsCollectionId);
+    const eventSettings = eventSettingsDocs.documents[0];
+
+    const customFieldsDocs = await databases.listDocuments(
+      dbId,
+      customFieldsCollectionId,
+      [Query.limit(100)]
+    );
+    const customFieldsData = customFieldsDocs.documents;
 
     // Build CSV headers based on selected fields
     const headers: string[] = [];
@@ -254,13 +179,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Add custom field headers
     const customFieldHeaders: { [key: string]: string } = {};
-    if (eventSettings?.customFields) {
-      for (const customField of eventSettings.customFields) {
-        if (fields.includes(`custom_${customField.id}`)) {
-          const headerName = customField.fieldName;
-          headers.push(headerName);
-          customFieldHeaders[customField.id] = headerName;
-        }
+    for (const customField of customFieldsData) {
+      if (fields.includes(`custom_${customField.$id}`)) {
+        const headerName = customField.fieldName;
+        headers.push(headerName);
+        customFieldHeaders[customField.$id] = headerName;
       }
     }
 
@@ -292,10 +215,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             value = attendee.credentialUrl || '';
             break;
           case 'createdAt':
-            value = attendee.createdAt ? new Date(attendee.createdAt).toISOString() : '';
+            value = attendee.$createdAt ? new Date(attendee.$createdAt).toISOString() : '';
             break;
           case 'updatedAt':
-            value = attendee.updatedAt ? new Date(attendee.updatedAt).toISOString() : '';
+            value = attendee.$updatedAt ? new Date(attendee.$updatedAt).toISOString() : '';
             break;
           case 'credentialGeneratedAt':
             value = attendee.credentialGeneratedAt ? new Date(attendee.credentialGeneratedAt).toISOString() : '';
@@ -310,26 +233,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
 
       // Add custom field values
-      if (eventSettings?.customFields) {
-        for (const customField of eventSettings.customFields) {
-          if (fields.includes(`custom_${customField.id}`)) {
-            const customFieldValue = attendee.customFieldValues.find(
-              cfv => cfv.customFieldId === customField.id
-            );
-            
-            let value = customFieldValue?.value || '';
-            
-            // Format boolean values
-            if (customField.fieldType === 'boolean') {
-              value = value === 'yes' ? 'Yes' : 'No';
-            }
+      const customFieldValues = attendee.customFieldValues ? 
+        (typeof attendee.customFieldValues === 'string' ? 
+          JSON.parse(attendee.customFieldValues) : attendee.customFieldValues) : {};
 
-            // Escape CSV value
-            if (value.includes(',') || value.includes('"') || value.includes('\n')) {
-              value = `"${value.replace(/"/g, '""')}"`;
-            }
-            row.push(value);
+      for (const customField of customFieldsData) {
+        if (fields.includes(`custom_${customField.$id}`)) {
+          let value = customFieldValues[customField.$id] || '';
+          
+          // Format boolean values
+          if (customField.fieldType === 'boolean') {
+            value = value === 'yes' ? 'Yes' : 'No';
+          // Format boolean values
+          if (customField.fieldType === 'boolean') {
+            const truthyValues = ['yes', 'true', '1', true];
+            value = truthyValues.includes(String(value).toLowerCase()) ? 'Yes' : 'No';
           }
+          if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+            value = `"${value.replace(/"/g, '""')}"`;
+          }
+          row.push(value);
         }
       }
 
@@ -340,19 +263,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const csvContent = csvRows.join('\n');
 
     // Log the export activity
-    await prisma.log.create({
-      data: {
+    await databases.createDocument(
+      dbId,
+      logsCollectionId,
+      ID.unique(),
+      {
         action: 'export',
-        userId: user.id,
-        details: {
+        userId: user.$id,
+        details: JSON.stringify({
           type: 'attendees',
           scope,
           recordCount: attendees.length,
           fields: fields.length,
           hasFilters: scope === 'filtered' && !!filters
-        }
+        })
       }
-    });
+    );
 
     // Set response headers for CSV download
     res.setHeader('Content-Type', 'text/csv');
@@ -360,8 +286,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     return res.status(200).send(csvContent);
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Export error:', error);
+    
+    // Handle Appwrite-specific errors
+    if (error.code === 401) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    } else if (error.code === 404) {
+      return res.status(404).json({ error: 'Resource not found' });
+    }
+    
     return res.status(500).json({ error: 'Failed to export attendees' });
   }
-}
+});

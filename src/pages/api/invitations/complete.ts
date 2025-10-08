@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import prisma from '@/lib/prisma';
-import { createClient } from '@/util/supabase/api';
+import { createAdminClient } from '@/lib/appwrite';
+import { ID, Query } from 'appwrite';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -9,26 +9,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { token, supabaseUserId } = req.body;
+    const { token, appwriteUserId } = req.body;
 
-    if (!token || !supabaseUserId) {
-      return res.status(400).json({ error: 'Token and Supabase user ID are required' });
+    if (!token || !appwriteUserId) {
+      return res.status(400).json({ error: 'Token and Appwrite user ID are required' });
     }
 
-    // Find the invitation
-    const invitation = await prisma.invitation.findUnique({
-      where: { token },
-      include: {
-        user: true
-      }
-    });
+    // Create admin client
+    const { databases } = createAdminClient();
 
-    if (!invitation) {
+    // Find the invitation by token
+    const invitationDocs = await databases.listDocuments(
+      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+      process.env.NEXT_PUBLIC_APPWRITE_INVITATIONS_COLLECTION_ID!,
+      [Query.equal('token', token)]
+    );
+
+    if (invitationDocs.documents.length === 0) {
       return res.status(404).json({ error: 'Invalid invitation token' });
     }
 
+    const invitation = invitationDocs.documents[0];
+
     // Check if invitation has expired
-    if (invitation.expiresAt < new Date()) {
+    if (new Date(invitation.expiresAt) < new Date()) {
       return res.status(400).json({ error: 'Invitation has expired' });
     }
 
@@ -37,47 +41,77 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: 'Invitation has already been used' });
     }
 
+    // Get the user associated with the invitation
+    const userDocs = await databases.listDocuments(
+      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+      process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+      [Query.equal('userId', invitation.userId)]
+    );
+
+    if (userDocs.documents.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = userDocs.documents[0];
+
     // Check if user is still in invited status
-    if (!invitation.user.isInvited) {
+    if (!user.isInvited) {
       return res.status(400).json({ error: 'User is no longer in invited status' });
     }
 
-    // Update the user record with the Supabase user ID and mark as no longer invited
-    const updatedUser = await prisma.user.update({
-      where: { id: invitation.user.id },
-      data: {
-        id: supabaseUserId, // Replace the temporary UUID with the real Supabase user ID
+    // Update the user record with the Appwrite user ID and mark as no longer invited
+    const updatedUser = await databases.updateDocument(
+      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+      process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+      user.$id,
+      {
+        userId: appwriteUserId, // Replace the temporary UUID with the real Appwrite user ID
         isInvited: false
-      },
-      include: {
-        role: true
       }
-    });
+    );
 
     // Mark the invitation as used
-    await prisma.invitation.update({
-      where: { id: invitation.id },
-      data: {
-        usedAt: new Date()
+    await databases.updateDocument(
+      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+      process.env.NEXT_PUBLIC_APPWRITE_INVITATIONS_COLLECTION_ID!,
+      invitation.$id,
+      {
+        usedAt: new Date().toISOString()
       }
-    });
+    );
+
+    // Get role if exists
+    let role = null;
+    if (updatedUser.roleId) {
+      role = await databases.getDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+        updatedUser.roleId
+      );
+    }
 
     // Log the completion
-    await prisma.log.create({
-      data: {
-        userId: supabaseUserId,
+    await databases.createDocument(
+      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+      process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+      ID.unique(),
+      {
+        userId: appwriteUserId,
         action: 'complete_invitation',
-        details: {
+        details: JSON.stringify({
           type: 'invitation_completed',
-          originalUserId: invitation.user.id,
+          originalUserId: invitation.userId,
           email: updatedUser.email
-        }
+        })
       }
-    });
+    );
 
     return res.status(200).json({
       success: true,
-      user: updatedUser
+      user: {
+        ...updatedUser,
+        role
+      }
     });
 
   } catch (error) {

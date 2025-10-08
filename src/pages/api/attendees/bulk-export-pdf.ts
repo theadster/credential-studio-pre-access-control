@@ -1,61 +1,73 @@
-import { NextApiRequest, NextApiResponse } from 'next';
-import { createClient } from '@/util/supabase/api';
-import prisma from '@/lib/prisma';
+import { NextApiResponse } from 'next';
+import { createSessionClient } from '@/lib/appwrite';
+import { Query } from 'appwrite';
+import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const supabase = createClient(req, res);
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
-
-  if (userError || !user) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
-  const { attendeeIds } = req.body;
-
-  if (!Array.isArray(attendeeIds) || attendeeIds.length === 0) {
-    return res.status(400).json({ error: 'Attendee IDs are required' });
-  }
-
   try {
-    // Check permissions
-    const currentUser = await prisma.user.findUnique({
-      where: { id: user.id },
-      include: { role: true }
-    });
+    // User and userProfile are already attached by middleware
+    const { user, userProfile } = req;
+    const { databases } = createSessionClient(req);
 
-    if (!currentUser?.role) {
-      return res.status(403).json({ error: 'Access denied: No role assigned' });
+    const { attendeeIds } = req.body;
+
+    if (!Array.isArray(attendeeIds) || attendeeIds.length === 0) {
+      return res.status(400).json({ error: 'Attendee IDs are required' });
     }
 
-    const permissions = currentUser.role.permissions as any;
+    const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
+    const attendeesCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID!;
+    const eventSettingsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID!;
+
+    // Check permissions
+    const permissions = userProfile.role ? userProfile.role.permissions : {};
     const hasBulkGeneratePDFsPermission = permissions?.attendees?.bulkGeneratePDFs === true || permissions?.all === true;
 
     if (!hasBulkGeneratePDFsPermission) {
       return res.status(403).json({ error: 'Access denied: Insufficient permissions for bulk PDF generation' });
     }
-    const eventSettings = await prisma.eventSettings.findFirst();
     
-    if (!eventSettings || !eventSettings.oneSimpleApiEnabled || !eventSettings.oneSimpleApiUrl || !eventSettings.oneSimpleApiFormDataKey || !eventSettings.oneSimpleApiFormDataValue) {
-      return res.status(400).json({ error: 'OneSimpleAPI is not configured' });
+    // Get event settings with integrations
+    const eventSettingsDocs = await databases.listDocuments(dbId, eventSettingsCollectionId, [Query.limit(1)]);
+    
+    if (eventSettingsDocs.documents.length === 0) {
+      return res.status(400).json({ error: 'Event settings not configured' });
+    }
+
+    const eventSettings = eventSettingsDocs.documents[0];
+    const eventSettingsId = eventSettings.$id;
+    
+    // Get OneSimpleAPI integration
+    const oneSimpleApiCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ONESIMPLEAPI_COLLECTION_ID!;
+    const oneSimpleApiDocs = await databases.listDocuments(dbId, oneSimpleApiCollectionId, [
+      Query.equal('eventSettingsId', eventSettingsId),
+      Query.limit(1)
+    ]);
+    
+    if (oneSimpleApiDocs.documents.length === 0 || !oneSimpleApiDocs.documents[0].enabled) {
+      return res.status(400).json({ error: 'OneSimpleAPI integration is not enabled' });
+    }
+    
+    const oneSimpleApi = oneSimpleApiDocs.documents[0];
+    
+    if (!oneSimpleApi.url || !oneSimpleApi.formDataKey || !oneSimpleApi.formDataValue) {
+      return res.status(400).json({ error: 'OneSimpleAPI is not properly configured' });
     }
 
     // First, get all attendees regardless of credential status to check for missing credentials
-    const allAttendees = await prisma.attendee.findMany({
-      where: {
-        id: { in: attendeeIds },
-      },
-      include: {
-        customFieldValues: {
-          include: {
-            customField: true,
-          },
-        },
-      },
-    });
+    const allAttendees: any[] = [];
+    for (const id of attendeeIds) {
+      try {
+        const attendee = await databases.getDocument(dbId, attendeesCollectionId, id);
+        allAttendees.push(attendee);
+      } catch (error) {
+        console.warn(`Attendee ${id} not found`);
+      }
+    }
 
     if (allAttendees.length === 0) {
       return res.status(404).json({ error: 'No attendees found for the given IDs' });
@@ -104,13 +116,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Check if we have both templates configured
-    if (!eventSettings.oneSimpleApiRecordTemplate) {
+    if (!oneSimpleApi.recordTemplate) {
       return res.status(400).json({ error: 'OneSimpleAPI record template is not configured' });
     }
 
+    // Get custom fields for mapping
+    const customFieldsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID!;
+    const customFieldsDocs = await databases.listDocuments(
+      dbId,
+      customFieldsCollectionId,
+      [Query.limit(100)]
+    );
+    const customFieldsMap = new Map(customFieldsDocs.documents.map(cf => [cf.$id, cf]));
+
     // Generate individual record HTML for each attendee using the record template
     const recordsHtml = attendees.map((attendee) => {
-      let html = eventSettings.oneSimpleApiRecordTemplate!;
+      let html = oneSimpleApi.recordTemplate!;
       
       // Ensure credentialUrl is absolute
       let credentialUrl = attendee.credentialUrl || '';
@@ -130,92 +151,45 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         photoUrl = `${baseUrl}/${cleanPath}`;
       }
 
+      // Helper function to escape HTML
+      const escapeHtml = (str: string): string => {
+        return str.replace(/[&<>"']/g, (match: string) => {
+          const escapeMap: { [key: string]: string } = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+          };
+          return escapeMap[match];
+        });
+      };
+
       // Create placeholders object with properly escaped values for HTML
       const placeholders: { [key: string]: string } = {
-        '{{firstName}}': (attendee.firstName || '').replace(/[&<>"']/g, (match) => {
-          const escapeMap: { [key: string]: string } = {
-            '&': '&amp;',
-            '<': '&lt;',
-            '>': '&gt;',
-            '"': '&quot;',
-            "'": '&#39;'
-          };
-          return escapeMap[match];
-        }),
-        '{{lastName}}': (attendee.lastName || '').replace(/[&<>"']/g, (match) => {
-          const escapeMap: { [key: string]: string } = {
-            '&': '&amp;',
-            '<': '&lt;',
-            '>': '&gt;',
-            '"': '&quot;',
-            "'": '&#39;'
-          };
-          return escapeMap[match];
-        }),
-        '{{barcodeNumber}}': (attendee.barcodeNumber || '').replace(/[&<>"']/g, (match) => {
-          const escapeMap: { [key: string]: string } = {
-            '&': '&amp;',
-            '<': '&lt;',
-            '>': '&gt;',
-            '"': '&quot;',
-            "'": '&#39;'
-          };
-          return escapeMap[match];
-        }),
+        '{{firstName}}': escapeHtml(attendee.firstName || ''),
+        '{{lastName}}': escapeHtml(attendee.lastName || ''),
+        '{{barcodeNumber}}': escapeHtml(attendee.barcodeNumber || ''),
         '{{photoUrl}}': photoUrl, // URLs don't need HTML escaping in src attributes
         '{{credentialUrl}}': credentialUrl, // URLs don't need HTML escaping in src attributes
-        '{{eventName}}': (eventSettings.eventName || '').replace(/[&<>"']/g, (match) => {
-          const escapeMap: { [key: string]: string } = {
-            '&': '&amp;',
-            '<': '&lt;',
-            '>': '&gt;',
-            '"': '&quot;',
-            "'": '&#39;'
-          };
-          return escapeMap[match];
-        }),
+        '{{eventName}}': escapeHtml(eventSettings.eventName || ''),
         '{{eventDate}}': eventSettings.eventDate ? new Date(eventSettings.eventDate).toLocaleDateString() : '',
-        '{{eventTime}}': (eventSettings.eventTime || '').replace(/[&<>"']/g, (match) => {
-          const escapeMap: { [key: string]: string } = {
-            '&': '&amp;',
-            '<': '&lt;',
-            '>': '&gt;',
-            '"': '&quot;',
-            "'": '&#39;'
-          };
-          return escapeMap[match];
-        }),
-        '{{eventLocation}}': (eventSettings.eventLocation || '').replace(/[&<>"']/g, (match) => {
-          const escapeMap: { [key: string]: string } = {
-            '&': '&amp;',
-            '<': '&lt;',
-            '>': '&gt;',
-            '"': '&quot;',
-            "'": '&#39;'
-          };
-          return escapeMap[match];
-        }),
+        '{{eventTime}}': escapeHtml(eventSettings.eventTime || ''),
+        '{{eventLocation}}': escapeHtml(eventSettings.eventLocation || ''),
       };
 
       // Add custom field placeholders
-      if (attendee.customFieldValues) {
-        attendee.customFieldValues.forEach(cfv => {
-          if (cfv.customField?.internalFieldName) {
-            const fieldValue = cfv.value || '';
-            // Escape HTML entities for custom field values
-            const escapedValue = fieldValue.replace(/[&<>"']/g, (match) => {
-              const escapeMap: { [key: string]: string } = {
-                '&': '&amp;',
-                '<': '&lt;',
-                '>': '&gt;',
-                '"': '&quot;',
-                "'": '&#39;'
-              };
-              return escapeMap[match];
-            });
-            placeholders[`{{${cfv.customField.internalFieldName}}}`] = escapedValue;
-          }
-        });
+      const customFieldValues = attendee.customFieldValues ? 
+        (typeof attendee.customFieldValues === 'string' ? 
+          JSON.parse(attendee.customFieldValues) : attendee.customFieldValues) : {};
+
+      for (const [fieldId, fieldValue] of Object.entries(customFieldValues)) {
+        const customField = customFieldsMap.get(fieldId);
+        if (customField?.internalFieldName) {
+          // Escape HTML entities for custom field values
+          const escapedValue = escapeHtml(String(fieldValue || ''));
+          placeholders[`{{${customField.internalFieldName}}}`] = escapedValue;
+        }
       }
 
       // Replace all placeholders in the record template
@@ -240,7 +214,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }).join('\n');
 
     // Generate final HTML by replacing {{credentialRecords}} in main template
-    let finalHtml = eventSettings.oneSimpleApiFormDataValue!;
+    let finalHtml = oneSimpleApi.formDataValue!;
     
     // Replace event-level placeholders in main template
     const eventPlaceholders: { [key: string]: string } = {
@@ -275,9 +249,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Create form data for the request
     const formData = new FormData();
-    formData.append(eventSettings.oneSimpleApiFormDataKey!, finalHtml);
+    formData.append(oneSimpleApi.formDataKey!, finalHtml);
 
-    const response = await fetch(eventSettings.oneSimpleApiUrl, {
+    const response = await fetch(oneSimpleApi.url, {
       method: 'POST',
       body: formData,
     });
@@ -332,6 +306,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   } catch (error: any) {
     console.error('Error generating bulk PDF:', error);
+    
+    // Handle Appwrite-specific errors
+    if (error.code === 401) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    } else if (error.code === 404) {
+      return res.status(404).json({ error: 'Resource not found' });
+    }
+    
     res.status(500).json({ error: 'Failed to generate bulk PDF', details: error.message });
   }
-}
+});
