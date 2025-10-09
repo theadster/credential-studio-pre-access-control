@@ -16,6 +16,12 @@ docs/
 ## Quick Links
 
 ### Recent Fixes
+- [**Legacy Scripts Cleanup**](./fixes/LEGACY_SCRIPTS_CLEANUP_SUMMARY.md) - Archived legacy migration scripts and removed deprecated dependencies
+- [**TypeScript and Lint Fixes**](./fixes/TYPESCRIPT_LINT_FIXES_SUMMARY.md) - Fixed critical syntax errors and configured ESLint properly
+- [**Custom Fields Enhancements Summary**](./fixes/CUSTOM_FIELDS_ENHANCEMENTS_SUMMARY.md) - Complete overview of optimistic locking and soft delete features
+- [**Custom Fields Soft Delete**](./fixes/CUSTOM_FIELDS_SOFT_DELETE.md) - Implemented soft delete with deletedAt timestamp to handle orphaned data safely
+- [**Custom Fields Optimistic Locking**](./fixes/CUSTOM_FIELDS_OPTIMISTIC_LOCKING.md) - Implemented version-based concurrency control for custom field updates
+- [**Appwrite Attribute Polling Fix**](./fixes/APPWRITE_ATTRIBUTE_POLLING_FIX.md) - Replaced hardcoded sleep with intelligent retry logic
 - [**CRITICAL: Bulk Edit Data Loss Fix**](./fixes/CRITICAL_BULK_EDIT_DATA_LOSS_FIX.md) - 🚨 Fixed data loss bug in bulk edit
 - [Credential Generation Empty Placeholder Fix](./fixes/CREDENTIAL_GENERATION_EMPTY_PLACEHOLDER_FIX.md) - Fixed invalid JSON from empty placeholders
 - [Bulk Credential Generation Timestamp Fix](./fixes/BULK_CREDENTIAL_GENERATION_TIMESTAMP_FIX.md) - Fixed timestamp mismatch between UI and bulk generation
@@ -31,6 +37,8 @@ docs/
 - [Debug Tools Moved](./fixes/DEBUG_TOOLS_MOVED.md) - Debug tools reorganization
 
 ### Migration Documentation
+- [**Event Settings Migration Schema**](./migration/EVENT_SETTINGS_MIGRATION_SCHEMA.md) - 📋 Canonical schema for Event Settings migration
+- [**Migration Scripts Alignment**](./migration/MIGRATION_SCRIPTS_ALIGNMENT_SUMMARY.md) - ✅ Verification that both migration scripts use identical schemas
 - [Migration Status](./migration/MIGRATION_STATUS.md) - Overall migration progress
 - [Migration Complete Summary](./migration/MIGRATION_COMPLETE_SUMMARY.md) - Final summary
 - [Appwrite Configuration](./migration/APPWRITE_CONFIGURATION.md) - Database structure
@@ -49,8 +57,11 @@ docs/
 - [User Management API Tests](./testing/USER_MANAGEMENT_API_TESTS_SUMMARY.md)
 
 ### Guides
+- [**Custom Fields API Guide**](./guides/CUSTOM_FIELDS_API_GUIDE.md) - Complete API reference with examples for optimistic locking and soft delete
 - [**Auth User Linking API Guide**](./guides/AUTH_USER_LINKING_API_GUIDE.md) - Complete API documentation for auth user linking
 - [**Auth User Linking Admin Guide**](./guides/AUTH_USER_LINKING_ADMIN_GUIDE.md) - Administrator guide for linking users
+- [**Cache Usage Guide**](./guides/CACHE_USAGE_GUIDE.md) - In-memory cache with size limits, LRU eviction, and monitoring
+- [**Appwrite Attribute Polling Configuration**](./guides/APPWRITE_ATTRIBUTE_POLLING_CONFIGURATION.md) - Configure retry logic for attribute creation
 - [Bulk Credential Generation Logic](./guides/BULK_CREDENTIAL_GENERATION_LOGIC.md) - How bulk generation determines credential status
 - [Switchboard Configuration Guide](./guides/SWITCHBOARD_CONFIGURATION_GUIDE.md) - Setup Switchboard
 - [Manual Testing Guide](./guides/MANUAL_TESTING_GUIDE.md) - Manual testing procedures
