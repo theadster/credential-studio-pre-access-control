@@ -12,7 +12,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     // Create session client to verify authentication
     const { account, databases } = createSessionClient(req);
-    
+
     // Get the authenticated user
     let user;
     try {
@@ -22,11 +22,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Get user profile with role
-    const userDocs = await databases.listDocuments(
-      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-      process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
-      [Query.equal('userId', user.$id)]
-    );
+    const userDocs = await databases.listDocuments({
+      databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+      collectionId: process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+      queries: [Query.equal('userId', user.$id)]
+    });
 
     if (userDocs.documents.length === 0) {
       return res.status(404).json({ error: 'User profile not found' });
@@ -38,11 +38,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let role = null;
     if (userProfile.roleId) {
       try {
-        role = await databases.getDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
-          userProfile.roleId
-        );
+        role = await databases.getDocument({
+          databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          collectionId: process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+          documentId: userProfile.roleId
+        });
       } catch (error) {
         console.warn('Failed to fetch role:', error);
       }
@@ -56,25 +56,48 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Create admin client to fetch all auth users
     const adminClient = createAdminClient();
 
-    // Fetch all Appwrite Auth users
-    const authUsers = await adminClient.users.list();
+    // Fetch all Appwrite Auth users with pagination
+    let allAuthUsers: any[] = [];
+    let lastUserId: string | undefined;
+    let hasMore = true;
+
+    while (hasMore) {
+      const response = await adminClient.users.list({
+        queries: lastUserId ? [Query.cursorAfter(lastUserId)] : []
+      });
+      allAuthUsers = allAuthUsers.concat(response.users);
+      hasMore = response.users.length === 100;
+      if (hasMore) {
+        lastUserId = response.users[response.users.length - 1].$id;
+      }
+    }
 
     // Fetch all user profiles from database to find which are already linked
-    const linkedUserDocs = await databases.listDocuments(
-      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-      process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
-      [Query.limit(1000)] // Adjust limit as needed
-    );
+    let allProfiles: any[] = [];
+    let offset = 0;
+    const limit = 100;
+    let hasMoreProfiles = true;
+
+    while (hasMoreProfiles) {
+      const response = await databases.listDocuments({
+        databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        collectionId: process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+        queries: [Query.limit(limit), Query.offset(offset)]
+      });
+      allProfiles = allProfiles.concat(response.documents);
+      hasMoreProfiles = response.documents.length === limit;
+      offset += limit;
+    }
 
     // Create a set of linked user IDs for quick lookup
     const linkedUserIds = new Set(
-      linkedUserDocs.documents.map(doc => doc.userId)
+      allProfiles.map((doc: any) => doc.userId)
     );
 
     // Filter auth users to find those not yet linked to database
-    const unlinkedUsers = authUsers.users
-      .filter(authUser => !linkedUserIds.has(authUser.$id))
-      .map(authUser => ({
+    const unlinkedUsers = allAuthUsers
+      .filter((authUser: any) => !linkedUserIds.has(authUser.$id))
+      .map((authUser: any) => ({
         userId: authUser.$id,
         email: authUser.email,
         name: authUser.name,
@@ -90,9 +113,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   } catch (error: any) {
     console.error('API Error:', error);
-    return res.status(500).json({ 
+    return res.status(500).json({
       error: 'Internal server error',
-      details: error.message 
+      details: error.message
     });
   }
 }

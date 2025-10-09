@@ -2,28 +2,31 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { createSessionClient } from '@/lib/appwrite';
 import { Query, ID } from 'appwrite';
 import { hasPermission } from '@/lib/permissions';
+import { getRoleUserCount } from '@/lib/getRoleUserCount';
+import { invalidateRoleUserCount } from '@/lib/roleUserCountCache';
+import { validatePermissions } from '@/lib/validatePermissions';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     // Create session client
     const { account, databases } = createSessionClient(req);
-    
+
     // Verify authentication
     const user = await account.get();
-    
+
     // Get user profile with role
     const userDocs = await databases.listDocuments(
       process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
       process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
       [Query.equal('userId', user.$id)]
     );
-    
+
     if (userDocs.documents.length === 0) {
       return res.status(404).json({ error: 'User profile not found' });
     }
-    
+
     const userProfile = userDocs.documents[0];
-    
+
     // Get role if exists
     let currentUserRole = null;
     if (userProfile.roleId) {
@@ -33,8 +36,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         userProfile.roleId
       );
       // Parse permissions JSON
+      // Parse permissions JSON
       if (currentUserRole.permissions) {
-        currentUserRole.permissions = JSON.parse(currentUserRole.permissions);
+        try {
+          currentUserRole.permissions = JSON.parse(currentUserRole.permissions);
+        } catch (error) {
+          console.error('Invalid permissions JSON:', error);
+          currentUserRole.permissions = {};
+        }
       }
     }
 
@@ -66,17 +75,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           throw error;
         }
 
-        // Get user count for this role
-        const usersWithRole = await databases.listDocuments(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
-          [Query.equal('roleId', role.$id), Query.limit(1)]
-        );
+        // Get user count for this role (with caching)
+        const userCount = await getRoleUserCount(databases, role.$id);
 
         const roleWithCount = {
           ...role,
           _count: {
-            users: usersWithRole.total
+            users: userCount
           }
         };
 
@@ -110,9 +115,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           return res.status(400).json({ error: 'Missing required fields' });
         }
 
-        // Validate permissions structure
-        if (typeof permissions !== 'object') {
-          return res.status(400).json({ error: 'Permissions must be a valid JSON object' });
+        // Validate permissions structure using utility
+        const validationResult = validatePermissions(permissions);
+        if (!validationResult.valid) {
+          if (validationResult.details?.unknownKeys) {
+            console.warn('Unknown permission keys detected:', validationResult.details.unknownKeys);
+          }
+          return res.status(400).json({
+            error: validationResult.error,
+            ...(validationResult.details?.message && { message: validationResult.details.message }),
+            ...(validationResult.details?.unknownKeys && { unknownKeys: validationResult.details.unknownKeys }),
+            ...(validationResult.details?.key && { key: validationResult.details.key })
+          });
         }
 
         // Check if role exists
@@ -160,17 +174,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         );
 
-        // Get user count for updated role
-        const usersWithUpdatedRole = await databases.listDocuments(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
-          [Query.equal('roleId', updatedRole.$id), Query.limit(1)]
-        );
+        // Invalidate cache for this role since it was updated
+        invalidateRoleUserCount(updatedRole.$id);
+
+        // Get user count for updated role (will refresh cache)
+        const updatedUserCount = await getRoleUserCount(databases, updatedRole.$id);
 
         const updatedRoleWithCount = {
           ...updatedRole,
           _count: {
-            users: usersWithUpdatedRole.total
+            users: updatedUserCount
           }
         };
 
@@ -183,7 +196,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             {
               userId: user.$id,
               action: 'update',
-              details: JSON.stringify({ 
+              details: JSON.stringify({
                 type: 'role',
                 roleId: updatedRole.$id,
                 roleName: updatedRole.name,
@@ -223,16 +236,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           return res.status(403).json({ error: 'Cannot delete Super Administrator role' });
         }
 
-        // Check if role has users assigned
-        const usersWithRoleToDelete = await databases.listDocuments(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
-          [Query.equal('roleId', roleToDelete.$id), Query.limit(1)]
-        );
+        // Check if role has users assigned (with caching)
+        const userCountToDelete = await getRoleUserCount(databases, roleToDelete.$id);
 
-        if (usersWithRoleToDelete.total > 0) {
-          return res.status(400).json({ 
-            error: `Cannot delete role with ${usersWithRoleToDelete.total} assigned users. Please reassign users first.` 
+        if (userCountToDelete > 0) {
+          return res.status(400).json({
+            error: `Cannot delete role with ${userCountToDelete} assigned users. Please reassign users first.`
           });
         }
 
@@ -243,6 +252,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           id
         );
 
+        // Invalidate cache for deleted role
+        invalidateRoleUserCount(roleToDelete.$id);
+
         // Log the delete action
         try {
           await databases.createDocument(
@@ -252,7 +264,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             {
               userId: user.$id,
               action: 'delete',
-              details: JSON.stringify({ 
+              details: JSON.stringify({
                 type: 'role',
                 roleId: roleToDelete.$id,
                 roleName: roleToDelete.name
@@ -271,12 +283,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   } catch (error: any) {
     console.error('API Error:', error);
-    
+
     // Handle Appwrite-specific errors
     if (error.code === 401) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
-    
+
     return res.status(500).json({ error: 'Internal server error' });
   }
 }

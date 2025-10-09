@@ -3,6 +3,42 @@ import { createSessionClient } from '@/lib/appwrite';
 import { Query, ID } from 'appwrite';
 import { clearLogSettingsCache } from '@/lib/logSettings';
 import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
+import { handleApiError } from '@/lib/errorHandling';
+
+const DEFAULT_LOG_SETTINGS = {
+  attendeeCreate: true,
+  attendeeUpdate: true,
+  attendeeDelete: true,
+  attendeeView: false,
+  attendeeBulkDelete: true,
+  attendeeImport: true,
+  attendeeExport: true,
+  credentialGenerate: true,
+  credentialClear: true,
+  userCreate: true,
+  userUpdate: true,
+  userDelete: true,
+  userView: false,
+  userInvite: true,
+  roleCreate: true,
+  roleUpdate: true,
+  roleDelete: true,
+  roleView: false,
+  eventSettingsUpdate: true,
+  customFieldCreate: true,
+  customFieldUpdate: true,
+  customFieldDelete: true,
+  customFieldReorder: true,
+  authLogin: true,
+  authLogout: true,
+  logsDelete: true,
+  logsExport: true,
+  logsView: false,
+  systemViewEventSettings: false,
+  systemViewAttendeeList: false,
+  systemViewRolesList: false,
+  systemViewUsersList: false
+} as const;
 
 export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   try {
@@ -39,40 +75,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             dbId,
             logSettingsCollectionId,
             ID.unique(),
-            {
-              attendeeCreate: true,
-              attendeeUpdate: true,
-              attendeeDelete: true,
-              attendeeView: false,
-              attendeeBulkDelete: true,
-              attendeeImport: true,
-              attendeeExport: true,
-              credentialGenerate: true,
-              credentialClear: true,
-              userCreate: true,
-              userUpdate: true,
-              userDelete: true,
-              userView: false,
-              userInvite: true,
-              roleCreate: true,
-              roleUpdate: true,
-              roleDelete: true,
-              roleView: false,
-              eventSettingsUpdate: true,
-              customFieldCreate: true,
-              customFieldUpdate: true,
-              customFieldDelete: true,
-              customFieldReorder: true,
-              authLogin: true,
-              authLogout: true,
-              logsDelete: true,
-              logsExport: true,
-              logsView: false,
-              systemViewEventSettings: false,
-              systemViewAttendeeList: false,
-              systemViewRolesList: false,
-              systemViewUsersList: false
-            }
+            DEFAULT_LOG_SETTINGS
           );
         } else {
           logSettings = logSettingsResult.documents[0];
@@ -128,40 +131,31 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           [Query.limit(1)]
         );
 
-        // Prepare update data
-        const updateData: any = {};
-        if (attendeeCreate !== undefined) updateData.attendeeCreate = attendeeCreate;
-        if (attendeeUpdate !== undefined) updateData.attendeeUpdate = attendeeUpdate;
-        if (attendeeDelete !== undefined) updateData.attendeeDelete = attendeeDelete;
-        if (attendeeView !== undefined) updateData.attendeeView = attendeeView;
-        if (attendeeBulkDelete !== undefined) updateData.attendeeBulkDelete = attendeeBulkDelete;
-        if (attendeeImport !== undefined) updateData.attendeeImport = attendeeImport;
-        if (attendeeExport !== undefined) updateData.attendeeExport = attendeeExport;
-        if (credentialGenerate !== undefined) updateData.credentialGenerate = credentialGenerate;
-        if (credentialClear !== undefined) updateData.credentialClear = credentialClear;
-        if (userCreate !== undefined) updateData.userCreate = userCreate;
-        if (userUpdate !== undefined) updateData.userUpdate = userUpdate;
-        if (userDelete !== undefined) updateData.userDelete = userDelete;
-        if (userView !== undefined) updateData.userView = userView;
-        if (userInvite !== undefined) updateData.userInvite = userInvite;
-        if (roleCreate !== undefined) updateData.roleCreate = roleCreate;
-        if (roleUpdate !== undefined) updateData.roleUpdate = roleUpdate;
-        if (roleDelete !== undefined) updateData.roleDelete = roleDelete;
-        if (roleView !== undefined) updateData.roleView = roleView;
-        if (eventSettingsUpdate !== undefined) updateData.eventSettingsUpdate = eventSettingsUpdate;
-        if (customFieldCreate !== undefined) updateData.customFieldCreate = customFieldCreate;
-        if (customFieldUpdate !== undefined) updateData.customFieldUpdate = customFieldUpdate;
-        if (customFieldDelete !== undefined) updateData.customFieldDelete = customFieldDelete;
-        if (customFieldReorder !== undefined) updateData.customFieldReorder = customFieldReorder;
-        if (authLogin !== undefined) updateData.authLogin = authLogin;
-        if (authLogout !== undefined) updateData.authLogout = authLogout;
-        if (logsDelete !== undefined) updateData.logsDelete = logsDelete;
-        if (logsExport !== undefined) updateData.logsExport = logsExport;
-        if (logsView !== undefined) updateData.logsView = logsView;
-        if (systemViewEventSettings !== undefined) updateData.systemViewEventSettings = systemViewEventSettings;
-        if (systemViewAttendeeList !== undefined) updateData.systemViewAttendeeList = systemViewAttendeeList;
-        if (systemViewRolesList !== undefined) updateData.systemViewRolesList = systemViewRolesList;
-        if (systemViewUsersList !== undefined) updateData.systemViewUsersList = systemViewUsersList;
+        // Prepare update data - only include fields that are defined
+        const fields = [
+          'attendeeCreate', 'attendeeUpdate', 'attendeeDelete', 'attendeeView',
+          'attendeeBulkDelete', 'attendeeImport', 'attendeeExport',
+          'credentialGenerate', 'credentialClear',
+          'userCreate', 'userUpdate', 'userDelete', 'userView', 'userInvite',
+          'roleCreate', 'roleUpdate', 'roleDelete', 'roleView',
+          'eventSettingsUpdate',
+          'customFieldCreate', 'customFieldUpdate', 'customFieldDelete', 'customFieldReorder',
+          'authLogin', 'authLogout',
+          'logsDelete', 'logsExport', 'logsView',
+          'systemViewEventSettings', 'systemViewAttendeeList', 'systemViewRolesList', 'systemViewUsersList'
+        ];
+
+        const buildUpdateData = (body: any, fieldNames: string[]) => {
+          const data: any = {};
+          for (const field of fieldNames) {
+            if (body[field] !== undefined) {
+              data[field] = body[field];
+            }
+          }
+          return data;
+        };
+
+        const updateData = buildUpdateData(req.body, fields);
 
         let updatedSettings;
         if (existingSettingsResult.documents.length > 0) {
@@ -173,44 +167,44 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             updateData
           );
         } else {
-          // Create new settings with provided values
+          // Create new settings with provided values, using defaults for undefined fields
           updatedSettings = await databases.createDocument(
             dbId,
             logSettingsCollectionId,
             ID.unique(),
             {
-              attendeeCreate: attendeeCreate ?? true,
-              attendeeUpdate: attendeeUpdate ?? true,
-              attendeeDelete: attendeeDelete ?? true,
-              attendeeView: attendeeView ?? false,
-              attendeeBulkDelete: attendeeBulkDelete ?? true,
-              attendeeImport: attendeeImport ?? true,
-              attendeeExport: attendeeExport ?? true,
-              credentialGenerate: credentialGenerate ?? true,
-              credentialClear: credentialClear ?? true,
-              userCreate: userCreate ?? true,
-              userUpdate: userUpdate ?? true,
-              userDelete: userDelete ?? true,
-              userView: userView ?? false,
-              userInvite: userInvite ?? true,
-              roleCreate: roleCreate ?? true,
-              roleUpdate: roleUpdate ?? true,
-              roleDelete: roleDelete ?? true,
-              roleView: roleView ?? false,
-              eventSettingsUpdate: eventSettingsUpdate ?? true,
-              customFieldCreate: customFieldCreate ?? true,
-              customFieldUpdate: customFieldUpdate ?? true,
-              customFieldDelete: customFieldDelete ?? true,
-              customFieldReorder: customFieldReorder ?? true,
-              authLogin: authLogin ?? true,
-              authLogout: authLogout ?? true,
-              logsDelete: logsDelete ?? true,
-              logsExport: logsExport ?? true,
-              logsView: logsView ?? false,
-              systemViewEventSettings: systemViewEventSettings ?? false,
-              systemViewAttendeeList: systemViewAttendeeList ?? false,
-              systemViewRolesList: systemViewRolesList ?? false,
-              systemViewUsersList: systemViewUsersList ?? false
+              attendeeCreate: attendeeCreate ?? DEFAULT_LOG_SETTINGS.attendeeCreate,
+              attendeeUpdate: attendeeUpdate ?? DEFAULT_LOG_SETTINGS.attendeeUpdate,
+              attendeeDelete: attendeeDelete ?? DEFAULT_LOG_SETTINGS.attendeeDelete,
+              attendeeView: attendeeView ?? DEFAULT_LOG_SETTINGS.attendeeView,
+              attendeeBulkDelete: attendeeBulkDelete ?? DEFAULT_LOG_SETTINGS.attendeeBulkDelete,
+              attendeeImport: attendeeImport ?? DEFAULT_LOG_SETTINGS.attendeeImport,
+              attendeeExport: attendeeExport ?? DEFAULT_LOG_SETTINGS.attendeeExport,
+              credentialGenerate: credentialGenerate ?? DEFAULT_LOG_SETTINGS.credentialGenerate,
+              credentialClear: credentialClear ?? DEFAULT_LOG_SETTINGS.credentialClear,
+              userCreate: userCreate ?? DEFAULT_LOG_SETTINGS.userCreate,
+              userUpdate: userUpdate ?? DEFAULT_LOG_SETTINGS.userUpdate,
+              userDelete: userDelete ?? DEFAULT_LOG_SETTINGS.userDelete,
+              userView: userView ?? DEFAULT_LOG_SETTINGS.userView,
+              userInvite: userInvite ?? DEFAULT_LOG_SETTINGS.userInvite,
+              roleCreate: roleCreate ?? DEFAULT_LOG_SETTINGS.roleCreate,
+              roleUpdate: roleUpdate ?? DEFAULT_LOG_SETTINGS.roleUpdate,
+              roleDelete: roleDelete ?? DEFAULT_LOG_SETTINGS.roleDelete,
+              roleView: roleView ?? DEFAULT_LOG_SETTINGS.roleView,
+              eventSettingsUpdate: eventSettingsUpdate ?? DEFAULT_LOG_SETTINGS.eventSettingsUpdate,
+              customFieldCreate: customFieldCreate ?? DEFAULT_LOG_SETTINGS.customFieldCreate,
+              customFieldUpdate: customFieldUpdate ?? DEFAULT_LOG_SETTINGS.customFieldUpdate,
+              customFieldDelete: customFieldDelete ?? DEFAULT_LOG_SETTINGS.customFieldDelete,
+              customFieldReorder: customFieldReorder ?? DEFAULT_LOG_SETTINGS.customFieldReorder,
+              authLogin: authLogin ?? DEFAULT_LOG_SETTINGS.authLogin,
+              authLogout: authLogout ?? DEFAULT_LOG_SETTINGS.authLogout,
+              logsDelete: logsDelete ?? DEFAULT_LOG_SETTINGS.logsDelete,
+              logsExport: logsExport ?? DEFAULT_LOG_SETTINGS.logsExport,
+              logsView: logsView ?? DEFAULT_LOG_SETTINGS.logsView,
+              systemViewEventSettings: systemViewEventSettings ?? DEFAULT_LOG_SETTINGS.systemViewEventSettings,
+              systemViewAttendeeList: systemViewAttendeeList ?? DEFAULT_LOG_SETTINGS.systemViewAttendeeList,
+              systemViewRolesList: systemViewRolesList ?? DEFAULT_LOG_SETTINGS.systemViewRolesList,
+              systemViewUsersList: systemViewUsersList ?? DEFAULT_LOG_SETTINGS.systemViewUsersList
             }
           );
         }
@@ -240,17 +234,6 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         return res.status(405).json({ error: `Method ${req.method} not allowed` });
     }
   } catch (error: any) {
-    console.error('API Error:', error);
-    
-    // Handle Appwrite-specific errors
-    if (error.code === 401) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    } else if (error.code === 404) {
-      return res.status(404).json({ error: 'Resource not found' });
-    } else if (error.code === 409) {
-      return res.status(409).json({ error: 'Conflict - resource already exists' });
-    }
-    
-    return res.status(500).json({ error: 'Internal server error' });
+    handleApiError(error, res);
   }
 });

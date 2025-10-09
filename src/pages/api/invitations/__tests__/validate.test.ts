@@ -209,29 +209,24 @@ describe('/api/invitations/validate - Invitation Validation API', () => {
       expect(mockDatabases.getDocument).not.toHaveBeenCalled();
     });
 
-    it('should validate invitation that expires exactly now', async () => {
-      const nowExpiringInvitation = {
+    it('should reject invitation that expired 1ms ago', async () => {
+    it('should return 400 for invitation that expired 1ms ago', async () => {
+      const expiredInvitation = {
         ...mockValidInvitation,
-        expiresAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() - 1).toISOString(),
       };
 
       mockDatabases.listDocuments
         .mockResolvedValueOnce({
-          documents: [nowExpiringInvitation],
+          documents: [expiredInvitation],
           total: 1,
-        })
-        .mockResolvedValueOnce({ documents: [mockInvitedUser], total: 1 });
-
-      mockDatabases.getDocument.mockResolvedValueOnce(mockRole);
+        });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      // Should be considered expired (not valid) - but due to timing, it might pass
-      // We'll check that it either returns 400 (expired) or 200 (just barely valid)
-      expect([400, 200]).toContain(statusMock.mock.calls[0][0]);
+      expect(statusMock).toHaveBeenCalledWith(400);
+      expect(jsonMock).toHaveBeenCalledWith({ error: 'Invitation has expired' });
     });
-
-    it('should validate invitation that expires in the future', async () => {
       const futureExpiringInvitation = {
         ...mockValidInvitation,
         expiresAt: new Date(Date.now() + 1000).toISOString(), // Expires in 1 second

@@ -43,11 +43,15 @@ export default function AuthUserList({
         'Verification Email Sent',
         `Verification email sent to ${user.email}`
       );
-    } catch (err: any) {
-      console.error('Error sending verification email:', err);
-      
+    } catch (err: unknown) {
+      // Type guard to safely handle error
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error('Error sending verification email:', errorMessage);
+
       // Use centralized error handling (Requirement 7.6)
-      handleError(err, 'Failed to send verification email');
+      // Ensure handleError always receives an Error object
+      const error = err instanceof Error ? err : new Error(String(err));
+      handleError(error, 'Failed to send verification email');
     } finally {
       setSendingVerificationTo(null);
     }
@@ -102,16 +106,16 @@ export default function AuthUserList({
                     </Badge>
                   )}
                 </div>
-                
+
                 {user.name && (
                   <p className="text-sm text-muted-foreground mb-1">{user.name}</p>
                 )}
-                
+
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="text-xs text-muted-foreground">
                     Created {formatDate(user.$createdAt)}
                   </p>
-                  
+
                   {user.emailVerification ? (
                     <Badge variant="default" className="flex items-center gap-1 bg-green-600 hover:bg-green-700">
                       <CheckCircle2 className="h-3 w-3" />
@@ -131,6 +135,16 @@ export default function AuthUserList({
                   size="sm"
                   variant="outline"
                   onClick={(e) => handleSendVerificationEmail(user, e)}
+                  onKeyDown={(e) => {
+                    // Prevent keyboard activation from bubbling to row
+                    if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+                      e.stopPropagation();
+                      // Prevent default scroll behavior for Space key
+                      if (e.key === ' ' || e.key === 'Spacebar') {
+                        e.preventDefault();
+                      }
+                    }
+                  }}
                   disabled={sendingVerificationTo === user.$id}
                   className="shrink-0"
                 >

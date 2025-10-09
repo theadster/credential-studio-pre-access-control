@@ -14,19 +14,15 @@
  * npx tsx scripts/setup-appwrite.ts
  */
 
-import { Client, Databases, ID, Permission, Role } from 'node-appwrite';
+import { Client, Databases, ID, Permission, Role, IndexType } from 'node-appwrite';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
 // Load environment variables
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 
-const client = new Client()
-  .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!)
-  .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!)
-  .setKey(process.env.APPWRITE_API_KEY!);
-
-const databases = new Databases(client);
+// Databases instance will be initialized in main() after environment validation
+let databases: Databases;
 
 // Database and Collection IDs
 const DATABASE_ID = 'credentialstudio';
@@ -65,7 +61,7 @@ async function createUsersCollection(databaseId: string) {
       'Users',
       [
         Permission.read(Role.any()),
-        Permission.create(Role.any()), // Allow anyone to create (needed for login)
+        Permission.create(Role.users()), // Only authenticated users can create profiles
         Permission.update(Role.users()),
         Permission.delete(Role.users()),
       ]
@@ -79,9 +75,9 @@ async function createUsersCollection(databaseId: string) {
     await databases.createBooleanAttribute(databaseId, COLLECTIONS.USERS, 'isInvited', false, false);
 
     // Create indexes
-    await databases.createIndex(databaseId, COLLECTIONS.USERS, 'email_idx', 'unique', ['email']);
-    await databases.createIndex(databaseId, COLLECTIONS.USERS, 'userId_idx', 'key', ['userId']);
-    await databases.createIndex(databaseId, COLLECTIONS.USERS, 'roleId_idx', 'key', ['roleId']);
+    await databases.createIndex(databaseId, COLLECTIONS.USERS, 'email_idx', IndexType.Unique, ['email']);
+    await databases.createIndex(databaseId, COLLECTIONS.USERS, 'userId_idx', IndexType.Key, ['userId']);
+    await databases.createIndex(databaseId, COLLECTIONS.USERS, 'roleId_idx', IndexType.Key, ['roleId']);
 
     console.log('✓ Users collection created');
   } catch (error: any) {
@@ -114,7 +110,7 @@ async function createRolesCollection(databaseId: string) {
     await databases.createStringAttribute(databaseId, COLLECTIONS.ROLES, 'permissions', 10000, true);
 
     // Create indexes
-    await databases.createIndex(databaseId, COLLECTIONS.ROLES, 'name_idx', 'unique', ['name']);
+    await databases.createIndex(databaseId, COLLECTIONS.ROLES, 'name_idx', IndexType.Unique, ['name']);
 
     console.log('✓ Roles collection created');
   } catch (error: any) {
@@ -151,9 +147,9 @@ async function createAttendeesCollection(databaseId: string) {
     await databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'customFieldValues', 10000, false);
 
     // Create indexes
-    await databases.createIndex(databaseId, COLLECTIONS.ATTENDEES, 'barcodeNumber_idx', 'unique', ['barcodeNumber']);
-    await databases.createIndex(databaseId, COLLECTIONS.ATTENDEES, 'lastName_idx', 'key', ['lastName']);
-    await databases.createIndex(databaseId, COLLECTIONS.ATTENDEES, 'firstName_idx', 'key', ['firstName']);
+    await databases.createIndex(databaseId, COLLECTIONS.ATTENDEES, 'barcodeNumber_idx', IndexType.Unique, ['barcodeNumber']);
+    await databases.createIndex(databaseId, COLLECTIONS.ATTENDEES, 'lastName_idx', IndexType.Key, ['lastName']);
+    await databases.createIndex(databaseId, COLLECTIONS.ATTENDEES, 'firstName_idx', IndexType.Key, ['firstName']);
 
     console.log('✓ Attendees collection created');
   } catch (error: any) {
@@ -190,8 +186,8 @@ async function createCustomFieldsCollection(databaseId: string) {
     await databases.createIntegerAttribute(databaseId, COLLECTIONS.CUSTOM_FIELDS, 'fieldOrder', true);
 
     // Create indexes
-    await databases.createIndex(databaseId, COLLECTIONS.CUSTOM_FIELDS, 'eventSettingsId_idx', 'key', ['eventSettingsId']);
-    await databases.createIndex(databaseId, COLLECTIONS.CUSTOM_FIELDS, 'fieldOrder_idx', 'key', ['fieldOrder']);
+    await databases.createIndex(databaseId, COLLECTIONS.CUSTOM_FIELDS, 'eventSettingsId_idx', IndexType.Key, ['eventSettingsId']);
+    await databases.createIndex(databaseId, COLLECTIONS.CUSTOM_FIELDS, 'fieldOrder_idx', IndexType.Key, ['fieldOrder']);
 
     console.log('✓ Custom fields collection created');
   } catch (error: any) {
@@ -260,8 +256,8 @@ async function createLogsCollection(databaseId: string) {
     await databases.createStringAttribute(databaseId, COLLECTIONS.LOGS, 'details', 10000, false);
 
     // Create indexes
-    await databases.createIndex(databaseId, COLLECTIONS.LOGS, 'userId_idx', 'key', ['userId']);
-    await databases.createIndex(databaseId, COLLECTIONS.LOGS, 'attendeeId_idx', 'key', ['attendeeId']);
+    await databases.createIndex(databaseId, COLLECTIONS.LOGS, 'userId_idx', IndexType.Key, ['userId']);
+    await databases.createIndex(databaseId, COLLECTIONS.LOGS, 'attendeeId_idx', IndexType.Key, ['attendeeId']);
 
     console.log('✓ Logs collection created');
   } catch (error: any) {
@@ -329,9 +325,9 @@ async function createInvitationsCollection(databaseId: string) {
     await databases.createStringAttribute(databaseId, COLLECTIONS.INVITATIONS, 'createdBy', 255, true);
 
     // Create indexes
-    await databases.createIndex(databaseId, COLLECTIONS.INVITATIONS, 'token_idx', 'unique', ['token']);
-    await databases.createIndex(databaseId, COLLECTIONS.INVITATIONS, 'userId_idx', 'key', ['userId']);
-    await databases.createIndex(databaseId, COLLECTIONS.INVITATIONS, 'expiresAt_idx', 'key', ['expiresAt']);
+    await databases.createIndex(databaseId, COLLECTIONS.INVITATIONS, 'token_idx', IndexType.Unique, ['token']);
+    await databases.createIndex(databaseId, COLLECTIONS.INVITATIONS, 'userId_idx', IndexType.Key, ['userId']);
+    await databases.createIndex(databaseId, COLLECTIONS.INVITATIONS, 'expiresAt_idx', IndexType.Key, ['expiresAt']);
 
     console.log('✓ Invitations collection created');
   } catch (error: any) {
@@ -365,7 +361,7 @@ NEXT_PUBLIC_APPWRITE_INVITATIONS_COLLECTION_ID=${COLLECTIONS.INVITATIONS}
 async function main() {
   try {
     console.log('Starting Appwrite infrastructure setup...\n');
-    
+
     // Validate environment variables
     if (!process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT) {
       throw new Error('NEXT_PUBLIC_APPWRITE_ENDPOINT is not set');
@@ -376,6 +372,14 @@ async function main() {
     if (!process.env.APPWRITE_API_KEY) {
       throw new Error('APPWRITE_API_KEY is not set');
     }
+
+    // Initialize client after validation
+    const client = new Client()
+      .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!)
+      .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!)
+      .setKey(process.env.APPWRITE_API_KEY!);
+
+    databases = new Databases(client);
 
     // Create database
     const databaseId = await createDatabase();
@@ -399,7 +403,7 @@ async function main() {
     console.log('2. Configure OAuth providers in Appwrite Console (if using Google login)');
     console.log('3. Review collection permissions in Appwrite Console');
     console.log('4. Run the data migration script when ready');
-    
+
   } catch (error) {
     console.error('\n✗ Error during setup:', error);
     process.exit(1);

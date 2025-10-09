@@ -20,23 +20,16 @@ vi.mock('@/lib/appwrite', () => ({
 }));
 
 // Mock integration functions
-vi.mock('@/lib/appwrite-integrations', () => ({
-  IntegrationConflictError: class IntegrationConflictError extends Error {
-    constructor(
-      public integrationType: string,
-      public eventSettingsId: string,
-      public expectedVersion: number,
-      public actualVersion: number
-    ) {
-      super(`Integration conflict: ${integrationType}`);
-      this.name = 'IntegrationConflictError';
-    }
-  },
-  updateCloudinaryIntegration: vi.fn(),
-  updateSwitchboardIntegration: vi.fn(),
-  updateOneSimpleApiIntegration: vi.fn(),
-  flattenEventSettings: vi.fn()
-}));
+vi.mock('@/lib/appwrite-integrations', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/appwrite-integrations')>('@/lib/appwrite-integrations');
+  return {
+    ...actual,
+    updateCloudinaryIntegration: vi.fn(),
+    updateSwitchboardIntegration: vi.fn(),
+    updateOneSimpleApiIntegration: vi.fn(),
+    flattenEventSettings: vi.fn()
+  };
+});
 
 // Mock performance tracker
 vi.mock('@/lib/performance', () => ({
@@ -140,8 +133,8 @@ describe('Integration Update Error Handling Tests (Task 6.8)', () => {
     eventSettingsCache.clear();
 
     // Setup console spies
-    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+    consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
 
     // Setup mock databases
     mockDatabases = {
@@ -233,18 +226,18 @@ describe('Integration Update Error Handling Tests (Task 6.8)', () => {
     it('should handle Cloudinary update failure without failing the request', async () => {
       // Mock Cloudinary update to fail with network error
       (updateCloudinaryIntegration as any).mockRejectedValue(new Error('Network timeout'));
-      
+
       await handler(req as NextApiRequest, res as NextApiResponse);
 
       // Verify request succeeded with 200
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalled();
-      
+
       const responseData = (res.json as any).mock.calls[0][0];
-      
+
       // Verify core event settings were updated
       expect(responseData.eventName).toBe('Updated Event');
-      
+
       // Verify warnings are included in response
       expect(responseData.warnings).toBeDefined();
       expect(responseData.warnings.integrations).toHaveLength(1);
@@ -256,7 +249,7 @@ describe('Integration Update Error Handling Tests (Task 6.8)', () => {
 
     it('should log detailed error information for Cloudinary failure', async () => {
       (updateCloudinaryIntegration as any).mockRejectedValue(new Error('Database connection lost'));
-      
+
       await handler(req as NextApiRequest, res as NextApiResponse);
 
       // Verify detailed error was logged
@@ -281,12 +274,12 @@ describe('Integration Update Error Handling Tests (Task 6.8)', () => {
 
       (updateSwitchboardIntegration as any).mockRejectedValue(new Error('API rate limit exceeded'));
       (updateCloudinaryIntegration as any).mockResolvedValue(mockCloudinaryIntegration);
-      
+
       await handler(req as NextApiRequest, res as NextApiResponse);
 
       // Verify request succeeded
       expect(res.status).toHaveBeenCalledWith(200);
-      
+
       const responseData = (res.json as any).mock.calls[0][0];
       expect(responseData.warnings).toBeDefined();
       expect(responseData.warnings.integrations).toHaveLength(1);
@@ -303,12 +296,12 @@ describe('Integration Update Error Handling Tests (Task 6.8)', () => {
 
       (updateOneSimpleApiIntegration as any).mockRejectedValue(new Error('Invalid API credentials'));
       (updateCloudinaryIntegration as any).mockResolvedValue(mockCloudinaryIntegration);
-      
+
       await handler(req as NextApiRequest, res as NextApiResponse);
 
       // Verify request succeeded
       expect(res.status).toHaveBeenCalledWith(200);
-      
+
       const responseData = (res.json as any).mock.calls[0][0];
       expect(responseData.warnings).toBeDefined();
       expect(responseData.warnings.integrations).toHaveLength(1);
@@ -333,16 +326,16 @@ describe('Integration Update Error Handling Tests (Task 6.8)', () => {
       (updateCloudinaryIntegration as any).mockRejectedValue(new Error('Cloudinary error'));
       (updateSwitchboardIntegration as any).mockRejectedValue(new Error('Switchboard error'));
       (updateOneSimpleApiIntegration as any).mockRejectedValue(new Error('OneSimpleAPI error'));
-      
+
       await handler(req as NextApiRequest, res as NextApiResponse);
 
       // Verify request succeeded with warnings
       expect(res.status).toHaveBeenCalledWith(200);
-      
+
       const responseData = (res.json as any).mock.calls[0][0];
       expect(responseData.warnings).toBeDefined();
       expect(responseData.warnings.integrations).toHaveLength(3);
-      
+
       const integrationNames = responseData.warnings.integrations.map((w: any) => w.integration);
       expect(integrationNames).toContain('cloudinary');
       expect(integrationNames).toContain('switchboard');
@@ -360,7 +353,7 @@ describe('Integration Update Error Handling Tests (Task 6.8)', () => {
       (updateCloudinaryIntegration as any).mockRejectedValue(new Error('Error 1'));
       (updateSwitchboardIntegration as any).mockRejectedValue(new Error('Error 2'));
       (updateOneSimpleApiIntegration as any).mockRejectedValue(new Error('Error 3'));
-      
+
       await handler(req as NextApiRequest, res as NextApiResponse);
 
       // Verify summary warning was logged
@@ -398,22 +391,22 @@ describe('Integration Update Error Handling Tests (Task 6.8)', () => {
         cloudName: 'updated-cloud'
       });
       (updateSwitchboardIntegration as any).mockRejectedValue(new Error('Switchboard timeout'));
-      
+
       await handler(req as NextApiRequest, res as NextApiResponse);
 
       // Verify request succeeded
       expect(res.status).toHaveBeenCalledWith(200);
-      
+
       const responseData = (res.json as any).mock.calls[0][0];
-      
+
       // Verify only failed integration is in warnings
       expect(responseData.warnings).toBeDefined();
       expect(responseData.warnings.integrations).toHaveLength(1);
       expect(responseData.warnings.integrations[0].integration).toBe('switchboard');
-      
+
       // Verify successful integration update was called
       expect(updateCloudinaryIntegration).toHaveBeenCalled();
-      
+
       // Verify Cloudinary integration was updated (check the call arguments)
       const cloudinaryCallArgs = (updateCloudinaryIntegration as any).mock.calls[0][2];
       expect(cloudinaryCallArgs).toHaveProperty('cloudName', 'updated-cloud');
@@ -421,7 +414,7 @@ describe('Integration Update Error Handling Tests (Task 6.8)', () => {
 
     it('should set X-Integration-Warnings header when there are partial failures', async () => {
       (updateCloudinaryIntegration as any).mockRejectedValue(new Error('Network error'));
-      
+
       await handler(req as NextApiRequest, res as NextApiResponse);
 
       // Verify warning header was set
@@ -433,12 +426,12 @@ describe('Integration Update Error Handling Tests (Task 6.8)', () => {
         ...mockCloudinaryIntegration,
         version: 2
       });
-      
+
       await handler(req as NextApiRequest, res as NextApiResponse);
 
       // Verify warning header was NOT set
       expect(res.setHeader).not.toHaveBeenCalledWith('X-Integration-Warnings', 'true');
-      
+
       const responseData = (res.json as any).mock.calls[0][0];
       expect(responseData.warnings).toBeUndefined();
     });
@@ -457,7 +450,7 @@ describe('Integration Update Error Handling Tests (Task 6.8)', () => {
 
       // Mock Cloudinary to fail
       (updateCloudinaryIntegration as any).mockRejectedValue(new Error('Complete failure'));
-      
+
       await handler(req as NextApiRequest, res as NextApiResponse);
 
       // Verify core event settings were updated
@@ -471,14 +464,14 @@ describe('Integration Update Error Handling Tests (Task 6.8)', () => {
           timeZone: 'America/Los_Angeles'
         })
       );
-      
+
       // Verify request succeeded
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
     it('should invalidate cache even when integrations fail', async () => {
       (updateCloudinaryIntegration as any).mockRejectedValue(new Error('Cache test error'));
-      
+
       await handler(req as NextApiRequest, res as NextApiResponse);
 
       // Verify cache was invalidated
@@ -498,7 +491,7 @@ describe('Integration Update Error Handling Tests (Task 6.8)', () => {
       };
 
       (updateCloudinaryIntegration as any).mockRejectedValue(new Error('Validation error'));
-      
+
       await handler(req as NextApiRequest, res as NextApiResponse);
 
       const responseData = (res.json as any).mock.calls[0][0];
@@ -522,11 +515,11 @@ describe('Integration Update Error Handling Tests (Task 6.8)', () => {
       };
 
       (updateSwitchboardIntegration as any).mockRejectedValue(new Error('Field error'));
-      
+
       await handler(req as NextApiRequest, res as NextApiResponse);
 
       const responseData = (res.json as any).mock.calls[0][0];
-      
+
       // Find the switchboard warning (it should be the only one or the first one)
       const switchboardWarning = responseData.warnings.integrations.find((w: any) => w.integration === 'switchboard');
       expect(switchboardWarning).toBeDefined();
@@ -540,7 +533,7 @@ describe('Integration Update Error Handling Tests (Task 6.8)', () => {
     it('should log error with stack trace when available', async () => {
       const errorWithStack = new Error('Test error with stack');
       (updateCloudinaryIntegration as any).mockRejectedValue(errorWithStack);
-      
+
       await handler(req as NextApiRequest, res as NextApiResponse);
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
@@ -554,7 +547,7 @@ describe('Integration Update Error Handling Tests (Task 6.8)', () => {
 
     it('should log error timestamp for debugging', async () => {
       (updateCloudinaryIntegration as any).mockRejectedValue(new Error('Timestamp test'));
-      
+
       await handler(req as NextApiRequest, res as NextApiResponse);
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -7,10 +7,14 @@ export default function TestAuthPage() {
   const { user, userProfile } = useAuth();
   const [sessionTest, setSessionTest] = useState<any>(null);
   const [apiTest, setApiTest] = useState<any>(null);
-
   const testSession = async () => {
     try {
       const response = await fetch('/api/auth/test-session');
+      if (!response.ok) {
+        const errorData = await response.json();
+        setSessionTest({ error: errorData.error || 'Request failed' });
+        return;
+      }
       const data = await response.json();
       setSessionTest(data);
     } catch (error) {
@@ -21,6 +25,11 @@ export default function TestAuthPage() {
   const testApiCall = async () => {
     try {
       const response = await fetch('/api/profile');
+      if (!response.ok) {
+        const errorData = await response.json();
+        setApiTest({ success: false, error: errorData.error || 'Request failed' });
+        return;
+      }
       const data = await response.json();
       setApiTest({ success: true, data });
     } catch (error) {
@@ -98,7 +107,9 @@ export default function TestAuthPage() {
           <CardContent>
             <p className="mb-2"><strong>All Cookies:</strong></p>
             <pre className="bg-gray-100 p-4 rounded overflow-auto">
-              {document.cookie || 'No cookies found'}
+              {typeof window !== 'undefined'
+                ? document.cookie || 'No cookies found'
+                : 'Loading...'}
             </pre>
           </CardContent>
         </Card>

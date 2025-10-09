@@ -9,6 +9,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    // Validate required environment variables
+    const databaseId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
+    const invitationsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_INVITATIONS_COLLECTION_ID;
+    const usersCollectionId = process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID;
+    const rolesCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID;
+
+    if (!databaseId || !invitationsCollectionId || !usersCollectionId || !rolesCollectionId) {
+      console.error('Missing required environment variables for invitations API');
+      return res.status(500).json({ error: 'Server configuration error' });
+    }
+
     const { token } = req.query;
 
     if (!token || typeof token !== 'string') {
@@ -20,8 +31,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Find the invitation by token
     const invitationDocs = await databases.listDocuments(
-      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-      process.env.NEXT_PUBLIC_APPWRITE_INVITATIONS_COLLECTION_ID!,
+      databaseId,
+      invitationsCollectionId,
       [Query.equal('token', token)]
     );
 
@@ -43,8 +54,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Get the user associated with the invitation
     const userDocs = await databases.listDocuments(
-      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-      process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+      databaseId,
+      usersCollectionId,
       [Query.equal('userId', invitation.userId)]
     );
 
@@ -63,8 +74,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let role = null;
     if (user.roleId) {
       role = await databases.getDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+        databaseId,
+        rolesCollectionId,
         user.roleId
       );
     }

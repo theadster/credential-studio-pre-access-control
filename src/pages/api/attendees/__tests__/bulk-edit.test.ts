@@ -53,12 +53,12 @@ describe('/api/attendees/bulk-edit - Bulk Edit API', () => {
 
   beforeEach(() => {
     resetAllMocks();
-    
+
     jsonMock = vi.fn();
     endMock = vi.fn();
     statusMock = vi.fn(() => ({ json: jsonMock, end: endMock }));
     setHeaderMock = vi.fn();
-    
+
     mockReq = {
       method: 'POST',
       cookies: { 'appwrite-session': 'test-session' },
@@ -70,7 +70,7 @@ describe('/api/attendees/bulk-edit - Bulk Edit API', () => {
         },
       },
     };
-    
+
     mockRes = {
       status: statusMock as any,
       setHeader: setHeaderMock,
@@ -128,7 +128,7 @@ describe('/api/attendees/bulk-edit - Bulk Edit API', () => {
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(statusMock).toHaveBeenCalledWith(403);
+      expect(statusMock).toHaveBeenCalledWith(404);
       expect(jsonMock).toHaveBeenCalledWith(
         expect.objectContaining({
           error: 'User profile not found',
@@ -163,7 +163,7 @@ describe('/api/attendees/bulk-edit - Bulk Edit API', () => {
 
       mockDatabases.listDocuments.mockReset();
       mockDatabases.getDocument.mockReset();
-      
+
       mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [userWithRole], total: 1 });
       mockDatabases.getDocument.mockResolvedValueOnce(noPermRole);
 
@@ -558,10 +558,10 @@ describe('/api/attendees/bulk-edit - Bulk Edit API', () => {
     it('should handle Appwrite 404 errors', async () => {
       const error = new Error('Not found');
       (error as any).code = 404;
-      
+
       mockAccount.get.mockReset();
       mockDatabases.listDocuments.mockReset();
-      
+
       mockAccount.get.mockResolvedValue(mockAuthUser);
       mockDatabases.listDocuments.mockRejectedValue(error);
 
@@ -573,7 +573,7 @@ describe('/api/attendees/bulk-edit - Bulk Edit API', () => {
     it('should handle generic errors', async () => {
       mockAccount.get.mockReset();
       mockDatabases.listDocuments.mockReset();
-      
+
       mockAccount.get.mockResolvedValue(mockAuthUser);
       mockDatabases.listDocuments.mockRejectedValue(new Error('Database error'));
 

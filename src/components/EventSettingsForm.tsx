@@ -68,7 +68,13 @@ interface EventSettings {
   attendeeSortDirection?: string;
   cloudinaryEnabled?: boolean;
   cloudinaryCloudName?: string;
+  /**
+   * @deprecated Credentials no longer stored in database. Use environment variables instead.
+   */
   cloudinaryApiKey?: string;
+  /**
+   * @deprecated Credentials no longer stored in database. Use environment variables instead.
+   */
   cloudinaryApiSecret?: string;
   cloudinaryUploadPreset?: string;
   cloudinaryAutoOptimize?: boolean;
@@ -78,6 +84,9 @@ interface EventSettings {
   switchboardEnabled?: boolean;
   switchboardApiEndpoint?: string;
   switchboardAuthHeaderType?: string;
+  /**
+   * @deprecated API key no longer stored in database. Use environment variables instead.
+   */
   switchboardApiKey?: string;
   switchboardRequestBody?: string;
   switchboardTemplateId?: string;
@@ -152,9 +161,8 @@ function SortableCustomField({ field, onEdit, onDelete }: SortableCustomFieldPro
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-center justify-between p-3 border rounded-lg bg-background ${
-        isDragging ? 'shadow-lg' : ''
-      }`}
+      className={`flex items-center justify-between p-3 border rounded-lg bg-background ${isDragging ? 'shadow-lg' : ''
+        }`}
     >
       <div className="flex items-center space-x-3 flex-1">
         <div
@@ -227,6 +235,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
   const [fieldMappings, setFieldMappings] = useState<FieldMapping[]>([]);
   const [showMappingForm, setShowMappingForm] = useState(false);
   const [editingFieldMapping, setEditingFieldMapping] = useState<FieldMapping | null>(null);
+  const [integrationStatus, setIntegrationStatus] = useState<{ cloudinary: boolean; switchboard: boolean } | null>(null);
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -236,12 +245,29 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
     })
   );
 
+  // Fetch integration status on mount
+  useEffect(() => {
+    const fetchIntegrationStatus = async () => {
+      try {
+        const response = await fetch('/api/integrations/status');
+        if (response.ok) {
+          const status = await response.json();
+          setIntegrationStatus(status);
+        }
+      } catch (error) {
+        console.error('Failed to fetch integration status:', error);
+      }
+    };
+
+    fetchIntegrationStatus();
+  }, []);
+
   useEffect(() => {
     if (eventSettings) {
       // Parse the date more carefully to avoid timezone issues
       let parsedDate = "";
       let parsedTime = "";
-      
+
       if (eventSettings.eventDate) {
         // If eventDate is already a date string (YYYY-MM-DD), use it directly
         if (typeof eventSettings.eventDate === 'string' && eventSettings.eventDate.includes('-') && !eventSettings.eventDate.includes('T')) {
@@ -252,12 +278,12 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
           parsedDate = eventDateTime.toISOString().split('T')[0];
         }
       }
-      
+
       // Handle time separately
       if (eventSettings.eventTime) {
         parsedTime = eventSettings.eventTime;
       }
-      
+
       setFormData({
         ...eventSettings,
         eventDate: parsedDate,
@@ -345,7 +371,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
     if (editingField?.id) {
       // Update existing field
       setCustomFields(prev => prev.map(f => f.id === editingField.id ? fieldData : f));
-      
+
       // If this is a select field and we're editing an existing field, update field mappings
       if (fieldData.fieldType === 'select' && fieldData.fieldOptions?.options) {
         updateFieldMappingsForSelectField(fieldData, editingField);
@@ -371,7 +397,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
 
     // Find existing field mapping for this field
     const existingMappingIndex = fieldMappings.findIndex(mapping => mapping.fieldId === updatedField.id);
-    
+
     if (existingMappingIndex === -1) {
       return; // No existing mapping, nothing to update
     }
@@ -407,7 +433,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
       valueMapping: updatedValueMapping
     };
 
-    setFieldMappings(prev => prev.map((mapping, index) => 
+    setFieldMappings(prev => prev.map((mapping, index) =>
       index === existingMappingIndex ? updatedMapping : mapping
     ));
   };
@@ -462,7 +488,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
         const newIndex = items.findIndex((item) => item.id === over.id);
 
         const newItems = arrayMove(items, oldIndex, newIndex);
-        
+
         // Update order values
         const updatedItems = newItems.map((item, index) => ({
           ...item,
@@ -471,7 +497,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
 
         // If all fields have real IDs (not temp IDs), save the reorder immediately
         const hasOnlyRealIds = updatedItems.every(item => item.id && !item.id.startsWith('temp_'));
-        
+
         if (hasOnlyRealIds) {
           // Save the reorder to the database immediately
           const fieldOrders = updatedItems.map(item => ({
@@ -626,7 +652,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                       onCheckedChange={(checked) => handleInputChange("forceFirstNameUppercase", checked)}
                     />
                   </div>
-                  
+
                   <div className="flex items-center justify-between p-3 border rounded-lg">
                     <div className="space-y-1">
                       <Label className="text-sm font-medium">Force Last Name to Uppercase</Label>
@@ -753,7 +779,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                       onCheckedChange={(checked) => handleInputChange("cloudinaryEnabled", checked)}
                     />
                   </div>
-                  
+
                   {formData.cloudinaryEnabled && (
                     <div className="space-y-6">
                       {/* API Credentials Section */}
@@ -762,7 +788,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                           <Settings className="h-4 w-4" />
                           <h4 className="text-sm font-semibold">API Credentials</h4>
                         </div>
-                        
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="space-y-2">
                             <Label htmlFor="cloudinaryCloudName" className="text-sm font-medium">
@@ -779,42 +805,28 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                               Found in your Cloudinary dashboard
                             </p>
                           </div>
-                          
-                          <div className="space-y-2">
-                            <Label htmlFor="cloudinaryApiKey" className="text-sm font-medium">
-                              API Key
-                            </Label>
-                            <Input
-                              id="cloudinaryApiKey"
-                              value={formData.cloudinaryApiKey || ""}
-                              onChange={(e) => handleInputChange("cloudinaryApiKey", e.target.value)}
-                              placeholder="123456789012345"
-                              className="h-10"
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              Your Cloudinary API key
-                            </p>
+
+                          {/* SECURITY: API credentials configured via environment variables */}
+                          <div className="col-span-2 p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
+                            <div className="flex items-start gap-3">
+                              <svg className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              <div className="flex-1">
+                                <h4 className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-1">
+                                  API Credentials Configured Securely
+                                </h4>
+                                <p className="text-sm text-blue-700 dark:text-blue-300">
+                                  Cloudinary API credentials (API Key and API Secret) are configured via environment variables for security.
+                                  Contact your system administrator to update credentials.
+                                </p>
+                              </div>
+                            </div>
                           </div>
                         </div>
-                        
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="cloudinaryApiSecret" className="text-sm font-medium">
-                              API Secret
-                            </Label>
-                            <Input
-                              id="cloudinaryApiSecret"
-                              type="password"
-                              value={formData.cloudinaryApiSecret || ""}
-                              onChange={(e) => handleInputChange("cloudinaryApiSecret", e.target.value)}
-                              placeholder="••••••••••••••••••••••••••••"
-                              className="h-10"
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              Keep this secret secure and never share it publicly
-                            </p>
-                          </div>
-                          
+
                           <div className="space-y-2">
                             <Label htmlFor="cloudinaryUploadPreset" className="text-sm font-medium">
                               Upload Preset
@@ -839,7 +851,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                           <Settings className="h-4 w-4" />
                           <h4 className="text-sm font-semibold">Upload Settings</h4>
                         </div>
-                        
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="flex items-center justify-between p-3 border rounded-lg">
                             <div className="space-y-1">
@@ -853,7 +865,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                               onCheckedChange={(checked) => handleInputChange("cloudinaryAutoOptimize", checked)}
                             />
                           </div>
-                          
+
                           <div className="flex items-center justify-between p-3 border rounded-lg">
                             <div className="space-y-1">
                               <Label className="text-sm font-medium">Generate thumbnails</Label>
@@ -867,14 +879,14 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                             />
                           </div>
                         </div>
-                        
+
                         {/* Crop Settings */}
                         <div className="space-y-4">
                           <div className="flex items-center gap-2">
                             <Settings className="h-4 w-4" />
                             <h4 className="text-sm font-semibold">Crop Settings</h4>
                           </div>
-                          
+
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="flex items-center justify-between p-3 border rounded-lg">
                               <div className="space-y-1">
@@ -888,13 +900,13 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                                 onCheckedChange={(checked) => handleInputChange("cloudinaryDisableSkipCrop", checked)}
                               />
                             </div>
-                            
+
                             <div className="space-y-2">
                               <Label htmlFor="cloudinaryCropAspectRatio" className="text-sm font-medium">
                                 Crop Aspect Ratio
                               </Label>
-                              <Select 
-                                value={formData.cloudinaryCropAspectRatio || "1"} 
+                              <Select
+                                value={formData.cloudinaryCropAspectRatio || "1"}
                                 onValueChange={(value) => handleInputChange("cloudinaryCropAspectRatio", value)}
                               >
                                 <SelectTrigger className="h-10">
@@ -920,17 +932,33 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                       </div>
 
                       {/* Connection Status */}
-                      <div className="p-4 border rounded-lg bg-green-50 dark:bg-green-950/20">
+                      <div className={`p-4 border rounded-lg ${formData.cloudinaryCloudName && formData.cloudinaryUploadPreset && integrationStatus?.cloudinary
+                        ? "bg-green-50 dark:bg-green-950/20"
+                        : "bg-yellow-50 dark:bg-yellow-950/20"
+                        }`}>
                         <div className="flex items-center gap-2">
-                          <div className="h-2 w-2 bg-green-500 rounded-full"></div>
-                          <span className="text-sm font-medium text-green-700 dark:text-green-400">
+                          <div className={`h-2 w-2 rounded-full ${formData.cloudinaryCloudName && formData.cloudinaryUploadPreset && integrationStatus?.cloudinary
+                            ? "bg-green-500"
+                            : "bg-yellow-500"
+                            }`}></div>
+                          <span className={`text-sm font-medium ${formData.cloudinaryCloudName && formData.cloudinaryUploadPreset && integrationStatus?.cloudinary
+                            ? "text-green-700 dark:text-green-400"
+                            : "text-yellow-700 dark:text-yellow-400"
+                            }`}>
                             Connection Status
                           </span>
                         </div>
-                        <p className="text-sm text-green-600 dark:text-green-500 mt-1">
-                          {formData.cloudinaryCloudName && formData.cloudinaryApiKey && formData.cloudinaryApiSecret && formData.cloudinaryUploadPreset
-                            ? "Ready to upload - all credentials provided"
-                            : "Waiting for all credentials to be configured"
+                        <p className={`text-sm mt-1 ${formData.cloudinaryCloudName && formData.cloudinaryUploadPreset && integrationStatus?.cloudinary
+                          ? "text-green-600 dark:text-green-500"
+                          : "text-yellow-600 dark:text-yellow-500"
+                          }`}>
+                          {!formData.cloudinaryCloudName || !formData.cloudinaryUploadPreset
+                            ? "Waiting for Cloud Name and Upload Preset to be configured"
+                            : integrationStatus === null
+                              ? "Checking API credentials..."
+                              : integrationStatus.cloudinary
+                                ? "Ready to upload - configuration complete"
+                                : "⚠️ API credentials missing in environment variables (CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET)"
                           }
                         </p>
                       </div>
@@ -964,7 +992,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                       onCheckedChange={(checked) => handleInputChange("switchboardEnabled", checked)}
                     />
                   </div>
-                  
+
                   {formData.switchboardEnabled && (
                     <div className="space-y-6">
                       {/* API Configuration Section */}
@@ -973,7 +1001,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                           <Settings className="h-4 w-4" />
                           <h4 className="text-sm font-semibold">API Configuration</h4>
                         </div>
-                        
+
                         <div className="space-y-4">
                           <div className="space-y-2">
                             <Label htmlFor="switchboardApiEndpoint" className="text-sm font-medium">
@@ -990,14 +1018,14 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                               The full URL endpoint for the Switchboard Canvas API
                             </p>
                           </div>
-                          
+
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-2">
                               <Label htmlFor="switchboardAuthHeaderType" className="text-sm font-medium">
                                 Authentication Header Type
                               </Label>
-                              <Select 
-                                value={formData.switchboardAuthHeaderType || "Bearer"} 
+                              <Select
+                                value={formData.switchboardAuthHeaderType || "Bearer"}
                                 onValueChange={(value) => handleInputChange("switchboardAuthHeaderType", value)}
                               >
                                 <SelectTrigger className="h-10">
@@ -1014,22 +1042,22 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                                 The type of authentication header to use
                               </p>
                             </div>
-                            
+
+                            {/* SECURITY: API key configured via environment variables */}
                             <div className="space-y-2">
-                              <Label htmlFor="switchboardApiKey" className="text-sm font-medium">
+                              <Label className="text-sm font-medium">
                                 Authentication Value (API Key) *
                               </Label>
-                              <Input
-                                id="switchboardApiKey"
-                                type="password"
-                                value={formData.switchboardApiKey || ""}
-                                onChange={(e) => handleInputChange("switchboardApiKey", e.target.value)}
-                                placeholder="your-switchboard-api-key"
-                                className="h-10"
-                              />
-                              <p className="text-xs text-muted-foreground">
-                                Your Switchboard Canvas API key
-                              </p>
+                              <div className="p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-md">
+                                <div className="flex items-start gap-2">
+                                  <svg className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                  </svg>
+                                  <p className="text-xs text-blue-700 dark:text-blue-300">
+                                    API key configured securely via environment variables. Contact your system administrator to update.
+                                  </p>
+                                </div>
+                              </div>
                             </div>
                           </div>
 
@@ -1057,7 +1085,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                           <Settings className="h-4 w-4" />
                           <h4 className="text-sm font-semibold">Request Configuration</h4>
                         </div>
-                        
+
                         <div className="space-y-4">
                           <div className="space-y-2">
                             <Label htmlFor="switchboardRequestBody" className="text-sm font-medium">
@@ -1105,16 +1133,16 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                             Add Mapping
                           </Button>
                         </div>
-                        
+
                         <div className="p-4 border rounded-lg bg-purple-50 dark:bg-purple-950/20">
                           <p className="text-sm text-purple-800 dark:text-purple-200 mb-3">
-                            <strong>Field Mappings</strong> allow you to map custom field responses to different variable names in your JSON request. 
+                            <strong>Field Mappings</strong> allow you to map custom field responses to different variable names in your JSON request.
                             This is especially useful for boolean (Yes/No) and select fields where you want to transform the values.
                           </p>
-                          
+
                           {fieldMappings.length === 0 ? (
                             <div className="text-center py-4 text-purple-600 dark:text-purple-400 text-sm">
-                              {customFields.length === 0 
+                              {customFields.length === 0
                                 ? "Create custom fields first to add field mappings"
                                 : "No field mappings configured. Click 'Add Mapping' to create one."
                               }
@@ -1178,13 +1206,13 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                           <FileText className="h-4 w-4" />
                           <h4 className="text-sm font-semibold">Available Placeholders</h4>
                         </div>
-                        
+
                         <div className="p-4 border rounded-lg bg-blue-50 dark:bg-blue-950/20">
                           <p className="text-sm text-blue-800 dark:text-blue-200 mb-3">
-                            <strong>Placeholders</strong> are dynamic values that get replaced with actual attendee data when generating credentials. 
+                            <strong>Placeholders</strong> are dynamic values that get replaced with actual attendee data when generating credentials.
                             Use the format <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{"{{placeholder_name}}"}</code> in your JSON request body.
                           </p>
-                          
+
                           <div className="space-y-3">
                             <div>
                               <h5 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">Standard Fields:</h5>
@@ -1200,7 +1228,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                                 <code className="bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded">{"{{template_id}}"}</code>
                               </div>
                             </div>
-                            
+
                             {customFields.length > 0 && (
                               <div>
                                 <h5 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">Custom Fields:</h5>
@@ -1215,7 +1243,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                                 </div>
                               </div>
                             )}
-                            
+
                             {fieldMappings.length > 0 && (
                               <div>
                                 <h5 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">Mapped Fields:</h5>
@@ -1234,22 +1262,38 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
 
                       {/* Connection Status and Test */}
                       <div className="space-y-4">
-                        <div className="p-4 border rounded-lg bg-green-50 dark:bg-green-950/20">
+                        <div className={`p-4 border rounded-lg ${formData.switchboardApiEndpoint && formData.switchboardRequestBody && integrationStatus?.switchboard
+                          ? "bg-green-50 dark:bg-green-950/20"
+                          : "bg-yellow-50 dark:bg-yellow-950/20"
+                          }`}>
                           <div className="flex items-center gap-2">
-                            <div className="h-2 w-2 bg-green-500 rounded-full"></div>
-                            <span className="text-sm font-medium text-green-700 dark:text-green-400">
+                            <div className={`h-2 w-2 rounded-full ${formData.switchboardApiEndpoint && formData.switchboardRequestBody && integrationStatus?.switchboard
+                              ? "bg-green-500"
+                              : "bg-yellow-500"
+                              }`}></div>
+                            <span className={`text-sm font-medium ${formData.switchboardApiEndpoint && formData.switchboardRequestBody && integrationStatus?.switchboard
+                              ? "text-green-700 dark:text-green-400"
+                              : "text-yellow-700 dark:text-yellow-400"
+                              }`}>
                               Integration Status
                             </span>
                           </div>
-                          <p className="text-sm text-green-600 dark:text-green-500 mt-1">
-                            {formData.switchboardApiEndpoint && formData.switchboardApiKey && formData.switchboardRequestBody
-                              ? "Ready to generate credentials - all configuration provided"
-                              : "Waiting for API endpoint, authentication, and request body configuration"
+                          <p className={`text-sm mt-1 ${formData.switchboardApiEndpoint && formData.switchboardRequestBody && integrationStatus?.switchboard
+                            ? "text-green-600 dark:text-green-500"
+                            : "text-yellow-600 dark:text-yellow-500"
+                            }`}>
+                            {!formData.switchboardApiEndpoint || !formData.switchboardRequestBody
+                              ? "Waiting for API endpoint and request body configuration"
+                              : integrationStatus === null
+                                ? "Checking API credentials..."
+                                : integrationStatus.switchboard
+                                  ? "Ready to generate credentials - configuration complete"
+                                  : "⚠️ API key missing in environment variables (SWITCHBOARD_API_KEY)"
                             }
                           </p>
                         </div>
-                        
-                        {formData.switchboardApiEndpoint && formData.switchboardApiKey && (
+
+                        {formData.switchboardApiEndpoint && (
                           <div className="p-4 border rounded-lg">
                             <div className="flex items-center justify-between">
                               <div>
@@ -1269,7 +1313,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                                       headers: { 'Content-Type': 'application/json' }
                                     });
                                     const result = await response.json();
-                                    
+
                                     if (result.success) {
                                       toast({
                                         title: "Connection Successful",
@@ -1327,7 +1371,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                       onCheckedChange={(checked) => handleInputChange("oneSimpleApiEnabled", checked)}
                     />
                   </div>
-                  
+
                   {formData.oneSimpleApiEnabled && (
                     <div className="space-y-6">
                       {/* API Configuration Section */}
@@ -1336,7 +1380,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                           <Settings className="h-4 w-4" />
                           <h4 className="text-sm font-semibold">API Configuration</h4>
                         </div>
-                        
+
                         <div className="space-y-4">
                           <div className="space-y-2">
                             <Label htmlFor="oneSimpleApiUrl" className="text-sm font-medium">
@@ -1362,7 +1406,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                           <Hash className="h-4 w-4" />
                           <h4 className="text-sm font-semibold">Form Data Configuration</h4>
                         </div>
-                        
+
                         <div className="space-y-4">
                           <div className="space-y-2">
                             <Label htmlFor="oneSimpleApiFormDataKey" className="text-sm font-medium">
@@ -1379,7 +1423,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                               The key name for the form data field (e.g., "html", "content", "data")
                             </p>
                           </div>
-                          
+
                           <div className="space-y-2">
                             <Label htmlFor="oneSimpleApiFormDataValue" className="text-sm font-medium">
                               Main HTML Template *
@@ -1409,7 +1453,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                               {`Main HTML structure. Use {{credentialRecords}} placeholder where individual records should be inserted.`}
                             </p>
                           </div>
-                          
+
                           <div className="space-y-2">
                             <Label htmlFor="oneSimpleApiRecordTemplate" className="text-sm font-medium">
                               Record Template *
@@ -1440,13 +1484,13 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                           <FileText className="h-4 w-4" />
                           <h4 className="text-sm font-semibold">Available Placeholders</h4>
                         </div>
-                        
+
                         <div className="p-4 border rounded-lg bg-orange-50 dark:bg-orange-950/20">
                           <p className="text-sm text-orange-800 dark:text-orange-200 mb-3">
-                            <strong>Placeholders</strong> are dynamic values that get replaced with actual attendee data when generating PDFs. 
+                            <strong>Placeholders</strong> are dynamic values that get replaced with actual attendee data when generating PDFs.
                             Use the format <code className="bg-orange-100 dark:bg-orange-900 px-1 rounded">{"{{placeholder_name}}"}</code> in your HTML template.
                           </p>
-                          
+
                           <div className="space-y-3">
                             <div>
                               <h5 className="text-sm font-medium text-orange-800 dark:text-orange-200 mb-2">Standard Fields:</h5>
@@ -1462,7 +1506,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                                 <code className="bg-orange-100 dark:bg-orange-900 px-2 py-1 rounded">{"{{eventLocation}}"}</code>
                               </div>
                             </div>
-                            
+
                             {customFields.length > 0 && (
                               <div>
                                 <h5 className="text-sm font-medium text-orange-800 dark:text-orange-200 mb-2">Custom Fields:</h5>
@@ -1614,9 +1658,9 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
             onSave={(mapping) => {
               if (editingFieldMapping) {
                 // Update existing mapping
-                setFieldMappings(prev => prev.map(m => 
-                  m.fieldId === editingFieldMapping.fieldId && m.jsonVariable === editingFieldMapping.jsonVariable 
-                    ? mapping 
+                setFieldMappings(prev => prev.map(m =>
+                  m.fieldId === editingFieldMapping.fieldId && m.jsonVariable === editingFieldMapping.jsonVariable
+                    ? mapping
                     : m
                 ));
               } else {
@@ -1734,17 +1778,17 @@ function CustomFieldForm({ isOpen, field, onSave, onCancel }: CustomFieldFormPro
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const fieldOptions: any = {};
-    
+
     if (fieldData.fieldType === "select") {
       fieldOptions.options = selectOptions;
     }
-    
+
     if (fieldData.fieldType === "text") {
       fieldOptions.uppercase = fieldData.fieldOptions?.uppercase || false;
     }
-    
+
     const finalFieldData = {
       ...fieldData,
       fieldOptions: Object.keys(fieldOptions).length > 0 ? fieldOptions : undefined
@@ -1841,7 +1885,7 @@ function CustomFieldForm({ isOpen, field, onSave, onCancel }: CustomFieldFormPro
               Define a new piece of information to collect from attendees.
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-5 py-6">
             <div>
               <Label htmlFor="fieldName" className="flex items-center gap-2 text-sm font-medium mb-2">
@@ -1868,8 +1912,8 @@ function CustomFieldForm({ isOpen, field, onSave, onCancel }: CustomFieldFormPro
                 <Settings className="h-4 w-4" />
                 Field Type
               </Label>
-              <Select 
-                value={fieldData.fieldType} 
+              <Select
+                value={fieldData.fieldType}
                 onValueChange={(value) => setFieldData(prev => ({ ...prev, fieldType: value }))}
               >
                 <SelectTrigger className="h-10">
@@ -1914,10 +1958,10 @@ function CustomFieldForm({ isOpen, field, onSave, onCancel }: CustomFieldFormPro
                       ))}
                     </SortableContext>
                   </DndContext>
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    size="sm" 
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
                     onClick={addSelectOption}
                     className="h-9"
                   >
@@ -1933,12 +1977,12 @@ function CustomFieldForm({ isOpen, field, onSave, onCancel }: CustomFieldFormPro
                 <Switch
                   id="uppercase"
                   checked={fieldData.fieldOptions?.uppercase || false}
-                  onCheckedChange={(checked) => setFieldData(prev => ({ 
-                    ...prev, 
-                    fieldOptions: { 
-                      ...prev.fieldOptions, 
-                      uppercase: checked 
-                    } 
+                  onCheckedChange={(checked) => setFieldData(prev => ({
+                    ...prev,
+                    fieldOptions: {
+                      ...prev.fieldOptions,
+                      uppercase: checked
+                    }
                   }))}
                 />
                 <Label htmlFor="uppercase" className="flex items-center gap-2 text-sm font-medium cursor-pointer">
@@ -1990,7 +2034,7 @@ function FieldMappingForm({ isOpen, customFields, editingMapping, onSave, onCanc
   const [valueMapping, setValueMapping] = useState<{ [key: string]: string }>({});
 
   // Filter fields that support mapping (boolean and select)
-  const mappableFields = customFields.filter(field => 
+  const mappableFields = customFields.filter(field =>
     field.fieldType === 'boolean' || field.fieldType === 'select'
   );
 
@@ -2028,7 +2072,7 @@ function FieldMappingForm({ isOpen, customFields, editingMapping, onSave, onCanc
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!selectedField || !jsonVariable.trim()) {
       return;
     }
@@ -2072,15 +2116,15 @@ function FieldMappingForm({ isOpen, customFields, editingMapping, onSave, onCanc
               Map custom field responses to specific variable names for your JSON request body.
             </DialogDescription>
           </DialogHeader>
-        
+
           <div className="space-y-5 py-6">
             <div>
               <Label htmlFor="customField" className="flex items-center gap-2 text-sm font-medium mb-2">
                 <Settings className="h-4 w-4" />
                 Custom Field *
               </Label>
-              <Select 
-                value={selectedField?.id || ""} 
+              <Select
+                value={selectedField?.id || ""}
                 onValueChange={(value) => {
                   const field = mappableFields.find(f => f.id === value);
                   setSelectedField(field || null);
@@ -2149,7 +2193,7 @@ function FieldMappingForm({ isOpen, customFields, editingMapping, onSave, onCanc
                     <p className="text-xs text-muted-foreground">
                       Map the field responses to specific values in your JSON:
                     </p>
-                    
+
                     {Object.entries(valueMapping).map(([key, value]) => (
                       <div key={key} className="flex items-center gap-3">
                         <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -2166,7 +2210,7 @@ function FieldMappingForm({ isOpen, customFields, editingMapping, onSave, onCanc
                         </div>
                       </div>
                     ))}
-                    
+
                     <div className="p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
                       <p className="text-xs text-blue-800 dark:text-blue-200">
                         <strong>Example:</strong> For a "VIP Status" boolean field, you might map:
@@ -2185,8 +2229,8 @@ function FieldMappingForm({ isOpen, customFields, editingMapping, onSave, onCanc
             <Button type="button" variant="outline" onClick={onCancel}>
               Cancel
             </Button>
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               disabled={!selectedField || !jsonVariable.trim()}
             >
               <Save className="mr-2 h-4 w-4" />

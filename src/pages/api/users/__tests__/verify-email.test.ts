@@ -74,7 +74,7 @@ describe('/api/users/verify-email', () => {
 
     // Default mock implementations
     vi.mocked(hasPermission).mockReturnValue(true);
-    
+
     vi.mocked(rateLimiter.check).mockReturnValue({
       allowed: true,
       remaining: 2,
@@ -82,8 +82,14 @@ describe('/api/users/verify-email', () => {
     });
 
     const mockUsers = {
-      get: vi.fn().mockResolvedValue(mockAuthUser),
-      updateEmailVerification: vi.fn().mockResolvedValue({ ...mockAuthUser, emailVerification: true } as any)
+      get: vi.fn().mockResolvedValue(mockAuthUser)
+    };
+
+    const mockAccount = {
+      createVerification: vi.fn().mockResolvedValue({
+        $id: 'verification-123',
+        userId: 'auth-user-456'
+      })
     };
 
     const mockDatabases = {
@@ -97,6 +103,7 @@ describe('/api/users/verify-email', () => {
 
     vi.mocked(createAdminClient).mockReturnValue({
       users: mockUsers,
+      account: mockAccount,
       databases: mockDatabases
     } as any);
 
@@ -167,7 +174,7 @@ describe('/api/users/verify-email', () => {
   describe('User validation', () => {
     it('should reject request for non-existent user', async () => {
       req.body = { authUserId: 'non-existent-user' };
-      
+
       const mockUsers = vi.mocked(createAdminClient()).users;
       vi.mocked(mockUsers.get).mockRejectedValue({
         code: 404,
@@ -185,7 +192,7 @@ describe('/api/users/verify-email', () => {
 
     it('should reject request for already verified user', async () => {
       req.body = { authUserId: 'auth-user-456' };
-      
+
       const mockUsers = vi.mocked(createAdminClient()).users;
       vi.mocked(mockUsers.get).mockResolvedValue({
         ...mockAuthUser,
@@ -205,7 +212,7 @@ describe('/api/users/verify-email', () => {
   describe('Rate limiting', () => {
     it('should enforce per-user rate limit', async () => {
       req.body = { authUserId: 'auth-user-456' };
-      
+
       const resetAt = Date.now() + 1800000; // 30 minutes
       vi.mocked(rateLimiter.check)
         .mockReturnValueOnce({
@@ -232,7 +239,7 @@ describe('/api/users/verify-email', () => {
 
     it('should enforce per-admin rate limit', async () => {
       req.body = { authUserId: 'auth-user-456' };
-      
+
       const resetAt = Date.now() + 1800000; // 30 minutes
       vi.mocked(rateLimiter.check)
         .mockReturnValueOnce({ allowed: true, remaining: 2, resetAt: Date.now() + 3600000 })
@@ -271,14 +278,12 @@ describe('/api/users/verify-email', () => {
   describe('Verification email sending', () => {
     it('should send verification email successfully', async () => {
       req.body = { authUserId: 'auth-user-456' };
+      const expectedVerificationUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/verify-email`;
 
       await handler(req as any, res as NextApiResponse);
 
-      const mockUsers = vi.mocked(createAdminClient()).users;
-      expect(mockUsers.updateEmailVerification).toHaveBeenCalledWith({ 
-        userId: 'auth-user-456',
-        emailVerification: true
-      });
+      const mockAccount = vi.mocked(createAdminClient()).account;
+      expect(mockAccount.createVerification).toHaveBeenCalledWith(expectedVerificationUrl);
       expect(statusMock).toHaveBeenCalledWith(200);
       expect(jsonMock).toHaveBeenCalledWith({
         success: true,
@@ -290,9 +295,9 @@ describe('/api/users/verify-email', () => {
 
     it('should handle verification email send failure', async () => {
       req.body = { authUserId: 'auth-user-456' };
-      
-      const mockUsers = vi.mocked(createAdminClient()).users;
-      vi.mocked(mockUsers.updateEmailVerification).mockRejectedValue(
+
+      const mockAccount = vi.mocked(createAdminClient()).account;
+      vi.mocked(mockAccount.createVerification).mockRejectedValue(
         new Error('API error')
       );
 
@@ -325,10 +330,12 @@ describe('/api/users/verify-email', () => {
           details: expect.stringContaining('auth-user-456')
         }
       );
-      
+
       // Verify the details contain all required fields
-      const callArgs = mockDatabases.createDocument.mock.calls[0];
-      const details = JSON.parse(callArgs[3].details);
+      const createDocumentMock = vi.mocked(mockDatabases.createDocument);
+      const callArgs = createDocumentMock.mock.calls[0];
+      const logData = callArgs[3] as any;
+      const details = JSON.parse(logData.details);
       expect(details).toMatchObject({
         type: 'email_verification',
         operation: 'send',
@@ -344,7 +351,7 @@ describe('/api/users/verify-email', () => {
 
     it('should not fail request if logging fails', async () => {
       req.body = { authUserId: 'auth-user-456' };
-      
+
       const mockDatabases = vi.mocked(createSessionClient(req as any)).databases;
       vi.mocked(mockDatabases.createDocument).mockRejectedValue(
         new Error('Database error')
@@ -365,7 +372,7 @@ describe('/api/users/verify-email', () => {
   describe('Error handling', () => {
     it('should handle authentication errors', async () => {
       req.body = { authUserId: 'auth-user-456' };
-      
+
       const mockUsers = vi.mocked(createAdminClient()).users;
       vi.mocked(mockUsers.get).mockRejectedValue({
         code: 401,
@@ -384,7 +391,7 @@ describe('/api/users/verify-email', () => {
 
     it('should handle permission errors', async () => {
       req.body = { authUserId: 'auth-user-456' };
-      
+
       const mockUsers = vi.mocked(createAdminClient()).users;
       vi.mocked(mockUsers.get).mockRejectedValue({
         code: 403,
@@ -403,7 +410,7 @@ describe('/api/users/verify-email', () => {
 
     it('should handle unexpected errors', async () => {
       req.body = { authUserId: 'auth-user-456' };
-      
+
       const mockUsers = vi.mocked(createAdminClient()).users;
       vi.mocked(mockUsers.get).mockRejectedValue(
         new Error('Unexpected error')

@@ -86,9 +86,10 @@ describe('E2E: User Invitation and Completion Flow', () => {
 
       // Step 2: Generate unique invitation token
       const generateToken = () => {
-        const part1 = Math.random().toString(36).substring(2, 15);
-        const part2 = Math.random().toString(36).substring(2, 15);
-        return part1 + part2;
+        // Ensure minimum length by using crypto or a more reliable method
+        const part1 = Math.random().toString(36).substring(2, 15).padEnd(13, '0');
+        const part2 = Math.random().toString(36).substring(2, 15).padEnd(13, '0');
+        return part1 + part2; // Guaranteed 26 characters
       };
 
       const invitationToken = generateToken();

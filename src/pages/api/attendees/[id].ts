@@ -2,10 +2,11 @@ import { NextApiResponse } from 'next';
 import { createSessionClient } from '@/lib/appwrite';
 import { Query, ID } from 'appwrite';
 import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
+import { parseCustomFieldValues } from '@/util/customFields';
 
 export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   const { id } = req.query;
-  
+
   if (!id || typeof id !== 'string') {
     return res.status(400).json({ error: 'Invalid attendee ID' });
   }
@@ -33,6 +34,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         // Get attendee
         const attendee = await databases.getDocument(dbId, attendeesCollectionId, id);
 
+        // …rest of your logic handling a successfully fetched attendee…
+
         if (!attendee) {
           return res.status(404).json({ error: 'Attendee not found' });
         }
@@ -46,7 +49,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             userId: user.$id,
             attendeeId: attendee.$id,
             action: 'view',
-            details: JSON.stringify({ 
+            details: JSON.stringify({
               type: 'attendee_detail',
               firstName: attendee.firstName,
               lastName: attendee.lastName
@@ -55,23 +58,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         );
 
         // Parse customFieldValues from JSON string to array format
-        let parsedCustomFieldValues = [];
-        if (attendee.customFieldValues) {
-          const parsed = typeof attendee.customFieldValues === 'string' 
-            ? JSON.parse(attendee.customFieldValues) 
-            : attendee.customFieldValues;
-          
-          // Convert object format {fieldId: value} to array format [{customFieldId, value}]
-          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-            parsedCustomFieldValues = Object.entries(parsed).map(([customFieldId, value]) => ({
-              customFieldId,
-              value: String(value)
-            }));
-          } else if (Array.isArray(parsed)) {
-            parsedCustomFieldValues = parsed;
-          }
-        }
-        
+        const parsedCustomFieldValues = parseCustomFieldValues(attendee.customFieldValues);
+
         const attendeeWithParsedFields = {
           ...attendee,
           id: attendee.$id, // Map $id to id for frontend compatibility
@@ -103,11 +91,17 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         if (!existingAttendee) {
           return res.status(404).json({ error: 'Attendee not found' });
         }
-
-        // Store current custom field values for comparison
-        const currentCustomFieldValues = existingAttendee.customFieldValues ? 
-          (typeof existingAttendee.customFieldValues === 'string' ? 
-            JSON.parse(existingAttendee.customFieldValues) : existingAttendee.customFieldValues) : {};
+        const currentCustomFieldValues = existingAttendee.customFieldValues ?
+          (() => {
+            try {
+              return typeof existingAttendee.customFieldValues === 'string'
+                ? JSON.parse(existingAttendee.customFieldValues)
+                : existingAttendee.customFieldValues;
+            } catch (error) {
+              console.error('Failed to parse customFieldValues:', error);
+              return {};
+            }
+          })() : {};
 
         // Check if barcode is unique (excluding current attendee)
         if (barcodeNumber && barcodeNumber !== existingAttendee.barcodeNumber) {
@@ -133,11 +127,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         // Update custom field values if provided
         if (customFieldValues !== undefined) {
           console.log('Received customFieldValues:', customFieldValues);
-          
+
           if (Array.isArray(customFieldValues)) {
             // Validate that all custom field IDs exist
             const customFieldIds = customFieldValues.map((cfv: any) => cfv.customFieldId).filter(Boolean);
-            
+
             if (customFieldIds.length > 0) {
               // Fetch custom fields to validate IDs
               const customFieldsDocs = await databases.listDocuments(
@@ -151,7 +145,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
               if (invalidCustomFieldIds.length > 0) {
                 console.error('Invalid custom field IDs:', invalidCustomFieldIds);
-                return res.status(400).json({ 
+                return res.status(400).json({
                   error: 'Some custom fields no longer exist. Please refresh the page and try again.',
                   invalidIds: invalidCustomFieldIds
                 });
@@ -185,7 +179,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
         // Log the update action with detailed before/after values
         const changeDetails: string[] = [];
-        
+
         // Check for basic field changes with before/after values
         if (firstName && firstName !== existingAttendee.firstName) {
           changeDetails.push(`First Name: "${existingAttendee.firstName}" → "${firstName}"`);
@@ -201,7 +195,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           const newPhoto = photoUrl ? 'has photo' : 'no photo';
           changeDetails.push(`Photo: ${oldPhoto} → ${newPhoto}`);
         }
-        
+
         // Check for custom field changes with detailed before/after values
         if (customFieldValues && Array.isArray(customFieldValues)) {
           // Get all custom fields to map IDs to names
@@ -210,11 +204,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             customFieldsCollectionId,
             [Query.limit(100)]
           );
-          
+
           const customFieldMap = new Map(
             allCustomFieldsDocs.documents.map(cf => [cf.$id, { name: cf.fieldName, type: cf.fieldType }])
           );
-          
+
           // Helper function to format values based on field type
           const formatValue = (value: any, fieldType: string) => {
             if (value === null || value === undefined || value === '') {
@@ -229,16 +223,16 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             }
             return `"${value}"`;
           };
-          
+
           // Check each incoming custom field value against the stored current values
           for (const newValue of customFieldValues) {
             const currentValue = currentCustomFieldValues[newValue.customFieldId];
             const fieldInfo = customFieldMap.get(newValue.customFieldId);
-            
+
             if (fieldInfo) {
               const oldVal = currentValue || null;
               const newVal = newValue.value;
-              
+
               // Only log if there's actually a change
               if (String(oldVal || '') !== String(newVal || '')) {
                 const formattedOldValue = formatValue(oldVal, fieldInfo.type);
@@ -247,12 +241,12 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
               }
             }
           }
-          
+
           // Check for removed custom field values (fields that existed before but are not in the new data)
           for (const [fieldId, currentValue] of Object.entries(currentCustomFieldValues)) {
             const newValue = customFieldValues.find(nv => nv.customFieldId === fieldId);
             const fieldInfo = customFieldMap.get(fieldId);
-            
+
             if (fieldInfo && (!newValue || newValue.value === null || newValue.value === undefined || newValue.value === '')) {
               // Only log if the current value is not already empty
               if (currentValue !== null && currentValue !== undefined && currentValue !== '') {
@@ -263,7 +257,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             }
           }
         }
-        
+
         // If no specific changes detected, fall back to generic message
         if (changeDetails.length === 0) {
           changeDetails.push('No changes detected');
@@ -277,7 +271,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             userId: user.$id,
             attendeeId: updatedAttendee.$id,
             action: 'update',
-            details: JSON.stringify({ 
+            details: JSON.stringify({
               type: 'attendee',
               firstName: updatedAttendee.firstName,
               lastName: updatedAttendee.lastName,
@@ -287,23 +281,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         );
 
         // Parse and return the updated attendee with proper structure
-        let customFieldValuesArray = [];
-        if (finalAttendee.customFieldValues) {
-          const parsed = typeof finalAttendee.customFieldValues === 'string' 
-            ? JSON.parse(finalAttendee.customFieldValues) 
-            : finalAttendee.customFieldValues;
-          
-          // Convert object format {fieldId: value} to array format [{customFieldId, value}]
-          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-            customFieldValuesArray = Object.entries(parsed).map(([customFieldId, value]) => ({
-              customFieldId,
-              value: String(value)
-            }));
-          } else if (Array.isArray(parsed)) {
-            customFieldValuesArray = parsed;
-          }
-        }
-        
+        const customFieldValuesArray = parseCustomFieldValues(finalAttendee.customFieldValues);
+
         const finalAttendeeWithParsedFields = {
           ...finalAttendee,
           id: finalAttendee.$id, // Map $id to id for frontend compatibility
@@ -339,7 +318,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           {
             userId: user.$id,
             action: 'delete',
-            details: JSON.stringify({ 
+            details: JSON.stringify({
               type: 'attendee',
               firstName: attendeeToDelete.firstName,
               lastName: attendeeToDelete.lastName,
@@ -356,16 +335,18 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     }
   } catch (error: any) {
     console.error('API Error:', error);
-    
+
+    const errorMessage = error.message || String(error);
+
     // Handle Appwrite-specific errors
     if (error.code === 401) {
-      return res.status(401).json({ error: 'Unauthorized' });
+      return res.status(401).json({ error: 'Unauthorized', message: errorMessage });
     } else if (error.code === 404) {
-      return res.status(404).json({ error: 'Resource not found' });
+      return res.status(404).json({ error: 'Resource not found', message: errorMessage });
     } else if (error.code === 409) {
-      return res.status(409).json({ error: 'Conflict - resource already exists' });
+      return res.status(409).json({ error: 'Conflict - resource already exists', message: errorMessage });
     }
-    
-    return res.status(500).json({ error: 'Internal server error' });
+
+    return res.status(500).json({ error: 'Internal server error', message: errorMessage });
   }
 });

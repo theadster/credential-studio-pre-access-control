@@ -7,9 +7,14 @@ import type { NextApiRequest } from 'next';
  * Used in React components and client-side code
  */
 export const createBrowserClient = () => {
+  const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
+  if (!projectId) {
+    throw new Error('NEXT_PUBLIC_APPWRITE_PROJECT_ID environment variable is required');
+  }
+
   const client = new Client()
     .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || 'https://nyc.cloud.appwrite.io/v1')
-    .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID || '');
+    .setProject(projectId);
 
   return {
     client,

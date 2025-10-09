@@ -9,8 +9,26 @@
 import { Client, Databases } from 'node-appwrite';
 import * as dotenv from 'dotenv';
 
+
+
 // Load environment variables
 dotenv.config({ path: '.env.local' });
+
+// Validate required environment variables
+const requiredVars = [
+  'NEXT_PUBLIC_APPWRITE_ENDPOINT',
+  'NEXT_PUBLIC_APPWRITE_PROJECT_ID',
+  'APPWRITE_API_KEY',
+  'NEXT_PUBLIC_APPWRITE_DATABASE_ID',
+  'NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID',
+];
+
+const missingVars = requiredVars.filter(varName => !process.env[varName]);
+if (missingVars.length > 0) {
+  console.error('❌ Missing required environment variables:');
+  missingVars.forEach(varName => console.error(`   - ${varName}`));
+  process.exit(1);
+}
 
 const appwriteClient = new Client()
   .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!)

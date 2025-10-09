@@ -3,13 +3,24 @@ import { TokenRefreshManager } from '../tokenRefresh';
 
 // Mock the appwrite module
 const mockCreateJWT = vi.fn();
+const mockAccountGet = vi.fn();
 vi.mock('../appwrite', () => ({
   createBrowserClient: vi.fn(() => ({
     account: {
       createJWT: mockCreateJWT,
+      get: mockAccountGet,
     },
   })),
 }));
+
+// Helper to create a mock JWT token with exp claim
+function createMockJWT(expiryInSeconds: number): string {
+  // Create a simple base64-encoded JWT with exp claim
+  const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+  const payload = btoa(JSON.stringify({ exp: expiryInSeconds }));
+  const signature = 'mock-signature';
+  return `${header}.${payload}.${signature}`;
+}
 
 describe('TokenRefreshManager', () => {
   let manager: TokenRefreshManager;
@@ -18,6 +29,10 @@ describe('TokenRefreshManager', () => {
     vi.useFakeTimers();
     vi.clearAllMocks();
     mockCreateJWT.mockClear();
+    mockAccountGet.mockClear();
+
+    // Mock account.get() to return a valid user
+    mockAccountGet.mockResolvedValue({ $id: 'test-user-id' });
 
     // Mock document.cookie
     Object.defineProperty(document, 'cookie', {
@@ -98,13 +113,12 @@ describe('TokenRefreshManager', () => {
     });
 
     it('should trigger refresh when timer expires', async () => {
+      const expiryInSeconds = Math.floor(Date.now() / 1000) + 15 * 60;
       mockCreateJWT.mockResolvedValue({
-        jwt: 'new-token',
-        expire: Math.floor(Date.now() / 1000) + 15 * 60,
+        jwt: createMockJWT(expiryInSeconds),
       });
 
       const now = Date.now();
-      const expiryInSeconds = Math.floor(now / 1000) + 15 * 60;
 
       manager.start(expiryInSeconds);
 
@@ -166,21 +180,22 @@ describe('TokenRefreshManager', () => {
     });
 
     it('should succeed on retry if subsequent attempt succeeds', async () => {
+      const expiryInSeconds = Math.floor(Date.now() / 1000) + 15 * 60;
       mockCreateJWT
         .mockRejectedValueOnce(new Error('Network error'))
         .mockResolvedValueOnce({
-          jwt: 'new-token',
-          expire: Math.floor(Date.now() / 1000) + 15 * 60,
+          jwt: createMockJWT(expiryInSeconds),
         });
 
       const refreshPromise = manager.refresh();
       
       // Advance through first retry delay
-      await vi.advanceTimersByTimeAsync(1000);
+      await vi.advanceTimersByTimeAsync(2000);
       
       const result = await refreshPromise;
 
       expect(result).toBe(true);
+      expect(mockAccountGet).toHaveBeenCalled();
       expect(mockCreateJWT).toHaveBeenCalledTimes(2);
     });
 
@@ -211,21 +226,22 @@ describe('TokenRefreshManager', () => {
 
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-      // First failure
+      // First failure - need to advance through all 5 retry attempts with exponential backoff
+      // 2000ms + 4000ms + 8000ms + 16000ms = 30000ms total
       const refresh1 = manager.refresh();
-      await vi.advanceTimersByTimeAsync(3000); // Advance through all retries
+      await vi.advanceTimersByTimeAsync(35000); // Advance through all retries
       await refresh1;
       expect(consoleSpy).not.toHaveBeenCalled();
 
       // Second failure
       const refresh2 = manager.refresh();
-      await vi.advanceTimersByTimeAsync(3000);
+      await vi.advanceTimersByTimeAsync(35000);
       await refresh2;
       expect(consoleSpy).not.toHaveBeenCalled();
 
       // Third failure - should trigger warning
       const refresh3 = manager.refresh();
-      await vi.advanceTimersByTimeAsync(3000);
+      await vi.advanceTimersByTimeAsync(35000);
       await refresh3;
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining('Multiple consecutive refresh failures'),
@@ -241,24 +257,24 @@ describe('TokenRefreshManager', () => {
       // Two failures
       mockCreateJWT.mockRejectedValue(new Error('Network error'));
       const refresh1 = manager.refresh();
-      await vi.advanceTimersByTimeAsync(3000);
+      await vi.advanceTimersByTimeAsync(35000);
       await refresh1;
       
       const refresh2 = manager.refresh();
-      await vi.advanceTimersByTimeAsync(3000);
+      await vi.advanceTimersByTimeAsync(35000);
       await refresh2;
 
       // Success
+      const successExpiry = Math.floor(Date.now() / 1000) + 15 * 60;
       mockCreateJWT.mockResolvedValue({
-        jwt: 'new-token',
-        expire: Math.floor(Date.now() / 1000) + 15 * 60,
+        jwt: createMockJWT(successExpiry),
       });
       await manager.refresh();
 
       // Another failure - should not trigger warning (counter reset)
       mockCreateJWT.mockRejectedValue(new Error('Network error'));
       const refresh3 = manager.refresh();
-      await vi.advanceTimersByTimeAsync(3000);
+      await vi.advanceTimersByTimeAsync(35000);
       await refresh3;
 
       expect(consoleSpy).not.toHaveBeenCalled();
@@ -269,9 +285,9 @@ describe('TokenRefreshManager', () => {
 
   describe('Callback Notifications', () => {
     it('should notify callbacks on successful refresh', async () => {
+      const expiryInSeconds = Math.floor(Date.now() / 1000) + 15 * 60;
       mockCreateJWT.mockResolvedValue({
-        jwt: 'new-token',
-        expire: Math.floor(Date.now() / 1000) + 15 * 60,
+        jwt: createMockJWT(expiryInSeconds),
       });
 
       const callback = vi.fn();
@@ -289,7 +305,7 @@ describe('TokenRefreshManager', () => {
       manager.onRefresh(callback);
 
       const refreshPromise = manager.refresh();
-      await vi.advanceTimersByTimeAsync(3000); // Advance through all retries
+      await vi.advanceTimersByTimeAsync(35000); // Advance through all retries
       await refreshPromise;
 
       expect(callback).toHaveBeenCalledWith(false, expect.any(Error));
@@ -297,9 +313,9 @@ describe('TokenRefreshManager', () => {
     });
 
     it('should notify multiple callbacks', async () => {
+      const expiryInSeconds = Math.floor(Date.now() / 1000) + 15 * 60;
       mockCreateJWT.mockResolvedValue({
-        jwt: 'new-token',
-        expire: Math.floor(Date.now() / 1000) + 15 * 60,
+        jwt: createMockJWT(expiryInSeconds),
       });
 
       const callback1 = vi.fn();
@@ -318,9 +334,9 @@ describe('TokenRefreshManager', () => {
     });
 
     it('should handle callback errors gracefully', async () => {
+      const expiryInSeconds = Math.floor(Date.now() / 1000) + 15 * 60;
       mockCreateJWT.mockResolvedValue({
-        jwt: 'new-token',
-        expire: Math.floor(Date.now() / 1000) + 15 * 60,
+        jwt: createMockJWT(expiryInSeconds),
       });
 
       const errorCallback = vi.fn(() => {
@@ -347,9 +363,9 @@ describe('TokenRefreshManager', () => {
     });
 
     it('should allow removing callbacks', async () => {
+      const expiryInSeconds = Math.floor(Date.now() / 1000) + 15 * 60;
       mockCreateJWT.mockResolvedValue({
-        jwt: 'new-token',
-        expire: Math.floor(Date.now() / 1000) + 15 * 60,
+        jwt: createMockJWT(expiryInSeconds),
       });
 
       const callback = vi.fn();
@@ -364,9 +380,9 @@ describe('TokenRefreshManager', () => {
 
   describe('State Management', () => {
     it('should report refreshing state correctly', async () => {
+      const expiryInSeconds = Math.floor(Date.now() / 1000) + 15 * 60;
       mockCreateJWT.mockResolvedValue({
-        jwt: 'new-token',
-        expire: Math.floor(Date.now() / 1000) + 15 * 60,
+        jwt: createMockJWT(expiryInSeconds),
       });
 
       expect(manager.isRefreshing()).toBe(false);
@@ -442,23 +458,23 @@ describe('TokenRefreshManager', () => {
 
   describe('Cookie Management', () => {
     it('should update cookie with new JWT on successful refresh', async () => {
+      const expiryInSeconds = Math.floor(Date.now() / 1000) + 15 * 60;
+      const mockJWT = createMockJWT(expiryInSeconds);
       mockCreateJWT.mockResolvedValue({
-        jwt: 'new-jwt-token',
-        expire: Math.floor(Date.now() / 1000) + 15 * 60,
+        jwt: mockJWT,
       });
 
       await manager.refresh();
 
-      expect(document.cookie).toContain('appwrite-session=new-jwt-token');
+      expect(document.cookie).toContain(`appwrite-session=${mockJWT}`);
       expect(document.cookie).toContain('path=/');
-      expect(document.cookie).toContain('SameSite=Lax');
+      expect(document.cookie.toLowerCase()).toContain('samesite=lax');
     });
 
     it('should restart timer with new expiry after successful refresh', async () => {
       const newExpiry = Math.floor(Date.now() / 1000) + 15 * 60;
       mockCreateJWT.mockResolvedValue({
-        jwt: 'new-token',
-        expire: newExpiry,
+        jwt: createMockJWT(newExpiry),
       });
 
       await manager.refresh();

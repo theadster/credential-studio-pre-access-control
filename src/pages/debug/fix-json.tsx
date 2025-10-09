@@ -1,65 +1,71 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Textarea } from '@/components/ui/textarea';
-import { CheckCircle2, XCircle, AlertCircle, Loader2, Copy, Save } from 'lucide-react';
+import { XCircle, AlertCircle, Loader2, Copy, Save } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
+import { apiFetch, ApiFetchError } from '@/lib/apiFetch';
+
+interface ErrorContext {
+  before?: string;
+  content: string;
+  after?: string;
+}
+
+interface LineData {
+  lineNumber: number;
+  content: string;
+}
+
+interface SwitchboardTemplateData {
+  requestBody?: string;
+  parseError?: string;
+  errorLine?: number;
+  errorColumn?: number;
+  errorContext?: ErrorContext;
+  suggestions?: string[];
+  lines?: LineData[];
+}
 
 export default function FixSwitchboardJson() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<SwitchboardTemplateData | null>(null);
   const [editedJson, setEditedJson] = useState('');
   const { toast } = useToast();
 
-  const loadTemplate = async () => {
+  const loadTemplate = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/integrations/fix-switchboard-json');
-      const result = await response.json();
-      
-      if (!response.ok) {
-        toast({
-          variant: 'destructive',
-          title: 'Error',
-          description: result.error || 'Failed to load template'
-        });
-        return;
-      }
-
+      const result = await apiFetch<SwitchboardTemplateData>('/api/integrations/fix-switchboard-json');
       setData(result);
-      setEditedJson(result.requestBody);
+      setEditedJson(result.requestBody || '');
     } catch (err) {
+      const errorMessage = err instanceof ApiFetchError
+        ? err.message
+        : err instanceof Error
+          ? err.message
+          : 'Unknown error';
+
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: err instanceof Error ? err.message : 'Unknown error'
+        description: errorMessage
       });
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
   const saveTemplate = async () => {
     setSaving(true);
     try {
-      const response = await fetch('/api/integrations/fix-switchboard-json', {
+      await apiFetch('/api/integrations/fix-switchboard-json', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ requestBody: editedJson })
       });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        toast({
-          variant: 'destructive',
-          title: 'Error',
-          description: result.details || result.error || 'Failed to save'
-        });
-        return;
-      }
 
       toast({
         title: 'Success',
@@ -69,10 +75,16 @@ export default function FixSwitchboardJson() {
       // Reload to show updated data
       await loadTemplate();
     } catch (err) {
+      const errorMessage = err instanceof ApiFetchError
+        ? err.message
+        : err instanceof Error
+          ? err.message
+          : 'Unknown error';
+
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: err instanceof Error ? err.message : 'Unknown error'
+        description: errorMessage
       });
     } finally {
       setSaving(false);
@@ -87,24 +99,41 @@ export default function FixSwitchboardJson() {
         title: 'Success',
         description: 'JSON formatted successfully!'
       });
-    } catch (e: any) {
+    } catch (e) {
+      const error = e as Error;
       toast({
         variant: 'destructive',
         title: 'Invalid JSON',
-        description: e.message
+        description: error.message
       });
     }
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast({
-      title: 'Copied',
-      description: 'Copied to clipboard'
-    });
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({
+        title: 'Copied',
+        description: 'Copied to clipboard'
+      });
+    } catch (err) {
+      toast({
+        variant: 'destructive',
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({
+        title: 'Copied',
+        description: 'Copied to clipboard'
+      });
+    } catch (err) {
+      toast({
+        variant: 'destructive',
+        title: 'Failed to copy',
+        description: 'Unable to access clipboard'
+      });
+    }
   };
-
-  const useExampleTemplate = () => {
     const example = {
       "template_id": "{{template_id}}",
       "data": {
@@ -124,7 +153,7 @@ export default function FixSwitchboardJson() {
 
   useEffect(() => {
     loadTemplate();
-  }, []);
+  }, [loadTemplate]);
 
   if (loading) {
     return (
@@ -161,18 +190,18 @@ export default function FixSwitchboardJson() {
                       <div className="bg-black/10 p-3 rounded font-mono text-xs space-y-1">
                         {data.errorContext.before && (
                           <div className="text-gray-600">
-                            {data.errorLine - 1}: {data.errorContext.before}
+                            {(data.errorLine ?? 0) - 1}: {data.errorContext.before}
                           </div>
                         )}
                         <div className="text-red-600 font-bold">
                           {data.errorLine}: {data.errorContext.content}
                           <span className="inline-block ml-1">
-                            {' '.repeat(Math.max(0, data.errorColumn - 1))}↑
+                            {' '.repeat(Math.max(0, (data.errorColumn ?? 0) - 1))}↑
                           </span>
                         </div>
                         {data.errorContext.after && (
                           <div className="text-gray-600">
-                            {data.errorLine + 1}: {data.errorContext.after}
+                            {(data.errorLine ?? 0) + 1}: {data.errorContext.after}
                           </div>
                         )}
                       </div>
@@ -184,7 +213,7 @@ export default function FixSwitchboardJson() {
           )}
 
           {/* Suggestions */}
-          {data.suggestions && (
+          {data.suggestions && data.suggestions.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -194,7 +223,7 @@ export default function FixSwitchboardJson() {
               </CardHeader>
               <CardContent>
                 <ul className="list-disc list-inside space-y-1 text-sm">
-                  {data.suggestions.map((suggestion: string, index: number) => (
+                  {data.suggestions.map((suggestion, index) => (
                     <li key={index}>{suggestion}</li>
                   ))}
                 </ul>
@@ -218,9 +247,9 @@ export default function FixSwitchboardJson() {
                 <Button onClick={useExampleTemplate} variant="outline" size="sm">
                   Use Example Template
                 </Button>
-                <Button 
-                  onClick={() => copyToClipboard(editedJson)} 
-                  variant="outline" 
+                <Button
+                  onClick={() => copyToClipboard(editedJson)}
+                  variant="outline"
                   size="sm"
                 >
                   <Copy className="h-4 w-4 mr-2" />
@@ -240,41 +269,50 @@ export default function FixSwitchboardJson() {
                   {editedJson.length} characters, {editedJson.split('\n').length} lines
                 </div>
                 <Button onClick={saveTemplate} disabled={saving}>
-                  {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  <Save className="mr-2 h-4 w-4" />
-                  Save Template
+                  {saving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      Save Template
+                    </>
+                  )}
                 </Button>
               </div>
             </CardContent>
           </Card>
 
-          {/* Original Template with Line Numbers */}
-          <details>
-            <summary className="cursor-pointer text-sm font-medium mb-2">
-              View Original Template with Line Numbers
-            </summary>
-            <Card>
-              <CardContent className="pt-6">
-                <div className="bg-gray-50 p-4 rounded font-mono text-xs overflow-x-auto">
-                  {data.lines.map((line: any) => (
-                    <div 
-                      key={line.lineNumber}
-                      className={`${
-                        line.lineNumber === data.errorLine 
-                          ? 'bg-red-100 text-red-900 font-bold' 
+          {/* Original Template Display */}
+          {data.lines && data.lines.length > 0 && (
+            <details className="group">
+              <summary className="cursor-pointer text-sm font-medium mb-2">
+                View Original Template with Line Numbers
+              </summary>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="bg-gray-50 p-4 rounded font-mono text-xs overflow-x-auto">
+                    {data.lines.map((line) => (
+                      <div
+                        key={line.lineNumber}
+                        className={`${line.lineNumber === data.errorLine
+                          ? 'bg-red-100 text-red-900 font-bold'
                           : ''
-                      }`}
-                    >
-                      <span className="text-gray-400 select-none mr-4">
-                        {String(line.lineNumber).padStart(3, ' ')}
-                      </span>
-                      <span>{line.content}</span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </details>
+                          }`}
+                      >
+                        <span className="text-gray-400 select-none mr-4">
+                          {String(line.lineNumber).padStart(3, ' ')}
+                        </span>
+                        <span>{line.content}</span>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </details>
+          )}
         </div>
       )}
     </div>

@@ -280,7 +280,10 @@ describe('Migration Script Validation', () => {
 
       const userExists = await mockGetUser(userId)
         .then(() => true)
-        .catch((e: any) => e.code === 404 ? false : true);
+        .catch((e: any) => {
+          if (e.code === 404) return false;
+          throw e;
+        });
 
       expect(userExists).toBe(true);
     });
@@ -290,7 +293,10 @@ describe('Migration Script Validation', () => {
 
       const userExists = await mockGetUser('non-existent')
         .then(() => true)
-        .catch((e: any) => e.code === 404 ? false : true);
+        .catch((e: any) => {
+          if (e.code === 404) return false;
+          throw e;
+        });
 
       expect(userExists).toBe(false);
     });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import AuthUserSearch, { AppwriteAuthUser } from './AuthUserSearch';
 import AuthUserList from './AuthUserList';
 import { useApiError } from '@/hooks/useApiError';
+
+// Module-level constant for team ID to avoid repeated environment lookups during render
+const PROJECT_TEAM_ID = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_TEAM_ID;
 
 interface User {
   id: string;
@@ -89,13 +92,8 @@ export default function UserForm({ isOpen, onClose, onSave, user, roles, mode = 
   }, [user, isOpen, mode]);
 
   // Fetch initial auth users when in link mode
-  useEffect(() => {
-    if (isOpen && mode === 'link') {
-      fetchAuthUsers();
-    }
-  }, [isOpen, mode]);
-
-  const fetchAuthUsers = async () => {
+  // Memoized fetch function for authenticated users
+  const fetchAuthUsers = useCallback(async () => {
     setSearchLoading(true);
     try {
       // Use fetchWithRetry for automatic retry (Requirement 7.5)
@@ -104,7 +102,7 @@ export default function UserForm({ isOpen, onClose, onSave, user, roles, mode = 
         body: JSON.stringify({
           q: '',
           page: 1,
-          limit: 25
+          limit: 25,
         }),
       });
       setAuthUsers(data.users);
@@ -114,7 +112,14 @@ export default function UserForm({ isOpen, onClose, onSave, user, roles, mode = 
     } finally {
       setSearchLoading(false);
     }
-  };
+  }, [fetchWithRetry]);
+
+  // Fetch initial auth users when in link mode
+  useEffect(() => {
+    if (isOpen && mode === 'link') {
+      fetchAuthUsers();
+    }
+  }, [isOpen, mode, fetchAuthUsers]);
 
   const handleAuthUserSelect = (authUser: AppwriteAuthUser) => {
     setSelectedAuthUser(authUser);
@@ -179,9 +184,16 @@ export default function UserForm({ isOpen, onClose, onSave, user, roles, mode = 
           return;
         }
 
-        // Email validation
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(formData.email)) {
+        // Email validation with comprehensive RFC-5322 style regex
+        const trimmedEmail = formData.email.trim();
+        // Comprehensive email regex that prevents common invalid patterns:
+        // - No consecutive dots
+        // - No dots at start/end of local part
+        // - Valid characters in local and domain parts
+        // - Proper domain structure with TLD
+        const emailRegex = /^[a-zA-Z0-9]([a-zA-Z0-9._+-]*[a-zA-Z0-9])?@[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)+$/;
+
+        if (!trimmedEmail || !emailRegex.test(trimmedEmail)) {
           handleError(
             { error: 'Please enter a valid email address', code: 'VALIDATION_ERROR' },
             'Please enter a valid email address'
@@ -202,7 +214,7 @@ export default function UserForm({ isOpen, onClose, onSave, user, roles, mode = 
 
         await onSave(formData);
       }
-      
+
       onClose();
     } catch (error: any) {
       console.error('Error saving user:', error);
@@ -273,7 +285,7 @@ export default function UserForm({ isOpen, onClose, onSave, user, roles, mode = 
                   selectedUserId={selectedAuthUser?.$id}
                   linkedUserIds={[]}
                 />
-                
+
                 <AuthUserList
                   users={authUsers}
                   selectedUserId={selectedAuthUser?.$id}
@@ -314,8 +326,8 @@ export default function UserForm({ isOpen, onClose, onSave, user, roles, mode = 
               {/* Role Selection */}
               <div className="space-y-2">
                 <Label htmlFor="role">Role *</Label>
-                <Select 
-                  value={formData.roleId} 
+                <Select
+                  value={formData.roleId}
                   onValueChange={(value) => {
                     console.log('Role selected (link mode):', value);
                     handleChange('roleId', value);
@@ -355,12 +367,12 @@ export default function UserForm({ isOpen, onClose, onSave, user, roles, mode = 
               </div>
 
               {/* Optional Team Membership */}
-              {process.env.NEXT_PUBLIC_APPWRITE_PROJECT_TEAM_ID && (
+              {PROJECT_TEAM_ID && (
                 <div className="flex items-center space-x-2 p-3 border rounded-md">
                   <Checkbox
                     id="addToTeam"
                     checked={formData.addToTeam}
-                    onCheckedChange={(checked) => 
+                    onCheckedChange={(checked) =>
                       setFormData(prev => ({ ...prev, addToTeam: checked as boolean }))
                     }
                   />
@@ -408,8 +420,8 @@ export default function UserForm({ isOpen, onClose, onSave, user, roles, mode = 
 
               <div className="space-y-2">
                 <Label htmlFor="role-edit">Role *</Label>
-                <Select 
-                  value={formData.roleId} 
+                <Select
+                  value={formData.roleId}
                   onValueChange={(value) => {
                     console.log('Role selected (edit mode):', value);
                     if (value) {

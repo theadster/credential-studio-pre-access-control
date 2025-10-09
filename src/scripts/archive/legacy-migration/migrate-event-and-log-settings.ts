@@ -4,10 +4,20 @@
  * This script migrates only Event Settings and Log Settings collections
  * with the correct attribute mappings for Appwrite.
  * 
+ * SCHEMA: Uses the same consolidated schema as complete-event-settings-migration.ts
+ * - 16 total attributes for Event Settings
+ * - Core fields: eventName, eventDate, eventTime, eventLocation, timeZone, eventLogo
+ * - Barcode: barcodeType, barcodeLength, barcodeUnique
+ * - Switchboard: enableSwitchboard, switchboardApiKey, switchboardTemplateId, switchboardFieldMappings
+ * - Consolidated JSON: cloudinaryConfig, oneSimpleApiConfig, additionalSettings
+ * 
+ * NOTE: This script assumes all attributes already exist in the collection.
+ * If attributes are missing, run complete-event-settings-migration.ts first.
+ * 
  * Usage: npx tsx src/scripts/migrate-event-and-log-settings.ts
  */
 
-import { Client, Databases, ID } from 'node-appwrite';
+import { Client, Databases, ID, Query } from 'node-appwrite';
 import { PrismaClient } from '@prisma/client';
 import * as dotenv from 'dotenv';
 
@@ -67,17 +77,36 @@ function handleError(category: keyof MigrationStats, error: any, context: string
 async function clearCollection(collectionId: string, collectionName: string) {
   try {
     log(`Clearing existing ${collectionName}...`, 'info');
-    const response = await appwriteDatabases.listDocuments(DATABASE_ID, collectionId);
-    
-    for (const doc of response.documents) {
-      try {
-        await appwriteDatabases.deleteDocument(DATABASE_ID, collectionId, doc.$id);
-      } catch (error: any) {
-        log(`Failed to delete document ${doc.$id}: ${error.message}`, 'warn');
+    let totalDeleted = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const response = await appwriteDatabases.listDocuments(
+        DATABASE_ID,
+        collectionId,
+        [Query.limit(100)]
+      );
+
+      for (const doc of response.documents) {
+        try {
+          await appwriteDatabases.deleteDocument(
+            DATABASE_ID,
+            collectionId,
+            doc.$id
+          );
+          totalDeleted++;
+        } catch (error: any) {
+          log(
+            `Failed to delete document ${doc.$id}: ${error.message}`,
+            'warn'
+          );
+        }
       }
+
+      hasMore = response.documents.length === 100;
     }
-    
-    log(`Cleared ${response.documents.length} documents from ${collectionName}`, 'success');
+
+    log(`Cleared ${totalDeleted} documents from ${collectionName}`, 'success');
   } catch (error: any) {
     log(`Error clearing ${collectionName}: ${error.message}`, 'error');
   }
@@ -85,15 +114,11 @@ async function clearCollection(collectionId: string, collectionName: string) {
 
 /**
  * Migrate Event Settings
- * Maps Prisma schema to Appwrite attributes:
- * - eventName -> eventName
- * - barcodeType -> barcodeType
- * - barcodeLength -> barcodeLength
- * - switchboardEnabled -> enableSwitchboard
- * - switchboardApiKey -> switchboardApiKey
- * - switchboardTemplateId -> switchboardTemplateId
- * - switchboardFieldMappings -> switchboardFieldMappings
- * - bannerImageUrl -> eventLogo
+ * Maps Prisma schema to Appwrite attributes with complete field mapping:
+ * Core fields: eventName, eventDate, eventTime, eventLocation, timeZone, eventLogo
+ * Barcode: barcodeType, barcodeLength, barcodeUnique
+ * Switchboard: enableSwitchboard, switchboardApiKey, switchboardTemplateId, switchboardFieldMappings
+ * Consolidated JSON: cloudinaryConfig, oneSimpleApiConfig, additionalSettings
  */
 async function migrateEventSettings() {
   log('Starting Event Settings migration...', 'info');
@@ -104,23 +129,77 @@ async function migrateEventSettings() {
     
     for (const settings of eventSettings) {
       try {
-        // Map to Appwrite attributes (only the ones that exist in Appwrite)
+        // Consolidate Cloudinary settings into JSON
+        const cloudinaryConfig = {
+          enabled: settings.cloudinaryEnabled ?? false,
+          cloudName: settings.cloudinaryCloudName || '',
+          apiKey: settings.cloudinaryApiKey || '',
+          apiSecret: settings.cloudinaryApiSecret || '',
+          uploadPreset: settings.cloudinaryUploadPreset || '',
+          autoOptimize: settings.cloudinaryAutoOptimize ?? false,
+          generateThumbnails: settings.cloudinaryGenerateThumbnails ?? false,
+          disableSkipCrop: settings.cloudinaryDisableSkipCrop ?? false,
+          cropAspectRatio: settings.cloudinaryCropAspectRatio || '1',
+        };
+
+        // Consolidate OneSimpleAPI settings into JSON
+        const oneSimpleApiConfig = {
+          enabled: settings.oneSimpleApiEnabled ?? false,
+          url: settings.oneSimpleApiUrl || '',
+          formDataKey: settings.oneSimpleApiFormDataKey || '',
+          formDataValue: settings.oneSimpleApiFormDataValue || '',
+          recordTemplate: settings.oneSimpleApiRecordTemplate || '',
+        };
+
+        // Consolidate additional settings into JSON
+        const additionalSettings = {
+          forceFirstNameUppercase: settings.forceFirstNameUppercase ?? false,
+          forceLastNameUppercase: settings.forceLastNameUppercase ?? false,
+          attendeeSortField: settings.attendeeSortField || 'lastName',
+          attendeeSortDirection: settings.attendeeSortDirection || 'asc',
+          bannerImageUrl: settings.bannerImageUrl || '',
+          signInBannerUrl: settings.signInBannerUrl || '',
+        };
+
+        // Prepare complete document data with all required fields
+        const documentData: any = {
+          // Core event info
+          eventName: settings.eventName || '',
+          eventDate: settings.eventDate ? settings.eventDate.toISOString() : new Date().toISOString(),
+          eventTime: settings.eventTime || '',
+          eventLocation: settings.eventLocation || '',
+          timeZone: settings.timeZone || 'UTC',
+          eventLogo: settings.bannerImageUrl || '',
+
+          // Barcode settings
+          barcodeType: settings.barcodeType || 'numerical',
+          barcodeLength: settings.barcodeLength || 6,
+          barcodeUnique: settings.barcodeUnique ?? true,
+
+          // Switchboard settings
+          enableSwitchboard: settings.switchboardEnabled ?? false,
+          switchboardApiKey: settings.switchboardApiKey || '',
+          switchboardTemplateId: settings.switchboardTemplateId || '',
+          switchboardFieldMappings: JSON.stringify({
+            ...(typeof settings.switchboardFieldMappings === 'object' && settings.switchboardFieldMappings !== null
+              ? settings.switchboardFieldMappings
+              : {}),
+            apiEndpoint: settings.switchboardApiEndpoint || '',
+            authHeaderType: settings.switchboardAuthHeaderType || 'Bearer',
+            requestBody: settings.switchboardRequestBody || '',
+          }),
+
+          // Consolidated JSON fields (must be stringified for Appwrite)
+          cloudinaryConfig: JSON.stringify(cloudinaryConfig),
+          oneSimpleApiConfig: JSON.stringify(oneSimpleApiConfig),
+          additionalSettings: JSON.stringify(additionalSettings),
+        };
+
         await appwriteDatabases.createDocument(
           DATABASE_ID,
           COLLECTIONS.eventSettings,
           settings.id,
-          {
-            eventName: settings.eventName || '',
-            eventLogo: settings.bannerImageUrl || '',
-            barcodeType: settings.barcodeType || 'numerical',
-            barcodeLength: settings.barcodeLength || 6,
-            enableSwitchboard: settings.switchboardEnabled || false,
-            switchboardApiKey: settings.switchboardApiKey || '',
-            switchboardTemplateId: settings.switchboardTemplateId || '',
-            switchboardFieldMappings: settings.switchboardFieldMappings 
-              ? JSON.stringify(settings.switchboardFieldMappings) 
-              : '{}',
-          }
+          documentData
         );
         
         stats.eventSettings.success++;

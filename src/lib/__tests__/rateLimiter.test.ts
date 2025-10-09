@@ -9,6 +9,7 @@ describe('RateLimiter', () => {
   });
 
   afterEach(() => {
+    rateLimiter.destroy();
     vi.useRealTimers();
   });
 

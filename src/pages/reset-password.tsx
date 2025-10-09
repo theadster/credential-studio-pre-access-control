@@ -13,12 +13,15 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 
 const ResetPasswordPage = () => {
   const router = useRouter();
-  const { updatePassword } = useContext(AuthContext);
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [sessionReady, setSessionReady] = useState(false);
+  const [urlParams, setUrlParams] = useState<{ userId: string | null; secret: string | null }>({
+    userId: null,
+    secret: null,
+  });
   const { toast } = useToast();
 
   // Handle auth session from URL parameters
@@ -26,10 +29,13 @@ const ResetPasswordPage = () => {
     const handleAuthSession = async () => {
       try {
         // Check if we have URL parameters for auth (Appwrite recovery flow)
-        const urlParams = new URLSearchParams(window.location.search);
-        const userId = urlParams.get('userId');
-        const secret = urlParams.get('secret');
-        
+        const params = new URLSearchParams(window.location.search);
+        const userId = params.get('userId');
+        const secret = params.get('secret');
+
+        // Store parsed params in state
+        setUrlParams({ userId, secret });
+
         if (userId && secret) {
           // Appwrite sends userId and secret in the recovery URL
           setSessionReady(true);
@@ -69,10 +75,8 @@ const ResetPasswordPage = () => {
           throw new Error('Session not ready. Please try again.');
         }
 
-        // Get URL parameters for Appwrite recovery
-        const urlParams = new URLSearchParams(window.location.search);
-        const userId = urlParams.get('userId');
-        const secret = urlParams.get('secret');
+        // Use parsed URL parameters from state
+        const { userId, secret } = urlParams;
 
         if (!userId || !secret) {
           throw new Error('Invalid reset link parameters.');

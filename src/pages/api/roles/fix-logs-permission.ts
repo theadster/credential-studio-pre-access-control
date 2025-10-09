@@ -58,7 +58,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const superAdminRole = superAdminRoleDocs.documents[0];
 
     // Parse current permissions
-    const currentPermissions = JSON.parse(superAdminRole.permissions);
+    let currentPermissions;
+    try {
+      currentPermissions = JSON.parse(superAdminRole.permissions);
+    } catch (parseError) {
+      console.error('Error parsing role permissions:', parseError);
+      return res.status(500).json({
+        error: 'Role permissions data is corrupted',
+        details: 'Unable to parse permissions JSON'
+      });
+    }
 
     // Check if logs delete permission is already present
     if (currentPermissions?.logs?.delete === true) {

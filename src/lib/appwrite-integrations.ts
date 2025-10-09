@@ -5,7 +5,7 @@
  * integration collections (Cloudinary, Switchboard, OneSimpleAPI)
  */
 
-import { Databases, Query } from 'appwrite';
+import { Databases, Query } from 'node-appwrite';
 
 const DATABASE_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
 const CLOUDINARY_COLLECTION_ID = process.env.NEXT_PUBLIC_APPWRITE_CLOUDINARY_COLLECTION_ID!;
@@ -38,8 +38,8 @@ export interface CloudinaryIntegration {
   version: number;
   enabled: boolean;
   cloudName: string;
-  apiKey: string;
-  apiSecret: string;
+  // SECURITY: API credentials removed from database schema
+  // Use CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET environment variables
   uploadPreset: string;
   autoOptimize: boolean;
   generateThumbnails: boolean;
@@ -54,7 +54,8 @@ export interface SwitchboardIntegration {
   enabled: boolean;
   apiEndpoint: string;
   authHeaderType: string;
-  apiKey: string;
+  // SECURITY: API key removed from database schema
+  // Use SWITCHBOARD_API_KEY environment variable
   requestBody: string;
   templateId: string;
   fieldMappings: string; // JSON string
@@ -88,7 +89,7 @@ export interface EventSettingsWithIntegrations {
   attendeeSortDirection: string;
   bannerImageUrl: string;
   signInBannerUrl: string;
-  
+
   // Integration data
   cloudinary?: CloudinaryIntegration;
   switchboard?: SwitchboardIntegration;
@@ -108,11 +109,17 @@ export async function getCloudinaryIntegration(
       CLOUDINARY_COLLECTION_ID,
       [Query.equal('eventSettingsId', eventSettingsId), Query.limit(1)]
     );
-    
+
     return response.documents.length > 0 ? (response.documents[0] as any) : null;
-  } catch (error) {
+  } catch (error: any) {
+    // Return null only for not-found errors (404 or collection doesn't exist)
+    if (error.code === 404 || error.code === 'document_not_found' || error.code === 'collection_not_found') {
+      return null;
+    }
+
+    // For all other errors (network, permission, etc.), log and re-throw
     console.error('Error fetching Cloudinary integration:', error);
-    return null;
+    throw error;
   }
 }
 
@@ -129,11 +136,17 @@ export async function getSwitchboardIntegration(
       SWITCHBOARD_COLLECTION_ID,
       [Query.equal('eventSettingsId', eventSettingsId), Query.limit(1)]
     );
-    
+
     return response.documents.length > 0 ? (response.documents[0] as any) : null;
-  } catch (error) {
+  } catch (error: any) {
+    // Return null only for not-found errors (404 or collection doesn't exist)
+    if (error.code === 404 || error.code === 'document_not_found' || error.code === 'collection_not_found') {
+      return null;
+    }
+
+    // For all other errors (network, permission, etc.), log and re-throw
     console.error('Error fetching Switchboard integration:', error);
-    return null;
+    throw error;
   }
 }
 
@@ -150,11 +163,17 @@ export async function getOneSimpleApiIntegration(
       ONESIMPLEAPI_COLLECTION_ID,
       [Query.equal('eventSettingsId', eventSettingsId), Query.limit(1)]
     );
-    
+
     return response.documents.length > 0 ? (response.documents[0] as any) : null;
-  } catch (error) {
+  } catch (error: any) {
+    // Return null only for not-found errors (404 or collection doesn't exist)
+    if (error.code === 404 || error.code === 'document_not_found' || error.code === 'collection_not_found') {
+      return null;
+    }
+
+    // For all other errors (network, permission, etc.), log and re-throw
     console.error('Error fetching OneSimpleAPI integration:', error);
-    return null;
+    throw error;
   }
 }
 
@@ -167,21 +186,21 @@ export async function getEventSettingsWithIntegrations(
 ): Promise<EventSettingsWithIntegrations | null> {
   try {
     const eventSettingsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID!;
-    
+
     // Fetch event settings
     const eventSettings = await databases.getDocument(
       DATABASE_ID,
       eventSettingsCollectionId,
       eventSettingsId
     );
-    
+
     // Fetch all integrations in parallel
     const [cloudinary, switchboard, oneSimpleApi] = await Promise.all([
       getCloudinaryIntegration(databases, eventSettingsId),
       getSwitchboardIntegration(databases, eventSettingsId),
       getOneSimpleApiIntegration(databases, eventSettingsId),
     ]);
-    
+
     return {
       ...(eventSettings as any),
       cloudinary: cloudinary || undefined,
@@ -220,11 +239,11 @@ async function updateIntegrationWithLocking<T extends { $id: string; version: nu
   try {
     // Fetch existing integration
     const existing = await getExisting();
-    
+
     if (existing) {
       // Update existing integration with version check
       const currentVersion = existing.version || 0;
-      
+
       // If expectedVersion is provided, verify it matches current version
       if (expectedVersion !== undefined && currentVersion !== expectedVersion) {
         throw new IntegrationConflictError(
@@ -234,7 +253,7 @@ async function updateIntegrationWithLocking<T extends { $id: string; version: nu
           currentVersion
         );
       }
-      
+
       // Update with incremented version
       const updated = await databases.updateDocument(
         DATABASE_ID,
@@ -261,22 +280,52 @@ async function updateIntegrationWithLocking<T extends { $id: string; version: nu
         );
         return created as unknown as T;
       } catch (createError: any) {
-        // Handle concurrent create conflicts - retry as update
+        // Handle concurrent create conflicts - retry as update with bounded retries
         if (createError.code === 409 || createError.message?.includes('duplicate')) {
-          // Another request created it concurrently, retry as update
-          const existing = await getExisting();
-          if (existing) {
-            const updated = await databases.updateDocument(
-              DATABASE_ID,
-              collectionId,
-              existing.$id,
-              {
-                ...data,
-                version: (existing.version || 0) + 1
+          const maxRetries = 3;
+          let lastError = createError;
+
+          for (let attempt = 0; attempt < maxRetries; attempt++) {
+            try {
+              // Re-fetch to get the latest version
+              const existing = await getExisting();
+
+              if (!existing) {
+                // Document was deleted between create and now, re-throw original error
+                console.warn(`${integrationType} integration was deleted during concurrent create retry`);
+                throw createError;
               }
-            );
-            return updated as unknown as T;
+
+              // Attempt update with latest version
+              const updated = await databases.updateDocument(
+                DATABASE_ID,
+                collectionId,
+                existing.$id,
+                {
+                  ...data,
+                  version: (existing.version || 0) + 1
+                }
+              );
+              return updated as unknown as T;
+            } catch (updateError: any) {
+              lastError = updateError;
+
+              // If this is a conflict error and we have retries left, continue
+              if ((updateError.code === 409 || updateError.message?.includes('conflict')) && attempt < maxRetries - 1) {
+                // Exponential backoff: 50ms, 100ms, 200ms
+                const backoffMs = 50 * Math.pow(2, attempt);
+                await new Promise(resolve => setTimeout(resolve, backoffMs));
+                continue;
+              }
+
+              // Otherwise, break and throw
+              break;
+            }
           }
+
+          // All retries exhausted, throw the last error
+          console.error(`${integrationType} integration update failed after ${maxRetries} retries`);
+          throw lastError;
         }
         throw createError;
       }
@@ -286,7 +335,7 @@ async function updateIntegrationWithLocking<T extends { $id: string; version: nu
     if (error instanceof IntegrationConflictError) {
       throw error;
     }
-    
+
     // Wrap other errors with context
     console.error(`Error updating ${integrationType} integration:`, error);
     throw new Error(
@@ -331,6 +380,7 @@ export async function updateCloudinaryIntegration(
  * @param expectedVersion - Optional version for optimistic locking
  * @returns The created or updated integration document
  * @throws IntegrationConflictError when version mismatch is detected
+ * @throws Error when requestBody contains invalid JSON
  */
 export async function updateSwitchboardIntegration(
   databases: Databases,
@@ -338,6 +388,19 @@ export async function updateSwitchboardIntegration(
   data: Partial<Omit<SwitchboardIntegration, '$id' | 'eventSettingsId' | 'version'>>,
   expectedVersion?: number
 ): Promise<SwitchboardIntegration> {
+  // Validate requestBody JSON if provided
+  if (data.requestBody !== undefined && data.requestBody !== null && data.requestBody !== '') {
+    try {
+      JSON.parse(data.requestBody);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown JSON parse error';
+      throw new Error(
+        `Invalid JSON in Switchboard requestBody template. ${errorMessage}. ` +
+        `Please ensure the template is valid JSON before saving.`
+      );
+    }
+  }
+
   return updateIntegrationWithLocking<SwitchboardIntegration>(
     databases,
     SWITCHBOARD_COLLECTION_ID,
@@ -382,14 +445,16 @@ export async function updateOneSimpleApiIntegration(
  */
 export function flattenEventSettings(settings: EventSettingsWithIntegrations): any {
   const { cloudinary, switchboard, oneSimpleApi, ...coreSettings } = settings;
-  
+
   return {
     ...coreSettings,
     // Cloudinary fields
     cloudinaryEnabled: cloudinary?.enabled || false,
     cloudinaryCloudName: cloudinary?.cloudName || '',
-    cloudinaryApiKey: cloudinary?.apiKey || '',
-    cloudinaryApiSecret: cloudinary?.apiSecret || '',
+    // SECURITY: API credentials are NOT stored in database
+    // They must be read from environment variables at runtime
+    // cloudinaryApiKey: cloudinary?.apiKey || '',
+    // cloudinaryApiSecret: cloudinary?.apiSecret || '',
     cloudinaryUploadPreset: cloudinary?.uploadPreset || '',
     cloudinaryAutoOptimize: cloudinary?.autoOptimize || false,
     cloudinaryGenerateThumbnails: cloudinary?.generateThumbnails || false,
@@ -399,11 +464,20 @@ export function flattenEventSettings(settings: EventSettingsWithIntegrations): a
     switchboardEnabled: switchboard?.enabled || false,
     switchboardApiEndpoint: switchboard?.apiEndpoint || '',
     switchboardAuthHeaderType: switchboard?.authHeaderType || '',
-    switchboardApiKey: switchboard?.apiKey || '',
+    // SECURITY: API key is NOT stored in database
+    // It must be read from environment variables at runtime
+    // switchboardApiKey: switchboard?.apiKey || '',
     switchboardRequestBody: switchboard?.requestBody || '',
     switchboardTemplateId: switchboard?.templateId || '',
-    switchboardFieldMappings: switchboard?.fieldMappings && switchboard.fieldMappings !== '' 
-      ? JSON.parse(switchboard.fieldMappings) 
+    switchboardFieldMappings: switchboard?.fieldMappings && switchboard.fieldMappings !== ''
+      ? (() => {
+        try {
+          return JSON.parse(switchboard.fieldMappings);
+        } catch (e) {
+          console.error('Error parsing switchboard field mappings:', e);
+          return [];
+        }
+      })()
       : [],
     // OneSimpleAPI fields
     oneSimpleApiEnabled: oneSimpleApi?.enabled || false,

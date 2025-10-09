@@ -54,21 +54,27 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     }
 
     // Log the reorder action
-    await databases.createDocument(
-      dbId,
-      logsCollectionId,
-      ID.unique(),
-      {
-        userId: user.$id,
-        action: 'update',
-        details: JSON.stringify({ 
-          type: 'custom_fields_reorder',
-          fieldCount: fieldOrders.length,
-          successCount: updated.length,
-          errorCount: errors.length
-        })
-      }
-    );
+    try {
+      await databases.createDocument(
+        dbId,
+        logsCollectionId,
+        ID.unique(),
+        {
+          userId: user.$id,
+          action: 'update',
+          details: JSON.stringify({ 
+            type: 'custom_fields_reorder',
+            fieldCount: fieldOrders.length,
+            successCount: updated.length,
+            errorCount: errors.length
+          })
+        }
+      );
+    } catch (logError: unknown) {
+      const errorMessage = logError instanceof Error ? logError.message : 'Unknown error';
+      console.error('Error creating log:', errorMessage);
+      // Continue even if logging fails
+    }
 
     // Return success if all updates succeeded, or partial success with errors
     if (errors.length === 0) {

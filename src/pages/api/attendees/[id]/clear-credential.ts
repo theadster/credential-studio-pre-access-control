@@ -1,6 +1,6 @@
 import { NextApiResponse } from 'next';
 import { createSessionClient } from '@/lib/appwrite';
-import { ID } from 'appwrite';
+import { ID } from 'node-appwrite';
 import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
 
 export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
@@ -32,29 +32,29 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     }
 
     // Check if attendee exists
-    const existingAttendee = await databases.getDocument(dbId, attendeesCollectionId, id);
-
-    if (!existingAttendee) {
-      return res.status(404).json({ error: 'Attendee not found' });
-    }
+    const existingAttendee = await databases.getDocument({
+      databaseId: dbId,
+      collectionId: attendeesCollectionId,
+      documentId: id
+    });
 
     // Clear the credential URL and timestamp
-    const updatedAttendee = await databases.updateDocument(
-      dbId,
-      attendeesCollectionId,
-      id,
-      {
+    const updatedAttendee = await databases.updateDocument({
+      databaseId: dbId,
+      collectionId: attendeesCollectionId,
+      documentId: id,
+      data: {
         credentialUrl: null,
         credentialGeneratedAt: null
       }
-    );
+    });
 
     // Log the activity
-    await databases.createDocument(
-      dbId,
-      logsCollectionId,
-      ID.unique(),
-      {
+    await databases.createDocument({
+      databaseId: dbId,
+      collectionId: logsCollectionId,
+      documentId: ID.unique(),
+      data: {
         userId: user.$id,
         attendeeId: id,
         action: 'clear_credential',
@@ -64,7 +64,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           previousCredentialUrl: existingAttendee.credentialUrl
         })
       }
-    );
+    });
 
     res.status(200).json({
       message: 'Credential cleared successfully',
@@ -73,14 +73,14 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
   } catch (error: any) {
     console.error('Error clearing credential:', error);
-    
+
     // Handle Appwrite-specific errors
     if (error.code === 401) {
       return res.status(401).json({ error: 'Unauthorized' });
     } else if (error.code === 404) {
       return res.status(404).json({ error: 'Resource not found' });
     }
-    
+
     res.status(500).json({ error: 'Failed to clear credential' });
   }
 });

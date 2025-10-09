@@ -1,15 +1,53 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { CheckCircle2, XCircle, AlertCircle, Loader2 } from 'lucide-react';
 
+interface FieldMapping {
+  fieldId: string;
+  jsonVariable?: string;
+  valueMapping?: Record<string, any>;
+  fieldType?: string;
+}
+
+interface SwitchboardTestResult {
+  status?: 'valid' | 'invalid';
+  issues?: string[];
+  integration?: {
+    enabled: boolean;
+    apiEndpoint?: string;
+    hasApiKey: boolean;
+    apiKeyLength: number;
+    authHeaderType?: string;
+    templateId?: string;
+    requestBody?: {
+      configured: boolean;
+      valid: boolean;
+      error?: string | null;
+      length: number;
+      preview?: string;
+      placeholders?: string[];
+    };
+    fieldMappings?: {
+      configured: boolean;
+      valid: boolean;
+      error?: string | null;
+      count: number;
+      mappings?: FieldMapping[];
+    };
+  };
+  help?: string;
+  error?: string;
+  details?: string;
+}
+
 export default function DebugSwitchboard() {
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<SwitchboardTestResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const testConfiguration = async () => {
+  const testConfiguration = useCallback(async () => {
     setLoading(true);
     setError(null);
     setResult(null);
@@ -29,11 +67,11 @@ export default function DebugSwitchboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     testConfiguration();
-  }, []);
+  }, [testConfiguration]);
 
   return (
     <div className="container mx-auto py-8 max-w-4xl">
@@ -94,7 +132,7 @@ export default function DebugSwitchboard() {
               </CardHeader>
               <CardContent>
                 <ul className="list-disc list-inside space-y-2">
-                  {result.issues.map((issue: string, index: number) => (
+                  {result.issues.map((issue, index) => (
                     <li key={index} className="text-sm text-red-600">
                       {issue}
                     </li>
@@ -177,7 +215,7 @@ export default function DebugSwitchboard() {
                           <span className="text-red-600">✗ Invalid JSON</span>
                         )}
                       </div>
-                      
+
                       {result.integration.requestBody.error && (
                         <Alert variant="destructive">
                           <AlertTitle>JSON Parse Error</AlertTitle>
@@ -195,7 +233,7 @@ export default function DebugSwitchboard() {
                         <div>
                           <div className="text-sm font-medium mb-1">Detected Placeholders:</div>
                           <div className="flex flex-wrap gap-1">
-                            {result.integration.requestBody.placeholders.map((p: string, i: number) => (
+                            {result.integration.requestBody.placeholders.map((p, i) => (
                               <code key={i} className="text-xs bg-gray-100 px-2 py-1 rounded">
                                 {p}
                               </code>
@@ -245,17 +283,17 @@ export default function DebugSwitchboard() {
                         Mappings: {result.integration.fieldMappings.count}
                       </div>
 
-                      {result.integration.fieldMappings.mappings && 
-                       result.integration.fieldMappings.mappings.length > 0 && (
-                        <details className="mt-2">
-                          <summary className="cursor-pointer text-sm font-medium">
-                            View Mappings
-                          </summary>
-                          <pre className="mt-2 p-4 bg-gray-50 rounded text-xs overflow-x-auto">
-                            {JSON.stringify(result.integration.fieldMappings.mappings, null, 2)}
-                          </pre>
-                        </details>
-                      )}
+                      {result.integration.fieldMappings.mappings &&
+                        result.integration.fieldMappings.mappings.length > 0 && (
+                          <details className="mt-2">
+                            <summary className="cursor-pointer text-sm font-medium">
+                              View Mappings
+                            </summary>
+                            <pre className="mt-2 p-4 bg-gray-50 rounded text-xs overflow-x-auto">
+                              {JSON.stringify(result.integration.fieldMappings.mappings, null, 2)}
+                            </pre>
+                          </details>
+                        )}
                     </div>
                   </div>
                 )}

@@ -468,20 +468,23 @@ describe('TabCoordinator', () => {
     });
 
     it('should clean up localStorage messages after posting', async () => {
-      vi.useRealTimers();
+      vi.useFakeTimers();
       
       const fallbackCoordinator = createTabCoordinator();
 
-      await fallbackCoordinator.requestRefresh();
+      const refreshPromise = fallbackCoordinator.requestRefresh();
 
-      // Wait for cleanup timeout
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Advance timers to trigger cleanup timeout
+      await vi.advanceTimersByTimeAsync(100);
+      
+      // Flush any pending promises
+      await refreshPromise;
 
       expect(localStorage.removeItem).toHaveBeenCalledWith('token-refresh');
 
       fallbackCoordinator.cleanup();
       
-      vi.useFakeTimers();
+      vi.useRealTimers();
     });
 
     it('should handle localStorage errors gracefully', async () => {

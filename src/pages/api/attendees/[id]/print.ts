@@ -1,11 +1,12 @@
 import { NextApiResponse } from 'next';
 import { createSessionClient } from '@/lib/appwrite';
-import { ID } from 'appwrite';
+import { ID, Query } from 'node-appwrite';
 import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
+import { validateAppwriteEnv } from '@/lib/envValidation';
 
 export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   const { id } = req.query;
-  
+
   if (!id || typeof id !== 'string') {
     return res.status(400).json({ error: 'Invalid attendee ID' });
   }
@@ -16,6 +17,18 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
   }
 
   try {
+    // Validate environment variables
+    try {
+      const validation = validateAppwriteEnv();
+      if (!validation.isValid) {
+        console.error('Missing required environment variables:', validation.missingVars);
+        return res.status(500).json({ error: 'Server configuration error' });
+      }
+    } catch (error) {
+      console.error('Environment validation error:', error);
+      return res.status(500).json({ error: 'Server configuration error' });
+    }
+
     // User and userProfile are already attached by middleware
     const { user, userProfile } = req;
     const { databases } = createSessionClient(req);
@@ -34,24 +47,46 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     }
 
     // Get attendee details
-    const attendee = await databases.getDocument(dbId, attendeesCollectionId, id);
+    const attendee = await databases.getDocument({
+      databaseId: dbId,
+      collectionId: attendeesCollectionId,
+      documentId: id
+    });
 
     if (!attendee) {
       return res.status(404).json({ error: 'Attendee not found' });
     }
 
-    // Get event settings for Switchboard configuration
-    const eventSettingsDocs = await databases.listDocuments(dbId, eventSettingsCollectionId);
+    // Get event settings
+    const eventSettingsDocs = await databases.listDocuments({
+      databaseId: dbId,
+      collectionId: eventSettingsCollectionId,
+      queries: [Query.limit(1)]
+    });
     const eventSettings = eventSettingsDocs.documents[0];
-    
-    if (!eventSettings || !eventSettings.switchboardApiKey || !eventSettings.switchboardTemplateId) {
-      return res.status(400).json({ error: 'Switchboard Canvas not configured' });
+
+    // Verify Switchboard configuration
+    if (!process.env.SWITCHBOARD_API_KEY) {
+      console.error('SWITCHBOARD_API_KEY environment variable is not configured');
+      return res.status(500).json({ error: 'Switchboard Canvas API key not configured' });
+    }
+
+    if (!eventSettings || !eventSettings.switchboardTemplateId) {
+      return res.status(400).json({ error: 'Switchboard Canvas template not configured' });
     }
 
     // Parse custom field values
-    const customFieldValues = attendee.customFieldValues ? 
-      (typeof attendee.customFieldValues === 'string' ? 
-        JSON.parse(attendee.customFieldValues) : attendee.customFieldValues) : {};
+    let customFieldValues = {};
+    try {
+      customFieldValues = attendee.customFieldValues
+        ? (typeof attendee.customFieldValues === 'string'
+          ? JSON.parse(attendee.customFieldValues)
+          : attendee.customFieldValues)
+        : {};
+    } catch (parseError) {
+      console.error('Failed to parse customFieldValues:', parseError);
+      // Continue with empty object as fallback
+    }
 
     // Prepare data for Switchboard Canvas
     const switchboardData = {
@@ -78,7 +113,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     const switchboardResponse = await fetch('https://api.switchboard.ai/v1/render', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${eventSettings.switchboardApiKey}`,
+        'Authorization': `Bearer ${process.env.SWITCHBOARD_API_KEY}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(switchboardData)
@@ -93,15 +128,15 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     const switchboardResult = await switchboardResponse.json();
 
     // Log the print action
-    await databases.createDocument(
-      dbId,
-      logsCollectionId,
-      ID.unique(),
-      {
+    await databases.createDocument({
+      databaseId: dbId,
+      collectionId: logsCollectionId,
+      documentId: ID.unique(),
+      data: {
         userId: user.$id,
         attendeeId: attendee.$id,
         action: 'print',
-        details: JSON.stringify({ 
+        details: JSON.stringify({
           type: 'credential',
           firstName: attendee.firstName,
           lastName: attendee.lastName,
@@ -110,7 +145,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           imageUrl: switchboardResult.url || switchboardResult.image_url
         })
       }
-    );
+    });
 
     return res.status(200).json({
       success: true,
@@ -129,14 +164,14 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
   } catch (error: any) {
     console.error('Print API Error:', error);
-    
+
     // Handle Appwrite-specific errors
     if (error.code === 401) {
       return res.status(401).json({ error: 'Unauthorized' });
     } else if (error.code === 404) {
       return res.status(404).json({ error: 'Resource not found' });
     }
-    
+
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

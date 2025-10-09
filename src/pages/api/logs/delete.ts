@@ -11,7 +11,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     // Create session client
     const { account, databases } = createSessionClient(req);
-    
+
     // Verify authentication
     const user = await account.get();
 
@@ -36,7 +36,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
         userProfile.roleId
       );
-      
+
       // Parse permissions JSON
       try {
         role.permissions = JSON.parse(role.permissions);
@@ -68,14 +68,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       queries.push(Query.equal('userId', userId));
     }
 
-    // Fetch all logs that match the criteria
-    // Note: We need to fetch in batches since Appwrite has a limit
-    let allLogsToDelete: any[] = [];
-    let hasMore = true;
+    // Process and delete logs in batches to avoid memory issues
+    // Fetch each batch and immediately delete it instead of accumulating
+    let deletedCount = 0;
+    let totalProcessed = 0;
+    const errors: any[] = [];
     let offset = 0;
     const batchSize = 100;
+    const deletionConcurrency = 10; // Process deletions in parallel batches
 
-    while (hasMore) {
+    while (true) {
       const batchQueries = [...queries, Query.limit(batchSize), Query.offset(offset)];
       const logsResponse = await databases.listDocuments(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
@@ -83,58 +85,82 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         batchQueries
       );
 
-      allLogsToDelete = allLogsToDelete.concat(logsResponse.documents);
-      
-      if (logsResponse.documents.length < batchSize) {
-        hasMore = false;
-      } else {
-        offset += batchSize;
+      const currentBatch = logsResponse.documents;
+
+      if (currentBatch.length === 0) {
+        break; // No more documents to process
       }
-    }
 
-    const logsToDeleteCount = allLogsToDelete.length;
+      totalProcessed += currentBatch.length;
 
-    // Delete the logs one by one
-    let deletedCount = 0;
-    const errors: any[] = [];
+      // Delete current batch with controlled concurrency
+      for (let i = 0; i < currentBatch.length; i += deletionConcurrency) {
+        const chunk = currentBatch.slice(i, i + deletionConcurrency);
+        const deletePromises = chunk.map(async (log) => {
+          try {
+            await databases.deleteDocument(
+              process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+              process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+              log.$id
+            );
+            return { success: true };
+          } catch (error: any) {
+            console.error(`Error deleting log ${log.$id}:`, error);
+            return { success: false, id: log.$id, error: error.message };
+          }
+        });
 
-    for (const log of allLogsToDelete) {
-      try {
-        await databases.deleteDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
-          log.$id
-        );
-        deletedCount++;
-      } catch (error: any) {
-        console.error(`Error deleting log ${log.$id}:`, error);
-        errors.push({ id: log.$id, error: error.message });
+        const results = await Promise.all(deletePromises);
+
+        // Count successes and collect errors
+        results.forEach((result) => {
+          if (result.success) {
+            deletedCount++;
+          } else {
+            errors.push({ id: result.id, error: result.error });
+          }
+        });
       }
+
+      // Check if we've processed all documents
+      if (currentBatch.length < batchSize) {
+        break; // Last batch processed
+      }
+
+      // Continue with next batch (offset stays at 0 since we're deleting documents)
+      // Note: After deletion, the next batch will be at offset 0
+      offset = 0;
     }
 
     // Log this deletion activity
-    await databases.createDocument(
-      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-      process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
-      ID.unique(),
-      {
-        action: 'delete_logs',
-        userId: user.$id,
-        attendeeId: null,
-        details: JSON.stringify({
-          type: 'logs',
-          filters: { beforeDate, action, userId },
-          deletedCount,
-          expectedCount: logsToDeleteCount,
-          errors: errors.length > 0 ? errors : undefined
-        })
-      }
-    );
+    try {
+      await databases.createDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+        ID.unique(),
+        {
+          action: 'delete_logs',
+          userId: user.$id,
+          attendeeId: null,
+          details: JSON.stringify({
+            type: 'logs',
+            filters: { beforeDate, action, userId },
+            deletedCount,
+            totalProcessed,
+            errors: errors.length > 0 ? errors : undefined
+          })
+        }
+      );
+    } catch (logError: any) {
+      console.error('Failed to log deletion activity:', logError);
+      // Continue with response even if logging fails
+    }
 
-    res.status(200).json({ 
-      success: true, 
+    res.status(200).json({
+      success: true,
       deletedCount,
-      message: `Successfully deleted ${deletedCount} log entries`,
+      totalProcessed,
+      message: `Successfully deleted ${deletedCount} of ${totalProcessed} log entries`,
       errors: errors.length > 0 ? errors : undefined
     });
 

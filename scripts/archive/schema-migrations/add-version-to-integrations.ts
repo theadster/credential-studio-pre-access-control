@@ -2,7 +2,7 @@
 /**
  * Add Version Attribute to Integration Collections
  * 
- * This script adds the version attribute (integer, required, default: 1)
+ * This script adds the version attribute (integer, not required, default: 1)
  * to the three integration collections:
  * - Cloudinary
  * - Switchboard

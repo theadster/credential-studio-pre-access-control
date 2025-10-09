@@ -64,7 +64,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       userProfile = userDocs.documents[0];
 
       // Verify the email matches
-      if (userProfile.email !== email) {
+      if (userProfile.email.toLowerCase() !== email.toLowerCase()) {
         return res.status(400).json({ error: 'Email does not match invitation' });
       }
 

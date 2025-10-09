@@ -26,13 +26,13 @@ export function useTokenRefresh() {
     if (isTokenRefreshing()) {
       console.log('[useTokenRefresh] Token refresh already in progress, waiting...');
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
+
       // Check if still refreshing after wait
       if (isTokenRefreshing()) {
         console.warn('[useTokenRefresh] Token refresh taking too long');
         return false;
       }
-      
+
       return true;
     }
 
@@ -42,7 +42,7 @@ export function useTokenRefresh() {
 
     if (!success) {
       console.error('[useTokenRefresh] Token refresh failed');
-      
+
       toast({
         variant: "destructive",
         title: "Session Error",
@@ -51,9 +51,11 @@ export function useTokenRefresh() {
       });
 
       // Preserve current URL for post-login redirect
-      sessionStorage.setItem('returnUrl', router.asPath);
+      if (typeof window !== 'undefined' && window.sessionStorage) {
+        sessionStorage.setItem('returnUrl', router.asPath);
+      }
       router.push('/login');
-      
+
       return false;
     }
 
@@ -68,7 +70,7 @@ export function useTokenRefresh() {
    */
   const withFreshToken = async <T>(apiCall: () => Promise<T>): Promise<T> => {
     const tokenReady = await ensureFreshToken();
-    
+
     if (!tokenReady) {
       throw new Error('Token refresh failed - session expired');
     }

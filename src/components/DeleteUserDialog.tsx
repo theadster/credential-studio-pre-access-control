@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,14 +31,26 @@ interface DeleteUserDialogProps {
 export default function DeleteUserDialog({ isOpen, onClose, onConfirm, user }: DeleteUserDialogProps) {
   const [deleteOption, setDeleteOption] = useState<'full' | 'unlink'>('full');
   const [isDeleting, setIsDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setDeleteOption('full');
+      setIsDeleting(false);
+      setError(null);
+    }
+  }, [isOpen]);
 
   const handleConfirm = async () => {
+    setError(null);
     setIsDeleting(true);
     try {
       await onConfirm(deleteOption === 'full');
       onClose();
-    } catch (error) {
-      console.error('Error deleting user:', error);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      setError(errorMessage);
+      console.error('Error deleting user:', err);
     } finally {
       setIsDeleting(false);
     }
@@ -46,6 +58,8 @@ export default function DeleteUserDialog({ isOpen, onClose, onConfirm, user }: D
 
   const handleOpenChange = (open: boolean) => {
     if (!open && !isDeleting) {
+      setDeleteOption('full');
+      setError(null);
       onClose();
     }
   };
@@ -66,35 +80,39 @@ export default function DeleteUserDialog({ isOpen, onClose, onConfirm, user }: D
         </AlertDialogHeader>
 
         <div className="space-y-4 py-4">
-          <RadioGroup value={deleteOption} onValueChange={(value) => setDeleteOption(value as 'full' | 'unlink')}>
+          <RadioGroup value={deleteOption} onValueChange={(value) => {
+            if (value === 'full' || value === 'unlink') {
+              setDeleteOption(value);
+            }
+          }}>
             <div className="space-y-3">
               {/* Full Delete Option */}
-              <div className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-accent/50 cursor-pointer">
+              <label htmlFor="full" className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-accent/50 cursor-pointer">
                 <RadioGroupItem value="full" id="full" className="mt-1" />
                 <div className="flex-1">
-                  <Label htmlFor="full" className="cursor-pointer font-medium flex items-center gap-2">
+                  <div className="font-medium flex items-center gap-2">
                     <Trash2 className="h-4 w-4" />
                     Full Delete (Recommended)
-                  </Label>
+                  </div>
                   <p className="text-sm text-muted-foreground mt-1">
                     Remove user from both the database and authentication system. The user will need to create a new account to access the system again.
                   </p>
                 </div>
-              </div>
+              </label>
 
               {/* Unlink Option */}
-              <div className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-accent/50 cursor-pointer">
+              <label htmlFor="unlink" className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-accent/50 cursor-pointer">
                 <RadioGroupItem value="unlink" id="unlink" className="mt-1" />
                 <div className="flex-1">
-                  <Label htmlFor="unlink" className="cursor-pointer font-medium flex items-center gap-2">
+                  <div className="font-medium flex items-center gap-2">
                     <Unlink className="h-4 w-4" />
                     Unlink Only
-                  </Label>
+                  </div>
                   <p className="text-sm text-muted-foreground mt-1">
                     Remove user from the database only. Their authentication account will remain active, and they can be re-linked later.
                   </p>
                 </div>
-              </div>
+              </label>
             </div>
           </RadioGroup>
 
@@ -114,6 +132,16 @@ export default function DeleteUserDialog({ isOpen, onClose, onConfirm, user }: D
             </AlertDescription>
           </Alert>
         </div>
+
+        {/* Error Alert */}
+        {error && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription className="text-sm">
+              <strong>Error:</strong> {error}
+            </AlertDescription>
+          </Alert>
+        )}
 
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>

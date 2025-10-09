@@ -126,10 +126,12 @@ interface EventSettings {
   oneSimpleApiUrl?: string;
   switchboardEnabled?: boolean;
   switchboardApiEndpoint?: string;
-  switchboardApiKey?: string;
+  // DEPRECATED: API key no longer stored in database
+  // switchboardApiKey?: string;
   cloudinaryEnabled?: boolean;
   cloudinaryCloudName?: string;
-  cloudinaryApiKey?: string;
+  // DEPRECATED: Credentials no longer stored in database
+  // cloudinaryApiKey?: string;
   cloudinaryUploadPreset?: string;
   customFields: {
     id: string;
@@ -3785,7 +3787,8 @@ export default function Dashboard() {
                                   <div className="font-medium">Cloudinary Integration</div>
                                   <div className="text-xs text-muted-foreground">
                                     {eventSettings?.cloudinaryEnabled ? 'Active' : 'Disabled'}
-                                    {eventSettings?.cloudinaryEnabled && eventSettings?.cloudinaryCloudName && eventSettings?.cloudinaryApiKey && eventSettings?.cloudinaryUploadPreset ? ' - Fully Configured' : eventSettings?.cloudinaryEnabled ? ' - Incomplete Configuration' : ''}
+                                    {/* SECURITY: API credentials configured via environment variables */}
+                                    {eventSettings?.cloudinaryEnabled && eventSettings?.cloudinaryCloudName && eventSettings?.cloudinaryUploadPreset ? ' - Configured' : eventSettings?.cloudinaryEnabled ? ' - Incomplete Configuration' : ''}
                                   </div>
                                 </div>
                               </div>
@@ -3802,7 +3805,8 @@ export default function Dashboard() {
                                   <div className="font-medium">Switchboard Canvas Integration</div>
                                   <div className="text-xs text-muted-foreground">
                                     {eventSettings?.switchboardEnabled ? 'Active' : 'Disabled'}
-                                    {eventSettings?.switchboardEnabled && eventSettings?.switchboardApiEndpoint && eventSettings?.switchboardApiKey ? ' - Fully Configured' : eventSettings?.switchboardEnabled ? ' - Incomplete Configuration' : ''}
+                                    {/* SECURITY: API key configured via environment variables */}
+                                    {eventSettings?.switchboardEnabled && eventSettings?.switchboardApiEndpoint ? ' - Configured' : eventSettings?.switchboardEnabled ? ' - Incomplete Configuration' : ''}
                                   </div>
                                 </div>
                               </div>
@@ -4298,6 +4302,8 @@ export default function Dashboard() {
       </main>
 
       {/* Attendee Form Modal */}
+      {/* Note: For optimal performance, consider memoizing customFields with useMemo 
+          to prevent unnecessary form re-initializations when eventSettings changes */}
       <AttendeeForm
         isOpen={showAttendeeForm}
         onClose={() => {

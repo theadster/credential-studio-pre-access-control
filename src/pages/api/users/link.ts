@@ -2,6 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { ID, Query } from 'appwrite';
 import { createSessionClient, createAdminClient } from '@/lib/appwrite';
 import { hasPermission } from '@/lib/permissions';
+import { invalidateRoleUserCount } from '@/lib/roleUserCountCache';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -111,6 +112,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         isInvited: false
       }
     );
+
+    // Invalidate cache for the assigned role
+    if (roleId) {
+      invalidateRoleUserCount(roleId);
+    }
 
     // Handle team membership if requested
     let teamMembershipStatus = null;
@@ -272,9 +278,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   } catch (error: any) {
     console.error('API Error:', error);
-    return res.status(500).json({ 
+    return res.status(500).json({
       error: 'Internal server error',
-      details: error.message 
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 }

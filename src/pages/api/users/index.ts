@@ -5,18 +5,39 @@ import { hasPermission } from '@/lib/permissions';
 import { shouldLog } from '@/lib/logSettings';
 import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
 import { ApiError, ErrorCode, handleApiError, validateInput, withRetry } from '@/lib/errorHandling';
+import { invalidateRoleUserCount } from '@/lib/roleUserCountCache';
+
+/**
+ * Safely parse role permissions from string or return as-is if already an object
+ * @param permissions - The permissions value (string or object)
+ * @returns Parsed permissions object or empty object on failure
+ */
+function parseRolePermissions(permissions: unknown): Record<string, any> {
+  if (typeof permissions === 'string') {
+    try {
+      return JSON.parse(permissions);
+    } catch (error) {
+      console.warn('Failed to parse role permissions:', error);
+      return {};
+    }
+  }
+  if (typeof permissions === 'object' && permissions !== null) {
+    return permissions as Record<string, any>;
+  }
+  return {};
+}
 
 export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   // User and userProfile are already attached by middleware
   const { user, userProfile } = req;
   const { databases } = createSessionClient(req);
-  
+
   // Extract role from userProfile for permission checks
   const role = userProfile.role ? {
     ...userProfile.role,
     permissions: userProfile.role.permissions
   } : null;
-  
+
   console.log('Role from middleware:', role);
 
   try {
@@ -30,11 +51,15 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           return res.status(403).json({ error: 'Insufficient permissions to view users' });
         }
 
-        // Fetch all users
+        // Parse pagination parameters from query
+        const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
+        const offset = parseInt(req.query.offset as string) || 0;
+
+        // Fetch users with pagination
         const usersResponse = await databases.listDocuments(
           process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
           process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
-          [Query.orderDesc('$createdAt'), Query.limit(100)]
+          [Query.orderDesc('$createdAt'), Query.limit(limit), Query.offset(offset)]
         );
 
         // Fetch roles for each user
@@ -65,9 +90,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
                 id: userRole.$id,
                 name: userRole.name,
                 description: userRole.description,
-                permissions: typeof userRole.permissions === 'string' 
-                  ? JSON.parse(userRole.permissions) 
-                  : userRole.permissions
+                permissions: parseRolePermissions(userRole.permissions)
               } : null
             };
           })
@@ -87,7 +110,16 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           );
         }
 
-        return res.status(200).json(usersWithRoles);
+        // Return users with pagination metadata
+        return res.status(200).json({
+          users: usersWithRoles,
+          pagination: {
+            total: usersResponse.total,
+            limit,
+            offset,
+            hasMore: offset + usersWithRoles.length < usersResponse.total
+          }
+        });
 
       case 'POST':
         // Check create permission for users
@@ -186,11 +218,16 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             }
           );
 
+          // Invalidate cache for the assigned role
+          if (roleId) {
+            invalidateRoleUserCount(roleId);
+          }
+
           // Handle team membership if requested
           let teamMembershipStatus = null;
           if (addToTeam && process.env.APPWRITE_TEAM_MEMBERSHIP_ENABLED === 'true') {
             const teamId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_TEAM_ID;
-            
+
             if (!teamId) {
               console.warn('Team membership requested but NEXT_PUBLIC_APPWRITE_PROJECT_TEAM_ID is not configured');
               teamMembershipStatus = {
@@ -207,8 +244,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
                   'Viewer': ['member']
                 };
 
-                const teamRoles = teamRole 
-                  ? [teamRole] 
+                const teamRoles = teamRole
+                  ? [teamRole]
                   : (userRole?.name ? roleMapping[userRole.name] || ['member'] : ['member']);
 
                 // Create team membership using admin client
@@ -326,9 +363,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
               id: userRole.$id,
               name: userRole.name,
               description: userRole.description,
-              permissions: typeof userRole.permissions === 'string' 
-                ? JSON.parse(userRole.permissions) 
-                : userRole.permissions
+              permissions: parseRolePermissions(userRole.permissions)
             } : null
           };
 
@@ -374,6 +409,13 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           }
         }
 
+        // Get current user to check for role changes
+        const currentUserDoc = await databases.getDocument(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+          id
+        );
+
         // Update user in database
         const updateData: any = {};
         if (updateName !== undefined) updateData.name = updateName;
@@ -385,6 +427,14 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           id,
           updateData
         );
+
+        // Invalidate cache for both old and new roles if role changed
+        if (updateRoleId !== undefined && currentUserDoc.roleId !== updateRoleId) {
+          const rolesToInvalidate = [currentUserDoc.roleId, updateRoleId].filter(Boolean);
+          if (rolesToInvalidate.length > 0) {
+            invalidateRoleUserCount(rolesToInvalidate);
+          }
+        }
 
         // Log the update action (Requirement 9.7)
         await databases.createDocument(
@@ -428,9 +478,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             id: updatedRole.$id,
             name: updatedRole.name,
             description: updatedRole.description,
-            permissions: typeof updatedRole.permissions === 'string' 
-              ? JSON.parse(updatedRole.permissions) 
-              : updatedRole.permissions
+            permissions: parseRolePermissions(updatedRole.permissions)
           } : null
         });
 
@@ -471,11 +519,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         // Remove from team if requested
         if (removeFromTeam && process.env.APPWRITE_TEAM_MEMBERSHIP_ENABLED === 'true') {
           const teamId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_TEAM_ID;
-          
+
           if (teamId) {
             try {
               const deleteAdminClient = createAdminClient();
-              
+
               // Find the user's membership in the team
               const memberships = await deleteAdminClient.teams.listMemberships({
                 teamId,
@@ -484,7 +532,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
               if (memberships.memberships.length > 0) {
                 const membershipId = memberships.memberships[0].$id;
-                
+
                 // Delete the membership
                 await deleteAdminClient.teams.deleteMembership({
                   teamId,
@@ -593,13 +641,13 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           }
         );
 
-        const message = deleteFromAuth 
-          ? (deletedFromAuth 
-              ? 'User deleted successfully from both database and authentication' 
-              : 'User deleted from database only (authentication deletion failed)')
+        const message = deleteFromAuth
+          ? (deletedFromAuth
+            ? 'User deleted successfully from both database and authentication'
+            : 'User deleted from database only (authentication deletion failed)')
           : 'User unlinked from database (authentication account preserved)';
 
-        return res.status(200).json({ 
+        return res.status(200).json({
           message,
           deletedFromAuth,
           deletedFromDatabase: true,

@@ -1,19 +1,29 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2 } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Loader2, AlertCircle } from 'lucide-react';
 
 export default function DebugFieldMappings() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         const response = await fetch('/api/integrations/test-template-processing');
         const result = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(result.error || `Failed to fetch data: ${response.status}`);
+        }
+        
         setData(result);
+        setError(null);
       } catch (err) {
-        console.error(err);
+        const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
+        console.error('Error fetching field mappings:', err);
+        setError(errorMessage);
       } finally {
         setLoading(false);
       }
@@ -25,6 +35,20 @@ export default function DebugFieldMappings() {
     return (
       <div className="container mx-auto py-8 flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container mx-auto py-8 max-w-6xl">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error Loading Field Mappings</AlertTitle>
+          <AlertDescription>
+            {error}
+          </AlertDescription>
+        </Alert>
       </div>
     );
   }
@@ -91,7 +115,7 @@ export default function DebugFieldMappings() {
                 const field = customFieldsAvailable.find((f: any) => f.id === mapping.fieldId);
                 const hasValue = customFieldValues[mapping.fieldId] !== undefined;
                 const value = customFieldValues[mapping.fieldId];
-                
+
                 return (
                   <div key={index} className="border rounded p-4">
                     <div className="grid grid-cols-2 gap-2 text-sm mb-2">
@@ -115,7 +139,7 @@ export default function DebugFieldMappings() {
                         )}
                       </div>
                     </div>
-                    
+
                     {mapping.valueMapping && (
                       <div className="mt-2 pt-2 border-t">
                         <div className="font-medium text-sm mb-1">Value Mappings:</div>

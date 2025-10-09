@@ -9,22 +9,18 @@
  */
 
 import { Client, Databases } from 'node-appwrite';
-import { PrismaClient } from '@prisma/client';
 import * as dotenv from 'dotenv';
 
 // Load environment variables
 dotenv.config({ path: '.env.local' });
 
-const prisma = new PrismaClient();
-
-const appwriteClient = new Client()
+// Initialize Appwrite client
+const client = new Client()
   .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!)
   .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!)
   .setKey(process.env.APPWRITE_API_KEY!);
 
-const appwriteDatabases = new Databases(appwriteClient);
-
-// Collection IDs
+const appwriteDatabases = new Databases(client);
 const DATABASE_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
 const EVENT_SETTINGS_COLLECTION_ID = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID!;
 
@@ -45,25 +41,25 @@ function log(message: string, type: 'info' | 'success' | 'error' | 'warn' = 'inf
  */
 async function addMissingAttributes() {
   log('Adding missing attributes to Event Settings collection...', 'info');
-  
+
   const attributesToAdd = [
     // Core event info
     { name: 'eventDate', type: 'datetime', required: false },
     { name: 'eventTime', type: 'string', size: 50, required: false },
     { name: 'eventLocation', type: 'string', size: 500, required: false },
     { name: 'timeZone', type: 'string', size: 100, required: false },
-    
+
     // Barcode settings (barcodeType and barcodeLength already exist)
     { name: 'barcodeUnique', type: 'boolean', required: false, default: true },
-    
+
     // Name formatting
     { name: 'forceFirstNameUppercase', type: 'boolean', required: false, default: false },
     { name: 'forceLastNameUppercase', type: 'boolean', required: false, default: false },
-    
+
     // Attendee sorting
     { name: 'attendeeSortField', type: 'string', size: 50, required: false },
     { name: 'attendeeSortDirection', type: 'string', size: 10, required: false },
-    
+
     // Cloudinary settings
     { name: 'cloudinaryEnabled', type: 'boolean', required: false, default: false },
     { name: 'cloudinaryCloudName', type: 'string', size: 255, required: false },
@@ -74,27 +70,27 @@ async function addMissingAttributes() {
     { name: 'cloudinaryGenerateThumbnails', type: 'boolean', required: false, default: false },
     { name: 'cloudinaryDisableSkipCrop', type: 'boolean', required: false, default: false },
     { name: 'cloudinaryCropAspectRatio', type: 'string', size: 20, required: false },
-    
+
     // Switchboard settings (some already exist)
     { name: 'switchboardApiEndpoint', type: 'string', size: 500, required: false },
     { name: 'switchboardAuthHeaderType', type: 'string', size: 50, required: false },
     { name: 'switchboardRequestBody', type: 'string', size: 10000, required: false },
-    
+
     // OneSimpleAPI settings
     { name: 'oneSimpleApiEnabled', type: 'boolean', required: false, default: false },
     { name: 'oneSimpleApiUrl', type: 'string', size: 500, required: false },
     { name: 'oneSimpleApiFormDataKey', type: 'string', size: 255, required: false },
     { name: 'oneSimpleApiFormDataValue', type: 'string', size: 255, required: false },
     { name: 'oneSimpleApiRecordTemplate', type: 'string', size: 10000, required: false },
-    
+
     // Banner images
     { name: 'signInBannerUrl', type: 'string', size: 1000, required: false },
   ];
-  
+
   let added = 0;
   let skipped = 0;
   let failed = 0;
-  
+
   for (const attr of attributesToAdd) {
     try {
       if (attr.type === 'string') {
@@ -128,10 +124,10 @@ async function addMissingAttributes() {
           attr.required
         );
       }
-      
+
       added++;
       log(`Added attribute: ${attr.name}`, 'success');
-      
+
       // Wait a bit between attribute creations to avoid rate limiting
       await new Promise(resolve => setTimeout(resolve, 500));
     } catch (error: any) {
@@ -144,9 +140,9 @@ async function addMissingAttributes() {
       }
     }
   }
-  
+
   log(`\nAttribute creation summary: ${added} added, ${skipped} skipped, ${failed} failed`, 'info');
-  
+
   if (added > 0) {
     log('\n⏳ Waiting 10 seconds for Appwrite to process new attributes...', 'info');
     await new Promise(resolve => setTimeout(resolve, 10000));
@@ -157,10 +153,20 @@ async function addMissingAttributes() {
  * Clear existing Event Settings documents
  */
 async function clearEventSettings() {
+  // Add confirmation check
+  if (process.env.NODE_ENV === 'production') {
+    log('⚠️  Running in production environment. This will delete all Event Settings documents.', 'warn');
+    log('Set CONFIRM_DELETE=true to proceed', 'warn');
+    if (process.env.CONFIRM_DELETE !== 'true') {
+      log('Aborting data clearing. Set CONFIRM_DELETE=true to proceed.', 'error');
+      process.exit(1);
+    }
+  }
+
   try {
     log('Clearing existing Event Settings documents...', 'info');
     const response = await appwriteDatabases.listDocuments(DATABASE_ID, EVENT_SETTINGS_COLLECTION_ID);
-    
+
     for (const doc of response.documents) {
       try {
         await appwriteDatabases.deleteDocument(DATABASE_ID, EVENT_SETTINGS_COLLECTION_ID, doc.$id);
@@ -168,7 +174,7 @@ async function clearEventSettings() {
         log(`Failed to delete document ${doc.$id}: ${error.message}`, 'warn');
       }
     }
-    
+
     log(`Cleared ${response.documents.length} documents`, 'success');
   } catch (error: any) {
     log(`Error clearing Event Settings: ${error.message}`, 'error');
@@ -177,19 +183,24 @@ async function clearEventSettings() {
 
 /**
  * Migrate Event Settings data
+ * NOTE: This function requires Prisma/Supabase data source which is no longer available
  */
 async function migrateEventSettings() {
   log('\nStarting Event Settings data migration...', 'info');
-  
+  log('⚠️  This migration requires the old Prisma database connection', 'warn');
+  log('Migration has already been completed. This is archived for reference only.', 'info');
+  return;
+
+  // ARCHIVED CODE - Requires Prisma
+  /*
   let success = 0;
   let failed = 0;
   const errors: string[] = [];
   
-  try {
-    const eventSettings = await prisma.eventSettings.findMany();
-    log(`Found ${eventSettings.length} event settings to migrate`, 'info');
-    
-    for (const settings of eventSettings) {
+  // Fetch from Prisma (no longer available)
+  const eventSettings = await prisma.eventSettings.findMany();
+  
+  for (const settings of eventSettings) {
       try {
         // Prepare the document data with all fields
         const documentData: any = {
@@ -247,22 +258,20 @@ async function migrateEventSettings() {
           signInBannerUrl: settings.signInBannerUrl || '',
         };
         
-        await appwriteDatabases.createDocument(
-          DATABASE_ID,
-          EVENT_SETTINGS_COLLECTION_ID,
-          settings.id,
-          documentData
-        );
-        
-        success++;
-        log(`✅ Migrated: ${settings.eventName}`, 'success');
-        
-        // Log all the fields being migrated for verification
-        log(`   - Event Date: ${settings.eventDate.toISOString()}`, 'info');
-        log(`   - Location: ${settings.eventLocation}`, 'info');
-        log(`   - Barcode: ${settings.barcodeType} (${settings.barcodeLength} digits)`, 'info');
-        log(`   - Cloudinary: ${settings.cloudinaryEnabled ? 'Enabled' : 'Disabled'}`, 'info');
-        log(`   - Switchboard: ${settings.switchboardEnabled ? 'Enabled' : 'Disabled'}`, 'info');
+        try {
+          await appwriteDatabases.createDocument(
+            DATABASE_ID,
+            EVENT_SETTINGS_COLLECTION_ID,
+            settings.id,
+            documentData
+          );
+          
+          success++;
+          log(`✅ Migrated event settings: ${settings.eventName} (ID: ${settings.id})`, 'success');
+        } catch (createError: any) {
+          // Log minimal error without exposing sensitive data
+          throw new Error(`Failed to create document: ${createError.message || 'Unknown error'}`);
+        }
         
       } catch (error: any) {
         failed++;
@@ -296,6 +305,7 @@ async function migrateEventSettings() {
   } else {
     log('⚠️  Migration completed with errors. Please review above.', 'warn');
   }
+  */
 }
 
 /**
@@ -304,29 +314,29 @@ async function migrateEventSettings() {
 async function main() {
   log('🚀 Starting Event Settings Fix and Migration...', 'info');
   log('========================================\n', 'info');
-  
+
   try {
     // Step 1: Add missing attributes
     await addMissingAttributes();
-    
+
     // Step 2: Clear existing data
     await clearEventSettings();
-    
+
     // Step 3: Migrate data
     await migrateEventSettings();
-    
+
     log('\n✅ All operations completed!', 'success');
     log('\nNext steps:', 'info');
     log('1. Verify data in Appwrite dashboard', 'info');
     log('2. Check that all 38 fields are present', 'info');
     log('3. Test the application with the migrated data', 'info');
-    
+
   } catch (error: any) {
     log(`\n❌ Operation failed: ${error.message}`, 'error');
     console.error(error);
     process.exit(1);
   } finally {
-    await prisma.$disconnect();
+    // Cleanup complete
   }
 }
 

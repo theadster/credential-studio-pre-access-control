@@ -15,10 +15,13 @@ export default function TestTemplateProcessing() {
     setLoading(true);
     try {
       const url = attendeeId 
-        ? `/api/integrations/test-template-processing?attendeeId=${attendeeId}`
+        ? `/api/integrations/test-template-processing?attendeeId=${encodeURIComponent(attendeeId)}`
         : '/api/integrations/test-template-processing';
       
       const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
       const data = await response.json();
       setResult(data);
     } catch (err) {

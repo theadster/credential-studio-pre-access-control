@@ -60,16 +60,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Update the user record with the Appwrite user ID and mark as no longer invited
-    const updatedUser = await databases.updateDocument(
-      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-      process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
-      user.$id,
-      {
-        userId: appwriteUserId, // Replace the temporary UUID with the real Appwrite user ID
-        isInvited: false
-      }
-    );
-
     // Mark the invitation as used
     await databases.updateDocument(
       process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
@@ -80,14 +70,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     );
 
+    // Update the user record with the Appwrite user ID and mark as no longer invited
+    const updatedUser = await databases.updateDocument(
+      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+      process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+      user.$id,
+      {
+        userId: appwriteUserId,
+        isInvited: false
+      }
+    );
+
     // Get role if exists
     let role = null;
     if (updatedUser.roleId) {
-      role = await databases.getDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
-        updatedUser.roleId
-      );
+      try {
+        role = await databases.getDocument(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+          updatedUser.roleId
+        );
+      } catch (error) {
+        console.warn('Role not found:', updatedUser.roleId);
+        // Continue without role data
+      }
     }
 
     // Log the completion

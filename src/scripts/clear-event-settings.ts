@@ -8,11 +8,28 @@
  * Usage: npx tsx src/scripts/clear-event-settings.ts
  */
 
-import { Client, Databases } from 'node-appwrite';
+import { Client, Databases, Query } from 'node-appwrite';
 import * as dotenv from 'dotenv';
+import * as path from 'path';
 
 // Load environment variables
-dotenv.config({ path: '.env.local' });
+dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
+
+// Validate required environment variables
+const requiredEnvVars = [
+  'NEXT_PUBLIC_APPWRITE_ENDPOINT',
+  'NEXT_PUBLIC_APPWRITE_PROJECT_ID',
+  'APPWRITE_API_KEY',
+  'NEXT_PUBLIC_APPWRITE_DATABASE_ID',
+  'NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID',
+];
+
+for (const varName of requiredEnvVars) {
+  if (!process.env[varName]) {
+    console.error(`❌ Missing required environment variable: ${varName}`);
+    process.exit(1);
+  }
+}
 
 const appwriteClient = new Client()
   .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!)
@@ -34,50 +51,55 @@ function log(message: string, type: 'info' | 'success' | 'error' | 'warn' = 'inf
     error: '❌',
     warn: '⚠️',
   }[type];
-  console.log(`[${timestamp}] ${prefix} ${message}`);
+  console.log(`${prefix} [${timestamp}] ${message}`);
 }
 
 async function clearEventSettings() {
   try {
     log('Fetching Event Settings documents...', 'info');
-    const response = await appwriteDatabases.listDocuments(DATABASE_ID, EVENT_SETTINGS_COLLECTION_ID);
-    
-    if (response.documents.length === 0) {
+
+    let allDocuments: any[] = [];
+    let hasMore = true;
+    let offset = 0;
+    const limit = 100;
+
+    while (hasMore) {
+      const response = await appwriteDatabases.listDocuments(
+        DATABASE_ID,
+        EVENT_SETTINGS_COLLECTION_ID,
+        [Query.limit(limit), Query.offset(offset)]
+      );
+      allDocuments = allDocuments.concat(response.documents);
+      hasMore = allDocuments.length < response.total;
+      offset += limit;
+    }
+
+    if (allDocuments.length === 0) {
       log('Collection is already empty', 'success');
       return;
     }
-    
-    log(`Found ${response.documents.length} documents to delete`, 'info');
-    
+
+    log(`Found ${allDocuments.length} documents to delete`, 'info');
+
     let deleted = 0;
     let failed = 0;
-    
-    for (const doc of response.documents) {
+
+    for (const doc of allDocuments) {
       try {
         await appwriteDatabases.deleteDocument(DATABASE_ID, EVENT_SETTINGS_COLLECTION_ID, doc.$id);
         deleted++;
-        log(`Deleted document: ${doc.$id}`, 'success');
+        log(`Deleted document ${doc.$id} (${deleted}/${allDocuments.length})`, 'info');
       } catch (error: any) {
         failed++;
         log(`Failed to delete document ${doc.$id}: ${error.message}`, 'error');
       }
     }
-    
-    log('\n========================================', 'info');
-    log('DELETION SUMMARY', 'info');
-    log('========================================', 'info');
-    log(`✅ Deleted: ${deleted}`, 'success');
-    log(`❌ Failed: ${failed}`, failed > 0 ? 'error' : 'info');
-    log('========================================\n', 'info');
-    
-    if (failed === 0) {
-      log('🎉 Event Settings collection cleared successfully!', 'success');
-      log('\nYou can now run the consolidated migration:', 'info');
-      log('npm run migrate:appwrite:event-settings-v2', 'info');
-    } else {
-      log('⚠️  Some documents failed to delete. Please review errors above.', 'warn');
+
+    log(`\n✅ Deletion complete!`, 'success');
+    log(`   Deleted: ${deleted}`, 'success');
+    if (failed > 0) {
+      log(`   Failed: ${failed}`, 'warn');
     }
-    
   } catch (error: any) {
     log(`Error clearing Event Settings: ${error.message}`, 'error');
     throw error;
@@ -87,7 +109,7 @@ async function clearEventSettings() {
 async function main() {
   log('🚀 Starting Event Settings Collection Clear...', 'info');
   log('========================================\n', 'info');
-  
+
   try {
     await clearEventSettings();
   } catch (error: any) {

@@ -902,70 +902,72 @@ describe('/api/users - User Management API', () => {
     });
 
     it('should remove team membership when removeFromTeam is true', async () => {
-      // Set environment variables for team membership
-      process.env.APPWRITE_TEAM_MEMBERSHIP_ENABLED = 'true';
-      process.env.NEXT_PUBLIC_APPWRITE_PROJECT_TEAM_ID = 'test-team-123';
+      try {
+        // Set environment variables for team membership
+        process.env.APPWRITE_TEAM_MEMBERSHIP_ENABLED = 'true';
+        process.env.NEXT_PUBLIC_APPWRITE_PROJECT_TEAM_ID = 'test-team-123';
 
-      mockReq.body = {
-        id: 'user-to-delete',
-        deleteFromAuth: true,
-        removeFromTeam: true,
-      };
+        mockReq.body = {
+          id: 'user-to-delete',
+          deleteFromAuth: true,
+          removeFromTeam: true,
+        };
 
-      const userToDelete = {
-        $id: 'user-to-delete',
-        userId: 'auth-user-to-delete',
-        email: 'delete@example.com',
-        name: 'User To Delete',
-        roleId: 'role-viewer',
-        isInvited: false,
-        $createdAt: '2024-01-01T00:00:00.000Z',
-        $updatedAt: '2024-01-01T00:00:00.000Z',
-      };
+        const userToDelete = {
+          $id: 'user-to-delete',
+          userId: 'auth-user-to-delete',
+          email: 'delete@example.com',
+          name: 'User To Delete',
+          roleId: 'role-viewer',
+          isInvited: false,
+          $createdAt: '2024-01-01T00:00:00.000Z',
+          $updatedAt: '2024-01-01T00:00:00.000Z',
+        };
 
-      const mockMembership = {
-        $id: 'membership-123',
-        userId: 'auth-user-to-delete',
-        teamId: 'test-team-123',
-        roles: ['member'],
-      };
+        const mockMembership = {
+          $id: 'membership-123',
+          userId: 'auth-user-to-delete',
+          teamId: 'test-team-123',
+          roles: ['member'],
+        };
 
-      mockDatabases.getDocument
-        .mockResolvedValueOnce(mockAdminRole)
-        .mockResolvedValueOnce(userToDelete);
+        mockDatabases.getDocument
+          .mockResolvedValueOnce(mockAdminRole)
+          .mockResolvedValueOnce(userToDelete);
 
-      mockTeams.listMemberships.mockResolvedValue({
-        memberships: [mockMembership],
-        total: 1,
-      });
-      mockTeams.deleteMembership.mockResolvedValue({ success: true });
-      mockUsers.delete.mockResolvedValue({ success: true });
-      mockDatabases.deleteDocument.mockResolvedValue({ success: true });
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'log-123' });
+        mockTeams.listMemberships.mockResolvedValue({
+          memberships: [mockMembership],
+          total: 1,
+        });
+        mockTeams.deleteMembership.mockResolvedValue({ success: true });
+        mockUsers.delete.mockResolvedValue({ success: true });
+        mockDatabases.deleteDocument.mockResolvedValue({ success: true });
+        mockDatabases.createDocument.mockResolvedValue({ $id: 'log-123' });
 
-      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+        await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockTeams.listMemberships).toHaveBeenCalledWith({
-        teamId: 'test-team-123',
-        queries: expect.any(Array),
-      });
-      expect(mockTeams.deleteMembership).toHaveBeenCalledWith({
-        teamId: 'test-team-123',
-        membershipId: 'membership-123',
-      });
+        expect(mockTeams.listMemberships).toHaveBeenCalledWith({
+          teamId: 'test-team-123',
+          queries: expect.any(Array),
+        });
+        expect(mockTeams.deleteMembership).toHaveBeenCalledWith({
+          teamId: 'test-team-123',
+          membershipId: 'membership-123',
+        });
 
-      expect(statusMock).toHaveBeenCalledWith(200);
-      expect(jsonMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          deletedFromAuth: true,
-          deletedFromDatabase: true,
-          removedFromTeam: true,
-        })
-      );
-
-      // Clean up
-      delete process.env.APPWRITE_TEAM_MEMBERSHIP_ENABLED;
-      delete process.env.NEXT_PUBLIC_APPWRITE_PROJECT_TEAM_ID;
+        expect(statusMock).toHaveBeenCalledWith(200);
+        expect(jsonMock).toHaveBeenCalledWith(
+          expect.objectContaining({
+            deletedFromAuth: true,
+            deletedFromDatabase: true,
+            removedFromTeam: true,
+          })
+        );
+      } finally {
+        // Clean up
+        delete process.env.APPWRITE_TEAM_MEMBERSHIP_ENABLED;
+        delete process.env.NEXT_PUBLIC_APPWRITE_PROJECT_TEAM_ID;
+      }
     });
 
     it('should continue deletion if team membership removal fails', async () => {

@@ -135,12 +135,36 @@ export const resetAllMocks = () => {
       mock.mockClear();
     }
   });
-  Object.values(mockAccount).forEach(mock => mock.mockClear());
-  Object.values(mockDatabases).forEach(mock => mock.mockClear());
-  Object.values(mockStorage).forEach(mock => mock.mockClear());
-  Object.values(mockFunctions).forEach(mock => mock.mockClear());
-  Object.values(mockUsers).forEach(mock => mock.mockClear());
-  Object.values(mockTeams).forEach(mock => mock.mockClear());
+  Object.values(mockAccount).forEach(mock => {
+    if (typeof mock === 'function' && 'mockClear' in mock) {
+      mock.mockClear();
+    }
+  });
+  Object.values(mockDatabases).forEach(mock => {
+    if (typeof mock === 'function' && 'mockClear' in mock) {
+      mock.mockClear();
+    }
+  });
+  Object.values(mockStorage).forEach(mock => {
+    if (typeof mock === 'function' && 'mockClear' in mock) {
+      mock.mockClear();
+    }
+  });
+  Object.values(mockFunctions).forEach(mock => {
+    if (typeof mock === 'function' && 'mockClear' in mock) {
+      mock.mockClear();
+    }
+  });
+  Object.values(mockUsers).forEach(mock => {
+    if (typeof mock === 'function' && 'mockClear' in mock) {
+      mock.mockClear();
+    }
+  });
+  Object.values(mockTeams).forEach(mock => {
+    if (typeof mock === 'function' && 'mockClear' in mock) {
+      mock.mockClear();
+    }
+  });
 };
 
 /**

@@ -4,40 +4,7 @@ import { Query, ID } from 'appwrite';
 import { search, equal, isNull, isNotNull, orderDesc } from '@/lib/appwriteQueries';
 import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
 
-const buildTextFilter = (filterString: string | string[] | undefined): string[] | null => {
-  if (!filterString || typeof filterString !== 'string') return null;
 
-  try {
-    const filter = JSON.parse(filterString);
-    const { value, operator } = filter;
-
-    if (operator === 'isEmpty') {
-      return [equal('', '')]; // Will be handled specially
-    }
-    if (operator === 'isNotEmpty') {
-      return null; // Will be handled specially
-    }
-    if (!value) return null;
-
-    // Appwrite doesn't support case-insensitive queries directly
-    // We'll use search for contains, and exact match for others
-    switch (operator) {
-      case 'contains':
-        return [search('', value)]; // Field will be set by caller
-      case 'equals':
-        return [equal('', value)]; // Field will be set by caller
-      case 'startsWith':
-        return [search('', value)]; // Appwrite search can handle prefix matching
-      case 'endsWith':
-        return [search('', value)]; // Appwrite search will do best effort
-      default:
-        return null;
-    }
-  } catch (e) {
-    // Fallback for simple string filter - use search
-    return [search('', filterString as string)];
-  }
-};
 
 export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   // User and userProfile are already attached by middleware

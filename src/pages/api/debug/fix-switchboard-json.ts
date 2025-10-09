@@ -11,9 +11,16 @@ import { getSwitchboardIntegration } from '@/lib/appwrite-integrations';
 export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   try {
     const { databases } = createSessionClient(req);
-    const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-    const eventSettingsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID!;
-    const switchboardCollectionId = process.env.NEXT_PUBLIC_APPWRITE_SWITCHBOARD_COLLECTION_ID!;
+    const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
+    const eventSettingsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID;
+    const switchboardCollectionId = process.env.NEXT_PUBLIC_APPWRITE_SWITCHBOARD_COLLECTION_ID;
+
+    if (!dbId || !eventSettingsCollectionId || !switchboardCollectionId) {
+      return res.status(500).json({
+        error: 'Server configuration error',
+        details: 'Required environment variables are not configured'
+      });
+    }
 
     // Get event settings
     const eventSettingsDocs = await databases.listDocuments(dbId, eventSettingsCollectionId);

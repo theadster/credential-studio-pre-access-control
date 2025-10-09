@@ -47,17 +47,17 @@ describe('/api/invitations - Invitation Management API', () => {
 
   beforeEach(() => {
     resetAllMocks();
-    
+
     jsonMock = vi.fn();
     statusMock = vi.fn(() => ({ json: jsonMock }));
-    
+
     mockReq = {
       method: 'GET',
       cookies: { 'appwrite-session': 'test-session' },
       query: {},
       body: {},
     };
-    
+
     mockRes = {
       status: statusMock as any,
       setHeader: vi.fn(),
@@ -290,11 +290,11 @@ describe('/api/invitations - Invitation Management API', () => {
 
       expect(createInvitationCall).toBeDefined();
       const expiresAt = new Date(createInvitationCall![3].expiresAt);
-      
+
       // Should be approximately 7 days from now
       const sevenDaysFromNow = new Date(beforeTest.getTime() + 7 * 24 * 60 * 60 * 1000);
       const sevenDaysFromNowMax = new Date(afterTest.getTime() + 7 * 24 * 60 * 60 * 1000);
-      
+
       expect(expiresAt.getTime()).toBeGreaterThanOrEqual(sevenDaysFromNow.getTime());
       expect(expiresAt.getTime()).toBeLessThanOrEqual(sevenDaysFromNowMax.getTime());
     });
@@ -393,7 +393,7 @@ describe('/api/invitations - Invitation Management API', () => {
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      // Should still return success even if log creation fails
+      // Should return 500 error when log creation fails
       expect(statusMock).toHaveBeenCalledWith(500);
       expect(jsonMock).toHaveBeenCalledWith(
         expect.objectContaining({

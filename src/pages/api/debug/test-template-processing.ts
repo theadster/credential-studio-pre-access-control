@@ -3,6 +3,7 @@ import { createSessionClient } from '@/lib/appwrite';
 import { Query } from 'appwrite';
 import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
 import { getSwitchboardIntegration } from '@/lib/appwrite-integrations';
+import { validateEnvVars } from '@/lib/envValidation';
 
 // Helper function to escape regex special characters
 const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -20,15 +21,32 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     const { databases } = createSessionClient(req);
     const { attendeeId } = req.query;
 
-    const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-    const attendeesCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID!;
-    const customFieldsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID!;
-    const eventSettingsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID!;
+    // Validate required environment variables
+    const envValidation = validateEnvVars({
+      'NEXT_PUBLIC_APPWRITE_DATABASE_ID': process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
+      'NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID': process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID,
+      'NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID': process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID,
+      'NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID': process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID
+    });
+
+    if (!envValidation.isValid) {
+      return res.status(500).json({
+        error: 'Server configuration error',
+        details: envValidation.errorMessage,
+        missingVariables: envValidation.missingVars
+      });
+    }
+
+    // Type assertions are safe here because we've validated above
+    const validatedDbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID as string;
+    const validatedAttendeesCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID as string;
+    const validatedCustomFieldsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID as string;
+    const validatedEventSettingsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID as string;
 
     // Get attendee (or use dummy data if not provided)
     let attendee: any;
     if (attendeeId && typeof attendeeId === 'string') {
-      attendee = await databases.getDocument(dbId, attendeesCollectionId, attendeeId);
+      attendee = await databases.getDocument(validatedDbId, validatedAttendeesCollectionId, attendeeId);
     } else {
       // Use dummy data for testing
       attendee = {
@@ -41,7 +59,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     }
 
     // Get event settings
-    const eventSettingsDocs = await databases.listDocuments(dbId, eventSettingsCollectionId);
+    const eventSettingsDocs = await databases.listDocuments(validatedDbId, validatedEventSettingsCollectionId);
     const eventSettings = eventSettingsDocs.documents[0];
 
     if (!eventSettings) {
@@ -50,34 +68,48 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
     // Get Switchboard integration
     const switchboardIntegration = await getSwitchboardIntegration(databases, eventSettings.$id);
+    // Fetch custom fields with pagination to ensure all fields are retrieved
+    let allCustomFields: any[] = [];
+    let offset = 0;
+    const batchSize = 100;
+    let hasMore = true;
 
-    if (!switchboardIntegration) {
-      return res.status(400).json({ error: 'Switchboard integration not found' });
+    while (hasMore) {
+      const customFieldsDocs = await databases.listDocuments(
+        validatedDbId,
+        validatedCustomFieldsCollectionId,
+        [Query.limit(batchSize), Query.offset(offset)]
+      );
+      allCustomFields = allCustomFields.concat(customFieldsDocs.documents);
+
+      if (customFieldsDocs.documents.length < batchSize) {
+        hasMore = false;
+      } else {
+        offset += batchSize;
+      }
     }
-
-    // Get custom fields
-    const customFieldsDocs = await databases.listDocuments(
-      dbId,
-      customFieldsCollectionId,
-      [Query.limit(100)]
-    );
-    const customFields = customFieldsDocs.documents;
+    const customFields = allCustomFields;
 
     // Process the template
-    const requestBody = switchboardIntegration.requestBody || '{}';
-    
+    const requestBody = switchboardIntegration?.requestBody || '{}';
+
     // Parse custom field values
     let customFieldValues: Record<string, string> = {};
-    
+
     if (attendee.customFieldValues) {
-      const parsed = typeof attendee.customFieldValues === 'string' 
-        ? JSON.parse(attendee.customFieldValues) 
+      const parsed = typeof attendee.customFieldValues === 'string'
+        ? JSON.parse(attendee.customFieldValues)
         : attendee.customFieldValues;
-      
+
       // Convert array format to object format
       if (Array.isArray(parsed)) {
         parsed.forEach((item: any) => {
-          if (item.customFieldId && item.value !== undefined) {
+          if (
+            item &&
+            typeof item === 'object' &&
+            item.customFieldId &&
+            item.value !== undefined
+          ) {
             customFieldValues[item.customFieldId] = String(item.value);
           }
         });
@@ -99,14 +131,14 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       '{{eventDate}}': eventSettings.eventDate ? new Date(eventSettings.eventDate).toISOString().split('T')[0] : '',
       '{{eventTime}}': eventSettings.eventTime || '',
       '{{eventLocation}}': eventSettings.eventLocation || '',
-      '{{template_id}}': switchboardIntegration.templateId || ''
+      '{{template_id}}': switchboardIntegration?.templateId || ''
     };
 
     // Parse field mappings
     let fieldMappings: any[] = [];
     try {
-      fieldMappings = switchboardIntegration.fieldMappings 
-        ? JSON.parse(switchboardIntegration.fieldMappings) 
+      fieldMappings = switchboardIntegration?.fieldMappings
+        ? JSON.parse(switchboardIntegration.fieldMappings)
         : [];
     } catch (e) {
       fieldMappings = [];
@@ -117,7 +149,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
     const numericPlaceholders: Record<string, number> = {};
     const mappedFieldIds = new Set(fieldMappings.map((m: any) => m.fieldId));
-    
+
     // Add placeholders for unmapped custom fields with internal names
     for (const [fieldId, fieldValue] of Object.entries(customFieldValues)) {
       const customField = customFields.find((cf: any) => cf.$id === fieldId);
@@ -128,12 +160,12 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         }
       }
     }
-    
+
     // Process field mappings with full logic
     fieldMappings.forEach((mapping: any) => {
       const customFieldValue = customFieldValues[mapping.fieldId];
       console.log(`Processing mapping: ${mapping.jsonVariable} from field ${mapping.fieldId}, value:`, customFieldValue);
-      
+
       if (mapping.jsonVariable) {
         let finalValue: any = '';
 
@@ -150,10 +182,10 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             if (mapping.fieldType === 'boolean') {
               lookupKey = originalValue.toLowerCase();
             }
-            
+
             console.log(`  Looking up value mapping for key: "${lookupKey}"`);
             console.log(`  Available mapping keys:`, Object.keys(mapping.valueMapping));
-            
+
             if (Object.prototype.hasOwnProperty.call(mapping.valueMapping, lookupKey)) {
               finalValue = mapping.valueMapping[lookupKey];
               console.log(`  ✓ Value mapped: "${originalValue}" -> "${finalValue}"`);
@@ -201,7 +233,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       const escapedPlaceholder = escapeRegex(placeholder);
       const quotedPlaceholderRegex = new RegExp(`"${escapedPlaceholder}"`, 'g');
       const unquotedPlaceholderRegex = new RegExp(escapedPlaceholder, 'g');
-      
+
       if (bodyString.includes(`"${placeholder}"`)) {
         bodyString = bodyString.replace(quotedPlaceholderRegex, String(value));
       } else {
@@ -251,9 +283,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
   } catch (error: any) {
     console.error('Error testing template processing:', error);
-    return res.status(500).json({ 
+    return res.status(500).json({
       error: 'Internal server error',
-      details: error.message 
+      details: error.message
     });
   }
 });

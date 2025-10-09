@@ -87,7 +87,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       // Apply advanced filters
       if (filters.advancedFilters) {
         const advFilters = filters.advancedFilters;
-        
+
         if (advFilters.firstName) {
           queries.push(Query.search('firstName', advFilters.firstName));
         }
@@ -126,24 +126,46 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     // Apply custom field filters in memory if needed
     if (scope === 'filtered' && filters?.advancedFilters?.customFields) {
       const customFieldFilters = filters.advancedFilters.customFields;
-      
+
       attendees = attendees.filter((attendee: any) => {
-        const customFieldValues = attendee.customFieldValues ? 
-          (typeof attendee.customFieldValues === 'string' ? 
-            JSON.parse(attendee.customFieldValues) : attendee.customFieldValues) : {};
+        let customFieldValues: Record<string, any> = {};
+        if (attendee.customFieldValues) {
+          if (typeof attendee.customFieldValues === 'string') {
+            try {
+              customFieldValues = JSON.parse(attendee.customFieldValues);
+            } catch (error) {
+              console.error(
+                `Failed to parse customFieldValues for attendee ${attendee.$id}:`,
+                error
+              );
+              // Skip this attendee or fall back to empty object
+            }
+          } else {
+            customFieldValues = attendee.customFieldValues;
+          }
+        }
 
-// in src/pages/api/attendees/export.ts
+        return Object.entries(customFieldFilters).every(
+          ([fieldId, filter]: [string, any]) => {
+            const fieldValue = customFieldValues[fieldId];
 
-export interface ExportAttendeesRequest {
-  advancedFilters?: {
-    firstName: string;
-    lastName: string;
-    barcode: string;
-    photoFilter: 'all' | 'with' | 'without';
-   customFields: { [key: string]: { value: string; operator: string } };
-  };
-  // … other properties …
-}
+            if (filter.searchEmpty) {
+              return !fieldValue || fieldValue === '';
+            }
+
+            if (filter.value) {
+              return (
+                fieldValue &&
+                String(fieldValue)
+                  .toLowerCase()
+                  .includes(String(filter.value).toLowerCase())
+              );
+            }
+
+            return true;
+          }
+        );
+      });
     }
 
     // Get event settings and custom fields
@@ -233,17 +255,14 @@ export interface ExportAttendeesRequest {
       }
 
       // Add custom field values
-      const customFieldValues = attendee.customFieldValues ? 
-        (typeof attendee.customFieldValues === 'string' ? 
+      const customFieldValues = attendee.customFieldValues ?
+        (typeof attendee.customFieldValues === 'string' ?
           JSON.parse(attendee.customFieldValues) : attendee.customFieldValues) : {};
 
       for (const customField of customFieldsData) {
         if (fields.includes(`custom_${customField.$id}`)) {
           let value = customFieldValues[customField.$id] || '';
-          
-          // Format boolean values
-          if (customField.fieldType === 'boolean') {
-            value = value === 'yes' ? 'Yes' : 'No';
+
           // Format boolean values
           if (customField.fieldType === 'boolean') {
             const truthyValues = ['yes', 'true', '1', true];
@@ -283,19 +302,19 @@ export interface ExportAttendeesRequest {
     // Set response headers for CSV download
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment; filename="attendees-export-${new Date().toISOString().split('T')[0]}.csv"`);
-    
+
     return res.status(200).send(csvContent);
 
   } catch (error: any) {
     console.error('Export error:', error);
-    
+
     // Handle Appwrite-specific errors
     if (error.code === 401) {
       return res.status(401).json({ error: 'Unauthorized' });
     } else if (error.code === 404) {
       return res.status(404).json({ error: 'Resource not found' });
     }
-    
+
     return res.status(500).json({ error: 'Failed to export attendees' });
   }
 });

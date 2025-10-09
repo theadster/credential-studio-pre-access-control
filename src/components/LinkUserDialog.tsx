@@ -229,7 +229,6 @@ export default function LinkUserDialog({ isOpen, onClose, onLink, roles }: LinkU
               <Select 
                 value={selectedRoleId} 
                 onValueChange={(value) => {
-                  console.log('Role selected:', value);
                   setSelectedRoleId(value);
                 }}
               >

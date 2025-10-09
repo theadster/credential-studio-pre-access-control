@@ -30,7 +30,8 @@ const handler = async (req: AuthenticatedRequest, res: NextApiResponse) => {
     const eventSettingsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID!;
 
     // Check import permission
-    const permissions = userProfile.role ? userProfile.role.permissions : {};
+    // Check import permission
+    const permissions = userProfile?.role?.permissions || {};
     const hasImportPermission = permissions?.attendees?.import === true || permissions?.all === true;
 
     if (!hasImportPermission) {
@@ -55,9 +56,11 @@ const handler = async (req: AuthenticatedRequest, res: NextApiResponse) => {
           // Fetch event settings for barcode configuration
           const eventSettingsDocs = await databases.listDocuments(dbId, eventSettingsCollectionId);
           const eventSettings = eventSettingsDocs.documents[0];
-          
-          if (!eventSettings) {
-            throw new Error('Event settings not found. Please configure event settings first.');
+
+          if (!eventSettings || !eventSettings.barcodeType || !eventSettings.barcodeLength) {
+            return res.status(400).json({
+              error: 'Event settings not found or incomplete. Please configure event settings first.'
+            });
           }
 
           // Fetch custom fields to map internal names to IDs and get field options
@@ -67,19 +70,54 @@ const handler = async (req: AuthenticatedRequest, res: NextApiResponse) => {
             [Query.limit(100)]
           );
           const customFields = customFieldsDocs.documents;
-          
+
           const customFieldMap = new Map(customFields.map(cf => [cf.internalFieldName, cf.$id]));
           const customFieldOptionsMap = new Map(
             customFields.map(cf => [cf.internalFieldName, { fieldType: cf.fieldType, fieldOptions: cf.fieldOptions }])
           );
 
           // Get existing barcode numbers to ensure uniqueness
-          const existingAttendeesDocs = await databases.listDocuments(
-            dbId,
-            attendeesCollectionId,
-            [Query.limit(5000)] // Adjust limit as needed
-          );
-          const existingBarcodes = new Set(existingAttendeesDocs.documents.map(a => a.barcodeNumber));
+          // Fetch all attendees using pagination to avoid missing barcodes
+          const existingBarcodes = new Set<string>();
+          const pageSize = 1000;
+          let offset = 0;
+          let hasMore = true;
+          let pageNumber = 1;
+
+          while (hasMore) {
+            try {
+              const page = await databases.listDocuments(
+                dbId,
+                attendeesCollectionId,
+                [Query.limit(pageSize), Query.offset(offset), Query.select(['barcodeNumber'])]
+              );
+
+              page.documents.forEach(doc => {
+                if (doc.barcodeNumber) {
+                  existingBarcodes.add(doc.barcodeNumber);
+                }
+              });
+
+              hasMore = page.documents.length === pageSize;
+              offset += pageSize;
+              pageNumber++;
+            } catch (error) {
+              console.error('Failed to fetch existing barcodes during pagination:', {
+                dbId,
+                attendeesCollectionId,
+                offset,
+                pageSize,
+                pageNumber,
+                error: error instanceof Error ? error.message : String(error)
+              });
+
+              return res.status(500).json({
+                error: 'Failed to fetch existing barcodes',
+                details: `Error occurred at page ${pageNumber} (offset ${offset})`,
+                message: error instanceof Error ? error.message : 'Unknown error'
+              });
+            }
+          }
 
           const attendeesToCreate = results.map(row => {
             const { firstName, lastName, barcodeNumber, ...customFieldValues } = row;
@@ -92,39 +130,61 @@ const handler = async (req: AuthenticatedRequest, res: NextApiResponse) => {
             // Apply uppercase transformations to first and last names if enabled
             let processedFirstName = firstName;
             let processedLastName = lastName;
-            
+
             if (eventSettings.forceFirstNameUppercase) {
               processedFirstName = firstName.toUpperCase();
             }
-            
+
             if (eventSettings.forceLastNameUppercase) {
               processedLastName = lastName.toUpperCase();
             }
 
             const customFieldsData: { [key: string]: string } = {};
-            
+
             Object.entries(customFieldValues).forEach(([internalName, value]) => {
               const customFieldId = customFieldMap.get(internalName);
               const fieldInfo = customFieldOptionsMap.get(internalName);
-              
+
               if (customFieldId && value) {
                 let processedValue = String(value);
-                
+
                 // Apply uppercase transformation for text fields if enabled
                 if (fieldInfo?.fieldType === 'text' && (fieldInfo?.fieldOptions as any)?.uppercase === true) {
                   processedValue = processedValue.toUpperCase();
                 }
-                
+
                 customFieldsData[customFieldId] = processedValue;
               }
             });
 
-            // Generate unique barcode
+            // Generate unique barcode with safeguard against infinite loops
+            const MAX_BARCODE_ATTEMPTS = 10000;
             let generatedBarcode: string;
+            let attempts = 0;
+
             do {
               generatedBarcode = generateBarcode(eventSettings.barcodeType, eventSettings.barcodeLength);
+              attempts++;
+
+              if (attempts >= MAX_BARCODE_ATTEMPTS) {
+                const errorMsg = `Failed to generate unique barcode after ${MAX_BARCODE_ATTEMPTS} attempts. Barcode space may be exhausted.`;
+                console.error('Barcode generation failure:', {
+                  barcodeType: eventSettings.barcodeType,
+                  barcodeLength: eventSettings.barcodeLength,
+                  existingBarcodesCount: existingBarcodes.size,
+                  attempts,
+                  firstName,
+                  lastName
+                });
+
+                return res.status(500).json({
+                  error: 'Barcode generation failed',
+                  details: errorMsg,
+                  suggestion: 'Consider increasing barcode length or changing barcode type to expand the available barcode space.'
+                });
+              }
             } while (existingBarcodes.has(generatedBarcode));
-            
+
             // Add the generated barcode to the set to avoid duplicates within this import
             existingBarcodes.add(generatedBarcode);
 
@@ -185,14 +245,14 @@ const handler = async (req: AuthenticatedRequest, res: NextApiResponse) => {
       });
   } catch (error: any) {
     console.error('Error parsing form data:', error);
-    
+
     // Handle Appwrite-specific errors
     if (error.code === 401) {
       return res.status(401).json({ error: 'Unauthorized' });
     } else if (error.code === 404) {
       return res.status(404).json({ error: 'Resource not found' });
     }
-    
+
     res.status(500).json({ error: 'Failed to process upload' });
   }
 };

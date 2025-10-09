@@ -66,8 +66,33 @@ describe('Performance Monitoring', () => {
       
       expect(metrics.queryTimes).toHaveProperty('query1');
       expect(metrics.queryTimes).toHaveProperty('query2');
-      expect(metrics.queryTimes.query1).toBeGreaterThanOrEqual(0);
-      expect(metrics.queryTimes.query2).toBeGreaterThanOrEqual(0);
+      expect(metrics.queryTimes.query1.count).toBe(1);
+      expect(metrics.queryTimes.query1.total).toBeGreaterThanOrEqual(0);
+      expect(metrics.queryTimes.query2.count).toBe(1);
+      expect(metrics.queryTimes.query2.total).toBeGreaterThanOrEqual(0);
+    });
+
+    it('should aggregate duplicate query names', async () => {
+      const tracker = new PerformanceTracker();
+      
+      const query = vi.fn().mockResolvedValue('result');
+      
+      // Execute same query multiple times
+      await tracker.trackQuery('duplicateQuery', query);
+      await tracker.trackQuery('duplicateQuery', query);
+      await tracker.trackQuery('duplicateQuery', query);
+      
+      const metrics = tracker.getMetrics();
+      
+      expect(metrics.queryTimes).toHaveProperty('duplicateQuery');
+      expect(metrics.queryTimes.duplicateQuery.count).toBe(3);
+      expect(metrics.queryTimes.duplicateQuery.durations).toHaveLength(3);
+      expect(metrics.queryTimes.duplicateQuery.average).toBeGreaterThanOrEqual(0);
+      expect(metrics.queryTimes.duplicateQuery.min).toBeGreaterThanOrEqual(0);
+      expect(metrics.queryTimes.duplicateQuery.max).toBeGreaterThanOrEqual(metrics.queryTimes.duplicateQuery.min);
+      expect(metrics.queryTimes.duplicateQuery.total).toBe(
+        metrics.queryTimes.duplicateQuery.durations.reduce((sum, d) => sum + d, 0)
+      );
     });
 
     it('should track warnings for slow queries', async () => {
@@ -110,7 +135,23 @@ describe('Performance Monitoring', () => {
       
       expect(headers).toHaveProperty('X-Response-Time');
       expect(headers).toHaveProperty('X-Query-Count', '2');
+      expect(headers).toHaveProperty('X-Unique-Queries', '2');
       expect(headers).toHaveProperty('X-Slow-Queries');
+    });
+
+    it('should count total executions in headers for duplicate queries', async () => {
+      const tracker = new PerformanceTracker();
+      
+      const query = vi.fn().mockResolvedValue('result');
+      
+      await tracker.trackQuery('sameQuery', query);
+      await tracker.trackQuery('sameQuery', query);
+      await tracker.trackQuery('differentQuery', query);
+      
+      const headers = tracker.getResponseHeaders();
+      
+      expect(headers['X-Query-Count']).toBe('3'); // Total executions
+      expect(headers['X-Unique-Queries']).toBe('2'); // Unique query names
     });
 
     it('should log summary with all metrics', async () => {

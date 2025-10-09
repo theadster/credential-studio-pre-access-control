@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -80,13 +80,13 @@ declare global {
   }
 }
 
-export default function AttendeeForm({ 
-  isOpen, 
-  onClose, 
-  onSave, 
-  attendee, 
+export default function AttendeeForm({
+  isOpen,
+  onClose,
+  onSave,
+  attendee,
   customFields,
-  eventSettings 
+  eventSettings
 }: AttendeeFormProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -105,7 +105,7 @@ export default function AttendeeForm({
   useEffect(() => {
     if (typeof window !== 'undefined' && window.cloudinary && eventSettings?.cloudinaryCloudName && eventSettings?.cloudinaryUploadPreset) {
       cloudinaryRef.current = window.cloudinary;
-      
+
       // Configure crop aspect ratio
       let croppingAspectRatio = 1; // Default to square
       if (eventSettings.cloudinaryCropAspectRatio && eventSettings.cloudinaryCropAspectRatio !== 'free') {
@@ -188,11 +188,18 @@ export default function AttendeeForm({
     }
   }, [eventSettings, toast]);
 
+  // Create a stable representation of custom field IDs
+  const customFieldIds = useMemo(() =>
+    customFields.map(cf => cf.id).join(','),
+    [customFields]
+  );
+
+  // Effect 1: Initialize/reset form when attendee or eventSettings changes
   useEffect(() => {
     if (attendee) {
       // Get current custom field IDs to filter out deleted fields
       const currentCustomFieldIds = new Set(customFields.map(cf => cf.id));
-      
+
       setFormData({
         firstName: attendee.firstName || '',
         lastName: attendee.lastName || '',
@@ -200,12 +207,12 @@ export default function AttendeeForm({
         photoUrl: attendee.photoUrl || '',
         customFieldValues: Array.isArray(attendee.customFieldValues)
           ? attendee.customFieldValues.reduce((acc: Record<string, string>, cfv: CustomFieldValue) => {
-              // Only include custom field values for fields that still exist
-              if (currentCustomFieldIds.has(cfv.customFieldId)) {
-                acc[cfv.customFieldId] = cfv.value;
-              }
-              return acc;
-            }, {})
+            // Only include custom field values for fields that still exist
+            if (currentCustomFieldIds.has(cfv.customFieldId)) {
+              acc[cfv.customFieldId] = cfv.value;
+            }
+            return acc;
+          }, {})
           : {}
       });
     } else {
@@ -220,15 +227,42 @@ export default function AttendeeForm({
       // Generate barcode for new attendee
       generateBarcode();
     }
-  }, [attendee, eventSettings, customFields]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attendee, eventSettings]);
+
+  // Effect 2: Prune deleted custom field values without re-initializing the form
+  useEffect(() => {
+    if (attendee) {
+      // Only prune custom field values for fields that no longer exist
+      const currentCustomFieldIds = new Set(customFields.map(cf => cf.id));
+
+      setFormData(prev => {
+        const filteredCustomFieldValues = Object.entries(prev.customFieldValues)
+          .filter(([fieldId]) => currentCustomFieldIds.has(fieldId))
+          .reduce((acc, [fieldId, value]) => {
+            acc[fieldId] = value;
+            return acc;
+          }, {} as Record<string, string>);
+
+        // Only update if something actually changed
+        if (Object.keys(filteredCustomFieldValues).length !== Object.keys(prev.customFieldValues).length) {
+          return {
+            ...prev,
+            customFieldValues: filteredCustomFieldValues
+          };
+        }
+        return prev;
+      });
+    }
+  }, [customFieldIds, attendee]);
 
   const generateBarcode = () => {
     if (!eventSettings) return;
-    
+
     const barcodeType = eventSettings.barcodeType || 'alphanumeric';
     const barcodeLength = eventSettings.barcodeLength || 8;
     let barcode = '';
-    
+
     if (barcodeType === 'numerical') {
       for (let i = 0; i < barcodeLength; i++) {
         barcode += Math.floor(Math.random() * 10);
@@ -239,7 +273,7 @@ export default function AttendeeForm({
         barcode += chars.charAt(Math.floor(Math.random() * chars.length));
       }
     }
-    
+
     setFormData(prev => ({ ...prev, barcodeNumber: barcode }));
   };
 
@@ -337,9 +371,9 @@ export default function AttendeeForm({
         customFieldValues
       };
 
-      await onSave(attendeeData);
+      onSave(attendeeData);
       onClose();
-      
+
       // Reset form
       setFormData({
         firstName: '',
@@ -526,7 +560,7 @@ export default function AttendeeForm({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose} modal={false}>
-      <DialogContent 
+      <DialogContent
         className="max-w-5xl max-h-[90vh] overflow-y-auto"
         onInteractOutside={(e) => {
           // Prevent closing the dialog when interacting with the Cloudinary widget
@@ -558,9 +592,9 @@ export default function AttendeeForm({
                 <CardContent className="space-y-4">
                   <div className="w-full aspect-[3/4] bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden border">
                     {formData.photoUrl ? (
-                      <img 
-                        src={formData.photoUrl} 
-                        alt="Attendee" 
+                      <img
+                        src={formData.photoUrl}
+                        alt="Attendee"
                         className="w-full h-full object-cover"
                       />
                     ) : (
@@ -684,11 +718,10 @@ export default function AttendeeForm({
                         {customFields
                           .sort((a, b) => a.order - b.order)
                           .map((field) => (
-                            <div 
-                              key={field.id} 
-                              className={`space-y-2 ${
-                                field.fieldType === 'textarea' ? 'col-span-2' : ''
-                              }`}
+                            <div
+                              key={field.id}
+                              className={`space-y-2 ${field.fieldType === 'textarea' ? 'col-span-2' : ''
+                                }`}
                             >
                               <Label htmlFor={field.id} className="flex items-center gap-2">
                                 {getCustomFieldIcon(field.fieldType)}

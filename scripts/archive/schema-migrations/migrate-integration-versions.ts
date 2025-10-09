@@ -26,29 +26,10 @@ import * as path from 'path';
 // Load environment variables
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 
-const client = new Client()
-  .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!)
-  .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!)
-  .setKey(process.env.APPWRITE_API_KEY!);
-
-const databases = new Databases(client);
-
-// Database and Collection IDs
-const DATABASE_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-const CLOUDINARY_COLLECTION_ID = process.env.NEXT_PUBLIC_APPWRITE_CLOUDINARY_COLLECTION_ID!;
-const SWITCHBOARD_COLLECTION_ID = process.env.NEXT_PUBLIC_APPWRITE_SWITCHBOARD_COLLECTION_ID!;
-const ONESIMPLEAPI_COLLECTION_ID = process.env.NEXT_PUBLIC_APPWRITE_ONESIMPLEAPI_COLLECTION_ID!;
-
 interface CollectionInfo {
   id: string;
   name: string;
 }
-
-const COLLECTIONS: CollectionInfo[] = [
-  { id: CLOUDINARY_COLLECTION_ID, name: 'Cloudinary' },
-  { id: SWITCHBOARD_COLLECTION_ID, name: 'Switchboard' },
-  { id: ONESIMPLEAPI_COLLECTION_ID, name: 'OneSimpleAPI' },
-];
 
 interface MigrationStats {
   total: number;
@@ -61,6 +42,8 @@ interface MigrationStats {
  * Migrate documents in a single collection
  */
 async function migrateCollection(
+  databases: Databases,
+  databaseId: string,
   collectionId: string,
   collectionName: string
 ): Promise<MigrationStats> {
@@ -84,7 +67,7 @@ async function migrateCollection(
 
     while (hasMore) {
       const response = await databases.listDocuments(
-        DATABASE_ID,
+        databaseId,
         collectionId,
         [Query.limit(limit), Query.offset(offset)]
       );
@@ -117,7 +100,7 @@ async function migrateCollection(
 
         // Update document to add version=1
         await databases.updateDocument(
-          DATABASE_ID,
+          databaseId,
           collectionId,
           doc.$id,
           { version: 1 }
@@ -148,23 +131,36 @@ async function migrateCollection(
  * Verify migration results
  */
 async function verifyMigration(
+  databases: Databases,
+  databaseId: string,
   collectionId: string,
   collectionName: string
 ): Promise<void> {
   try {
     console.log(`\nVerifying ${collectionName} migration...`);
 
-    // Fetch all documents
-    const response = await databases.listDocuments(
-      DATABASE_ID,
-      collectionId,
-      [Query.limit(100)]
-    );
+    // Fetch all documents with pagination
+    let allDocuments: any[] = [];
+    let hasMore = true;
+    let offset = 0;
+    const limit = 100;
+
+    while (hasMore) {
+      const response = await databases.listDocuments(
+        databaseId,
+        collectionId,
+        [Query.limit(limit), Query.offset(offset)]
+      );
+
+      allDocuments = allDocuments.concat(response.documents);
+      hasMore = allDocuments.length < response.total;
+      offset += limit;
+    }
 
     let documentsWithoutVersion = 0;
     let documentsWithVersion = 0;
 
-    for (const doc of response.documents) {
+    for (const doc of allDocuments) {
       if (doc.version === undefined || doc.version === null) {
         documentsWithoutVersion++;
         console.log(`  ✗ Document ${doc.$id} still missing version field`);
@@ -205,20 +201,41 @@ async function main() {
     if (!process.env.APPWRITE_API_KEY) {
       throw new Error('APPWRITE_API_KEY is not set');
     }
-    if (!DATABASE_ID) {
+    if (!process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID) {
       throw new Error('NEXT_PUBLIC_APPWRITE_DATABASE_ID is not set');
     }
-    if (!CLOUDINARY_COLLECTION_ID) {
+    if (!process.env.NEXT_PUBLIC_APPWRITE_CLOUDINARY_COLLECTION_ID) {
       throw new Error('NEXT_PUBLIC_APPWRITE_CLOUDINARY_COLLECTION_ID is not set');
     }
-    if (!SWITCHBOARD_COLLECTION_ID) {
+    if (!process.env.NEXT_PUBLIC_APPWRITE_SWITCHBOARD_COLLECTION_ID) {
       throw new Error('NEXT_PUBLIC_APPWRITE_SWITCHBOARD_COLLECTION_ID is not set');
     }
-    if (!ONESIMPLEAPI_COLLECTION_ID) {
+    if (!process.env.NEXT_PUBLIC_APPWRITE_ONESIMPLEAPI_COLLECTION_ID) {
       throw new Error('NEXT_PUBLIC_APPWRITE_ONESIMPLEAPI_COLLECTION_ID is not set');
     }
 
     console.log('Environment variables validated ✓');
+
+    // Initialize Appwrite client after validation
+    const client = new Client()
+      .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!)
+      .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!)
+      .setKey(process.env.APPWRITE_API_KEY!);
+
+    const databases = new Databases(client);
+
+    // Database and Collection IDs
+    const DATABASE_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
+    const CLOUDINARY_COLLECTION_ID = process.env.NEXT_PUBLIC_APPWRITE_CLOUDINARY_COLLECTION_ID!;
+    const SWITCHBOARD_COLLECTION_ID = process.env.NEXT_PUBLIC_APPWRITE_SWITCHBOARD_COLLECTION_ID!;
+    const ONESIMPLEAPI_COLLECTION_ID = process.env.NEXT_PUBLIC_APPWRITE_ONESIMPLEAPI_COLLECTION_ID!;
+
+    const COLLECTIONS: CollectionInfo[] = [
+      { id: CLOUDINARY_COLLECTION_ID, name: 'Cloudinary' },
+      { id: SWITCHBOARD_COLLECTION_ID, name: 'Switchboard' },
+      { id: ONESIMPLEAPI_COLLECTION_ID, name: 'OneSimpleAPI' },
+    ];
+
     console.log(`Database ID: ${DATABASE_ID}`);
     console.log(`Cloudinary Collection ID: ${CLOUDINARY_COLLECTION_ID}`);
     console.log(`Switchboard Collection ID: ${SWITCHBOARD_COLLECTION_ID}`);
@@ -234,7 +251,7 @@ async function main() {
 
     // Migrate all collections
     for (const collection of COLLECTIONS) {
-      const stats = await migrateCollection(collection.id, collection.name);
+      const stats = await migrateCollection(databases, DATABASE_ID, collection.id, collection.name);
       overallStats.total += stats.total;
       overallStats.updated += stats.updated;
       overallStats.alreadyHadVersion += stats.alreadyHadVersion;
@@ -247,7 +264,7 @@ async function main() {
 
     // Verify all collections
     for (const collection of COLLECTIONS) {
-      await verifyMigration(collection.id, collection.name);
+      await verifyMigration(databases, DATABASE_ID, collection.id, collection.name);
     }
 
     console.log('\n' + '='.repeat(80));

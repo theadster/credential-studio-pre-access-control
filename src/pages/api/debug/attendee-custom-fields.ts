@@ -19,8 +19,16 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       return res.status(400).json({ error: 'attendeeId is required' });
     }
 
-    const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-    const attendeesCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID!;
+    const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
+    const attendeesCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID;
+
+    if (!dbId) {
+      return res.status(500).json({ error: 'Missing NEXT_PUBLIC_APPWRITE_DATABASE_ID' });
+    }
+
+    if (!attendeesCollectionId) {
+      return res.status(500).json({ error: 'Missing NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID' });
+    }
 
     // Get attendee
     const attendee = await databases.getDocument(dbId, attendeesCollectionId, attendeeId);
@@ -59,9 +67,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
   } catch (error: any) {
     console.error('Error debugging custom fields:', error);
-    return res.status(500).json({ 
+    return res.status(500).json({
       error: 'Internal server error',
-      details: error.message 
+      details: error.message
     });
   }
 });

@@ -52,14 +52,14 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       try {
         // Get current attendee
         const attendee = await databases.getDocument(dbId, attendeesCollectionId, attendeeId);
-        
+
         // Parse current custom field values - handle both array and object formats
-        let currentCustomFieldValues: Array<{customFieldId: string, value: string}> = [];
-        
+        let currentCustomFieldValues: Array<{ customFieldId: string, value: string }> = [];
+
         if (attendee.customFieldValues) {
-          const parsed = typeof attendee.customFieldValues === 'string' ? 
+          const parsed = typeof attendee.customFieldValues === 'string' ?
             JSON.parse(attendee.customFieldValues) : attendee.customFieldValues;
-          
+
           // Convert to array format if it's an object
           if (Array.isArray(parsed)) {
             currentCustomFieldValues = parsed;
@@ -144,23 +144,23 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       }
     );
 
-    return res.status(200).json({ 
-      message: 'Attendees updated successfully', 
+    return res.status(200).json({
+      message: 'Attendees updated successfully',
       updatedCount,
       errors
     });
 
   } catch (error: any) {
     console.error('Bulk edit API error:', error);
-    
+
     // Handle Appwrite-specific errors
     if (error.code === 401) {
       return res.status(401).json({ error: 'Unauthorized' });
     } else if (error.code === 404) {
       return res.status(404).json({ error: 'Resource not found' });
     }
-    
-    return res.status(500).json({ 
+
+    return res.status(500).json({
       error: 'Internal server error',
       details: error.message || 'Unknown error'
     });

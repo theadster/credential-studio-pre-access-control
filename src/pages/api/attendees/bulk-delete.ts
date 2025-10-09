@@ -31,8 +31,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       return res.status(403).json({ error: 'Access denied: Insufficient permissions for bulk delete' });
     }
 
-    // Get attendee details for logging before deletion
+    // PHASE 1: Validate all attendees exist and collect their details
+    console.log(`[Bulk Delete] Phase 1: Validating ${attendeeIds.length} attendees`);
     const attendeesToDelete: any[] = [];
+    const validationErrors: Array<{ id: string; error: string }> = [];
+
     for (const id of attendeeIds) {
       try {
         const attendee = await databases.getDocument(dbId, attendeesCollectionId, id);
@@ -42,26 +45,45 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           lastName: attendee.lastName,
           barcodeNumber: attendee.barcodeNumber
         });
-      } catch (error) {
-        // Attendee might not exist, continue with others
-        console.warn(`Attendee ${id} not found`);
+      } catch (error: any) {
+        const errorMessage = error.message || 'Attendee not found or inaccessible';
+        validationErrors.push({ id, error: errorMessage });
+        console.warn(`[Bulk Delete] Validation failed for attendee ${id}: ${errorMessage}`);
       }
     }
 
-    // Delete attendees - Appwrite doesn't support bulk delete, so we do it one by one
+    // If any validation errors, abort the entire operation
+    if (validationErrors.length > 0) {
+      console.error(`[Bulk Delete] Validation failed for ${validationErrors.length} attendees. Aborting operation.`);
+      return res.status(400).json({
+        error: 'Validation failed: Some attendees could not be found or accessed',
+        validationErrors,
+        message: `${validationErrors.length} of ${attendeeIds.length} attendees failed validation. No deletions performed.`
+      });
+    }
+
+    console.log(`[Bulk Delete] Phase 1 complete: All ${attendeesToDelete.length} attendees validated successfully`);
+
+    // PHASE 2: Perform deletions (all attendees validated)
+    console.log(`[Bulk Delete] Phase 2: Deleting ${attendeesToDelete.length} attendees`);
     const deleted: string[] = [];
     const errors: Array<{ id: string; error: string }> = [];
 
-    for (const id of attendeeIds) {
+    for (const attendee of attendeesToDelete) {
       try {
-        await databases.deleteDocument(dbId, attendeesCollectionId, id);
-        deleted.push(id);
+        await databases.deleteDocument(dbId, attendeesCollectionId, attendee.id);
+        deleted.push(attendee.id);
+        console.log(`[Bulk Delete] Successfully deleted attendee ${attendee.id}`);
       } catch (error: any) {
-        errors.push({ id, error: error.message || 'Failed to delete' });
+        const errorMessage = error.message || 'Failed to delete';
+        errors.push({ id: attendee.id, error: errorMessage });
+        console.error(`[Bulk Delete] Failed to delete attendee ${attendee.id}: ${errorMessage}`);
       }
     }
 
-    // Log the bulk delete action
+    console.log(`[Bulk Delete] Phase 2 complete: ${deleted.length} deleted, ${errors.length} errors`);
+
+    // Log the bulk delete action with detailed results
     await databases.createDocument(
       dbId,
       logsCollectionId,
@@ -71,30 +93,37 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         userId: user.$id,
         details: JSON.stringify({
           type: 'bulk_delete',
-          count: deleted.length,
+          totalRequested: attendeeIds.length,
+          successCount: deleted.length,
+          errorCount: errors.length,
+          deletedIds: deleted,
+          errors: errors,
           attendees: attendeesToDelete
         })
       }
     );
 
-    res.status(200).json({ 
-      success: true, 
+    res.status(200).json({
+      success: errors.length === 0,
+      partial: errors.length > 0 && deleted.length > 0,
       deletedCount: deleted.length,
       deleted,
       errors,
-      message: `Successfully deleted ${deleted.length} attendees`
+      message: errors.length > 0
+        ? `Deleted ${deleted.length} of ${attendeeIds.length} attendees. ${errors.length} failed.`
+        : `Successfully deleted all ${deleted.length} attendees`
     });
 
   } catch (error: any) {
     console.error('Bulk delete error:', error);
-    
+
     // Handle Appwrite-specific errors
     if (error.code === 401) {
       return res.status(401).json({ error: 'Unauthorized' });
     } else if (error.code === 404) {
       return res.status(404).json({ error: 'Resource not found' });
     }
-    
+
     res.status(500).json({ error: 'Failed to delete attendees' });
   }
 });

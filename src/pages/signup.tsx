@@ -15,29 +15,63 @@ import { Separator } from "@/components/ui/separator";
 
 const SignUpPage = () => {
   const router = useRouter();
-  const { initializing, signUp } = useContext(AuthContext);
+  const { initializing } = useContext(AuthContext);
   const [showPw, setShowPw] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [invitationToken, setInvitationToken] = useState<string | null>(null);
-interface InvitationData {
-  email: string;
-  role?: {
-    name: string;
-  };
-  [key: string]: unknown;
-}
+  const [tokenValidationError, setTokenValidationError] = useState<string | null>(null);
+  interface InvitationData {
+    email: string;
+    role?: {
+      name: string;
+    };
+    [key: string]: unknown;
+  }
 
   const [invitationData, setInvitationData] = useState<InvitationData | null>(null);
   const [validatingInvitation, setValidatingInvitation] = useState(false);
   const { toast } = useToast();
+
+  /**
+   * Validates invitation token format
+   * Expected format: UUID v4 (e.g., 550e8400-e29b-41d4-a716-446655440000)
+   * Adjust regex pattern based on your backend's token format
+   */
+  const validateTokenFormat = (token: string): boolean => {
+    if (!token || token.trim() === '') {
+      setTokenValidationError('Invitation token is required');
+      return false;
+    }
+
+    // UUID v4 format validation (adjust if your backend uses different format)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+    if (!uuidRegex.test(token.trim())) {
+      setTokenValidationError('Invalid invitation token format');
+      return false;
+    }
+
+    setTokenValidationError(null);
+    return true;
+  };
 
   // Check for invitation token in URL
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('invitation');
     if (token) {
-      setInvitationToken(token);
-      validateInvitation(token);
+      // Validate token format before proceeding
+      if (validateTokenFormat(token)) {
+        setInvitationToken(token);
+        validateInvitation(token);
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Invalid Invitation Token",
+          description: tokenValidationError || "The invitation token format is invalid.",
+        });
+        router.push('/signup');
+      }
     }
   }, []);
 
@@ -46,7 +80,7 @@ interface InvitationData {
     try {
       const response = await fetch(`/api/invitations/validate?token=${token}`);
       const data = await response.json();
-      
+
       if (response.ok && data.valid) {
         setInvitationData(data.user);
         formik.setFieldValue('email', data.user.email);
@@ -70,25 +104,43 @@ interface InvitationData {
     }
   };
 
-interface FormValues {
-  email: string;
-  password: string;
-}
+  interface FormValues {
+    email: string;
+    password: string;
+  }
 
   const handleSignUp = async (values: FormValues) => {
     setIsLoading(true);
     try {
       const { email, password } = values;
-      
+
+      // Validate invitation token format if present
+      if (invitationToken && !validateTokenFormat(invitationToken)) {
+        toast({
+          variant: "destructive",
+          title: "Invalid Token",
+          description: tokenValidationError || "The invitation token format is invalid.",
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      // Prepare request body - only include invitationToken if it's valid
+      const requestBody: { email: string; password: string; invitationToken?: string } = {
+        email,
+        password,
+      };
+
+      // Only include invitationToken if it exists and passed validation
+      if (invitationToken && validateTokenFormat(invitationToken)) {
+        requestBody.invitationToken = invitationToken;
+      }
+
       // Use the signup API endpoint which handles both regular and invitation signups
       const response = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          email, 
-          password,
-          invitationToken: invitationToken || undefined
-        })
+        body: JSON.stringify(requestBody)
       });
 
       const data = await response.json();

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { account, databases } from '@/lib/appwrite';
+import { account } from '@/lib/appwrite';
 import { Models } from 'appwrite';
 
 export default function AppwriteExample() {

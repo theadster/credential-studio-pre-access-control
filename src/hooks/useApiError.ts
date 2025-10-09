@@ -25,11 +25,50 @@ export interface ParsedError {
 }
 
 /**
+ * Check if an error is a network error
+ * Detects various network failure patterns across browsers and environments
+ */
+function isNetworkError(error: any): boolean {
+  // Check if it's a TypeError (common for network errors)
+  if (error instanceof TypeError || error.name === 'TypeError') {
+    return true;
+  }
+
+  // Check for common network error message patterns (case-insensitive)
+  const message = (error.message || '').toLowerCase();
+  const networkPatterns = [
+    'failed to fetch',
+    'network request failed',
+    'network error',
+    'networkerror',
+    'fetch failed',
+    'load failed',
+    'connection refused',
+    'connection failed',
+    'unable to connect',
+    'no internet',
+    'offline'
+  ];
+
+  if (networkPatterns.some(pattern => message.includes(pattern))) {
+    return true;
+  }
+
+  // Check if error lacks a response property (indicates network failure before response)
+  // But has other error properties (to avoid false positives)
+  if (!error.response && (error.message || error.name) && !error.error && !error.code) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Parse API error response
  */
 export function parseApiError(error: any): ParsedError {
-  // Handle fetch errors
-  if (error instanceof TypeError && error.message === 'Failed to fetch') {
+  // Handle network errors (fetch failures, connection issues, etc.)
+  if (isNetworkError(error)) {
     return {
       message: 'Unable to connect to the server. Please check your connection.',
       code: 'NETWORK_ERROR',
@@ -40,7 +79,7 @@ export function parseApiError(error: any): ParsedError {
   }
 
   // Handle timeout errors
-  if (error.name === 'AbortError' || error.message?.includes('timeout')) {
+  if (error.name === 'AbortError' || error.message?.toLowerCase().includes('timeout')) {
     return {
       message: 'Request timed out. Please try again.',
       code: 'TIMEOUT_ERROR',
@@ -54,7 +93,7 @@ export function parseApiError(error: any): ParsedError {
   if (error.error || error.code) {
     const code = error.code || 'UNKNOWN_ERROR';
     const message = error.error || 'An unexpected error occurred';
-    
+
     return {
       message,
       code,
@@ -81,17 +120,17 @@ export function parseApiError(error: any): ParsedError {
 export function formatRateLimitTime(resetAt: number): string {
   const now = Date.now();
   const diff = resetAt - now;
-  
+
   if (diff <= 0) {
     return 'now';
   }
-  
+
   const minutes = Math.ceil(diff / 60000);
-  
+
   if (minutes === 1) {
     return '1 minute';
   }
-  
+
   return `${minutes} minutes`;
 }
 
@@ -106,23 +145,23 @@ export function useApiError() {
    */
   const handleError = useCallback((error: any, customMessage?: string) => {
     const parsed = parseApiError(error);
-    
+
     // Use custom message if provided, otherwise use parsed message
     const message = customMessage || parsed.message;
-    
+
     // Add rate limit info if available
     let description = message;
     if (parsed.resetAt) {
       description += ` Try again in ${formatRateLimitTime(parsed.resetAt)}.`;
     }
-    
+
     // Show toast with appropriate variant
     toast({
       variant: 'destructive',
       title: parsed.isAuthError ? 'Permission Denied' : 'Error',
       description
     });
-    
+
     return parsed;
   }, [toast]);
 
@@ -145,7 +184,7 @@ export function useApiError() {
     maxRetries: number = 2
   ): Promise<T> => {
     let lastError: any;
-    
+
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         const response = await fetch(url, {
@@ -165,13 +204,13 @@ export function useApiError() {
         return data as T;
       } catch (error: any) {
         lastError = error;
-        
+
         // Parse error to check if retryable
         const parsed = parseApiError(error);
-        
+
         // Only retry network errors and timeouts
         const isRetryable = parsed.isNetworkError;
-        
+
         // Don't retry if not retryable or if we've exhausted retries
         if (!isRetryable || attempt === maxRetries) {
           throw error;
@@ -180,7 +219,7 @@ export function useApiError() {
         // Wait before retrying with exponential backoff
         const delay = Math.min(1000 * Math.pow(2, attempt), 5000);
         await new Promise(resolve => setTimeout(resolve, delay));
-        
+
         console.log(`Retrying request (attempt ${attempt + 1}/${maxRetries})...`);
       }
     }

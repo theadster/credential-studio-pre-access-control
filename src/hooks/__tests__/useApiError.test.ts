@@ -179,7 +179,7 @@ describe('useApiError', () => {
       expect(mockToast).toHaveBeenCalledWith({
         variant: 'destructive',
         title: 'Error',
-        description: 'Too many requests Try again in 5 minutes.'
+        description: 'Too many requests. Try again in 5 minutes.'
       });
     });
 

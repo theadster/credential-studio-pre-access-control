@@ -21,7 +21,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
   try {
     const { user, userProfile } = req;
-    
+
     // Extract role from userProfile for permission checks
     const role = userProfile.role ? {
       ...userProfile.role,
@@ -42,7 +42,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     // Validate and sanitize pagination parameters (Requirement 7.3)
     const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
     const limitNum = Math.min(100, Math.max(1, parseInt(String(limit), 10) || 25)); // Cap at 100
-    const offset = (pageNum - 1) * limitNum;
+    const pageOffset = (pageNum - 1) * limitNum;
 
     // Create admin client to access Users API
     const adminClient = createAdminClient();
@@ -51,7 +51,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     // Build queries for Appwrite Users API
     const queries: string[] = [
       Query.limit(limitNum),
-      Query.offset(offset)
+      Query.offset(pageOffset)
     ];
 
     // Add search query if provided (Requirement 2.2)
@@ -67,11 +67,40 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     );
 
     // Get list of linked user IDs from database (Requirement 2.4)
-    const linkedUsersResponse = await databases.listDocuments(
-      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-      process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
-      [Query.select(['userId']), Query.limit(5000)] // Get all linked users
-    );
+    // Fetch all linked users with pagination
+    let allLinkedUsers: any[] = [];
+    let batchOffset = 0;
+    const batchSize = 500; // Reduced from 1000
+    let hasMore = true;
+    const maxIterations = 100; // Safety limit
+    let iterations = 0;
+
+    while (hasMore && iterations < maxIterations) {
+      try {
+        const batch = await databases.listDocuments(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+          [Query.select(['userId']), Query.limit(batchSize), Query.offset(batchOffset)]
+        );
+        allLinkedUsers.push(...batch.documents);
+        batchOffset += batchSize;
+        hasMore = batch.documents.length === batchSize;
+        iterations++;
+      } catch (error) {
+        console.error('Error fetching linked users batch:', error);
+        throw new ApiError(
+          'Failed to fetch linked users',
+          ErrorCode.DATABASE_ERROR,
+          500
+        );
+      }
+    }
+
+    if (iterations >= maxIterations) {
+      console.warn('Max iterations reached while fetching linked users');
+    }
+
+    const linkedUsersResponse = { documents: allLinkedUsers };
 
     const linkedUserIds = new Set(
       linkedUsersResponse.documents.map((doc: any) => doc.userId)
@@ -109,9 +138,6 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
               totalResults: authUsersResponse.total,
               page: pageNum,
               limit: limitNum,
-              administratorId: user.$id,
-              administratorEmail: user.email,
-              administratorName: user.name,
               timestamp: new Date().toISOString()
             })
           }

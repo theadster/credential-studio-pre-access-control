@@ -51,26 +51,28 @@ interface SearchResponse {
  * 
  * Requirements: 2.1, 2.2, 2.3, 2.4, 2.6, 2.7, 3.2, 3.3, 7.6
  */
-export default function AuthUserSearch({ 
-  onSelect, 
+export default function AuthUserSearch({
+  onSelect,
   selectedUserId,
   linkedUserIds = []
 }: AuthUserSearchProps) {
   const { handleError, fetchWithRetry } = useApiError();
-  
+
   // Search state
   const [searchTerm, setSearchTerm] = useState('');                    // Current input value
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');  // Debounced search term
-  
+
   // Results state
   const [authUsers, setAuthUsers] = useState<AppwriteAuthUser[]>([]);  // Search results
   const [loading, setLoading] = useState(false);                       // Loading indicator
   const [error, setError] = useState<string | null>(null);             // Error message
-  
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);                   // Current page number
   const [totalPages, setTotalPages] = useState(1);                     // Total pages available
   const [total, setTotal] = useState(0);                               // Total users found
+
+
 
   /**
    * Debounce search term to avoid excessive API calls
@@ -86,56 +88,50 @@ export default function AuthUserSearch({
   }, [searchTerm]);
 
   /**
-   * Fetch users when debounced search term changes
+   * Fetch users when debounced search term or page changes
    * Automatically triggers search after debounce period
-   */
-  useEffect(() => {
-    fetchUsers(debouncedSearchTerm, currentPage);
-  }, [debouncedSearchTerm]);
-
-  /**
-   * Fetch auth users from the API
-   * 
-   * @param query - Search term (email or name)
-   * @param page - Page number to fetch
    * 
    * Features:
    * - Automatic retry on network errors (Requirement 7.5)
    * - Centralized error handling (Requirement 7.6)
    * - Pagination support (Requirement 2.6)
    */
-  const fetchUsers = useCallback(async (query: string, page: number) => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      // Use fetchWithRetry for automatic retry on network errors (Requirement 7.5)
-      const data: SearchResponse = await fetchWithRetry('/api/users/search', {
-        method: 'POST',
-        body: JSON.stringify({
-          q: query,
-          page,
-          limit: 25  // 25 users per page (Requirement 2.6)
-        }),
-      });
-      
-      // Update state with search results
-      setAuthUsers(data.users);
-      setCurrentPage(data.pagination.page);
-      setTotalPages(data.pagination.totalPages);
-      setTotal(data.pagination.total);
+  useEffect(() => {
+    const fetchUsers = async () => {
+      setLoading(true);
       setError(null);
-    } catch (err: any) {
-      console.error('Error fetching auth users:', err);
-      
-      // Use centralized error handling (Requirement 7.6)
-      const parsed = handleError(err, 'Failed to search users');
-      setError(parsed.message);
-      setAuthUsers([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [handleError, fetchWithRetry]);
+
+      try {
+        // Use fetchWithRetry for automatic retry on network errors (Requirement 7.5)
+        const data: SearchResponse = await fetchWithRetry('/api/users/search', {
+          method: 'POST',
+          body: JSON.stringify({
+            q: debouncedSearchTerm,
+            page: currentPage,
+            limit: 25  // 25 users per page (Requirement 2.6)
+          }),
+        });
+
+        // Update state with search results
+        setAuthUsers(data.users);
+        setCurrentPage(data.pagination.page);
+        setTotalPages(data.pagination.totalPages);
+        setTotal(data.pagination.total);
+        setError(null);
+      } catch (err: any) {
+        console.error('Error fetching auth users:', err);
+
+        // Use centralized error handling (Requirement 7.6)
+        const parsed = handleError(err, 'Failed to search users');
+        setError(parsed.message);
+        setAuthUsers([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUsers();
+  }, [debouncedSearchTerm, currentPage, handleError, fetchWithRetry]);
 
   /**
    * Handle search input changes
@@ -147,14 +143,13 @@ export default function AuthUserSearch({
 
   /**
    * Handle pagination changes
-   * Fetches the requested page if valid
+   * Updates current page which triggers the useEffect to fetch data
    * 
    * @param newPage - Page number to navigate to
    */
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= totalPages) {
       setCurrentPage(newPage);
-      fetchUsers(debouncedSearchTerm, newPage);
     }
   };
 

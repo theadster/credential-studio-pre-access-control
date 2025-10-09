@@ -1,4 +1,6 @@
 import { createBrowserClient } from './appwrite';
+import Cookies from 'js-cookie';
+import { jwtDecode } from 'jwt-decode';
 
 /**
  * Configuration options for TokenRefreshManager
@@ -42,7 +44,7 @@ export class TokenRefreshManager {
       ...config,
     };
   }
-  
+
   /**
    * Set user context for logging
    * @param userId - User ID for logging context
@@ -52,7 +54,7 @@ export class TokenRefreshManager {
     this.userId = userId;
     this.sessionId = sessionId || null;
   }
-  
+
   /**
    * Clear user context
    */
@@ -71,7 +73,7 @@ export class TokenRefreshManager {
       clearTimeout(this.refreshTimer);
       this.refreshTimer = null;
     }
-    
+
     // Calculate when to refresh (5 minutes before expiry)
     const now = Date.now();
     const expiryTime = jwtExpiry * 1000; // Convert to milliseconds
@@ -153,7 +155,7 @@ export class TokenRefreshManager {
         });
 
         const { account } = createBrowserClient();
-        
+
         // First verify the session is still valid
         try {
           await account.get();
@@ -166,11 +168,11 @@ export class TokenRefreshManager {
               sessionId: this.sessionId || 'unknown',
               error: sessionError.message,
             });
-            
+
             // Stop the timer and clear context
             this.stop();
             this.clearUserContext();
-            
+
             const error = new Error('Session expired. Please log in again.');
             (error as any).code = 401;
             (error as any).type = 'session_expired';
@@ -180,15 +182,39 @@ export class TokenRefreshManager {
           }
           throw sessionError;
         }
-        
+
         // Session is valid, create new JWT
         const jwt = await account.createJWT();
-        const jwtExpiry = (jwt as any).expire || Math.floor(Date.now() / 1000) + (15 * 60);
 
-        // Update cookie with new JWT
-        document.cookie = `appwrite-session=${jwt.jwt}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax${
-          window.location.protocol === 'https:' ? '; Secure' : ''
-        }`;
+        // Decode JWT to extract expiry time from standard 'exp' claim
+        let jwtExpiry: number;
+        try {
+          const decoded = jwtDecode<{ exp?: number }>(jwt.jwt);
+          if (decoded.exp) {
+            jwtExpiry = decoded.exp; // exp is already in seconds since epoch
+          } else {
+            console.warn('[TokenRefresh] JWT missing exp claim, using fallback', {
+              timestamp: new Date().toISOString(),
+              userId: this.userId || 'unknown',
+            });
+            jwtExpiry = Math.floor(Date.now() / 1000) + (15 * 60);
+          }
+        } catch (decodeError) {
+          console.warn('[TokenRefresh] Failed to decode JWT, using fallback expiry', {
+            timestamp: new Date().toISOString(),
+            userId: this.userId || 'unknown',
+            error: decodeError instanceof Error ? decodeError.message : 'Unknown error',
+          });
+          jwtExpiry = Math.floor(Date.now() / 1000) + (15 * 60);
+        }
+
+        // Update cookie with new JWT using js-cookie for safe handling
+        Cookies.set('appwrite-session', jwt.jwt, {
+          path: '/',
+          expires: 7, // 7 days
+          sameSite: 'Lax',
+          secure: window.location.protocol === 'https:',
+        });
 
         // Reset consecutive failures counter on success
         this.consecutiveFailures = 0;
@@ -215,7 +241,7 @@ export class TokenRefreshManager {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         const errorType = (error as any)?.type || 'unknown';
         const errorCode = (error as any)?.code || 'unknown';
-        
+
         console.error(`[TokenRefresh] ✗ Attempt ${attempt + 1} failed`, {
           timestamp: new Date().toISOString(),
           userId: this.userId || 'unknown',
@@ -240,7 +266,18 @@ export class TokenRefreshManager {
 
         if (attempt < this.config.retryAttempts - 1) {
           // Calculate exponential backoff delay
-          const backoffDelay = this.config.retryDelay * Math.pow(2, attempt);
+          // Calculate exponential backoff delay
+          const maxBackoffDelay = 60000; // Cap at 60 seconds
+          const backoffDelay = Math.min(
+            this.config.retryDelay * Math.pow(2, attempt),
+            maxBackoffDelay
+          );
+          console.log(`[TokenRefresh] Retrying in ${backoffDelay}ms`, {
+            timestamp: new Date().toISOString(),
+            userId: this.userId || 'unknown',
+            backoffDelayMs: backoffDelay,
+            nextAttempt: attempt + 2,
+          });
           console.log(`[TokenRefresh] Retrying in ${backoffDelay}ms`, {
             timestamp: new Date().toISOString(),
             userId: this.userId || 'unknown',

@@ -21,22 +21,26 @@ vi.mock('@/util/string', () => ({
 }));
 
 // Mock the integration functions
-vi.mock('@/lib/appwrite-integrations', () => ({
-  IntegrationConflictError: class IntegrationConflictError extends Error {
-    constructor(
-      public integrationType: string,
-      public eventSettingsId: string,
-      public expectedVersion: number,
-      public actualVersion: number
-    ) {
-      super(`Integration conflict for ${integrationType}`);
-      this.name = 'IntegrationConflictError';
-    }
-  },
-  updateCloudinaryIntegration: vi.fn(),
-  updateSwitchboardIntegration: vi.fn(),
-  updateOneSimpleApiIntegration: vi.fn(),
-}));
+vi.mock('@/lib/appwrite-integrations', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/appwrite-integrations')>();
+  return {
+    ...actual,
+    IntegrationConflictError: class IntegrationConflictError extends Error {
+      constructor(
+        public integrationType: string,
+        public eventSettingsId: string,
+        public expectedVersion: number,
+        public actualVersion: number
+      ) {
+        super(`Integration conflict for ${integrationType}`);
+        this.name = 'IntegrationConflictError';
+      }
+    },
+    updateCloudinaryIntegration: vi.fn(),
+    updateSwitchboardIntegration: vi.fn(),
+    updateOneSimpleApiIntegration: vi.fn(),
+  };
+});
 
 describe('Event Settings API - Optimized Endpoint Integration Tests', () => {
   let mockReq: Partial<NextApiRequest>;
@@ -103,12 +107,12 @@ describe('Event Settings API - Optimized Endpoint Integration Tests', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     // Clear cache before each test
     eventSettingsCache.clear();
-    
+
     // Setup console spy
-    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
 
     mockJson = vi.fn();
     mockStatus = vi.fn().mockReturnValue({ json: mockJson });
@@ -172,18 +176,18 @@ describe('Event Settings API - Optimized Endpoint Integration Tests', () => {
 
       // Verify cache miss header
       expect(mockSetHeader).toHaveBeenCalledWith('X-Cache', 'MISS');
-      
+
       // Verify response
       expect(mockStatus).toHaveBeenCalledWith(200);
       expect(mockJson).toHaveBeenCalled();
-      
+
       const response = mockJson.mock.calls[0][0];
       expect(response.eventName).toBe('Test Event');
       expect(response.customFields).toHaveLength(2);
       expect(response.switchboardEnabled).toBe(true);
       expect(response.cloudinaryEnabled).toBe(true);
       expect(response.oneSimpleApiEnabled).toBe(true);
-      
+
       // Verify database was queried
       expect(mockDatabases.listDocuments).toHaveBeenCalled();
     });
@@ -226,8 +230,8 @@ describe('Event Settings API - Optimized Endpoint Integration Tests', () => {
     });
 
     it('should measure and log performance metrics for cold cache', async () => {
-      const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-      
+      const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => { });
+
       const mockDatabases = {
         listDocuments: vi.fn()
           .mockResolvedValueOnce({ documents: [mockEventSettings] })
@@ -258,15 +262,15 @@ describe('Event Settings API - Optimized Endpoint Integration Tests', () => {
       expect(mockSetHeader).toHaveBeenCalledWith('X-Response-Time', expect.any(String));
       expect(mockSetHeader).toHaveBeenCalledWith('X-Query-Count', expect.any(String));
       expect(mockSetHeader).toHaveBeenCalledWith('X-Slow-Queries', expect.any(String));
-      
+
       // Verify performance logging occurred (multiple log calls for formatted output)
       expect(consoleLogSpy).toHaveBeenCalled();
       const logCalls = consoleLogSpy.mock.calls.map(call => call[0]);
-      const hasPerformanceSummary = logCalls.some(log => 
+      const hasPerformanceSummary = logCalls.some(log =>
         typeof log === 'string' && log.includes('Performance Summary') && log.includes('GET /api/event-settings')
       );
       expect(hasPerformanceSummary).toBe(true);
-      
+
       consoleLogSpy.mockRestore();
     });
   });
@@ -296,7 +300,7 @@ describe('Event Settings API - Optimized Endpoint Integration Tests', () => {
       // Verify cache hit header
       expect(mockSetHeader).toHaveBeenCalledWith('X-Cache', 'HIT');
       expect(mockSetHeader).toHaveBeenCalledWith('X-Cache-Age', expect.any(String));
-      
+
       // Verify response
       expect(mockStatus).toHaveBeenCalledWith(200);
       // Response includes timestamp from cache
@@ -304,7 +308,7 @@ describe('Event Settings API - Optimized Endpoint Integration Tests', () => {
         ...cachedResponse,
         timestamp: expect.any(Number),
       }));
-      
+
       // Verify database was NOT queried
       expect(mockDatabases.listDocuments).not.toHaveBeenCalled();
     });
@@ -332,10 +336,10 @@ describe('Event Settings API - Optimized Endpoint Integration Tests', () => {
 
       // Verify response was fast (should be < 100ms for cached data)
       expect(duration).toBeLessThan(100);
-      
+
       // Verify no database calls
       expect(mockDatabases.listDocuments).not.toHaveBeenCalled();
-      
+
       // Verify correct response (includes timestamp from cache)
       expect(mockJson).toHaveBeenCalledWith(expect.objectContaining({
         ...cachedResponse,
@@ -369,7 +373,7 @@ describe('Event Settings API - Optimized Endpoint Integration Tests', () => {
         call => call[0] === 'X-Cache-Age'
       );
       expect(cacheAgeCall).toBeDefined();
-      
+
       // Cache age should be a valid number (0 or greater)
       const cacheAge = parseInt(cacheAgeCall![1] as string);
       expect(cacheAge).toBeGreaterThanOrEqual(0);
@@ -380,7 +384,7 @@ describe('Event Settings API - Optimized Endpoint Integration Tests', () => {
       const mockAccount = {
         get: vi.fn().mockResolvedValue({ $id: 'user-123' }),
       };
-      
+
       const mockSessionDatabases = {
         listDocuments: vi.fn().mockResolvedValue({
           documents: [{ $id: 'user-doc-123', userId: 'user-123' }],
@@ -430,7 +434,7 @@ describe('Event Settings API - Optimized Endpoint Integration Tests', () => {
 
       // Directly test cache invalidation
       eventSettingsCache.invalidate('event-settings');
-      
+
       // Verify cache was invalidated
       expect(eventSettingsCache.get('event-settings')).toBeNull();
     });
@@ -481,13 +485,13 @@ describe('Event Settings API - Optimized Endpoint Integration Tests', () => {
 
       // Verify cache miss (data was invalidated)
       expect(mockSetHeader).toHaveBeenCalledWith('X-Cache', 'MISS');
-      
+
       // Verify fresh data was fetched
       const response = mockJson.mock.calls[0][0];
       expect(response.eventName).toBe('Updated Event Name');
     });
 
-    it('should not invalidate cache if PUT request fails', async () => {
+    it('should invalidate cache at start of PUT request (even if it fails)', async () => {
       const mockAccount = {
         get: vi.fn().mockResolvedValue({ $id: 'user-123' }),
       };
@@ -523,10 +527,10 @@ describe('Event Settings API - Optimized Endpoint Integration Tests', () => {
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      // Verify cache was NOT invalidated (since update failed)
+      // Verify cache WAS invalidated (at start of PUT to prevent race conditions)
+      // Cache remains cleared on error to prevent serving stale data
       const stillCached = eventSettingsCache.get('event-settings');
-      expect(stillCached).not.toBeNull();
-      expect(stillCached.eventName).toBe('Test Event');
+      expect(stillCached).toBeNull();
     });
   });
 
@@ -562,7 +566,7 @@ describe('Event Settings API - Optimized Endpoint Integration Tests', () => {
 
       // Verify response time is under 5 seconds (5000ms)
       expect(duration).toBeLessThan(5000);
-      
+
       // Verify successful response
       expect(mockStatus).toHaveBeenCalledWith(200);
     });
@@ -592,17 +596,17 @@ describe('Event Settings API - Optimized Endpoint Integration Tests', () => {
 
       // Verify response time is under 100ms for cached data
       expect(duration).toBeLessThan(100);
-      
+
       // Verify cache hit
       expect(mockSetHeader).toHaveBeenCalledWith('X-Cache', 'HIT');
-      
+
       // Verify successful response
       expect(mockStatus).toHaveBeenCalledWith(200);
     });
 
     it('should handle parallel queries efficiently', async () => {
       // Add artificial delay to simulate network latency
-      const delayedQuery = (data: any) => 
+      const delayedQuery = (data: any) =>
         new Promise(resolve => setTimeout(() => resolve(data), 100));
 
       const mockDatabases = {
@@ -637,7 +641,7 @@ describe('Event Settings API - Optimized Endpoint Integration Tests', () => {
       // Not 500ms (5 sequential queries * 100ms each)
       // Allow some overhead for test execution
       expect(duration).toBeLessThan(400);
-      
+
       // Verify all data was fetched
       const response = mockJson.mock.calls[0][0];
       expect(response.eventName).toBe('Test Event');
@@ -688,7 +692,7 @@ describe('Event Settings API - Optimized Endpoint Integration Tests', () => {
 
       // Verify cache miss (expired)
       expect(mockSetHeader).toHaveBeenCalledWith('X-Cache', 'MISS');
-      
+
       // Verify database was queried
       expect(mockDatabases.listDocuments).toHaveBeenCalled();
     });
@@ -708,53 +712,72 @@ describe('Event Settings API - Optimized Endpoint Integration Tests', () => {
 
       // Verify 404 response
       expect(mockStatus).toHaveBeenCalledWith(404);
-      
+
       // Verify cache was not populated
       expect(eventSettingsCache.get('event-settings')).toBeNull();
     });
 
     it('should fall back to database if cache retrieval fails', async () => {
+      // Restore console.error for this test to see actual errors
+      consoleErrorSpy.mockRestore();
+
       // Mock cache.get to throw an error
       const originalGet = eventSettingsCache.get;
+      const testConsoleErrorSpy = vi.spyOn(console, 'error');
+
       eventSettingsCache.get = vi.fn().mockImplementation(() => {
         throw new Error('Cache error');
       });
 
       const mockDatabases = {
-        listDocuments: vi.fn()
-          .mockResolvedValueOnce({ documents: [mockEventSettings] })
-          .mockImplementation((dbId, collectionId) => {
-            if (collectionId === 'custom-fields') {
-              return Promise.resolve({ documents: mockCustomFields });
-            }
-            if (collectionId === 'switchboard') {
-              return Promise.resolve({ documents: [mockSwitchboardIntegration] });
-            }
-            if (collectionId === 'cloudinary') {
-              return Promise.resolve({ documents: [mockCloudinaryIntegration] });
-            }
-            if (collectionId === 'onesimpleapi') {
-              return Promise.resolve({ documents: [mockOneSimpleApiIntegration] });
-            }
-            return Promise.resolve({ documents: [] });
-          }),
+        listDocuments: vi.fn().mockImplementation((dbId, collectionId) => {
+          if (collectionId === 'event-settings') {
+            return Promise.resolve({ documents: [mockEventSettings] });
+          }
+          if (collectionId === 'custom-fields') {
+            return Promise.resolve({ documents: mockCustomFields });
+          }
+          if (collectionId === 'switchboard') {
+            return Promise.resolve({ documents: [mockSwitchboardIntegration] });
+          }
+          if (collectionId === 'cloudinary') {
+            return Promise.resolve({ documents: [mockCloudinaryIntegration] });
+          }
+          if (collectionId === 'onesimpleapi') {
+            return Promise.resolve({ documents: [mockOneSimpleApiIntegration] });
+          }
+          return Promise.resolve({ documents: [] });
+        }),
       };
 
       vi.mocked(createAdminClient).mockReturnValue({
         databases: mockDatabases,
       } as any);
 
-      // The handler doesn't currently have try-catch around cache.get
-      // So this will throw an error and return 500
-      // This test documents current behavior - ideally should be fixed in handler
+      // Handler now has try-catch around cache.get
+      // Should catch the error, log it, and fall back to database
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      // Current behavior: returns 500 when cache throws
-      // Ideal behavior would be to catch and fall back to database
-      expect(mockStatus).toHaveBeenCalledWith(500);
+      // Should return 200 with data from database
+      expect(mockStatus).toHaveBeenCalledWith(200);
+      expect(mockJson).toHaveBeenCalled();
 
-      // Restore original get method
+      // Should log the cache error
+      expect(testConsoleErrorSpy).toHaveBeenCalledWith(
+        'Cache access error in GET /api/event-settings:',
+        expect.objectContaining({
+          error: expect.any(Error),
+          message: 'Cache error',
+          cacheKey: 'event-settings'
+        })
+      );
+
+      // Should have fetched from database
+      expect(mockDatabases.listDocuments).toHaveBeenCalled();
+
+      // Restore original methods
       eventSettingsCache.get = originalGet;
+      testConsoleErrorSpy.mockRestore();
     });
   });
 });

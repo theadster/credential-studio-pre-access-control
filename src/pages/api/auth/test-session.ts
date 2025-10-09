@@ -1,9 +1,17 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { createSessionClient, createBrowserClient } from '@/lib/appwrite';
+import { createSessionClient } from '@/lib/appwrite';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // Validate required environment variable
+  const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
+  if (!projectId) {
+    return res.status(500).json({ 
+      error: 'Server configuration error: NEXT_PUBLIC_APPWRITE_PROJECT_ID is not defined' 
+    });
   }
 
   try {
@@ -11,7 +19,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log('All cookies:', req.cookies);
     
     // Check for Appwrite session cookie
-    const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID || '';
     const sessionCookieName = `a_session_${projectId}`;
     const sessionId = req.cookies?.[sessionCookieName];
     
@@ -42,7 +49,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
   } catch (error: any) {
     console.error('Session test error:', error);
-    return res.status(200).json({
+    const statusCode = error.code === 401 ? 401 : 500;
+    return res.status(statusCode).json({
       authenticated: false,
       error: error.message,
       code: error.code,

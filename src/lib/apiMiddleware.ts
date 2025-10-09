@@ -4,6 +4,44 @@ import { createSessionClient } from '@/lib/appwrite';
 import { handleApiError } from '@/lib/apiErrorHandler';
 
 /**
+ * Validates required environment variables for API middleware
+ * Throws a clear error if any required variables are missing
+ */
+function validateEnvironmentVariables(): {
+  databaseId: string;
+  usersCollectionId: string;
+  rolesCollectionId: string;
+} {
+  const missingVars: string[] = [];
+  
+  if (!process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID) {
+    missingVars.push('NEXT_PUBLIC_APPWRITE_DATABASE_ID');
+  }
+  
+  if (!process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID) {
+    missingVars.push('NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID');
+  }
+  
+  if (!process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID) {
+    missingVars.push('NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID');
+  }
+  
+  if (missingVars.length > 0) {
+    throw new Error(
+      `Missing required environment variables: ${missingVars.join(', ')}. ` +
+      'Please check your .env.local file and ensure all Appwrite configuration variables are set.'
+    );
+  }
+  
+  // Safe to use non-null assertions here since we've validated above
+  return {
+    databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+    usersCollectionId: process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+    rolesCollectionId: process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+  };
+}
+
+/**
  * User profile structure with role information
  */
 export interface UserProfile {
@@ -70,6 +108,28 @@ export function withAuth(handler: AuthenticatedApiHandler): NextApiHandler {
     const method = req.method || 'unknown';
     
     try {
+      // Validate environment variables before proceeding
+      let envVars;
+      try {
+        envVars = validateEnvironmentVariables();
+      } catch (envError: any) {
+        console.error('[API Middleware] ✗ Environment configuration error', {
+          timestamp: new Date().toISOString(),
+          endpoint,
+          method,
+          error: envError.message,
+        });
+        
+        return res.status(500).json({
+          error: 'Server configuration error',
+          code: 500,
+          type: 'configuration_error',
+          message: process.env.NODE_ENV === 'development' 
+            ? envError.message 
+            : 'Server is not properly configured. Please contact support.'
+        });
+      }
+      
       // Create session client with JWT from cookie
       const { account, databases } = createSessionClient(req);
       
@@ -105,8 +165,8 @@ export function withAuth(handler: AuthenticatedApiHandler): NextApiHandler {
       
       // Fetch user profile from database
       const userDocs = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+        envVars.databaseId,
+        envVars.usersCollectionId,
         [Query.equal('userId', user.$id)]
       );
       
@@ -133,15 +193,26 @@ export function withAuth(handler: AuthenticatedApiHandler): NextApiHandler {
       if (userProfileDoc.roleId) {
         try {
           const roleDoc = await databases.getDocument(
-            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-            process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+            envVars.databaseId,
+            envVars.rolesCollectionId,
             userProfileDoc.roleId
           );
           
           // Parse permissions if stored as string
-          const permissions = typeof roleDoc.permissions === 'string' 
-            ? JSON.parse(roleDoc.permissions) 
-            : roleDoc.permissions;
+          // Parse permissions if stored as string
+          let permissions = roleDoc.permissions;
+          if (typeof roleDoc.permissions === 'string') {
+            try {
+              permissions = JSON.parse(roleDoc.permissions);
+            } catch (parseError) {
+              console.error('[API Middleware] Failed to parse role permissions', {
+                timestamp: new Date().toISOString(),
+                roleId: roleDoc.$id,
+                error: parseError instanceof Error ? parseError.message : 'Unknown error',
+              });
+              permissions = {}; // Fallback to empty permissions
+            }
+          }
           
           role = {
             id: roleDoc.$id,

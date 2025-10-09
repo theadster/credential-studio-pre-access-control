@@ -239,37 +239,43 @@ describe('apiErrorHandler', () => {
     });
 
     it('should include stack trace in development when includeStack is true', () => {
-      const originalEnv = process.env.NODE_ENV;
-      process.env.NODE_ENV = 'development';
+      // Use vi.stubEnv to safely mock environment variable
+      vi.stubEnv('NODE_ENV', 'development');
 
-      const error = {
-        message: 'Error occurred',
-        stack: 'Error: Error occurred\n    at test.ts:10:5',
-      };
+      try {
+        const error = {
+          message: 'Error occurred',
+          stack: 'Error: Error occurred\n    at test.ts:10:5',
+        };
 
-      const result = formatErrorResponse(error, { includeStack: true });
+        const result = formatErrorResponse(error, { includeStack: true });
 
-      expect(result.details).toEqual({
-        stack: 'Error: Error occurred\n    at test.ts:10:5',
-      });
-
-      process.env.NODE_ENV = originalEnv;
+        expect(result.details).toEqual({
+          stack: 'Error: Error occurred\n    at test.ts:10:5',
+        });
+      } finally {
+        // Always restore environment, even if test fails
+        vi.unstubAllEnvs();
+      }
     });
 
     it('should not include stack trace in production', () => {
-      const originalEnv = process.env.NODE_ENV;
-      process.env.NODE_ENV = 'production';
+      // Use vi.stubEnv to safely mock environment variable
+      vi.stubEnv('NODE_ENV', 'production');
 
-      const error = {
-        message: 'Error occurred',
-        stack: 'Error: Error occurred\n    at test.ts:10:5',
-      };
+      try {
+        const error = {
+          message: 'Error occurred',
+          stack: 'Error: Error occurred\n    at test.ts:10:5',
+        };
 
-      const result = formatErrorResponse(error, { includeStack: true });
+        const result = formatErrorResponse(error, { includeStack: true });
 
-      expect(result.details).toBeUndefined();
-
-      process.env.NODE_ENV = originalEnv;
+        expect(result.details).toBeUndefined();
+      } finally {
+        // Always restore environment, even if test fails
+        vi.unstubAllEnvs();
+      }
     });
 
     it('should use error.code when available', () => {
@@ -321,7 +327,7 @@ describe('apiErrorHandler', () => {
     });
 
     it('should log errors by default', () => {
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
 
       const error = {
         message: 'Test error',
@@ -339,7 +345,7 @@ describe('apiErrorHandler', () => {
     });
 
     it('should not log errors when logError is false', () => {
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
 
       const error = {
         message: 'Test error',
@@ -354,8 +360,8 @@ describe('apiErrorHandler', () => {
     });
 
     it('should log token errors as warnings', () => {
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
 
       const error = {
         type: 'user_jwt_invalid',
@@ -379,7 +385,7 @@ describe('apiErrorHandler', () => {
     });
 
     it('should include context in logs', () => {
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
 
       const error = {
         message: 'Test error',
@@ -409,7 +415,7 @@ describe('apiErrorHandler', () => {
     });
 
     it('should use "unknown" for missing context values', () => {
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
 
       const error = {
         message: 'Test error',
@@ -433,28 +439,30 @@ describe('apiErrorHandler', () => {
     });
 
     it('should include stack trace in development logs', () => {
-      const originalEnv = process.env.NODE_ENV;
-      process.env.NODE_ENV = 'development';
+      // Use vi.stubEnv to safely mock environment variable
+      vi.stubEnv('NODE_ENV', 'development');
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
 
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-      const error = {
-        message: 'Test error',
-        code: 500,
-        stack: 'Error: Test error\n    at test.ts:10:5',
-      };
-
-      handleApiError(error, mockResponse as NextApiResponse);
-
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.objectContaining({
+      try {
+        const error = {
+          message: 'Test error',
+          code: 500,
           stack: 'Error: Test error\n    at test.ts:10:5',
-        })
-      );
+        };
 
-      consoleSpy.mockRestore();
-      process.env.NODE_ENV = originalEnv;
+        handleApiError(error, mockResponse as NextApiResponse);
+
+        expect(consoleSpy).toHaveBeenCalledWith(
+          expect.any(String),
+          expect.objectContaining({
+            stack: 'Error: Test error\n    at test.ts:10:5',
+          })
+        );
+      } finally {
+        // Always restore environment and mocks, even if test fails
+        consoleSpy.mockRestore();
+        vi.unstubAllEnvs();
+      }
     });
 
     it('should pass options to formatErrorResponse', () => {
@@ -527,8 +535,8 @@ describe('apiErrorHandler', () => {
 
   describe('Integration Scenarios', () => {
     it('should handle complete token expiration flow', () => {
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
 
       const error = {
         type: 'user_jwt_invalid',
@@ -578,7 +586,7 @@ describe('apiErrorHandler', () => {
     });
 
     it('should handle generic errors without token issues', () => {
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
 
       const error = {
         message: 'Database connection failed',

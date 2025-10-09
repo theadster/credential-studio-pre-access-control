@@ -11,7 +11,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     // Create session client
     const { account, databases } = createSessionClient(req);
-    
+
     // Verify authentication
     const user = await account.get();
 
@@ -78,7 +78,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       );
 
       allLogs = allLogs.concat(logsResponse.documents);
-      
+
       if (logsResponse.documents.length < batchSize) {
         hasMore = false;
       } else {
@@ -157,8 +157,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let logs = logsWithRelations;
     if (scope === 'custom' && filters?.targetType && filters.targetType !== 'all') {
       if (filters.targetType === 'system') {
-        logs = logs.filter(log => 
-          !log.attendeeId && 
+        logs = logs.filter(log =>
+          !log.attendeeId &&
           ((log.details as any)?.type === 'system' || (log.details as any)?.type === 'settings')
         );
       } else if (filters.targetType !== 'attendee') {
@@ -268,7 +268,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         extract: (log) => {
           const details = log.details || {};
           const parts = [];
-          
+
           // Handle the new detailed changes format
           if (details.changes) {
             if (Array.isArray(details.changes)) {
@@ -287,23 +287,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               parts.push(`Changed: ${details.changes}`);
             }
           }
-          
+
           if (details.count) {
             parts.push(`Count: ${details.count}`);
           }
-          
+
           if (details.barcodeNumber) {
             parts.push(`Barcode: ${details.barcodeNumber}`);
           }
-          
+
           if (details.credentialUrl) {
             parts.push('Credential generated');
           }
-          
+
           if (details.error) {
             parts.push(`Error: ${details.error}`);
           }
-          
+
           return parts.join('; ') || JSON.stringify(details);
         }
       },
@@ -340,9 +340,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Generate CSV headers
     const headers = fields.map(field => fieldMappings[field]?.header || field);
-    
+
     // Generate CSV rows
-    const rows = logs.map(log => 
+    const rows = logs.map(log =>
       fields.map(field => {
         const mapping = fieldMappings[field];
         if (mapping) {
@@ -363,7 +363,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Set response headers for CSV download
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', 'attachment; filename="activity-logs-export.csv"');
-    
+
     return res.status(200).send(csvContent);
 
   } catch (error) {

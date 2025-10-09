@@ -112,6 +112,69 @@ export function formatErrorResponse(
 }
 
 /**
+ * Sanitize context object to prevent logging sensitive data
+ * 
+ * @param context - Raw context object that may contain sensitive fields
+ * @returns Sanitized context with only safe fields
+ */
+function sanitizeContext(context?: {
+  userId?: string;
+  endpoint?: string;
+  method?: string;
+  [key: string]: any;
+}): Record<string, any> {
+  if (!context) {
+    return {
+      userId: 'unknown',
+      endpoint: 'unknown',
+      method: 'unknown'
+    };
+  }
+
+  // Start with known-safe fields
+  const sanitized: Record<string, any> = {
+    userId: context.userId || 'unknown',
+    endpoint: context.endpoint || 'unknown',
+    method: context.method || 'unknown'
+  };
+
+  // Allowlist of additional safe keys
+  const safeKeys = [
+    'attendeeId',
+    'eventId',
+    'roleId',
+    'customFieldId',
+    'targetId',
+    'invitationId',
+    'logId',
+    'action',
+    'resource',
+    'timestamp',
+    'ipAddress',
+    'userAgent'
+  ];
+
+  // Pattern to detect sensitive keys
+  const sensitivePattern = /token|secret|password|key|auth|credential|session|cookie|jwt|bearer/i;
+
+  // Add additional safe keys from context
+  for (const key of Object.keys(context)) {
+    // Skip if already added
+    if (key in sanitized) continue;
+
+    // Skip if key matches sensitive pattern
+    if (sensitivePattern.test(key)) continue;
+
+    // Add if in allowlist
+    if (safeKeys.includes(key)) {
+      sanitized[key] = context[key];
+    }
+  }
+
+  return sanitized;
+}
+
+/**
  * Centralized error handler for API routes
  * Provides consistent error responses and logging
  * 
@@ -139,29 +202,25 @@ export function handleApiError(
     const isTokenError = isTokenExpiredError(error);
     const errorType = isTokenError ? 'TOKEN_ERROR' : 'API_ERROR';
     const logLevel = isTokenError ? 'WARN' : 'ERROR';
-    
+
+    // Sanitize context to prevent logging sensitive data
+    const sanitizedContext = sanitizeContext(context);
+
     console.error(`[${timestamp}] [${logLevel}] ${errorType}:`, {
       timestamp,
       type: error.type || 'unknown',
       code: error.code || 'unknown',
       message: error.message || 'Unknown error',
-      ...(context && {
-        context: {
-          userId: context.userId || 'unknown',
-          endpoint: context.endpoint || 'unknown',
-          method: context.method || 'unknown',
-          ...context,
-        }
-      }),
+      context: sanitizedContext,
       ...(error.stack && process.env.NODE_ENV === 'development' && { stack: error.stack })
     });
-    
+
     // Additional warning for authentication failures
     if (isTokenError) {
       console.warn(`[${timestamp}] [WARN] Authentication failure detected`, {
         timestamp,
-        userId: context?.userId || 'unknown',
-        endpoint: context?.endpoint || 'unknown',
+        userId: sanitizedContext.userId,
+        endpoint: sanitizedContext.endpoint,
         errorType: error.type || 'unknown',
         message: 'User may need to re-authenticate',
       });

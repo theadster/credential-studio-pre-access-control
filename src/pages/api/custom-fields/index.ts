@@ -18,10 +18,15 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     switch (req.method) {
       case 'GET':
         // Fetch custom fields ordered by order field
+        // Filter out soft-deleted fields (where deletedAt is not null)
         const customFieldsResult = await databases.listDocuments(
           dbId,
           customFieldsCollectionId,
-          [Query.orderAsc('order'), Query.limit(100)]
+          [
+            Query.isNull('deletedAt'),  // Only return non-deleted fields
+            Query.orderAsc('order'), 
+            Query.limit(100)
+          ]
         );
 
         // Generate internal field names on-the-fly for display without persisting them
@@ -76,9 +81,19 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         const internalFieldName = generateInternalFieldName(fieldName);
 
         // Serialize fieldOptions as JSON string if it's an object
-        const fieldOptionsStr = fieldOptions ? 
-          (typeof fieldOptions === 'string' ? fieldOptions : JSON.stringify(fieldOptions)) : 
-          null;
+        let fieldOptionsStr = null;
+        if (fieldOptions) {
+          if (typeof fieldOptions === 'string') {
+            try {
+              JSON.parse(fieldOptions); // Validate it's valid JSON
+              fieldOptionsStr = fieldOptions;
+            } catch {
+              return res.status(400).json({ error: 'Invalid JSON in fieldOptions' });
+            }
+          } else {
+            fieldOptionsStr = JSON.stringify(fieldOptions);
+          }
+        }
 
         const newCustomField = await databases.createDocument(
           dbId,
@@ -91,7 +106,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             fieldType,
             fieldOptions: fieldOptionsStr,
             required: required || false,
-            order: fieldOrder
+            order: fieldOrder,
+            version: 0
           }
         );
 

@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { createClient } from '@/util/supabase/api';
-import { Client, Databases, Query } from 'node-appwrite';
+import { createAdminClient } from '@/lib/appwrite';
+import { Query } from 'node-appwrite';
 import { getEventSettingsWithIntegrations } from '@/lib/appwrite-integrations';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -9,20 +9,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const supabase = createClient(req, res);
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    // Initialize Appwrite
-    const client = new Client()
-      .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!)
-      .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!)
-      .setKey(process.env.APPWRITE_API_KEY!);
-    
-    const databases = new Databases(client);
+    // Use admin client for server-side operations
+    const { databases } = createAdminClient();
     const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
     const eventSettingsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID!;
 
@@ -47,8 +35,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: 'Switchboard Canvas integration is not enabled' });
     }
 
-    if (!settings.switchboard.apiEndpoint || !settings.switchboard.apiKey) {
-      return res.status(400).json({ error: 'Switchboard Canvas is not properly configured' });
+    // Get API key from environment variable (not stored in database for security)
+    const switchboardApiKey = process.env.SWITCHBOARD_API_KEY;
+    
+    if (!settings.switchboard.apiEndpoint || !switchboardApiKey) {
+      return res.status(400).json({ error: 'Switchboard Canvas is not properly configured. Check SWITCHBOARD_API_KEY environment variable.' });
     }
 
     // Create a test request body
@@ -79,11 +70,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     };
 
     // Set the authentication header based on the configured type
+    // API key is read from environment variable for security
     const authHeaderType = settings.switchboard.authHeaderType || 'Bearer';
     if (authHeaderType === 'Bearer') {
-      headers['Authorization'] = `Bearer ${settings.switchboard.apiKey}`;
+      headers['Authorization'] = `Bearer ${switchboardApiKey}`;
     } else {
-      headers[authHeaderType] = settings.switchboard.apiKey || '';
+      headers[authHeaderType] = switchboardApiKey;
     }
 
     console.log('=== SWITCHBOARD TEST REQUEST ===');

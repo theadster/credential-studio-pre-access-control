@@ -64,8 +64,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       return res.status(400).json({ error: 'Switchboard Canvas integration is not enabled' });
     }
 
-    if (!switchboardIntegration.apiKey || !switchboardIntegration.apiEndpoint) {
-      return res.status(400).json({ error: 'Switchboard Canvas is not properly configured' });
+    // Get API key from environment variable (not stored in database for security)
+    const switchboardApiKey = process.env.SWITCHBOARD_API_KEY;
+    
+    if (!switchboardApiKey || !switchboardIntegration.apiEndpoint) {
+      return res.status(400).json({ error: 'Switchboard Canvas is not properly configured. Check SWITCHBOARD_API_KEY environment variable.' });
     }
 
     // Get custom fields
@@ -229,20 +232,30 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       // Check for any remaining unreplaced placeholders
       const unreplacedPlaceholders = bodyString.match(/\{\{[^}]+\}\}/g);
       if (unreplacedPlaceholders) {
-        console.log('Unreplaced placeholders found:', unreplacedPlaceholders);
-        console.log('Available placeholders:', Object.keys(placeholders));
-        console.log('Available numeric placeholders:', Object.keys(numericPlaceholders));
+        // Create a set of numeric placeholder keys (without the {{}} wrapper)
+        const numericPlaceholderKeys = new Set(
+          Object.keys(numericPlaceholders).map(key => key.slice(2, -2))
+        );
         
-        // Replace any remaining placeholders with empty string or default values
+        // Log warning with detailed information for troubleshooting
+        console.warn('⚠️  Unreplaced placeholders detected in Switchboard template');
+        console.warn('Unreplaced placeholders:', unreplacedPlaceholders);
+        console.warn('Available string placeholders:', Object.keys(placeholders));
+        console.warn('Available numeric placeholders:', Object.keys(numericPlaceholders));
+        console.warn('This may indicate missing field mappings or custom field values');
+        
+        // Replace any remaining placeholders with appropriate default values
         unreplacedPlaceholders.forEach(placeholder => {
           const escapedPlaceholder = escapeRegex(placeholder);
-          // For numeric contexts, replace with 0
-          if (bodyString.includes(`"opacity": ${placeholder}`) || 
-              bodyString.includes(`"value": ${placeholder}`) ||
-              bodyString.includes(`"number": ${placeholder}`)) {
+          // Strip {{}} to get the placeholder name
+          const placeholderName = placeholder.slice(2, -2);
+          
+          // Check if this placeholder should be numeric based on our numericPlaceholders map
+          if (numericPlaceholderKeys.has(placeholderName)) {
+            // Replace with 0 for numeric placeholders
             bodyString = bodyString.replace(new RegExp(escapedPlaceholder, 'g'), '0');
           } else {
-            // For string contexts, replace with empty string (no quotes, as it's already in a JSON string)
+            // Replace with empty string for string placeholders
             bodyString = bodyString.replace(new RegExp(escapedPlaceholder, 'g'), '');
           }
         });
@@ -298,11 +311,12 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         };
 
         // Set the authentication header based on the configured type
+        // API key is read from environment variable for security
         const authHeaderType = switchboardIntegration.authHeaderType || 'Bearer';
         if (authHeaderType === 'Bearer') {
-          headers['Authorization'] = `Bearer ${switchboardIntegration.apiKey}`;
+          headers['Authorization'] = `Bearer ${switchboardApiKey}`;
         } else {
-          headers[authHeaderType] = switchboardIntegration.apiKey || '';
+          headers[authHeaderType] = switchboardApiKey;
         }
 
         switchboardResponse = await fetch(switchboardIntegration.apiEndpoint, {

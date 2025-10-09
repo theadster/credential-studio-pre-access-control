@@ -15,6 +15,19 @@ const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID || '';
 const databaseId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || '';
 const usersCollectionId = process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID || '';
 
+// Validate required environment variables
+const missingVars = [];
+if (!endpoint) missingVars.push('NEXT_PUBLIC_APPWRITE_ENDPOINT');
+if (!projectId) missingVars.push('NEXT_PUBLIC_APPWRITE_PROJECT_ID');
+if (!databaseId) missingVars.push('NEXT_PUBLIC_APPWRITE_DATABASE_ID');
+if (!usersCollectionId) missingVars.push('NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID');
+
+if (missingVars.length > 0) {
+  console.error('✗ Missing required environment variables:', missingVars.join(', '));
+  console.error('   Please ensure .env.local is configured correctly.');
+  process.exit(1);
+}
+
 console.log('=== Appwrite Authentication Test ===\n');
 console.log('Configuration:');
 console.log('- Endpoint:', endpoint);

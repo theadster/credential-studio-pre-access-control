@@ -13,10 +13,7 @@ class RateLimiter {
   private cleanupInterval: NodeJS.Timeout | null = null;
 
   constructor() {
-    // Clean up expired entries every 5 minutes
-    this.cleanupInterval = setInterval(() => {
-      this.cleanup();
-    }, 5 * 60 * 1000);
+    // Cleanup interval will be initialized lazily on first use
   }
 
   /**
@@ -27,6 +24,13 @@ class RateLimiter {
    * @returns Object with allowed status and remaining count
    */
   check(key: string, limit: number, windowMs: number): { allowed: boolean; remaining: number; resetAt: number } {
+    // Lazy initialization of cleanup interval
+    if (!this.cleanupInterval) {
+      this.cleanupInterval = setInterval(() => {
+        this.cleanup();
+      }, 5 * 60 * 1000);
+    }
+
     const now = Date.now();
     const entry = this.store.get(key);
 
@@ -40,7 +44,6 @@ class RateLimiter {
     // Entry exists and not expired
     if (entry.count < limit) {
       entry.count++;
-      this.store.set(key, entry);
       return { allowed: true, remaining: limit - entry.count, resetAt: entry.resetAt };
     }
 

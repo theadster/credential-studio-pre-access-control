@@ -46,7 +46,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         integration: {
           enabled: switchboardIntegration.enabled,
           hasApiEndpoint: !!switchboardIntegration.apiEndpoint,
-          hasApiKey: !!switchboardIntegration.apiKey,
+          hasApiKey: !!process.env.SWITCHBOARD_API_KEY,
           hasTemplateId: !!switchboardIntegration.templateId,
           hasRequestBody: !!switchboardIntegration.requestBody
         }
@@ -60,8 +60,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       issues.push('API Endpoint is not configured');
     }
     
-    if (!switchboardIntegration.apiKey) {
-      issues.push('API Key is not configured');
+    if (!process.env.SWITCHBOARD_API_KEY) {
+      issues.push('API Key is not configured (SWITCHBOARD_API_KEY environment variable)');
     }
     
     if (!switchboardIntegration.templateId) {
@@ -122,8 +122,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       integration: {
         enabled: switchboardIntegration.enabled,
         apiEndpoint: switchboardIntegration.apiEndpoint,
-        hasApiKey: !!switchboardIntegration.apiKey,
-        apiKeyLength: switchboardIntegration.apiKey?.length || 0,
+        hasApiKey: !!process.env.SWITCHBOARD_API_KEY,
+        apiKeyLength: process.env.SWITCHBOARD_API_KEY?.length || 0,
         authHeaderType: switchboardIntegration.authHeaderType,
         templateId: switchboardIntegration.templateId,
         requestBody: {
