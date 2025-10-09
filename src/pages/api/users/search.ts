@@ -68,7 +68,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
     // Get list of linked user IDs from database (Requirement 2.4)
     // Fetch all linked users with pagination
-    let allLinkedUsers: any[] = [];
+    const allLinkedUsers: any[] = [];
     let batchOffset = 0;
     const batchSize = 500; // Reduced from 1000
     let hasMore = true;

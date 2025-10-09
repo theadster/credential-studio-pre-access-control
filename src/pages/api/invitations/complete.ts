@@ -90,7 +90,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
           updatedUser.roleId
         );
-      } catch (error) {
+      } catch (_error) {
         console.warn('Role not found:', updatedUser.roleId);
         // Continue without role data
       }

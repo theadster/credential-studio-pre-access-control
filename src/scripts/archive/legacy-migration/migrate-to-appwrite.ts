@@ -13,9 +13,11 @@
  * are no longer installed as the migration has been completed.
  */
 
-// @ts-nocheck - Archived script with dependencies no longer installed
+// Archived script with dependencies no longer installed
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-nocheck
 import { createClient } from '@supabase/supabase-js';
-import { Client, Databases, Users, ID, Query } from 'node-appwrite';
+import { Client, Databases, Users, ID } from 'node-appwrite';
 import { PrismaClient } from '@prisma/client';
 import * as dotenv from 'dotenv';
 import * as readline from 'readline';

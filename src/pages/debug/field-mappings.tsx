@@ -133,7 +133,7 @@ export default function DebugFieldMappings() {
                       <div className="col-span-2">
                         <span className="font-medium">Attendee has value:</span>{' '}
                         {hasValue ? (
-                          <span className="text-green-600">✓ Yes: "{String(value)}"</span>
+                          <span className="text-green-600">✓ Yes: &quot;{String(value)}&quot;</span>
                         ) : (
                           <span className="text-red-600">✗ No value</span>
                         )}

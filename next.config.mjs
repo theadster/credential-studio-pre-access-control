@@ -7,8 +7,11 @@ const nextConfig = {
   images: {
     domains: ["assets.co.dev", "images.unsplash.com"],
   },
+  // Temporarily disable minification to work around Next.js 15 webpack issue
+  swcMinify: false,
   webpack: (config, context) => {
-    config.optimization.minimize = process.env.NEXT_PUBLIC_CO_DEV_ENV !== "preview";
+    // Disable minification to work around webpack error
+    config.optimization.minimize = false;
     return config;
   }
 };

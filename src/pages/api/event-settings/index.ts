@@ -460,7 +460,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           return res.status(404).json({ error: 'Event settings not found' });
         }
 
-        let eventSettings = eventSettingsResult.documents[0];
+        const eventSettings = eventSettingsResult.documents[0];
 
         // Fetch custom fields and all integrations in parallel using Promise.allSettled
         const switchboardCollectionId = process.env.NEXT_PUBLIC_APPWRITE_SWITCHBOARD_COLLECTION_ID!;

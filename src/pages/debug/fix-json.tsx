@@ -119,21 +119,13 @@ export default function FixSwitchboardJson() {
     } catch (err) {
       toast({
         variant: 'destructive',
-  const copyToClipboard = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      toast({
-        title: 'Copied',
-        description: 'Copied to clipboard'
-      });
-    } catch (err) {
-      toast({
-        variant: 'destructive',
         title: 'Failed to copy',
         description: 'Unable to access clipboard'
       });
     }
   };
+
+  const useExampleTemplate = () => {
     const example = {
       "template_id": "{{template_id}}",
       "data": {

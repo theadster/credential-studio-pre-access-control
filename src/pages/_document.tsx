@@ -5,10 +5,10 @@ export default function Document() {
   return (
     <Html lang="en">
       <Head>
-        <script
+        <Script
           src="https://widget.cloudinary.com/v2.0/global/all.js"
-          type="text/javascript"
-        ></script>
+          strategy="beforeInteractive"
+        />
       </Head>
       <body>
         <Main />

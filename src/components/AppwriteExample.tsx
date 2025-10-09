@@ -16,7 +16,7 @@ export default function AppwriteExample() {
     try {
       const currentUser = await account.get();
       setUser(currentUser);
-    } catch (error) {
+    } catch (_error) {
       console.log('No user logged in');
       setUser(null);
     } finally {

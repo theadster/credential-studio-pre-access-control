@@ -890,7 +890,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="flex items-center justify-between p-3 border rounded-lg">
                               <div className="space-y-1">
-                                <Label className="text-sm font-medium">Disable "Skip Crop" button</Label>
+                                <Label className="text-sm font-medium">Disable &quot;Skip Crop&quot; button</Label>
                                 <p className="text-xs text-muted-foreground">
                                   Force users to crop their images before uploading
                                 </p>
@@ -1420,7 +1420,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                               className="h-10"
                             />
                             <p className="text-xs text-muted-foreground">
-                              The key name for the form data field (e.g., "html", "content", "data")
+                              The key name for the form data field (e.g., &quot;html&quot;, &quot;content&quot;, &quot;data&quot;)
                             </p>
                           </div>
 
@@ -1584,7 +1584,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                 <CardContent>
                   {customFields.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground">
-                      No custom fields configured. Click "Add Field" to create one.
+                      No custom fields configured. Click &quot;Add Field&quot; to create one.
                     </div>
                   ) : (
                     <DndContext
@@ -2213,7 +2213,7 @@ function FieldMappingForm({ isOpen, customFields, editingMapping, onSave, onCanc
 
                     <div className="p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
                       <p className="text-xs text-blue-800 dark:text-blue-200">
-                        <strong>Example:</strong> For a "VIP Status" boolean field, you might map:
+                        <strong>Example:</strong> For a &quot;VIP Status&quot; boolean field, you might map:
                         <br />
                         <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">yes</code> → <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">1</code>
                         <br />
