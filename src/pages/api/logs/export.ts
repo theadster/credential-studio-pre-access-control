@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { createSessionClient } from '@/lib/appwrite';
 import { Query, ID } from 'appwrite';
+import { shouldLog } from '@/lib/logSettings';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -167,23 +168,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Log the export activity
-    await databases.createDocument(
-      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-      process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
-      ID.unique(),
-      {
-        userId: user.$id,
-        attendeeId: null,
-        action: 'export',
-        details: JSON.stringify({
-          type: 'logs',
-          scope,
-          recordCount: logs.length,
-          fields: fields.length,
-          filters: filters || {}
-        })
-      }
-    );
+    // Log the export action if enabled
+    if (await shouldLog('logsExport')) {
+      await databases.createDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+        ID.unique(),
+        {
+          userId: user.$id,
+          attendeeId: null,
+          action: 'export',
+          details: JSON.stringify({
+            type: 'logs',
+            scope,
+            recordCount: logs.length,
+            fields: fields.length,
+            filters: filters || {}
+          })
+        }
+      );
+    }
 
     // Define field mappings for CSV headers and data extraction
     const fieldMappings: { [key: string]: { header: string; extract: (log: any) => string } } = {
@@ -248,7 +252,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           if (log.details?.name) {
             return log.details.name;
           }
-          return log.details?.type || 'System';
+          return log.details?.target || log.details?.type || 'System';
         }
       },
       targetType: {
@@ -269,6 +273,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           const details = log.details || {};
           const parts = [];
 
+          // Handle description field (for system view logs and bulk operations)
+          if (details.description) {
+            parts.push(details.description);
+          }
+
+          // Handle summary field (for bulk operations with additional context)
+          if (details.summary) {
+            parts.push(details.summary);
+          }
+
           // Handle the new detailed changes format
           if (details.changes) {
             if (Array.isArray(details.changes)) {
@@ -288,10 +302,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             }
           }
 
-          if (details.count) {
-            parts.push(`Count: ${details.count}`);
-          }
-
           if (details.barcodeNumber) {
             parts.push(`Barcode: ${details.barcodeNumber}`);
           }
@@ -300,11 +310,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             parts.push('Credential generated');
           }
 
+          if (details.previousCredentialUrl) {
+            parts.push(`Previous URL: ${details.previousCredentialUrl}`);
+          }
+
           if (details.error) {
             parts.push(`Error: ${details.error}`);
           }
 
-          return parts.join('; ') || JSON.stringify(details);
+          // If no parts were extracted but we have a description, use it
+          if (parts.length === 0 && details.description) {
+            return details.description;
+          }
+
+          // If still no parts, try to create a readable summary
+          if (parts.length === 0) {
+            if (details.type && details.target) {
+              return `${details.target} - ${details.type}`;
+            }
+            if (details.target) {
+              return details.target;
+            }
+            if (details.type) {
+              return details.type;
+            }
+          }
+
+          return parts.join('; ') || 'No details available';
         }
       },
       changes: {
@@ -328,14 +360,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           return '';
         }
       },
-      ipAddress: {
-        header: 'IP Address',
-        extract: (log) => log.details?.ipAddress || ''
-      },
-      userAgent: {
-        header: 'User Agent',
-        extract: (log) => log.details?.userAgent || ''
-      }
+
     };
 
     // Generate CSV headers

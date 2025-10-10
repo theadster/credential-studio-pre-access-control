@@ -212,20 +212,43 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         // Clear the cache so new settings take effect immediately
         clearLogSettingsCache();
 
-        // Log the settings update
-        await databases.createDocument(
-          dbId,
-          logsCollectionId,
-          ID.unique(),
-          {
-            userId: user.$id,
-            action: 'update',
-            details: JSON.stringify({
-              type: 'log_settings',
-              changes: req.body
-            })
+        // Detect what actually changed for logging
+        const oldSettings = existingSettingsResult.documents.length > 0
+          ? existingSettingsResult.documents[0]
+          : DEFAULT_LOG_SETTINGS;
+
+        const changes: Record<string, { from: boolean; to: boolean }> = {};
+        for (const field of fields) {
+          const oldValue = (oldSettings as any)[field] ?? DEFAULT_LOG_SETTINGS[field as keyof typeof DEFAULT_LOG_SETTINGS];
+          const newValue = req.body[field] ?? oldValue;
+          if (oldValue !== newValue) {
+            changes[field] = { from: oldValue, to: newValue };
           }
-        );
+        }
+
+        // Only log if there were actual changes
+        if (Object.keys(changes).length > 0) {
+          try {
+            const { createSettingsLogDetails } = await import('@/lib/logFormatting');
+            await databases.createDocument(
+              dbId,
+              logsCollectionId,
+              ID.unique(),
+              {
+                userId: user.$id,
+                action: 'update',
+                details: JSON.stringify(
+                  createSettingsLogDetails('update', 'log', {
+                    changes: Object.keys(changes),
+                    changeDetails: changes
+                  })
+                )
+              }
+            );
+          } catch (logError) {
+            console.error('Failed to write log settings audit log:', logError);
+          }
+        }
 
         return res.status(200).json(updatedSettings);
 

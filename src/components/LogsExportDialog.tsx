@@ -93,9 +93,7 @@ export default function LogsExportDialog({
     
     // System fields
     { id: 'logId', name: 'Log ID', description: 'Unique identifier of the log entry', category: 'system' },
-    { id: 'changes', name: 'Changes Made', description: 'Specific fields that were changed', category: 'system' },
-    { id: 'ipAddress', name: 'IP Address', description: 'IP address of the user (if available)', category: 'system' },
-    { id: 'userAgent', name: 'User Agent', description: 'Browser/device information (if available)', category: 'system' }
+    { id: 'changes', name: 'Changes Made', description: 'Specific fields that were changed', category: 'system' }
   ];
 
   const actionTypes = [

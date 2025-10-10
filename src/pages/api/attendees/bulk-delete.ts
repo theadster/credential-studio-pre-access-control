@@ -2,6 +2,7 @@ import { NextApiResponse } from 'next';
 import { createSessionClient } from '@/lib/appwrite';
 import { ID } from 'appwrite';
 import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
+import { shouldLog } from '@/lib/logSettings';
 
 export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   if (req.method !== 'DELETE') {
@@ -83,25 +84,36 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
     console.log(`[Bulk Delete] Phase 2 complete: ${deleted.length} deleted, ${errors.length} errors`);
 
-    // Log the bulk delete action with detailed results
-    await databases.createDocument(
-      dbId,
-      logsCollectionId,
-      ID.unique(),
-      {
-        action: 'delete',
-        userId: user.$id,
-        details: JSON.stringify({
-          type: 'bulk_delete',
-          totalRequested: attendeeIds.length,
-          successCount: deleted.length,
-          errorCount: errors.length,
-          deletedIds: deleted,
-          errors: errors,
-          attendees: attendeesToDelete
-        })
+    // Log the bulk delete action with detailed results if enabled
+    if (await shouldLog('attendeeBulkDelete')) {
+      try {
+        const { createBulkAttendeeLogDetails } = await import('@/lib/logFormatting');
+        const attendeeNames = attendeesToDelete.map(a => `${a.firstName} ${a.lastName}`);
+
+        await databases.createDocument(
+          dbId,
+          logsCollectionId,
+          ID.unique(),
+          {
+            action: 'bulk_delete',
+            userId: user.$id,
+            details: JSON.stringify(
+              createBulkAttendeeLogDetails('bulk_delete', deleted.length, {
+                names: attendeeNames,
+                totalRequested: attendeeIds.length,
+                successCount: deleted.length,
+                errorCount: errors.length,
+                deletedIds: deleted,
+                ...(errors.length > 0 && { errors }),
+                attendees: attendeesToDelete
+              })
+            )
+          }
+        );
+      } catch (logError) {
+        console.error('[Bulk Delete] Failed to write audit log:', logError);
       }
-    );
+    }
 
     res.status(200).json({
       success: errors.length === 0,

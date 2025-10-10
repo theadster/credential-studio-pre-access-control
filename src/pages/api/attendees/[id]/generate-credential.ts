@@ -3,6 +3,7 @@ import { createSessionClient } from '@/lib/appwrite';
 import { Query, ID } from 'appwrite';
 import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
 import { getSwitchboardIntegration } from '@/lib/appwrite-integrations';
+import { shouldLog } from '@/lib/logSettings';
 
 // Helper function to escape regex special characters
 const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -384,24 +385,30 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         }
       );
 
-      // Log the activity
-      await databases.createDocument(
-        dbId,
-        logsCollectionId,
-        ID.unique(),
-        {
-          action: 'generate_credential',
-          userId: user.$id,
-          attendeeId: attendee.$id,
-          details: JSON.stringify({
-            attendeeId: attendee.$id,
-            firstName: attendee.firstName,
-            lastName: attendee.lastName,
-            barcodeNumber: attendee.barcodeNumber,
-            credentialUrl
-          })
+      // Log the activity if enabled
+      if (await shouldLog('credentialGenerate')) {
+        try {
+          await databases.createDocument(
+            dbId,
+            logsCollectionId,
+            ID.unique(),
+            {
+              action: 'generate_credential',
+              userId: user.$id,
+              attendeeId: attendee.$id,
+              details: JSON.stringify({
+                attendeeId: attendee.$id,
+                firstName: attendee.firstName,
+                lastName: attendee.lastName,
+                barcodeNumber: attendee.barcodeNumber,
+                credentialUrl
+              })
+            }
+          );
+        } catch (logError) {
+          console.error('Failed to write credential audit log:', logError);
         }
-      );
+      }
 
       return res.status(200).json({
         success: true,

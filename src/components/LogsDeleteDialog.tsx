@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertTriangle, Trash2 } from 'lucide-react';
+import { AlertTriangle, Trash2, Loader2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 
 interface User {
@@ -17,13 +17,17 @@ interface User {
 interface LogsDeleteDialogProps {
   users: User[];
   onDeleteSuccess: () => void;
+  onDeleteStart?: () => void;
+  onDeleteEnd?: () => void;
   children: React.ReactNode;
 }
 
-export default function LogsDeleteDialog({ users, onDeleteSuccess, children }: LogsDeleteDialogProps) {
+export default function LogsDeleteDialog({ users, onDeleteSuccess, onDeleteStart, onDeleteEnd, children }: LogsDeleteDialogProps) {
   const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [deletedCount, setDeletedCount] = useState<number | null>(null);
   const [filters, setFilters] = useState({
     beforeDate: '',
     action: '',
@@ -41,6 +45,19 @@ export default function LogsDeleteDialog({ users, onDeleteSuccess, children }: L
     }
 
     setIsDeleting(true);
+    setElapsedTime(0);
+    setDeletedCount(null);
+    
+    // Notify parent to pause real-time updates
+    if (onDeleteStart) {
+      onDeleteStart();
+    }
+    
+    // Start a timer to show elapsed time
+    const timerInterval = setInterval(() => {
+      setElapsedTime(prev => prev + 1);
+    }, 1000);
+    
     try {
       const response = await fetch('/api/logs/delete', {
         method: 'DELETE',
@@ -50,6 +67,8 @@ export default function LogsDeleteDialog({ users, onDeleteSuccess, children }: L
         body: JSON.stringify(filters),
       });
 
+      clearInterval(timerInterval);
+
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || 'Failed to delete logs');
@@ -57,22 +76,47 @@ export default function LogsDeleteDialog({ users, onDeleteSuccess, children }: L
 
       const result = await response.json();
       
+      // Show final count
+      setDeletedCount(result.deletedCount);
+      
       toast({
         title: "Success",
         description: result.message,
       });
 
-      setIsOpen(false);
-      setFilters({ beforeDate: '', action: '', userId: '' });
-      onDeleteSuccess();
+      // Wait a moment to show results and let rate limits reset before closing
+      setTimeout(() => {
+        setIsOpen(false);
+        setFilters({ beforeDate: '', action: '', userId: '' });
+        setElapsedTime(0);
+        setDeletedCount(null);
+        setIsDeleting(false);
+        
+        // Notify parent to resume real-time updates
+        if (onDeleteEnd) {
+          onDeleteEnd();
+        }
+        
+        // Wait an additional 3 seconds before refreshing to let rate limits reset
+        setTimeout(() => {
+          onDeleteSuccess();
+        }, 3000);
+      }, 1500);
     } catch (error: any) {
+      clearInterval(timerInterval);
       toast({
         variant: "destructive",
         title: "Error",
         description: error.message,
       });
-    } finally {
       setIsDeleting(false);
+      setElapsedTime(0);
+      setDeletedCount(null);
+      
+      // Notify parent to resume real-time updates even on error
+      if (onDeleteEnd) {
+        onDeleteEnd();
+      }
     }
   };
 
@@ -160,13 +204,41 @@ export default function LogsDeleteDialog({ users, onDeleteSuccess, children }: L
             </Select>
           </div>
 
-          {!hasFilters && (
+          {!hasFilters && !isDeleting && (
             <Alert className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/50">
               <AlertTriangle className="h-4 w-4 text-amber-600" />
               <AlertDescription className="text-amber-800 dark:text-amber-200">
                 Please select at least one filter to prevent accidental deletion of all logs.
               </AlertDescription>
             </Alert>
+          )}
+
+          {/* Progress indicator */}
+          {isDeleting && (
+            <div className="space-y-3 pt-4 border-t">
+              <Alert className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/50">
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                <AlertDescription className="text-amber-800 dark:text-amber-200">
+                  <strong>Please be patient:</strong> Large log deletions can take considerable time to complete. 
+                  Do not close this dialog or refresh the page.
+                </AlertDescription>
+              </Alert>
+              
+              <div className="flex items-center justify-center gap-3 py-4">
+                <Loader2 className="h-6 w-6 text-primary animate-spin" />
+                <div className="text-center">
+                  <div className="font-medium text-lg">
+                    {deletedCount !== null ? 'Completed' : 'Deleting logs...'}
+                  </div>
+                  <div className="text-sm text-muted-foreground mt-1">
+                    {deletedCount !== null 
+                      ? `${deletedCount} log${deletedCount !== 1 ? 's' : ''} deleted in ${Math.floor(elapsedTime / 60)}m ${elapsedTime % 60}s`
+                      : `Elapsed time: ${Math.floor(elapsedTime / 60)}m ${elapsedTime % 60}s`
+                    }
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
         </div>
 

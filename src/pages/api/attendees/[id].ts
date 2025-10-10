@@ -3,6 +3,7 @@ import { createSessionClient } from '@/lib/appwrite';
 import { Query, ID } from 'appwrite';
 import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
 import { parseCustomFieldValues } from '@/util/customFields';
+import { shouldLog } from '@/lib/logSettings';
 
 export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   const { id } = req.query;
@@ -40,22 +41,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           return res.status(404).json({ error: 'Attendee not found' });
         }
 
-        // Log the view action
-        await databases.createDocument(
-          dbId,
-          logsCollectionId,
-          ID.unique(),
-          {
-            userId: user.$id,
-            attendeeId: attendee.$id,
-            action: 'view',
-            details: JSON.stringify({
-              type: 'attendee_detail',
-              firstName: attendee.firstName,
-              lastName: attendee.lastName
-            })
-          }
-        );
+        // TODO: Individual attendee view logging is currently inoperable
+        // Keeping the code structure for future implementation
+        // if (await shouldLog('attendeeView')) {
+        //   // Log view action
+        // }
 
         // Parse customFieldValues from JSON string to array format
         const parsedCustomFieldValues = parseCustomFieldValues(attendee.customFieldValues);
@@ -91,17 +81,28 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         if (!existingAttendee) {
           return res.status(404).json({ error: 'Attendee not found' });
         }
-        const currentCustomFieldValues = existingAttendee.customFieldValues ?
-          (() => {
-            try {
-              return typeof existingAttendee.customFieldValues === 'string'
-                ? JSON.parse(existingAttendee.customFieldValues)
-                : existingAttendee.customFieldValues;
-            } catch (error) {
-              console.error('Failed to parse customFieldValues:', error);
-              return {};
+        // Parse existing custom field values (stored as JSON array)
+        let currentCustomFieldValues: Record<string, any> = {};
+        try {
+          if (existingAttendee.customFieldValues) {
+            const parsed = typeof existingAttendee.customFieldValues === 'string'
+              ? JSON.parse(existingAttendee.customFieldValues)
+              : existingAttendee.customFieldValues;
+            
+            // Convert array format to object format for easier comparison
+            if (Array.isArray(parsed)) {
+              currentCustomFieldValues = parsed.reduce((acc: Record<string, any>, item: any) => {
+                if (item.customFieldId) {
+                  acc[item.customFieldId] = item.value;
+                }
+                return acc;
+              }, {});
             }
-          })() : {};
+          }
+        } catch (error) {
+          console.error('Failed to parse customFieldValues:', error);
+          currentCustomFieldValues = {};
+        }
 
         // Check if barcode is unique (excluding current attendee)
         if (barcodeNumber && barcodeNumber !== existingAttendee.barcodeNumber) {
@@ -263,22 +264,26 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           changeDetails.push('No changes detected');
         }
 
-        await databases.createDocument(
-          dbId,
-          logsCollectionId,
-          ID.unique(),
-          {
-            userId: user.$id,
-            attendeeId: updatedAttendee.$id,
-            action: 'update',
-            details: JSON.stringify({
-              type: 'attendee',
-              firstName: updatedAttendee.firstName,
-              lastName: updatedAttendee.lastName,
-              changes: changeDetails
-            })
-          }
-        );
+        if (await shouldLog('attendeeUpdate')) {
+          const { createAttendeeLogDetails } = await import('@/lib/logFormatting');
+          await databases.createDocument(
+            dbId,
+            logsCollectionId,
+            ID.unique(),
+            {
+              userId: user.$id,
+              attendeeId: updatedAttendee.$id,
+              action: 'update',
+              details: JSON.stringify(createAttendeeLogDetails('update', {
+                firstName: updatedAttendee.firstName,
+                lastName: updatedAttendee.lastName,
+                barcodeNumber: updatedAttendee.barcodeNumber
+              }, {
+                changes: changeDetails
+              }))
+            }
+          );
+        }
 
         // Parse and return the updated attendee with proper structure
         const customFieldValuesArray = parseCustomFieldValues(finalAttendee.customFieldValues);
@@ -310,22 +315,24 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         // Delete attendee
         await databases.deleteDocument(dbId, attendeesCollectionId, id);
 
-        // Log the delete action
-        await databases.createDocument(
-          dbId,
-          logsCollectionId,
-          ID.unique(),
-          {
-            userId: user.$id,
-            action: 'delete',
-            details: JSON.stringify({
-              type: 'attendee',
-              firstName: attendeeToDelete.firstName,
-              lastName: attendeeToDelete.lastName,
-              barcodeNumber: attendeeToDelete.barcodeNumber
-            })
-          }
-        );
+        // Log the delete action if enabled
+        if (await shouldLog('attendeeDelete')) {
+          const { createAttendeeLogDetails } = await import('@/lib/logFormatting');
+          await databases.createDocument(
+            dbId,
+            logsCollectionId,
+            ID.unique(),
+            {
+              userId: user.$id,
+              action: 'delete',
+              details: JSON.stringify(createAttendeeLogDetails('delete', {
+                firstName: attendeeToDelete.firstName,
+                lastName: attendeeToDelete.lastName,
+                barcodeNumber: attendeeToDelete.barcodeNumber
+              }))
+            }
+          );
+        }
 
         return res.status(200).json({ message: 'Attendee deleted successfully' });
 

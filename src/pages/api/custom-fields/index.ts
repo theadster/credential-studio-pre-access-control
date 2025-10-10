@@ -3,6 +3,7 @@ import { createSessionClient } from '@/lib/appwrite';
 import { Query, ID } from 'appwrite';
 import { generateInternalFieldName } from '@/util/string';
 import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
+import { shouldLog } from '@/lib/logSettings';
 
 export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   try {
@@ -24,7 +25,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           customFieldsCollectionId,
           [
             Query.isNull('deletedAt'),  // Only return non-deleted fields
-            Query.orderAsc('order'), 
+            Query.orderAsc('order'),
             Query.limit(100)
           ]
         );
@@ -71,9 +72,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
               Query.limit(1)
             ]
           );
-          
-          fieldOrder = lastFieldResult.documents.length > 0 
-            ? (lastFieldResult.documents[0].order as number) + 1 
+
+          fieldOrder = lastFieldResult.documents.length > 0
+            ? (lastFieldResult.documents[0].order as number) + 1
             : 1;
         }
 
@@ -112,20 +113,33 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         );
 
         // Log the create action
-        await databases.createDocument(
-          dbId,
-          logsCollectionId,
-          ID.unique(),
-          {
-            userId: user.$id,
-            action: 'create',
-            details: JSON.stringify({ 
-              type: 'custom_field',
-              fieldName: newCustomField.fieldName,
-              fieldType: newCustomField.fieldType
-            })
+        // Log the create action if enabled
+        if (await shouldLog('customFieldCreate')) {
+          try {
+            await databases.createDocument(
+              dbId,
+              logsCollectionId,
+              ID.unique(),
+              {
+                userId: user.$id,
+                action: 'create',
+                details: JSON.stringify({
+                  type: 'custom_field',
+                  fieldName: newCustomField.fieldName,
+                  fieldType: newCustomField.fieldType
+                })
+              }
+            );
+          } catch (logError) {
+            console.error('[custom-fields] Failed to create log entry, but continuing with request', {
+              error: logError instanceof Error ? logError.message : 'Unknown error',
+              errorType: (logError as any)?.type,
+              userId: user.$id,
+              fieldName: newCustomField.fieldName
+            });
+            // Do not re-throw - allow the request to succeed even if logging fails
           }
-        );
+        }
 
         return res.status(201).json(newCustomField);
 
@@ -135,7 +149,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     }
   } catch (error: any) {
     console.error('API Error:', error);
-    
+
     // Handle Appwrite-specific errors
     if (error.code === 401) {
       return res.status(401).json({ error: 'Unauthorized' });
@@ -144,7 +158,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     } else if (error.code === 409) {
       return res.status(409).json({ error: 'Conflict - resource already exists' });
     }
-    
+
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

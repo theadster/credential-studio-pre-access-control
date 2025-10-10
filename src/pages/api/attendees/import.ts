@@ -6,6 +6,7 @@ import fs from 'fs';
 import csv from 'csv-parser';
 import { generateBarcode } from '@/util/string';
 import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
+import { shouldLog } from '@/lib/logSettings';
 
 export const config = {
   api: {
@@ -214,21 +215,47 @@ const handler = async (req: AuthenticatedRequest, res: NextApiResponse) => {
             }
           }
 
-          // Log the import action
-          await databases.createDocument(
-            dbId,
-            logsCollectionId,
-            ID.unique(),
-            {
-              userId: user.$id,
-              action: 'import',
-              details: JSON.stringify({
-                type: 'attendee',
-                count: createdCount,
-                fileName: file.originalFilename,
-              })
+          const createdAttendees: Array<{ firstName: string; lastName: string }> = [];
+          for (let i = 0; i < attendeesToCreate.length; i++) {
+            try {
+              await databases.createDocument(
+                dbId,
+                attendeesCollectionId,
+                ID.unique(),
+                attendeesToCreate[i]
+              );
+              createdCount++;
+              createdAttendees.push({
+                firstName: attendeesToCreate[i].firstName,
+                lastName: attendeesToCreate[i].lastName,
+              });
+            } catch (error: any) {
+              errors.push({ row: i + 1, error: error.message || 'Failed to create' });
             }
-          );
+          }
+          // Log the import action with detailed information if enabled
+          if (await shouldLog('attendeeImport')) {
+            const { createImportLogDetails } = await import('@/lib/logFormatting');
+            const importedNames = createdAttendees.map((a) => `${a.firstName} ${a.lastName}`);
+            
+            await databases.createDocument(
+              dbId,
+              logsCollectionId,
+              ID.unique(),
+              {
+                userId: user.$id,
+                action: 'import',
+                details: JSON.stringify(createImportLogDetails('attendees', createdCount, {
+                  filename: file.originalFilename,
+                  names: importedNames,
+                  totalRows: results.length,
+                  successCount: createdCount,
+                  errorCount: errors.length,
+                  ...(errors.length > 0 && { errors: errors.slice(0, 10) }) // Include first 10 errors
+                }))
+              }
+            );
+          }
 
           res.status(200).json({
             message: 'Attendees imported successfully',

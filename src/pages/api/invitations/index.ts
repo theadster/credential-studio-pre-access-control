@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { createSessionClient } from '@/lib/appwrite';
 import { ID, Query } from 'appwrite';
 import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
+import { shouldLog } from '@/lib/logSettings';
 
 export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   try {
@@ -67,21 +68,33 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         const invitationUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/signup?invitation=${invitationToken}`;
 
         // Log the invitation creation
-        await databases.createDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
-          ID.unique(),
-          {
-            userId: user.$id,
-            action: 'create',
-            details: JSON.stringify({ 
-              type: 'invitation',
-              invitedUserEmail: invitedUser.email,
-              invitedUserName: invitedUser.name,
-              expiresAt: expiresAt.toISOString()
-            })
+        if (await shouldLog('userInvite')) {
+          try {
+            await databases.createDocument(
+              process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+              process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+              ID.unique(),
+              {
+                userId: user.$id,
+                action: 'create',
+                details: JSON.stringify({
+                  type: 'invitation',
+                  invitedUserEmail: invitedUser.email,
+                  invitedUserName: invitedUser.name,
+                  expiresAt: expiresAt.toISOString()
+                })
+              }
+            );
+          } catch (logError) {
+            console.error('[invitations] Failed to create log entry, but continuing with request', {
+              error: logError instanceof Error ? logError.message : 'Unknown error',
+              errorType: (logError as any)?.type,
+              userId: user.$id,
+              invitedUserEmail: invitedUser.email
+            });
+            // Do not re-throw - allow the request to succeed even if logging fails
           }
-        );
+        }
 
         return res.status(201).json({
           invitation,
@@ -94,11 +107,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     }
   } catch (error: any) {
     console.error('API Error:', error);
-    
+
     if (error.code === 401) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
-    
+
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

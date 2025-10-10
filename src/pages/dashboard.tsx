@@ -6,10 +6,10 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { 
-  Users, 
-  Settings, 
-  Shield, 
+import {
+  Users,
+  Settings,
+  Shield,
   Activity,
   IdCard,
   LogOut,
@@ -71,6 +71,7 @@ import { hasPermission, canAccessTab, canManageUser } from "@/lib/permissions";
 
 interface User {
   id: string;
+  userId?: string; // Appwrite user ID (used for filtering logs)
   email: string;
   name: string | null;
   role: {
@@ -227,7 +228,7 @@ export default function Dashboard() {
   const [bulkEditChanges, setBulkEditChanges] = useState<{ [key: string]: any }>({});
   const [isBulkEditing, setIsBulkEditing] = useState(false);
   const [attendeeToDelete, setAttendeeToDelete] = useState<Attendee | null>(null);
-  const [dropdownStates, setDropdownStates] = useState<{[key: string]: boolean}>({});
+  const [dropdownStates, setDropdownStates] = useState<{ [key: string]: boolean }>({});
   const [selectedAttendees, setSelectedAttendees] = useState<string[]>([]);
   const [exportingPdfs, setExportingPdfs] = useState(false);
   const [showPdfGenerationModal, setShowPdfGenerationModal] = useState(false);
@@ -256,7 +257,8 @@ export default function Dashboard() {
       const usersResponse = await fetch('/api/users');
       if (usersResponse.ok) {
         const usersData = await usersResponse.json();
-        setUsers(Array.isArray(usersData) ? usersData : []);
+        // API returns { users: [...], pagination: {...} }
+        setUsers(usersData.users || []);
       } else {
         setUsers([]);
       }
@@ -291,7 +293,7 @@ export default function Dashboard() {
     }
   }, []);
 
-  const loadLogs = useCallback(async (page = 1, filters = logsFilters) => {
+  const loadLogs = useCallback(async (page = 1, filters = logsFilters, retryCount = 0) => {
     setLogsLoading(true);
     try {
       const params = new URLSearchParams({
@@ -302,6 +304,15 @@ export default function Dashboard() {
       });
 
       const response = await fetch(`/api/logs?${params}`);
+
+      // Handle rate limiting with exponential backoff
+      if (response.status === 429 && retryCount < 3) {
+        const delay = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
+        console.log(`Rate limited, retrying in ${delay}ms (attempt ${retryCount + 1}/3)...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return loadLogs(page, filters, retryCount + 1);
+      }
+
       if (response.ok) {
         const data = await response.json();
         setLogs(data.logs || []);
@@ -379,7 +390,8 @@ export default function Dashboard() {
         const usersResponse = await fetch('/api/users');
         if (usersResponse.ok) {
           const usersData = await usersResponse.json();
-          setUsers(Array.isArray(usersData) ? usersData : []);
+          // API returns { users: [...], pagination: {...} }
+          setUsers(usersData.users || []);
         } else {
           setUsers([]);
         }
@@ -614,13 +626,21 @@ export default function Dashboard() {
     }, [refreshEventSettings])
   });
 
-  // Appwrite real-time subscriptions for logs
+  // State to pause logs real-time updates during bulk deletion
+  const [pauseLogsRealtime, setPauseLogsRealtime] = useState(false);
+
+  // Appwrite real-time subscriptions for logs (with pause capability during bulk operations)
   useRealtimeSubscription({
     channels: [`databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID}.documents`],
     callback: useCallback((response: any) => {
+      // Skip refresh if paused (during bulk deletion)
+      if (pauseLogsRealtime) {
+        console.log('Logs change received but refresh paused during bulk operation');
+        return;
+      }
       console.log('Logs change received!', response);
       setTimeout(() => loadLogs(), 2000);
-    }, [loadLogs])
+    }, [loadLogs, pauseLogsRealtime])
   });
 
   // Enhanced filtering function for attendees including custom fields and photo filter
@@ -658,12 +678,12 @@ export default function Dashboard() {
         const firstNameMatch = applyTextFilter(attendee.firstName, advancedSearchFilters.firstName);
         const lastNameMatch = applyTextFilter(attendee.lastName, advancedSearchFilters.lastName);
         const barcodeMatch = applyTextFilter(attendee.barcodeNumber, advancedSearchFilters.barcode);
-        
+
         // Photo filter
-        const photoMatch = advancedSearchFilters.photoFilter === 'all' || 
+        const photoMatch = advancedSearchFilters.photoFilter === 'all' ||
           (advancedSearchFilters.photoFilter === 'with' && attendee.photoUrl) ||
           (advancedSearchFilters.photoFilter === 'without' && !attendee.photoUrl);
-        
+
         // Custom fields filter
         const customFieldsMatch = Object.entries(advancedSearchFilters.customFields).every(([fieldId, filter]) => {
           const attendeeValueObj = Array.isArray(attendee.customFieldValues)
@@ -695,25 +715,25 @@ export default function Dashboard() {
               return hasValue && attendeeValue.toLowerCase() === filter.value.toLowerCase();
           }
         });
-        
+
         return firstNameMatch && lastNameMatch && barcodeMatch && photoMatch && customFieldsMatch;
       } else {
         // Use simple search
         const basicMatch = `${attendee.firstName} ${attendee.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
           attendee.barcodeNumber.toLowerCase().includes(searchTerm.toLowerCase());
-        
+
         // Search in custom field values
-        const customFieldMatch = Array.isArray(attendee.customFieldValues) 
-          ? attendee.customFieldValues.some((cfv: any) => 
-              cfv.value && cfv.value.toLowerCase().includes(searchTerm.toLowerCase())
-            )
+        const customFieldMatch = Array.isArray(attendee.customFieldValues)
+          ? attendee.customFieldValues.some((cfv: any) =>
+            cfv.value && cfv.value.toLowerCase().includes(searchTerm.toLowerCase())
+          )
           : false;
-        
+
         // Photo filter
-        const photoMatch = photoFilter === 'all' || 
+        const photoMatch = photoFilter === 'all' ||
           (photoFilter === 'with' && attendee.photoUrl) ||
           (photoFilter === 'without' && !attendee.photoUrl);
-        
+
         return (basicMatch || customFieldMatch) && photoMatch;
       }
     })
@@ -732,10 +752,10 @@ export default function Dashboard() {
       if (typeof valA === 'string' && typeof valB === 'string') {
         return valA.localeCompare(valB) * direction;
       }
-      
+
       if (valA < valB) return -1 * direction;
       if (valA > valB) return 1 * direction;
-      
+
       // Secondary sort by last name, then first name
       const lastNameComparison = a.lastName.localeCompare(b.lastName);
       if (lastNameComparison !== 0) {
@@ -766,7 +786,7 @@ export default function Dashboard() {
           newCustomFields[field.id] = { value: '', operator: 'contains' };
         }
       });
-      
+
       if (Object.keys(newCustomFields).length > 0) {
         setAdvancedSearchFilters(prev => ({
           ...prev,
@@ -798,22 +818,22 @@ export default function Dashboard() {
   // Check if advanced search has any active filters
   const hasAdvancedFilters = () => {
     return advancedSearchFilters.firstName.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.firstName.operator) ||
-           advancedSearchFilters.lastName.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.lastName.operator) ||
-           advancedSearchFilters.barcode.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.barcode.operator) ||
-           advancedSearchFilters.photoFilter !== 'all' ||
-           Object.values(advancedSearchFilters.customFields).some(field => field.value || field.operator === 'isEmpty' || field.operator === 'isNotEmpty');
+      advancedSearchFilters.lastName.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.lastName.operator) ||
+      advancedSearchFilters.barcode.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.barcode.operator) ||
+      advancedSearchFilters.photoFilter !== 'all' ||
+      Object.values(advancedSearchFilters.customFields).some(field => field.value || field.operator === 'isEmpty' || field.operator === 'isNotEmpty');
   };
 
   const handleAdvancedSearchChange = (
-    field: 'firstName' | 'lastName' | 'barcode' | 'photoFilter', 
-    value: string, 
+    field: 'firstName' | 'lastName' | 'barcode' | 'photoFilter',
+    value: string,
     property: 'value' | 'operator' = 'value'
   ) => {
     setAdvancedSearchFilters(prev => {
       if (field === 'photoFilter') {
         return { ...prev, photoFilter: value as 'all' | 'with' | 'without' };
       }
-      
+
       const newFieldState = {
         ...prev[field],
         [property]: value,
@@ -905,12 +925,12 @@ export default function Dashboard() {
   // API Functions
   const handleSaveAttendee = async (attendeeData: any) => {
     try {
-      const url = editingAttendee 
+      const url = editingAttendee
         ? `/api/attendees/${editingAttendee.id}`
         : '/api/attendees';
-      
+
       const method = editingAttendee ? 'PUT' : 'POST';
-      
+
       const response = await fetch(url, {
         method,
         headers: {
@@ -980,7 +1000,7 @@ export default function Dashboard() {
     // Find the attendee name for the loading modal
     const attendee = attendees.find(a => a.id === attendeeId);
     const attendeeName = attendee ? `${attendee.firstName} ${attendee.lastName}` : 'attendee';
-    
+
     setCredentialGenerationAttendeeName(attendeeName);
     setGeneratingCredential(attendeeId);
     setShowCredentialGenerationModal(true);
@@ -996,16 +1016,16 @@ export default function Dashboard() {
       }
 
       const result = await response.json();
-      
+
       // Update the attendee in the local state with the new credential URL and updated timestamp
-      setAttendees(prev => prev.map(a => 
-        a.id === attendeeId 
-          ? { 
-              ...a, 
-              credentialUrl: result.credentialUrl, 
-              credentialGeneratedAt: result.generatedAt,
-              $updatedAt: result.updatedAt || result.generatedAt // Use the actual Appwrite timestamp
-            }
+      setAttendees(prev => prev.map(a =>
+        a.id === attendeeId
+          ? {
+            ...a,
+            credentialUrl: result.credentialUrl,
+            credentialGeneratedAt: result.generatedAt,
+            $updatedAt: result.updatedAt || result.generatedAt // Use the actual Appwrite timestamp
+          }
           : a
       ));
 
@@ -1043,8 +1063,8 @@ export default function Dashboard() {
       }
 
       // Update the attendee in the local state
-      setAttendees(prev => prev.map(a => 
-        a.id === attendeeId 
+      setAttendees(prev => prev.map(a =>
+        a.id === attendeeId
           ? { ...a, credentialUrl: null, credentialGeneratedAt: null }
           : a
       ));
@@ -1075,7 +1095,7 @@ export default function Dashboard() {
       }
 
       const result = await response.json();
-      
+
       // Open the generated image in a new tab for printing
       if (result.credential?.imageUrl) {
         window.open(result.credential.imageUrl, '_blank');
@@ -1110,7 +1130,7 @@ export default function Dashboard() {
       }
 
       const result = await response.json();
-      
+
       // Reload roles data
       const rolesResponse = await fetch('/api/roles');
       if (rolesResponse.ok) {
@@ -1135,12 +1155,12 @@ export default function Dashboard() {
 
   const handleSaveRole = async (roleData: any) => {
     try {
-      const url = editingRole 
+      const url = editingRole
         ? `/api/roles/${editingRole.id}`
         : '/api/roles';
-      
+
       const method = editingRole ? 'PUT' : 'POST';
-      
+
       const response = await fetch(url, {
         method,
         headers: {
@@ -1209,12 +1229,12 @@ export default function Dashboard() {
   // Event Settings Functions
   const handleSaveEventSettings = async (settingsData: any) => {
     try {
-      const url = eventSettings 
+      const url = eventSettings
         ? `/api/event-settings`
         : '/api/event-settings';
-      
+
       const method = eventSettings ? 'PUT' : 'POST';
-      
+
       const response = await fetch(url, {
         method,
         headers: {
@@ -1249,16 +1269,16 @@ export default function Dashboard() {
   // User Management Functions
   const handleSaveUser = async (userData: any) => {
     try {
-      const url = editingUser 
+      const url = editingUser
         ? `/api/users`
         : '/api/users';
-      
+
       const method = editingUser ? 'PUT' : 'POST';
-      
-      const requestData = editingUser 
+
+      const requestData = editingUser
         ? { id: editingUser.id, ...userData }
         : userData;
-      
+
       const response = await fetch(url, {
         method,
         headers: {
@@ -1283,7 +1303,7 @@ export default function Dashboard() {
       } else {
         // Handle new user linking response
         setUsers(prev => [savedUser, ...prev]);
-        
+
         // Check team membership status and display appropriate message
         if (savedUser.teamMembership) {
           if (savedUser.teamMembership.status === 'success') {
@@ -1307,7 +1327,7 @@ export default function Dashboard() {
       }
 
       setEditingUser(null);
-      
+
       // Refresh user list to ensure we have the latest data
       await refreshUsers();
     } catch (error: any) {
@@ -1371,9 +1391,9 @@ export default function Dashboard() {
       textArea.style.pointerEvents = 'none';
       textArea.setAttribute('readonly', '');
       textArea.setAttribute('contenteditable', 'true');
-      
+
       document.body.appendChild(textArea);
-      
+
       // For mobile devices
       if (navigator.userAgent.match(/ipad|ipod|iphone/i)) {
         textArea.contentEditable = 'true';
@@ -1388,10 +1408,10 @@ export default function Dashboard() {
         textArea.select();
         textArea.setSelectionRange(0, 999999);
       }
-      
+
       const successful = document.execCommand('copy');
       document.body.removeChild(textArea);
-      
+
       if (successful) {
         return true;
       }
@@ -1419,10 +1439,10 @@ export default function Dashboard() {
       }
 
       const result = await response.json();
-      
+
       // Copy invitation URL to clipboard
       const copySuccess = await copyToClipboard(result.invitationUrl);
-      
+
       if (copySuccess) {
         toast({
           title: "Invitation Created",
@@ -1467,7 +1487,7 @@ export default function Dashboard() {
       const response = await fetch(`/api/logs?${params}`);
       if (response.ok) {
         const data = await response.json();
-        
+
         // Convert logs to CSV
         const csvContent = [
           ['Date', 'Time', 'Action', 'User', 'Target', 'Details'].join(','),
@@ -1476,8 +1496,8 @@ export default function Dashboard() {
             new Date(log.createdAt).toLocaleTimeString(),
             log.action,
             log.user ? (log.user.name || log.user.email) : 'Unknown User',
-            log.attendee ? `${log.attendee.firstName} ${log.attendee.lastName}` : (log.details?.type || 'System'),
-            JSON.stringify(log.details || {}).replace(/"/g, '""')
+            log.attendee ? `${log.attendee.firstName} ${log.attendee.lastName}` : (log.details?.target || log.details?.type || 'System'),
+            log.details?.description || log.details?.summary || (log.details?.changes ? (Array.isArray(log.details.changes) ? log.details.changes.join(', ') : JSON.stringify(log.details.changes)) : JSON.stringify(log.details || {}).replace(/"/g, '""'))
           ].join(','))
         ].join('\n');
 
@@ -1511,7 +1531,7 @@ export default function Dashboard() {
     setBulkDeleting(true);
     try {
       const attendeeIds = selectedAttendees;
-      
+
       const response = await fetch('/api/attendees/bulk-delete', {
         method: 'DELETE',
         headers: {
@@ -1526,11 +1546,11 @@ export default function Dashboard() {
       }
 
       const result = await response.json();
-      
+
       // Remove deleted attendees from local state and clear selection
       setAttendees(prev => prev.filter(a => !attendeeIds.includes(a.id)));
       setSelectedAttendees([]);
-      
+
       toast({
         title: "Success",
         description: `Successfully deleted ${result.deletedCount} attendees.`,
@@ -1557,19 +1577,19 @@ export default function Dashboard() {
     }
 
     // Validate that all selected attendees have generated credentials
-    const selectedAttendeesData = attendees.filter(attendee => 
+    const selectedAttendeesData = attendees.filter(attendee =>
       selectedAttendees.includes(attendee.id)
     );
-    
-    const attendeesWithoutCredentials = selectedAttendeesData.filter(attendee => 
+
+    const attendeesWithoutCredentials = selectedAttendeesData.filter(attendee =>
       !attendee.credentialUrl || attendee.credentialUrl.trim() === ''
     );
 
     if (attendeesWithoutCredentials.length > 0) {
-      const attendeeNames = attendeesWithoutCredentials.map(attendee => 
+      const attendeeNames = attendeesWithoutCredentials.map(attendee =>
         `${attendee.firstName} ${attendee.lastName}`
       ).join(', ');
-      
+
       toast({
         title: "Missing Credentials",
         description: `Cannot export PDFs for attendees without generated credentials: ${attendeeNames}. Please generate credentials first using the "Generate Credential" action.`,
@@ -1608,7 +1628,7 @@ export default function Dashboard() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        
+
         // Handle missing credentials error specifically
         if (errorData.errorType === 'missing_credentials') {
           const missingNames = errorData.attendeesWithoutCredentials?.join(', ') || 'some attendees';
@@ -1620,7 +1640,7 @@ export default function Dashboard() {
           });
           return;
         }
-        
+
         // Handle outdated credentials error specifically
         if (errorData.errorType === 'outdated_credentials') {
           const outdatedNames = errorData.attendeesWithOutdatedCredentials?.join(', ') || 'some attendees';
@@ -1632,16 +1652,16 @@ export default function Dashboard() {
           });
           return;
         }
-        
+
         throw new Error(errorData.error || 'Failed to generate PDF');
       }
 
       const result = await response.json();
-      
+
       if (result.success && result.url) {
         // Open the PDF URL in a new tab
         window.open(result.url, '_blank');
-        
+
         toast({
           title: "Success",
           description: `PDF generated successfully for ${attendeesWithCredentials.length} attendees.`,
@@ -1674,10 +1694,10 @@ export default function Dashboard() {
     }
 
     // Filter attendees that don't have credentials OR have outdated credentials
-    const selectedAttendeesData = attendees.filter(attendee => 
+    const selectedAttendeesData = attendees.filter(attendee =>
       selectedAttendees.includes(attendee.id)
     );
-    
+
     const attendeesNeedingCredentials = selectedAttendeesData.filter(attendee => {
       console.log('[Bulk Credential Check]', {
         name: `${attendee.firstName} ${attendee.lastName}`,
@@ -1693,20 +1713,20 @@ export default function Dashboard() {
         console.log('[Bulk Credential Check] → NEEDS GENERATION (no credential URL)');
         return true;
       }
-      
+
       // Has credential but no generation timestamp - treat as outdated (legacy data)
       if (!attendee.credentialGeneratedAt) {
         console.log('[Bulk Credential Check] → NEEDS GENERATION (no timestamp - legacy)');
         return true;
       }
-      
+
       // Has credential with timestamp - check if it's outdated
       // Use $updatedAt from Appwrite if available, otherwise fall back to updatedAt
       const updatedAtField = (attendee as any).$updatedAt || attendee.updatedAt;
       if (updatedAtField) {
         const credentialGeneratedAt = new Date(attendee.credentialGeneratedAt);
         const recordUpdatedAt = new Date(updatedAtField);
-        
+
         // Since generating a credential also updates the record, we need to account for this
         // We'll consider the credential "outdated" if it was generated before the last record update
         // with a 5-second tolerance for simultaneous updates
@@ -1735,7 +1755,7 @@ export default function Dashboard() {
           return true;
         }
       }
-      
+
       // Has credential and timestamp but no updatedAt (shouldn't happen) - treat as current
       console.log('[Bulk Credential Check] → CURRENT (no updatedAt - edge case)');
       return false;
@@ -1768,11 +1788,11 @@ export default function Dashboard() {
       for (let i = 0; i < attendeesNeedingCredentials.length; i++) {
         const attendee = attendeesNeedingCredentials[i];
         const attendeeName = `${attendee.firstName} ${attendee.lastName}`;
-        
-        setBulkCredentialProgress({ 
-          current: i + 1, 
-          total: attendeesNeedingCredentials.length, 
-          currentName: attendeeName 
+
+        setBulkCredentialProgress({
+          current: i + 1,
+          total: attendeesNeedingCredentials.length,
+          currentName: attendeeName
         });
 
         try {
@@ -1789,16 +1809,16 @@ export default function Dashboard() {
           }
 
           const result = await response.json();
-          
+
           // Update the attendee in the local state with the new credential URL and updated timestamp
-          setAttendees(prev => prev.map(a => 
-            a.id === attendee.id 
-              ? { 
-                  ...a, 
-                  credentialUrl: result.credentialUrl, 
-                  credentialGeneratedAt: result.generatedAt,
-                  $updatedAt: result.updatedAt || result.generatedAt // Use the actual Appwrite timestamp
-                }
+          setAttendees(prev => prev.map(a =>
+            a.id === attendee.id
+              ? {
+                ...a,
+                credentialUrl: result.credentialUrl,
+                credentialGeneratedAt: result.generatedAt,
+                $updatedAt: result.updatedAt || result.generatedAt // Use the actual Appwrite timestamp
+              }
               : a
           ));
 
@@ -1875,11 +1895,11 @@ export default function Dashboard() {
 
       const result = await response.json();
       await refreshAttendees();
-      
+
       setShowBulkEdit(false);
       setBulkEditChanges({});
       setSelectedAttendees([]);
-      
+
       toast({
         title: "Success",
         description: `Successfully updated ${result.updatedCount} attendees.`,
@@ -1954,21 +1974,21 @@ export default function Dashboard() {
               <IdCard className="h-8 w-8 text-primary" />
               <span className="text-xl font-bold">credential.studio</span>
             </div>
-            
+
             {/* Event Banner */}
             {eventSettings?.bannerImageUrl && (
               <div className="mb-6">
-                <img 
-                  src={eventSettings.bannerImageUrl} 
+                <img
+                  src={eventSettings.bannerImageUrl}
                   alt={eventSettings.eventName}
                   className="w-full h-24 object-cover rounded-lg"
                 />
                 <div className="mt-3 text-center">
-                  <h3 className="font-bold text-lg leading-tight break-words hyphens-auto" 
-                      style={{
-                        fontSize: 'clamp(0.875rem, 4vw, 1.125rem)',
-                        lineHeight: '1.2'
-                      }}>
+                  <h3 className="font-bold text-lg leading-tight break-words hyphens-auto"
+                    style={{
+                      fontSize: 'clamp(0.875rem, 4vw, 1.125rem)',
+                      lineHeight: '1.2'
+                    }}>
                     {eventSettings.eventName}
                   </h3>
                   <div className="flex items-center justify-center text-xs text-muted-foreground mt-2">
@@ -1977,26 +1997,26 @@ export default function Dashboard() {
                       {(() => {
                         // Handle date properly to avoid timezone issues
                         const dateValue = eventSettings.eventDate;
-                        
+
                         if (!dateValue) return 'No date set';
-                        
+
                         // Convert to string if it's not already
                         const dateStr = typeof dateValue === 'string' ? dateValue : String(dateValue);
-                        
+
                         // Extract just the date part if it's an ISO string
                         let datePart = dateStr;
                         if (dateStr.includes('T')) {
                           datePart = dateStr.split('T')[0];
                         }
-                        
+
                         // Parse as local date to avoid timezone conversion issues
                         const [year, month, day] = datePart.split('-').map(Number);
                         const localDate = new Date(year, month - 1, day);
-                        
+
                         // Format the date without timezone conversion
-                        return localDate.toLocaleDateString('en-US', { 
-                          year: 'numeric', 
-                          month: 'long', 
+                        return localDate.toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'long',
                           day: 'numeric'
                         });
                       })()}
@@ -2010,14 +2030,14 @@ export default function Dashboard() {
                           // Format time in the event's timezone
                           const timeZone = eventSettings.timeZone || 'America/Los_Angeles';
                           const timeStr = eventSettings.eventTime;
-                          
+
                           // Create a date object with the time in the event's timezone
                           const today = new Date();
                           const [hours, minutes] = timeStr.split(':').map(Number);
-                          
+
                           // Create a date with today's date and the event time
                           const eventDateTime = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes);
-                          
+
                           return eventDateTime.toLocaleTimeString('en-US', {
                             hour: 'numeric',
                             minute: '2-digit',
@@ -2267,9 +2287,9 @@ export default function Dashboard() {
                           <Filter className="h-3 w-3" />
                           <span>Advanced filters active</span>
                         </Badge>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => {
                             setShowAdvancedSearch(false);
                             clearAdvancedSearch();
@@ -2328,261 +2348,261 @@ export default function Dashboard() {
                           )}
                         </Button>
                       </DialogTrigger>
-                    <DialogContent className="max-w-5xl max-h-[80vh] overflow-y-auto">
-                      <DialogHeader>
-                        <DialogTitle className="flex items-center justify-between">
-                          <span>Advanced Search</span>
-                          <Button variant="ghost" size="sm" onClick={clearAdvancedSearch}>
-                            Clear All
-                          </Button>
-                        </DialogTitle>
-                        <DialogDescription>
-                          Search attendees using multiple criteria. Leave fields empty to ignore them in the search.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                          {/* Basic Fields */}
-                          <div className="space-y-2">
-                            <Label htmlFor="firstName" className="flex items-center space-x-2">
-                              <User className="h-4 w-4 text-muted-foreground" />
-                              <span>First Name</span>
-                            </Label>
-                            <div className="flex space-x-2">
-                              <Select
-                                value={advancedSearchFilters.firstName.operator}
-                                onValueChange={(operator) => handleAdvancedSearchChange('firstName', operator, 'operator')}
-                              >
-                                <SelectTrigger className="w-[120px]">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="contains">Contains</SelectItem>
-                                  <SelectItem value="equals">Equals</SelectItem>
-                                  <SelectItem value="startsWith">Starts With</SelectItem>
-                                  <SelectItem value="endsWith">Ends With</SelectItem>
-                                  <SelectItem value="isEmpty">Is Empty</SelectItem>
-                                  <SelectItem value="isNotEmpty">Is Not Empty</SelectItem>
-                                </SelectContent>
-                              </Select>
-                              <Input
-                                id="firstName"
-                                placeholder="Value..."
-                                value={advancedSearchFilters.firstName.value}
-                                onChange={(e) => handleAdvancedSearchChange('firstName', e.target.value, 'value')}
-                                disabled={['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.firstName.operator)}
-                              />
+                      <DialogContent className="max-w-5xl max-h-[80vh] overflow-y-auto">
+                        <DialogHeader>
+                          <DialogTitle className="flex items-center justify-between">
+                            <span>Advanced Search</span>
+                            <Button variant="ghost" size="sm" onClick={clearAdvancedSearch}>
+                              Clear All
+                            </Button>
+                          </DialogTitle>
+                          <DialogDescription>
+                            Search attendees using multiple criteria. Leave fields empty to ignore them in the search.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-6">
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {/* Basic Fields */}
+                            <div className="space-y-2">
+                              <Label htmlFor="firstName" className="flex items-center space-x-2">
+                                <User className="h-4 w-4 text-muted-foreground" />
+                                <span>First Name</span>
+                              </Label>
+                              <div className="flex space-x-2">
+                                <Select
+                                  value={advancedSearchFilters.firstName.operator}
+                                  onValueChange={(operator) => handleAdvancedSearchChange('firstName', operator, 'operator')}
+                                >
+                                  <SelectTrigger className="w-[120px]">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="contains">Contains</SelectItem>
+                                    <SelectItem value="equals">Equals</SelectItem>
+                                    <SelectItem value="startsWith">Starts With</SelectItem>
+                                    <SelectItem value="endsWith">Ends With</SelectItem>
+                                    <SelectItem value="isEmpty">Is Empty</SelectItem>
+                                    <SelectItem value="isNotEmpty">Is Not Empty</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <Input
+                                  id="firstName"
+                                  placeholder="Value..."
+                                  value={advancedSearchFilters.firstName.value}
+                                  onChange={(e) => handleAdvancedSearchChange('firstName', e.target.value, 'value')}
+                                  disabled={['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.firstName.operator)}
+                                />
+                              </div>
                             </div>
-                          </div>
-                          
-                          <div className="space-y-2">
-                            <Label htmlFor="lastName" className="flex items-center space-x-2">
-                              <User className="h-4 w-4 text-muted-foreground" />
-                              <span>Last Name</span>
-                            </Label>
-                            <div className="flex space-x-2">
-                              <Select
-                                value={advancedSearchFilters.lastName.operator}
-                                onValueChange={(operator) => handleAdvancedSearchChange('lastName', operator, 'operator')}
-                              >
-                                <SelectTrigger className="w-[120px]">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="contains">Contains</SelectItem>
-                                  <SelectItem value="equals">Equals</SelectItem>
-                                  <SelectItem value="startsWith">Starts With</SelectItem>
-                                  <SelectItem value="endsWith">Ends With</SelectItem>
-                                  <SelectItem value="isEmpty">Is Empty</SelectItem>
-                                  <SelectItem value="isNotEmpty">Is Not Empty</SelectItem>
-                                </SelectContent>
-                              </Select>
-                              <Input
-                                id="lastName"
-                                placeholder="Value..."
-                                value={advancedSearchFilters.lastName.value}
-                                onChange={(e) => handleAdvancedSearchChange('lastName', e.target.value, 'value')}
-                                disabled={['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.lastName.operator)}
-                              />
-                            </div>
-                          </div>
-                          
-                          <div className="space-y-2">
-                            <Label htmlFor="barcode" className="flex items-center space-x-2">
-                              <QrCode className="h-4 w-4 text-muted-foreground" />
-                              <span>Barcode</span>
-                            </Label>
-                            <div className="flex space-x-2">
-                              <Select
-                                value={advancedSearchFilters.barcode.operator}
-                                onValueChange={(operator) => handleAdvancedSearchChange('barcode', operator, 'operator')}
-                              >
-                                <SelectTrigger className="w-[120px]">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="contains">Contains</SelectItem>
-                                  <SelectItem value="equals">Equals</SelectItem>
-                                  <SelectItem value="startsWith">Starts With</SelectItem>
-                                  <SelectItem value="endsWith">Ends With</SelectItem>
-                                  <SelectItem value="isEmpty">Is Empty</SelectItem>
-                                  <SelectItem value="isNotEmpty">Is Not Empty</SelectItem>
-                                </SelectContent>
-                              </Select>
-                              <Input
-                                id="barcode"
-                                placeholder="Value..."
-                                value={advancedSearchFilters.barcode.value}
-                                onChange={(e) => handleAdvancedSearchChange('barcode', e.target.value, 'value')}
-                                disabled={['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.barcode.operator)}
-                              />
-                            </div>
-                          </div>
-                          
-                          <div className="space-y-2">
-                            <Label htmlFor="photoFilter" className="flex items-center space-x-2">
-                              <Image className="h-4 w-4 text-muted-foreground" />
-                              <span>Photo Status</span>
-                            </Label>
-                            <Select 
-                              value={advancedSearchFilters.photoFilter} 
-                              onValueChange={(value) => handleAdvancedSearchChange('photoFilter', value)}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Filter by photo" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="all">All Attendees</SelectItem>
-                                <SelectItem value="with">With Photo</SelectItem>
-                                <SelectItem value="without">Without Photo</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
 
-                          {/* Custom Fields */}
-                          {eventSettings?.customFields?.map((field: any) => {
-                            // Function to get icon based on field type
-                            const getFieldIcon = (fieldType: string) => {
-                              switch (fieldType) {
-                                case 'text':
-                                case 'uppercase':
-                                  return <Type className="h-4 w-4 text-muted-foreground" />;
-                                case 'url':
-                                  return <Link className="h-4 w-4 text-muted-foreground" />;
-                                case 'email':
-                                  return <Mail className="h-4 w-4 text-muted-foreground" />;
-                                case 'number':
-                                  return <Hash className="h-4 w-4 text-muted-foreground" />;
-                                case 'boolean':
-                                  return <ToggleLeft className="h-4 w-4 text-muted-foreground" />;
-                                case 'select':
-                                  return <ChevronDown className="h-4 w-4 text-muted-foreground" />;
-                                default:
-                                  return <FileText className="h-4 w-4 text-muted-foreground" />;
-                              }
-                            };
+                            <div className="space-y-2">
+                              <Label htmlFor="lastName" className="flex items-center space-x-2">
+                                <User className="h-4 w-4 text-muted-foreground" />
+                                <span>Last Name</span>
+                              </Label>
+                              <div className="flex space-x-2">
+                                <Select
+                                  value={advancedSearchFilters.lastName.operator}
+                                  onValueChange={(operator) => handleAdvancedSearchChange('lastName', operator, 'operator')}
+                                >
+                                  <SelectTrigger className="w-[120px]">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="contains">Contains</SelectItem>
+                                    <SelectItem value="equals">Equals</SelectItem>
+                                    <SelectItem value="startsWith">Starts With</SelectItem>
+                                    <SelectItem value="endsWith">Ends With</SelectItem>
+                                    <SelectItem value="isEmpty">Is Empty</SelectItem>
+                                    <SelectItem value="isNotEmpty">Is Not Empty</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <Input
+                                  id="lastName"
+                                  placeholder="Value..."
+                                  value={advancedSearchFilters.lastName.value}
+                                  onChange={(e) => handleAdvancedSearchChange('lastName', e.target.value, 'value')}
+                                  disabled={['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.lastName.operator)}
+                                />
+                              </div>
+                            </div>
 
-                            return (
-                              <div key={field.id} className="space-y-2">
-                                <Label htmlFor={`custom-${field.id}`} className="flex items-center space-x-2">
-                                  {getFieldIcon(field.fieldType)}
-                                  <span>{field.fieldName}</span>
-                                  {field.fieldType && (
-                                    <Badge variant="outline" className="ml-2 text-xs">
-                                      {field.fieldType}
-                                    </Badge>
-                                  )}
-                                </Label>
-                                <div className="space-y-2">
-                                  {['text', 'url', 'email', 'number'].includes(field.fieldType) ? (
-                                    <div className="flex space-x-2">
+                            <div className="space-y-2">
+                              <Label htmlFor="barcode" className="flex items-center space-x-2">
+                                <QrCode className="h-4 w-4 text-muted-foreground" />
+                                <span>Barcode</span>
+                              </Label>
+                              <div className="flex space-x-2">
+                                <Select
+                                  value={advancedSearchFilters.barcode.operator}
+                                  onValueChange={(operator) => handleAdvancedSearchChange('barcode', operator, 'operator')}
+                                >
+                                  <SelectTrigger className="w-[120px]">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="contains">Contains</SelectItem>
+                                    <SelectItem value="equals">Equals</SelectItem>
+                                    <SelectItem value="startsWith">Starts With</SelectItem>
+                                    <SelectItem value="endsWith">Ends With</SelectItem>
+                                    <SelectItem value="isEmpty">Is Empty</SelectItem>
+                                    <SelectItem value="isNotEmpty">Is Not Empty</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <Input
+                                  id="barcode"
+                                  placeholder="Value..."
+                                  value={advancedSearchFilters.barcode.value}
+                                  onChange={(e) => handleAdvancedSearchChange('barcode', e.target.value, 'value')}
+                                  disabled={['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.barcode.operator)}
+                                />
+                              </div>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor="photoFilter" className="flex items-center space-x-2">
+                                <Image className="h-4 w-4 text-muted-foreground" />
+                                <span>Photo Status</span>
+                              </Label>
+                              <Select
+                                value={advancedSearchFilters.photoFilter}
+                                onValueChange={(value) => handleAdvancedSearchChange('photoFilter', value)}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Filter by photo" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="all">All Attendees</SelectItem>
+                                  <SelectItem value="with">With Photo</SelectItem>
+                                  <SelectItem value="without">Without Photo</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            {/* Custom Fields */}
+                            {eventSettings?.customFields?.map((field: any) => {
+                              // Function to get icon based on field type
+                              const getFieldIcon = (fieldType: string) => {
+                                switch (fieldType) {
+                                  case 'text':
+                                  case 'uppercase':
+                                    return <Type className="h-4 w-4 text-muted-foreground" />;
+                                  case 'url':
+                                    return <Link className="h-4 w-4 text-muted-foreground" />;
+                                  case 'email':
+                                    return <Mail className="h-4 w-4 text-muted-foreground" />;
+                                  case 'number':
+                                    return <Hash className="h-4 w-4 text-muted-foreground" />;
+                                  case 'boolean':
+                                    return <ToggleLeft className="h-4 w-4 text-muted-foreground" />;
+                                  case 'select':
+                                    return <ChevronDown className="h-4 w-4 text-muted-foreground" />;
+                                  default:
+                                    return <FileText className="h-4 w-4 text-muted-foreground" />;
+                                }
+                              };
+
+                              return (
+                                <div key={field.id} className="space-y-2">
+                                  <Label htmlFor={`custom-${field.id}`} className="flex items-center space-x-2">
+                                    {getFieldIcon(field.fieldType)}
+                                    <span>{field.fieldName}</span>
+                                    {field.fieldType && (
+                                      <Badge variant="outline" className="ml-2 text-xs">
+                                        {field.fieldType}
+                                      </Badge>
+                                    )}
+                                  </Label>
+                                  <div className="space-y-2">
+                                    {['text', 'url', 'email', 'number'].includes(field.fieldType) ? (
+                                      <div className="flex space-x-2">
+                                        <Select
+                                          value={advancedSearchFilters.customFields[field.id]?.operator || 'contains'}
+                                          onValueChange={(operator) => handleCustomFieldOperatorChange(field.id, operator)}
+                                        >
+                                          <SelectTrigger className="w-[120px]">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="contains">Contains</SelectItem>
+                                            <SelectItem value="equals">Equals</SelectItem>
+                                            <SelectItem value="startsWith">Starts With</SelectItem>
+                                            <SelectItem value="endsWith">Ends With</SelectItem>
+                                            <SelectItem value="isEmpty">Is Empty</SelectItem>
+                                            <SelectItem value="isNotEmpty">Is Not Empty</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                        <Input
+                                          id={`custom-${field.id}`}
+                                          placeholder={`Value...`}
+                                          value={advancedSearchFilters.customFields[field.id]?.value || ''}
+                                          onChange={(e) => handleCustomFieldSearchChange(field.id, e.target.value)}
+                                          disabled={['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.customFields[field.id]?.operator)}
+                                        />
+                                      </div>
+                                    ) : field.fieldType === 'select' ? (
                                       <Select
-                                        value={advancedSearchFilters.customFields[field.id]?.operator || 'contains'}
-                                        onValueChange={(operator) => handleCustomFieldOperatorChange(field.id, operator)}
+                                        value={advancedSearchFilters.customFields[field.id]?.value || 'all'}
+                                        onValueChange={(value) => handleCustomFieldSearchChange(field.id, value === 'all' ? '' : value, 'equals')}
                                       >
-                                        <SelectTrigger className="w-[120px]">
-                                          <SelectValue />
+                                        <SelectTrigger>
+                                          <SelectValue placeholder={`Select ${field.fieldName.toLowerCase()}...`} />
                                         </SelectTrigger>
                                         <SelectContent>
-                                          <SelectItem value="contains">Contains</SelectItem>
-                                          <SelectItem value="equals">Equals</SelectItem>
-                                          <SelectItem value="startsWith">Starts With</SelectItem>
-                                          <SelectItem value="endsWith">Ends With</SelectItem>
-                                          <SelectItem value="isEmpty">Is Empty</SelectItem>
-                                          <SelectItem value="isNotEmpty">Is Not Empty</SelectItem>
+                                          <SelectItem value="all">All options</SelectItem>
+                                          {field.fieldOptions?.options?.filter((option: string) => option && option.trim() !== '').map((option: string, index: number) => (
+                                            <SelectItem key={index} value={option}>
+                                              {option}
+                                            </SelectItem>
+                                          ))}
                                         </SelectContent>
                                       </Select>
+                                    ) : field.fieldType === 'boolean' ? (
+                                      <Select
+                                        value={advancedSearchFilters.customFields[field.id]?.value || 'all'}
+                                        onValueChange={(value) => handleCustomFieldSearchChange(field.id, value === 'all' ? '' : value, 'equals')}
+                                      >
+                                        <SelectTrigger>
+                                          <SelectValue placeholder={`Select ${field.fieldName.toLowerCase()}...`} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="all">All options</SelectItem>
+                                          <SelectItem value="yes">Yes</SelectItem>
+                                          <SelectItem value="no">No</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    ) : (
                                       <Input
                                         id={`custom-${field.id}`}
-                                        placeholder={`Value...`}
+                                        placeholder={`Search by ${field.fieldName.toLowerCase()}...`}
                                         value={advancedSearchFilters.customFields[field.id]?.value || ''}
                                         onChange={(e) => handleCustomFieldSearchChange(field.id, e.target.value)}
-                                        disabled={['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.customFields[field.id]?.operator)}
                                       />
-                                    </div>
-                                  ) : field.fieldType === 'select' ? (
-                                    <Select
-                                      value={advancedSearchFilters.customFields[field.id]?.value || 'all'}
-                                      onValueChange={(value) => handleCustomFieldSearchChange(field.id, value === 'all' ? '' : value, 'equals')}
-                                    >
-                                      <SelectTrigger>
-                                        <SelectValue placeholder={`Select ${field.fieldName.toLowerCase()}...`} />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="all">All options</SelectItem>
-                                        {field.fieldOptions?.options?.filter((option: string) => option && option.trim() !== '').map((option: string, index: number) => (
-                                          <SelectItem key={index} value={option}>
-                                            {option}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                  ) : field.fieldType === 'boolean' ? (
-                                    <Select
-                                      value={advancedSearchFilters.customFields[field.id]?.value || 'all'}
-                                      onValueChange={(value) => handleCustomFieldSearchChange(field.id, value === 'all' ? '' : value, 'equals')}
-                                    >
-                                      <SelectTrigger>
-                                        <SelectValue placeholder={`Select ${field.fieldName.toLowerCase()}...`} />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="all">All options</SelectItem>
-                                        <SelectItem value="yes">Yes</SelectItem>
-                                        <SelectItem value="no">No</SelectItem>
-                                      </SelectContent>
-                                    </Select>
-                                  ) : (
-                                    <Input
-                                      id={`custom-${field.id}`}
-                                      placeholder={`Search by ${field.fieldName.toLowerCase()}...`}
-                                      value={advancedSearchFilters.customFields[field.id]?.value || ''}
-                                      onChange={(e) => handleCustomFieldSearchChange(field.id, e.target.value)}
-                                    />
-                                  )}
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
-                            );
-                          })}
+                              );
+                            })}
+                          </div>
+
+                          {/* Apply Search Button */}
+                          <div className="flex justify-end space-x-2 pt-4 border-t">
+                            <DialogTrigger asChild>
+                              <Button variant="outline">
+                                Cancel
+                              </Button>
+                            </DialogTrigger>
+                            <DialogTrigger asChild>
+                              <Button onClick={() => setShowAdvancedSearch(true)}>
+                                Apply Search
+                              </Button>
+                            </DialogTrigger>
+                          </div>
                         </div>
-                        
-                        {/* Apply Search Button */}
-                        <div className="flex justify-end space-x-2 pt-4 border-t">
-                          <DialogTrigger asChild>
-                            <Button variant="outline">
-                              Cancel
-                            </Button>
-                          </DialogTrigger>
-                          <DialogTrigger asChild>
-                            <Button onClick={() => setShowAdvancedSearch(true)}>
-                              Apply Search
-                            </Button>
-                          </DialogTrigger>
-                        </div>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
+                      </DialogContent>
+                    </Dialog>
                   </div>
-                  
+
                   <div className="flex items-center space-x-2">
                     {selectedAttendees.length > 0 && (
                       <>
@@ -2783,7 +2803,7 @@ export default function Dashboard() {
                       </>
                     )}
                     {hasPermission(currentUser?.role, 'attendees', 'import') && (
-                      <ImportDialog 
+                      <ImportDialog
                         onImportSuccess={refreshAttendees}
                         customFields={(eventSettings?.customFields || []).map(field => ({
                           ...field,
@@ -2804,17 +2824,17 @@ export default function Dashboard() {
                         searchTerm={searchTerm}
                         photoFilter={photoFilter}
                         advancedFilters={showAdvancedSearch ? {
-                           firstName: advancedSearchFilters.firstName.value,
-                           lastName: advancedSearchFilters.lastName.value,
-                           barcode: advancedSearchFilters.barcode.value,
-                           photoFilter: advancedSearchFilters.photoFilter,
-                           customFields: Object.fromEntries(
-                             Object.entries(advancedSearchFilters.customFields).map(([key, field]) => [
-                               key,
-                               { value: field.value, searchEmpty: field.operator === 'isEmpty' }
-                             ])
-                           )
-                         } : null}
+                          firstName: advancedSearchFilters.firstName.value,
+                          lastName: advancedSearchFilters.lastName.value,
+                          barcode: advancedSearchFilters.barcode.value,
+                          photoFilter: advancedSearchFilters.photoFilter,
+                          customFields: Object.fromEntries(
+                            Object.entries(advancedSearchFilters.customFields).map(([key, field]) => [
+                              key,
+                              { value: field.value, searchEmpty: field.operator === 'isEmpty' }
+                            ])
+                          )
+                        } : null}
                         eventSettings={eventSettings || undefined}
                       >
                         <Button variant="outline">
@@ -2839,11 +2859,11 @@ export default function Dashboard() {
                           <Checkbox
                             checked={
                               paginatedAttendees.length > 0 &&
-                              paginatedAttendees.every(a => selectedAttendees.includes(a.id))
+                                paginatedAttendees.every(a => selectedAttendees.includes(a.id))
                                 ? true
                                 : paginatedAttendees.some(a => selectedAttendees.includes(a.id))
-                                ? "indeterminate"
-                                : false
+                                  ? "indeterminate"
+                                  : false
                             }
                             onCheckedChange={() => {
                               const paginatedIds = paginatedAttendees.map(a => a.id);
@@ -2875,7 +2895,7 @@ export default function Dashboard() {
                               ? attendee.customFieldValues.find((cfv: any) => cfv.customFieldId === field.id)
                               : null;
                             let displayValue = value?.value || null;
-                            
+
                             // Format display value based on field type
                             if (field.fieldType === 'boolean') {
                               // For boolean fields, always show Yes/No, defaulting to No if no value is set
@@ -2884,7 +2904,7 @@ export default function Dashboard() {
                               // For URLs, show a clickable link
                               displayValue = displayValue;
                             }
-                            
+
                             return {
                               fieldName: field.fieldName,
                               fieldType: field.fieldType,
@@ -2903,9 +2923,9 @@ export default function Dashboard() {
                               <Checkbox
                                 checked={selectedAttendees.includes(attendee.id)}
                                 onCheckedChange={(checked) => {
-                                  setSelectedAttendees(prev => 
-                                    checked 
-                                      ? [...prev, attendee.id] 
+                                  setSelectedAttendees(prev =>
+                                    checked
+                                      ? [...prev, attendee.id]
                                       : prev.filter(id => id !== attendee.id)
                                   );
                                 }}
@@ -2915,8 +2935,8 @@ export default function Dashboard() {
                             <TableCell>
                               <div className="relative w-12 h-16 bg-muted rounded overflow-hidden flex-shrink-0">
                                 {attendee.photoUrl ? (
-                                  <img 
-                                    src={attendee.photoUrl} 
+                                  <img
+                                    src={attendee.photoUrl}
                                     alt={`${attendee.firstName} ${attendee.lastName}`}
                                     className="w-full h-full object-cover"
                                   />
@@ -2959,9 +2979,9 @@ export default function Dashboard() {
                                             <div key={index} className="text-xs text-muted-foreground">
                                               <span className="font-medium">{field.fieldName}:</span>{' '}
                                               {field.fieldType === 'url' ? (
-                                                <a 
-                                                  href={field.value || ''} 
-                                                  target="_blank" 
+                                                <a
+                                                  href={field.value || ''}
+                                                  target="_blank"
                                                   rel="noopener noreferrer"
                                                   className="text-blue-600 hover:text-blue-800 underline"
                                                 >
@@ -3026,8 +3046,8 @@ export default function Dashboard() {
                               </div>
                             </TableCell>
                             <TableCell>
-                              <DropdownMenu 
-                                open={dropdownStates[attendee.id] || false} 
+                              <DropdownMenu
+                                open={dropdownStates[attendee.id] || false}
                                 onOpenChange={(open) => {
                                   setDropdownStates(prev => ({
                                     ...prev,
@@ -3088,13 +3108,13 @@ export default function Dashboard() {
                                       onClick={async (e) => {
                                         e.preventDefault();
                                         e.stopPropagation();
-                                        
+
                                         // Close dropdown immediately
                                         setDropdownStates(prev => ({
                                           ...prev,
                                           [attendee.id]: false
                                         }));
-                                        
+
                                         // Use a longer delay to ensure dropdown fully closes
                                         setTimeout(async () => {
                                           await refreshEventSettings();
@@ -3130,7 +3150,7 @@ export default function Dashboard() {
                       })}
                     </TableBody>
                   </Table>
-                  
+
                   {/* Pagination Controls */}
                   <div className="flex items-center justify-between mt-6">
                     <div className="text-sm text-muted-foreground">
@@ -3158,7 +3178,7 @@ export default function Dashboard() {
                             } else {
                               pageNumber = currentPage - 2 + i;
                             }
-                            
+
                             return (
                               <Button
                                 key={pageNumber}
@@ -3249,11 +3269,10 @@ export default function Dashboard() {
                                       setShowUserForm(true);
                                     }
                                   }}
-                                  className={`text-left ${
-                                    hasPermission(currentUser?.role, 'users', 'update') 
-                                      ? 'hover:text-primary transition-colors cursor-pointer' 
-                                      : 'cursor-default'
-                                  }`}
+                                  className={`text-left ${hasPermission(currentUser?.role, 'users', 'update')
+                                    ? 'hover:text-primary transition-colors cursor-pointer'
+                                    : 'cursor-default'
+                                    }`}
                                   disabled={!hasPermission(currentUser?.role, 'users', 'update')}
                                 >
                                   <div className="font-medium text-lg hover:text-primary">{user.name || user.email.split('@')[0]}</div>
@@ -3282,8 +3301,8 @@ export default function Dashboard() {
                           <TableCell>
                             <div className="flex items-center space-x-2">
                               {user.isInvited && hasPermission(currentUser?.role, 'users', 'create') && (
-                                <Button 
-                                  variant="ghost" 
+                                <Button
+                                  variant="ghost"
                                   size="sm"
                                   onClick={() => handleInviteUser(user.id)}
                                   disabled={invitingUser === user.id}
@@ -3297,8 +3316,8 @@ export default function Dashboard() {
                                 </Button>
                               )}
                               {hasPermission(currentUser?.role, 'users', 'update') && (
-                                <Button 
-                                  variant="ghost" 
+                                <Button
+                                  variant="ghost"
                                   size="sm"
                                   onClick={() => {
                                     setEditingUser(user);
@@ -3309,9 +3328,9 @@ export default function Dashboard() {
                                 </Button>
                               )}
                               {hasPermission(currentUser?.role, 'users', 'delete') && canManageUser(currentUser?.role, user.role) && (
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm" 
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
                                   className="text-destructive"
                                   onClick={() => {
                                     setUserToDelete(user);
@@ -3340,8 +3359,8 @@ export default function Dashboard() {
                   <AlertTriangle className="h-4 w-4 text-amber-600" />
                   <AlertDescription className="text-amber-800 dark:text-amber-200">
                     No roles have been configured yet. Initialize the default role system to get started.
-                    <Button 
-                      className="ml-4 bg-amber-600 hover:bg-amber-700 text-white" 
+                    <Button
+                      className="ml-4 bg-amber-600 hover:bg-amber-700 text-white"
                       size="sm"
                       onClick={handleInitializeRoles}
                       disabled={initializingRoles}
@@ -3443,28 +3462,26 @@ export default function Dashboard() {
                         }, 0);
 
                         return (
-                          <div 
-                            key={role.id} 
+                          <div
+                            key={role.id}
                             className="group relative border rounded-lg p-6 hover:shadow-md transition-all duration-200 hover:border-primary/20 bg-gradient-to-r from-background to-muted/20"
                           >
                             {/* Role Header */}
                             <div className="flex items-start justify-between mb-4">
                               <div className="flex-1">
                                 <div className="flex items-center space-x-3 mb-2">
-                                  <div className={`p-2 rounded-lg ${
-                                    role.name === 'Super Administrator' ? 'bg-red-100 dark:bg-red-900/20' :
+                                  <div className={`p-2 rounded-lg ${role.name === 'Super Administrator' ? 'bg-red-100 dark:bg-red-900/20' :
                                     role.name === 'Administrator' ? 'bg-purple-100 dark:bg-purple-900/20' :
-                                    role.name === 'Manager' ? 'bg-blue-100 dark:bg-blue-900/20' :
-                                    role.name === 'Editor' ? 'bg-green-100 dark:bg-green-900/20' :
-                                    'bg-gray-100 dark:bg-gray-900/20'
-                                  }`}>
-                                    <Shield className={`h-5 w-5 ${
-                                      role.name === 'Super Administrator' ? 'text-red-600 dark:text-red-400' :
+                                      role.name === 'Manager' ? 'bg-blue-100 dark:bg-blue-900/20' :
+                                        role.name === 'Editor' ? 'bg-green-100 dark:bg-green-900/20' :
+                                          'bg-gray-100 dark:bg-gray-900/20'
+                                    }`}>
+                                    <Shield className={`h-5 w-5 ${role.name === 'Super Administrator' ? 'text-red-600 dark:text-red-400' :
                                       role.name === 'Administrator' ? 'text-purple-600 dark:text-purple-400' :
-                                      role.name === 'Manager' ? 'text-blue-600 dark:text-blue-400' :
-                                      role.name === 'Editor' ? 'text-green-600 dark:text-green-400' :
-                                      'text-gray-600 dark:text-gray-400'
-                                    }`} />
+                                        role.name === 'Manager' ? 'text-blue-600 dark:text-blue-400' :
+                                          role.name === 'Editor' ? 'text-green-600 dark:text-green-400' :
+                                            'text-gray-600 dark:text-gray-400'
+                                      }`} />
                                   </div>
                                   <div>
                                     <h3 className="text-lg font-semibold text-foreground group-hover:text-primary transition-colors">
@@ -3475,7 +3492,7 @@ export default function Dashboard() {
                                     </p>
                                   </div>
                                 </div>
-                                
+
                                 {/* Role Stats */}
                                 <div className="flex items-center space-x-6 text-sm text-muted-foreground">
                                   <div className="flex items-center space-x-1">
@@ -3496,8 +3513,8 @@ export default function Dashboard() {
                               {/* Actions */}
                               <div className="flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                 {hasPermission(currentUser?.role, 'roles', 'update') && (
-                                  <Button 
-                                    variant="ghost" 
+                                  <Button
+                                    variant="ghost"
                                     size="sm"
                                     onClick={() => {
                                       setEditingRole(role);
@@ -3509,8 +3526,8 @@ export default function Dashboard() {
                                   </Button>
                                 )}
                                 {hasPermission(currentUser?.role, 'roles', 'delete') && role.name !== 'Super Administrator' && (
-                                  <Button 
-                                    variant="ghost" 
+                                  <Button
+                                    variant="ghost"
                                     size="sm"
                                     className="text-destructive hover:bg-destructive/10"
                                     onClick={() => handleDeleteRole(role.id)}
@@ -3526,7 +3543,7 @@ export default function Dashboard() {
                               <div className="text-sm font-medium text-foreground">Permissions Overview</div>
                               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                 {Object.entries(role.permissions || {}).map(([resource, perms]: [string, boolean | Record<string, boolean>]) => {
-                                  const resourcePermissions = typeof perms === 'object' && perms !== null 
+                                  const resourcePermissions = typeof perms === 'object' && perms !== null
                                     ? Object.entries(perms).filter(([, allowed]) => allowed).map(([action]) => action)
                                     : perms ? [String(perms)] : [];
 
@@ -3535,9 +3552,8 @@ export default function Dashboard() {
                                   return (
                                     <div key={resource} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border">
                                       <div className="flex items-center space-x-2">
-                                        <div className={`h-2 w-2 rounded-full ${
-                                          resourcePermissions.length > 0 ? 'bg-green-500' : 'bg-gray-400'
-                                        }`}></div>
+                                        <div className={`h-2 w-2 rounded-full ${resourcePermissions.length > 0 ? 'bg-green-500' : 'bg-gray-400'
+                                          }`}></div>
                                         <span className="text-sm font-medium capitalize">{resource}</span>
                                       </div>
                                       <div className="flex flex-wrap gap-1">
@@ -3605,8 +3621,8 @@ export default function Dashboard() {
                   <Settings className="h-4 w-4" />
                   <AlertDescription>
                     No event settings have been configured yet. Create your event settings to get started.
-                    <Button 
-                      className="ml-4" 
+                    <Button
+                      className="ml-4"
                       size="sm"
                       onClick={() => setShowEventSettingsForm(true)}
                     >
@@ -3631,26 +3647,26 @@ export default function Dashboard() {
                             {(() => {
                               // Handle date properly to avoid timezone issues
                               const dateValue = eventSettings.eventDate;
-                              
+
                               if (!dateValue) return 'No date set';
-                              
+
                               // Convert to string if it's not already
                               const dateStr = typeof dateValue === 'string' ? dateValue : String(dateValue);
-                              
+
                               // Extract just the date part if it's an ISO string
                               let datePart = dateStr;
                               if (dateStr.includes('T')) {
                                 datePart = dateStr.split('T')[0];
                               }
-                              
+
                               // Parse as local date to avoid timezone conversion issues
                               const [year, month, day] = datePart.split('-').map(Number);
                               const localDate = new Date(year, month - 1, day);
-                              
+
                               // Format the date without timezone conversion
-                              return localDate.toLocaleDateString('en-US', { 
-                                year: 'numeric', 
-                                month: 'long', 
+                              return localDate.toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'long',
                                 day: 'numeric'
                               });
                             })()} • {eventSettings.eventLocation}
@@ -3719,9 +3735,9 @@ export default function Dashboard() {
                                 }
                                 const [year, month, day] = datePart.split('-').map(Number);
                                 const localDate = new Date(year, month - 1, day);
-                                return localDate.toLocaleDateString('en-US', { 
-                                  year: 'numeric', 
-                                  month: 'long', 
+                                return localDate.toLocaleDateString('en-US', {
+                                  year: 'numeric',
+                                  month: 'long',
                                   day: 'numeric'
                                 });
                               })() : 'Not set'}
@@ -3941,7 +3957,7 @@ export default function Dashboard() {
                             acc[log.action] = (acc[log.action] || 0) + 1;
                             return acc;
                           }, {});
-                          const mostCommon = Object.entries(actionCounts).sort(([,a], [,b]) => (b as number) - (a as number))[0];
+                          const mostCommon = Object.entries(actionCounts).sort(([, a], [, b]) => (b as number) - (a as number))[0];
                           return mostCommon ? capitalizeFirst(mostCommon[0]) : 'N/A';
                         })()}
                       </p>
@@ -3953,8 +3969,8 @@ export default function Dashboard() {
               {/* Logs Filters and Actions */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
-                  <Select 
-                    value={logsFilters.action} 
+                  <Select
+                    value={logsFilters.action}
                     onValueChange={(value) => handleLogsFilterChange({ ...logsFilters, action: value })}
                   >
                     <SelectTrigger className="w-48">
@@ -3971,8 +3987,8 @@ export default function Dashboard() {
                       <SelectItem value="logout">Logout</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Select 
-                    value={logsFilters.userId} 
+                  <Select
+                    value={logsFilters.userId}
                     onValueChange={(value) => handleLogsFilterChange({ ...logsFilters, userId: value })}
                   >
                     <SelectTrigger className="w-48">
@@ -3981,7 +3997,7 @@ export default function Dashboard() {
                     <SelectContent>
                       <SelectItem value="all">All Users</SelectItem>
                       {users.map((user) => (
-                        <SelectItem key={user.id} value={user.id}>
+                        <SelectItem key={user.id} value={user.userId || user.id}>
                           {user.name || user.email.split('@')[0]}
                         </SelectItem>
                       ))}
@@ -4009,6 +4025,8 @@ export default function Dashboard() {
                     <LogsDeleteDialog
                       users={users}
                       onDeleteSuccess={() => loadLogs(1, logsFilters)}
+                      onDeleteStart={() => setPauseLogsRealtime(true)}
+                      onDeleteEnd={() => setPauseLogsRealtime(false)}
                     >
                       <Button variant="destructive">
                         <Trash2 className="mr-2 h-4 w-4" />
@@ -4057,8 +4075,8 @@ export default function Dashboard() {
                       <Activity className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                       <h3 className="text-lg font-medium text-muted-foreground mb-2">No Activity Found</h3>
                       <p className="text-sm text-muted-foreground">
-                        {logsFilters.action !== 'all' || logsFilters.userId !== 'all' 
-                          ? 'No activities match your current filters.' 
+                        {logsFilters.action !== 'all' || logsFilters.userId !== 'all'
+                          ? 'No activities match your current filters.'
                           : 'No activities have been recorded yet.'}
                       </p>
                     </div>
@@ -4080,13 +4098,18 @@ export default function Dashboard() {
                               <TableCell>
                                 <Badge variant={
                                   log.action === "create" ? "default" :
-                                  log.action === "update" ? "secondary" :
-                                  log.action === "delete" ? "destructive" :
-                                  log.action === "view" ? "outline" :
-                                  log.action === "print" ? "default" :
-                                  "outline"
+                                    log.action === "update" ? "secondary" :
+                                      log.action === "delete" ? "destructive" :
+                                        log.action === "view" ? "outline" :
+                                          log.action === "print" ? "default" :
+                                            "outline"
                                 }>
-                                  {log.action.charAt(0).toUpperCase() + log.action.slice(1)}
+                                  {log.action === 'delete_logs' ? 'Delete Logs' :
+                                    log.action === 'bulk_update' ? 'Bulk Update' :
+                                      log.action === 'bulk_delete' ? 'Bulk Delete' :
+                                        log.action === 'login' || log.action === 'auth_login' ? 'Log In' :
+                                          log.action === 'logout' || log.action === 'auth_logout' ? 'Log Out' :
+                                            log.action.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
                                 </Badge>
                               </TableCell>
                               <TableCell>
@@ -4115,12 +4138,32 @@ export default function Dashboard() {
                                     </div>
                                   ) : (
                                     <div>
-                                      <div className="font-medium">{String(log.details?.type) || "System"}</div>
+                                      <div className="font-medium">
+                                        {((): string => {
+                                          // Show the actual target (person name or target type)
+                                          if (log.details?.firstName && log.details?.lastName) {
+                                            return `${String(log.details.firstName)} ${String(log.details.lastName)}`;
+                                          } else if (log.details?.roleName) {
+                                            return String(log.details.roleName);
+                                          } else if (log.details?.target) {
+                                            return String(log.details.target);
+                                          } else {
+                                            return 'System';
+                                          }
+                                        })()}
+                                      </div>
                                       <div className="text-xs text-muted-foreground">
-                                        {log.details?.firstName && log.details?.lastName 
-                                          ? `${String(log.details.firstName)} ${String(log.details.lastName)}`
-                                          : 'System Operation'
-                                        }
+                                        {((): string => {
+                                          // Show the category
+                                          const type = log.details?.type;
+                                          if (type === 'attendee' || type === 'attendees') return 'Attendee';
+                                          if (type === 'user' || type === 'users') return 'User';
+                                          if (type === 'role' || type === 'roles') return 'Role';
+                                          if (type === 'settings' || type === 'event_settings') return 'Settings';
+                                          if (type === 'system' || type === 'auth') return 'System Operation';
+                                          if (log.details?.target) return String(log.details.target);
+                                          return 'System';
+                                        })()}
                                       </div>
                                     </div>
                                   )}
@@ -4128,26 +4171,59 @@ export default function Dashboard() {
                               </TableCell>
                               <TableCell>
                                 <div className="text-sm text-muted-foreground max-w-xs">
-                                  {log.details?.changes ? (
+                                  {log.details?.description ? (
+                                    // Show description for all operations that have it
                                     <div className="text-xs">
-                                      {Array.isArray(log.details.changes) ? (
-                                        // Handle array format (new format)
-                                        <>Changed: {(log.details.changes as string[]).join(', ')}</>
-                                      ) : typeof log.details.changes === 'object' && log.details.changes !== null ? (
-                                        // Handle object format (legacy format)
-                                        <>Changed: {Object.entries(log.details.changes as Record<string, boolean>)
-                                          .filter(([, changed]) => changed)
-                                          .map(([field]) => field)
-                                          .join(', ')}
-                                        </>
-                                      ) : (
-                                        // Handle string format (fallback)
-                                        <>Changed: {String(log.details.changes)}</>
-                                      )}
+                                      <div>{String(log.details.description)}</div>
+                                      {/* Show changeDetails if available (for settings updates) */}
+                                      {log.details?.changeDetails && typeof log.details.changeDetails === 'object' && Object.keys(log.details.changeDetails).length > 0 ? (
+                                        <div className="mt-2 space-y-0.5 text-muted-foreground">
+                                          {Object.entries(log.details.changeDetails as Record<string, { from: any; to: any }>).map(([field, change]) => (
+                                            <div key={field}>
+                                              <span className="font-medium">{field}</span>: {String(change.from)} → {String(change.to)}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                  ) : log.details?.changes ? (
+                                    <div className="text-xs space-y-1">
+                                      {(() => {
+                                        const changes = log.details.changes;
+                                        if (Array.isArray(changes)) {
+                                          // Handle array format (field names only)
+                                          return <>Changed: {(changes as string[]).join(', ')}</>;
+                                        } else if (typeof changes === 'object' && changes !== null) {
+                                          // Check if it's the new format with from/to values
+                                          const hasFromTo = Object.values(changes).some((v: any) => v && typeof v === 'object' && 'from' in v && 'to' in v);
+                                          if (hasFromTo) {
+                                            // New format: { field: { from: bool, to: bool } }
+                                            return (
+                                              <div className="space-y-0.5">
+                                                {Object.entries(changes as Record<string, { from: boolean; to: boolean }>).map(([field, change]) => (
+                                                  <div key={field}>
+                                                    <span className="font-medium">{field}</span>: {String(change.from)} → {String(change.to)}
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            );
+                                          } else {
+                                            // Legacy format: { field: boolean }
+                                            return <>Changed: {Object.entries(changes as Record<string, boolean>)
+                                              .filter(([, changed]) => changed)
+                                              .map(([field]) => field)
+                                              .join(', ')}
+                                            </>;
+                                          }
+                                        } else {
+                                          // Handle string format (fallback)
+                                          return <>Changed: {String(changes)}</>;
+                                        }
+                                      })()}
                                     </div>
                                   ) : null}
-                                  {log.details?.count ? (
-                                    <div className="text-xs">Count: {String(log.details.count || '')}</div>
+                                  {log.details?.summary ? (
+                                    <div className="text-xs text-muted-foreground mt-1">{String(log.details.summary)}</div>
                                   ) : null}
                                   {log.details?.barcodeNumber ? (
                                     <div className="text-xs">Barcode: {String(log.details.barcodeNumber || '')}</div>
@@ -4173,7 +4249,7 @@ export default function Dashboard() {
                           <div className="text-sm text-muted-foreground">
                             Page {logsPagination.page} of {logsPagination.totalPages} • Showing {logs.length} of {logsPagination.totalCount} activities
                           </div>
-                          
+
                           <div className="flex items-center space-x-1">
                             <Button
                               variant="outline"
@@ -4191,7 +4267,7 @@ export default function Dashboard() {
                             >
                               Previous
                             </Button>
-                            
+
                             {/* Page Numbers */}
                             <div className="flex items-center space-x-1">
                               {(() => {
@@ -4199,14 +4275,14 @@ export default function Dashboard() {
                                 const maxVisiblePages = 5;
                                 const currentPage = logsPagination.page;
                                 const totalPages = logsPagination.totalPages;
-                                
+
                                 let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
                                 const endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
-                                
+
                                 if (endPage - startPage + 1 < maxVisiblePages) {
                                   startPage = Math.max(1, endPage - maxVisiblePages + 1);
                                 }
-                                
+
                                 // Add first page and ellipsis if needed
                                 if (startPage > 1) {
                                   pages.push(
@@ -4229,7 +4305,7 @@ export default function Dashboard() {
                                     );
                                   }
                                 }
-                                
+
                                 // Add visible page numbers
                                 for (let i = startPage; i <= endPage; i++) {
                                   pages.push(
@@ -4245,7 +4321,7 @@ export default function Dashboard() {
                                     </Button>
                                   );
                                 }
-                                
+
                                 // Add ellipsis and last page if needed
                                 if (endPage < totalPages) {
                                   if (endPage < totalPages - 1) {
@@ -4268,11 +4344,11 @@ export default function Dashboard() {
                                     </Button>
                                   );
                                 }
-                                
+
                                 return pages;
                               })()}
                             </div>
-                            
+
                             <Button
                               variant="outline"
                               size="sm"
@@ -4348,14 +4424,14 @@ export default function Dashboard() {
         }}
         onConfirm={async (deleteFromAuth) => {
           if (!userToDelete) return;
-          
+
           try {
             const response = await fetch('/api/users', {
               method: 'DELETE',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ 
+              body: JSON.stringify({
                 id: userToDelete.id,
-                deleteFromAuth 
+                deleteFromAuth
               }),
             });
 
@@ -4408,7 +4484,7 @@ export default function Dashboard() {
       />
 
       {/* Delete Attendee Confirmation Dialog */}
-      <AlertDialog open={!!attendeeToDelete} onOpenChange={(open) => {if (!open) setAttendeeToDelete(null)}}>
+      <AlertDialog open={!!attendeeToDelete} onOpenChange={(open) => { if (!open) setAttendeeToDelete(null) }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
@@ -4433,7 +4509,7 @@ export default function Dashboard() {
       </AlertDialog>
 
       {/* PDF Generation Loading Modal */}
-      <Dialog open={showPdfGenerationModal} onOpenChange={() => {}}>
+      <Dialog open={showPdfGenerationModal} onOpenChange={() => { }}>
         <DialogContent className="sm:max-w-md [&>button]:hidden">
           <DialogHeader>
             <DialogTitle>Generating PDFs</DialogTitle>
@@ -4456,7 +4532,7 @@ export default function Dashboard() {
       </Dialog>
 
       {/* Credential Generation Loading Modal */}
-      <Dialog open={showCredentialGenerationModal} onOpenChange={() => {}}>
+      <Dialog open={showCredentialGenerationModal} onOpenChange={() => { }}>
         <DialogContent className="sm:max-w-md [&>button]:hidden">
           <DialogHeader>
             <DialogTitle>Generating Credential</DialogTitle>
@@ -4479,7 +4555,7 @@ export default function Dashboard() {
       </Dialog>
 
       {/* Bulk Credential Generation Loading Modal */}
-      <Dialog open={showBulkCredentialModal} onOpenChange={() => {}}>
+      <Dialog open={showBulkCredentialModal} onOpenChange={() => { }}>
         <DialogContent className="sm:max-w-md [&>button]:hidden">
           <DialogHeader>
             <DialogTitle>Generating Credentials</DialogTitle>
@@ -4489,15 +4565,15 @@ export default function Dashboard() {
           </DialogHeader>
           <div className="flex flex-col items-center space-y-6 py-6">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-            
+
             {/* Progress Bar */}
             <div className="w-full space-y-2">
               <div className="flex justify-between text-sm text-muted-foreground">
                 <span>Progress</span>
                 <span>{bulkCredentialProgress.current} of {bulkCredentialProgress.total}</span>
               </div>
-              <Progress 
-                value={bulkCredentialProgress.total > 0 ? (bulkCredentialProgress.current / bulkCredentialProgress.total) * 100 : 0} 
+              <Progress
+                value={bulkCredentialProgress.total > 0 ? (bulkCredentialProgress.current / bulkCredentialProgress.total) * 100 : 0}
                 className="w-full h-2"
               />
               <div className="text-center text-xs text-muted-foreground">

@@ -94,7 +94,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             {
               userId: user.$id,
               action: 'view',
-              details: JSON.stringify({ type: 'role', roleId: role.$id, roleName: role.name })
+              details: JSON.stringify((await import('@/lib/logFormatting')).createRoleLogDetails('view', {
+                name: role.name,
+                id: role.$id
+              }))
             }
           );
         } catch (logError) {
@@ -196,12 +199,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             {
               userId: user.$id,
               action: 'update',
-              details: JSON.stringify({
-                type: 'role',
-                roleId: updatedRole.$id,
-                roleName: updatedRole.name,
-                changes: { name, description, permissions }
-              })
+              details: JSON.stringify((await import('@/lib/logFormatting')).createRoleLogDetails('update', {
+                name: updatedRole.name,
+                id: updatedRole.$id
+              }, {
+                changes: Object.keys({ name, description, permissions }).filter(k => ({ name, description, permissions } as any)[k] !== undefined)
+              }))
             }
           );
         } catch (logError) {
@@ -264,11 +267,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             {
               userId: user.$id,
               action: 'delete',
-              details: JSON.stringify({
-                type: 'role',
-                roleId: roleToDelete.$id,
-                roleName: roleToDelete.name
-              })
+              details: JSON.stringify((await import('@/lib/logFormatting')).createRoleLogDetails('delete', {
+                name: roleToDelete.name,
+                id: roleToDelete.$id
+              }))
             }
           );
         } catch (logError) {

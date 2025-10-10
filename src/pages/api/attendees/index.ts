@@ -3,6 +3,7 @@ import { createSessionClient, createAdminClient } from '@/lib/appwrite';
 import { Query, ID } from 'appwrite';
 import { search, equal, isNull, isNotNull, orderDesc } from '@/lib/appwriteQueries';
 import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
+import { shouldLog } from '@/lib/logSettings';
 
 
 
@@ -207,27 +208,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           });
         }
 
-        // Log the view action if enabled
-        try {
-          const logSettingsDocs = await databases.listDocuments(dbId, logSettingsCollectionId);
-          const logSettings = logSettingsDocs.documents[0];
-          
-          if (logSettings && logSettings.systemViewAttendeeList !== false) {
-            await databases.createDocument(
-              dbId,
-              logsCollectionId,
-              ID.unique(),
-              {
-                userId: user.$id,
-                action: 'view',
-                details: JSON.stringify({ type: 'attendees_list', count: attendees.length })
-              }
-            );
-          }
-        } catch (logError) {
-          console.error('Error logging view action:', logError);
-          // Don't fail the request if logging fails
-        }
+        // TODO: Attendee list view logging is currently inoperable
+        // Keeping the code structure for future implementation
+        // if (await shouldLog('systemViewAttendeeList')) {
+        //   // Log view action with deduplication
+        // }
 
         return res.status(200).json(attendees);
 
@@ -307,23 +292,25 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           }
         );
 
-        // Log the create action
-        await databases.createDocument(
-          dbId,
-          logsCollectionId,
-          ID.unique(),
-          {
-            userId: user.$id,
-            attendeeId: newAttendee.$id,
-            action: 'create',
-            details: JSON.stringify({ 
-              type: 'attendee',
-              firstName: newAttendee.firstName,
-              lastName: newAttendee.lastName,
-              barcodeNumber: newAttendee.barcodeNumber
-            })
-          }
-        );
+        // Log the create action if enabled
+        if (await shouldLog('attendeeCreate')) {
+          const { createAttendeeLogDetails } = await import('@/lib/logFormatting');
+          await databases.createDocument(
+            dbId,
+            logsCollectionId,
+            ID.unique(),
+            {
+              userId: user.$id,
+              attendeeId: newAttendee.$id,
+              action: 'create',
+              details: JSON.stringify(createAttendeeLogDetails('create', {
+                firstName: newAttendee.firstName,
+                lastName: newAttendee.lastName,
+                barcodeNumber: newAttendee.barcodeNumber
+              }))
+            }
+          );
+        }
 
         // Parse and return the new attendee with proper structure
         let parsedCustomFieldValues = [];

@@ -127,7 +127,15 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       }
     }
 
-    // Log the action
+    // Get field names for logging
+    const changedFieldNames = Object.keys(changes)
+      .filter(fieldId => changes[fieldId] && changes[fieldId] !== 'no-change')
+      .map(fieldId => {
+        const field = customFields.find(cf => cf.$id === fieldId);
+        return field?.fieldName || fieldId;
+      });
+
+    // Log the action with detailed information
     await databases.createDocument(
       dbId,
       logsCollectionId,
@@ -136,10 +144,14 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         userId: user.$id,
         action: 'bulk_update',
         details: JSON.stringify({
-          type: 'attendees',
-          count: attendeeIds.length,
-          updatedCount,
-          changes: Object.keys(changes),
+          type: 'bulk_edit',
+          target: 'Attendees',
+          description: `Bulk edited ${updatedCount} of ${attendeeIds.length} attendee${attendeeIds.length !== 1 ? 's' : ''}`,
+          totalRequested: attendeeIds.length,
+          successCount: updatedCount,
+          errorCount: errors.length,
+          fieldsChanged: changedFieldNames,
+          summary: `Updated fields: ${changedFieldNames.join(', ')}`
         })
       }
     );

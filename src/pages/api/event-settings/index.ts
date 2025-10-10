@@ -412,11 +412,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           // Send cached response
           res.status(200).json(cachedData);
 
-          // Still do async logging
+          // Still do async logging (cache hit path)
+          // Capture JWT before async operation since req context may be lost
+          const jwt = req.cookies?.['appwrite-session'];
           setImmediate(() => {
             (async () => {
+              if (!jwt) {
+                console.warn('Async logging skipped: No JWT available');
+                return;
+              }
               try {
-                const { account, databases: sessionDatabases } = createSessionClient(req);
+                // Create a mock request with the JWT for the session client
+                const mockReq = { cookies: { 'appwrite-session': jwt } } as any;
+                const { account, databases: sessionDatabases } = createSessionClient(mockReq);
                 const user = await account.get();
 
                 const userDocs = await sessionDatabases.listDocuments(dbId, usersCollectionId, [
@@ -424,19 +432,51 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 ]);
 
                 if (userDocs.documents.length > 0 && await shouldLog('systemViewEventSettings')) {
-                  await sessionDatabases.createDocument(
+                  // Check for recent duplicate logs (within last 5 seconds)
+                  const recentLogs = await sessionDatabases.listDocuments(
                     dbId,
                     logsCollectionId,
-                    ID.unique(),
-                    {
-                      userId: user.$id,
-                      action: 'view',
-                      details: JSON.stringify({ type: 'event_settings' })
-                    }
+                    [
+                      Query.equal('userId', user.$id),
+                      Query.equal('action', 'view'),
+                      Query.greaterThan('$createdAt', new Date(Date.now() - 5000).toISOString()),
+                      Query.limit(5)
+                    ]
                   );
+                  
+                  // Check if there's already a recent event settings view log
+                  const hasDuplicate = recentLogs.documents.some(log => {
+                    try {
+                      const details = JSON.parse(log.details);
+                      return details.target === 'Event Settings';
+                    } catch {
+                      return false;
+                    }
+                  });
+                  
+                  if (!hasDuplicate) {
+                    await sessionDatabases.createDocument(
+                      dbId,
+                      logsCollectionId,
+                      ID.unique(),
+                      {
+                        userId: user.$id,
+                        action: 'view',
+                        details: JSON.stringify({ 
+                          type: 'system',
+                          target: 'Event Settings',
+                          description: 'Viewed event configuration'
+                        })
+                      }
+                    );
+                  }
                 }
-              } catch (error) {
-                console.error('Async logging failed for event settings view:', error);
+              } catch (error: any) {
+                console.warn('Async logging failed for event settings view:', {
+                  error: error.message,
+                  type: error.type,
+                  hint: 'This is expected if the user logged out or session expired'
+                });
               }
             })();
           });
@@ -649,10 +689,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         // Fire-and-forget async logging after response is sent
         // This doesn't block the response and failures won't affect the user
+        // Capture JWT before async operation since req context may be lost
+        const jwt = req.cookies?.['appwrite-session'];
         setImmediate(() => {
           (async () => {
+            if (!jwt) {
+              console.warn('Async logging skipped: No JWT available');
+              return;
+            }
             try {
-              const { account, databases: sessionDatabases } = createSessionClient(req);
+              // Create a mock request with the JWT for the session client
+              const mockReq = { cookies: { 'appwrite-session': jwt } } as any;
+              const { account, databases: sessionDatabases } = createSessionClient(mockReq);
               const user = await account.get();
 
               // Get user profile
@@ -661,20 +709,52 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               ]);
 
               if (userDocs.documents.length > 0 && await shouldLog('systemViewEventSettings')) {
-                await sessionDatabases.createDocument(
+                // Check for recent duplicate logs (within last 5 seconds)
+                const recentLogs = await sessionDatabases.listDocuments(
                   dbId,
                   logsCollectionId,
-                  ID.unique(),
-                  {
-                    userId: user.$id,
-                    action: 'view',
-                    details: JSON.stringify({ type: 'event_settings' })
-                  }
+                  [
+                    Query.equal('userId', user.$id),
+                    Query.equal('action', 'view'),
+                    Query.greaterThan('$createdAt', new Date(Date.now() - 5000).toISOString()),
+                    Query.limit(5)
+                  ]
                 );
+                
+                // Check if there's already a recent event settings view log
+                const hasDuplicate = recentLogs.documents.some(log => {
+                  try {
+                    const details = JSON.parse(log.details);
+                    return details.target === 'Event Settings';
+                  } catch {
+                    return false;
+                  }
+                });
+                
+                if (!hasDuplicate) {
+                  await sessionDatabases.createDocument(
+                    dbId,
+                    logsCollectionId,
+                    ID.unique(),
+                    {
+                      userId: user.$id,
+                      action: 'view',
+                      details: JSON.stringify({ 
+                        type: 'system',
+                        target: 'Event Settings',
+                        description: 'Viewed event configuration'
+                      })
+                    }
+                  );
+                }
               }
-            } catch (error) {
+            } catch (error: any) {
               // Log errors but don't throw - logging failures should be silent
-              console.error('Async logging failed for event settings view:', error);
+              console.warn('Async logging failed for event settings view:', {
+                error: error.message,
+                type: error.type,
+                hint: 'This is expected if the user logged out or session expired'
+              });
             }
           })();
         });
@@ -1270,20 +1350,23 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
     // Detect changes for logging
     const changedFields = detectChanges(updateData, currentSettings);
 
-    await databases.createDocument(
-      dbId,
-      logsCollectionId,
-      ID.unique(),
-      {
-        userId: authUser.$id,
-        action: 'update',
-        details: JSON.stringify({
-          type: 'event_settings',
-          eventName: updatedEventSettings.eventName,
-          changes: changedFields
-        })
-      }
-    );
+    // Log the update action if enabled
+    if (await shouldLog('eventSettingsUpdate')) {
+      const { createSettingsLogDetails } = await import('@/lib/logFormatting');
+      await databases.createDocument(
+        dbId,
+        logsCollectionId,
+        ID.unique(),
+        {
+          userId: authUser.$id,
+          action: 'update',
+          details: JSON.stringify(createSettingsLogDetails('update', 'event', {
+            eventName: updatedEventSettings.eventName,
+            changes: changedFields
+          }))
+        }
+      );
+    }
   }
 
   // Log performance metrics for PUT request

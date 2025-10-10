@@ -4,6 +4,7 @@ import { ID } from 'node-appwrite';
 import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
 import { getAppwriteCollectionIds } from '@/lib/envValidation';
 import { logger } from '@/lib/logger';
+import { shouldLog } from '@/lib/logSettings';
 
 export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   try {
@@ -142,22 +143,35 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           }
         });
 
-        // Log the update action
-        await databases.createDocument({
-          databaseId: dbId,
-          collectionId: logsCollectionId,
-          documentId: ID.unique(),
-          data: {
-            userId: user.$id,
-            action: 'update',
-            details: JSON.stringify({
-              type: 'custom_field',
+        // Log the update action if enabled
+        if (await shouldLog('customFieldUpdate')) {
+          try {
+            await databases.createDocument({
+              databaseId: dbId,
+              collectionId: logsCollectionId,
+              documentId: ID.unique(),
+              data: {
+                userId: user.$id,
+                action: 'update',
+                details: JSON.stringify({
+                  type: 'custom_field',
+                  fieldId: id,
+                  fieldName: updatedField.fieldName,
+                  fieldType: updatedField.fieldType
+                })
+              }
+            });
+          } catch (logError) {
+            console.error('[custom-fields/[id]] Failed to create log entry, but continuing with request', {
+              error: logError instanceof Error ? logError.message : 'Unknown error',
+              errorType: (logError as any)?.type,
+              userId: user.$id,
               fieldId: id,
-              fieldName: updatedField.fieldName,
-              fieldType: updatedField.fieldType
-            })
+              fieldName: updatedField.fieldName
+            });
+            // Do not re-throw - allow the request to succeed even if logging fails
           }
-        });
+        }
 
         return res.status(200).json(updatedField);
 
@@ -250,26 +264,39 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             newVersion: softDeletedField.version
           });
 
-          // Log the delete action with detailed information
-          await databases.createDocument({
-            databaseId: dbId,
-            collectionId: logsCollectionId,
-            documentId: ID.unique(),
-            data: {
-              userId: user.$id,
-              action: 'delete',
-              details: JSON.stringify({
-                type: 'custom_field',
+          // Log the delete action if enabled
+          if (await shouldLog('customFieldDelete')) {
+            try {
+              await databases.createDocument({
+                databaseId: dbId,
+                collectionId: logsCollectionId,
+                documentId: ID.unique(),
+                data: {
+                  userId: user.$id,
+                  action: 'delete',
+                  details: JSON.stringify({
+                    type: 'custom_field',
+                    fieldId: id,
+                    fieldName: fieldToDelete.fieldName,
+                    fieldType: fieldToDelete.fieldType,
+                    internalFieldName: fieldToDelete.internalFieldName,
+                    deletedAt,
+                    deleteType: 'soft_delete',
+                    note: 'Field soft-deleted. Orphaned values remain in attendee documents.'
+                  })
+                }
+              });
+            } catch (logError) {
+              logger.error('[CUSTOM_FIELD_DELETE] Failed to create log entry, but continuing with request', {
+                error: logError instanceof Error ? logError.message : 'Unknown error',
+                errorType: (logError as any)?.type,
+                userId: user.$id,
                 fieldId: id,
-                fieldName: fieldToDelete.fieldName,
-                fieldType: fieldToDelete.fieldType,
-                internalFieldName: fieldToDelete.internalFieldName,
-                deletedAt,
-                deleteType: 'soft_delete',
-                note: 'Field soft-deleted. Orphaned values remain in attendee documents.'
-              })
+                fieldName: fieldToDelete.fieldName
+              });
+              // Do not re-throw - allow the request to succeed even if logging fails
             }
-          });
+          }
 
           logger.debug('[CUSTOM_FIELD_DELETE] Delete logged successfully', {
             fieldId: id

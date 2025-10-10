@@ -128,6 +128,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     const switchboardResult = await switchboardResponse.json();
 
     // Log the print action
+    const { createAttendeeLogDetails } = await import('@/lib/logFormatting');
     await databases.createDocument({
       databaseId: dbId,
       collectionId: logsCollectionId,
@@ -136,14 +137,14 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         userId: user.$id,
         attendeeId: attendee.$id,
         action: 'print',
-        details: JSON.stringify({
-          type: 'credential',
+        details: JSON.stringify(createAttendeeLogDetails('print', {
           firstName: attendee.firstName,
           lastName: attendee.lastName,
-          barcodeNumber: attendee.barcodeNumber,
+          barcodeNumber: attendee.barcodeNumber
+        }, {
           switchboardJobId: switchboardResult.job_id || switchboardResult.id,
           imageUrl: switchboardResult.url || switchboardResult.image_url
-        })
+        }))
       }
     });
 

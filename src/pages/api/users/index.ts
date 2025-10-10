@@ -98,16 +98,49 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
         // Log the view action if enabled
         if (await shouldLog('systemViewUsersList')) {
-          await databases.createDocument(
-            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-            process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
-            ID.unique(),
-            {
-              userId: user.$id,
-              action: 'view',
-              details: JSON.stringify({ type: 'users_list', count: usersWithRoles.length })
+          try {
+            // Check for recent duplicate logs (within last 5 seconds)
+            const recentLogs = await databases.listDocuments(
+              process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+              process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+              [
+                Query.equal('userId', user.$id),
+                Query.equal('action', 'view'),
+                Query.greaterThan('$createdAt', new Date(Date.now() - 5000).toISOString()),
+                Query.limit(5)
+              ]
+            );
+
+            // Check if there's already a recent users view log
+            const hasDuplicate = recentLogs.documents.some(log => {
+              try {
+                const details = JSON.parse(log.details);
+                return details.target === 'Users List';
+              } catch {
+                return false;
+              }
+            });
+
+            if (!hasDuplicate) {
+              await databases.createDocument(
+                process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+                process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+                ID.unique(),
+                {
+                  userId: user.$id,
+                  action: 'view',
+                  details: JSON.stringify({ 
+                    type: 'system',
+                    target: 'Users List',
+                    description: `Viewed ${usersWithRoles.length} user${usersWithRoles.length !== 1 ? 's' : ''}`
+                  })
+                }
+              );
             }
-          );
+          } catch (logError) {
+            console.error('Error creating log:', logError);
+            // Continue even if logging fails
+          }
         }
 
         // Return users with pagination metadata
@@ -323,31 +356,33 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           }
 
           // Log the linking action (Requirement 1.6, 9.7)
-          await databases.createDocument(
-            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-            process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
-            ID.unique(),
-            {
-              userId: user.$id,
-              action: 'user_linked',
-              details: JSON.stringify({
-                type: 'user_linking',
-                operation: 'link',
-                userProfileId: newUserDoc.$id,
-                authUserId: authUser.$id,
-                email: authUser.email,
-                name: authUser.name,
-                roleId: newUserDoc.roleId,
-                roleName: userRole?.name || null,
-                teamMembershipRequested: addToTeam || false,
-                teamMembershipStatus: teamMembershipStatus?.status || null,
-                administratorId: user.$id,
-                administratorEmail: user.email,
-                administratorName: user.name,
-                timestamp: new Date().toISOString()
-              })
-            }
-          );
+          if (await shouldLog('userCreate')) {
+            await databases.createDocument(
+              process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+              process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+              ID.unique(),
+              {
+                userId: user.$id,
+                action: 'user_linked',
+                details: JSON.stringify({
+                  type: 'user_linking',
+                  operation: 'link',
+                  userProfileId: newUserDoc.$id,
+                  authUserId: authUser.$id,
+                  email: authUser.email,
+                  name: authUser.name,
+                  roleId: newUserDoc.roleId,
+                  roleName: userRole?.name || null,
+                  teamMembershipRequested: addToTeam || false,
+                  teamMembershipStatus: teamMembershipStatus?.status || null,
+                  administratorId: user.$id,
+                  administratorEmail: user.email,
+                  administratorName: user.name,
+                  timestamp: new Date().toISOString()
+                })
+              }
+            );
+          }
 
           // Return user data
           const responseData: any = {
@@ -436,14 +471,15 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           }
         }
 
-        // Log the update action (Requirement 9.7)
-        await databases.createDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
-          ID.unique(),
-          {
-            userId: user.$id,
-            action: 'user_updated',
+        // Log the update action if enabled
+        if (await shouldLog('userUpdate')) {
+          await databases.createDocument(
+            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+            ID.unique(),
+            {
+              userId: user.$id,
+              action: 'user_updated',
             details: JSON.stringify({
               type: 'user',
               operation: 'update',
@@ -462,8 +498,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
               administratorName: user.name,
               timestamp: new Date().toISOString()
             })
-          }
-        );
+            }
+          );
+        }
 
         return res.status(200).json({
           id: updatedUserDoc.$id,
@@ -619,27 +656,30 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           deleteId
         );
 
-        // Log the delete action
-        await databases.createDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
-          ID.unique(),
-          {
-            userId: user.$id,
-            action: 'delete',
-            details: JSON.stringify({
-              type: 'user',
-              email: userToDelete.email,
-              name: userToDelete.name,
-              deletedFromAuth,
-              deleteFromAuthRequested: deleteFromAuth,
-              authDeletionError,
-              removedFromTeam,
-              removeFromTeamRequested: removeFromTeam,
-              teamRemovalError
-            })
-          }
-        );
+        // Log the delete action if enabled
+        if (await shouldLog('userDelete')) {
+          const { createUserLogDetails } = await import('@/lib/logFormatting');
+          await databases.createDocument(
+            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+            ID.unique(),
+            {
+              userId: user.$id,
+              action: 'delete',
+              details: JSON.stringify(createUserLogDetails('delete', {
+                email: userToDelete.email,
+                name: userToDelete.name
+              }, {
+                deletedFromAuth,
+                deleteFromAuthRequested: deleteFromAuth,
+                ...(authDeletionError && { authDeletionError }),
+                removedFromTeam,
+                removeFromTeamRequested: removeFromTeam,
+                ...(teamRemovalError && { teamRemovalError })
+              }))
+            }
+          );
+        }
 
         const message = deleteFromAuth
           ? (deletedFromAuth

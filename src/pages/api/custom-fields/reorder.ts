@@ -2,6 +2,7 @@ import { NextApiResponse } from 'next';
 import { createSessionClient } from '@/lib/appwrite';
 import { ID } from 'appwrite';
 import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
+import { shouldLog } from '@/lib/logSettings';
 
 export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   try {
@@ -55,21 +56,24 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
     // Log the reorder action
     try {
-      await databases.createDocument(
-        dbId,
-        logsCollectionId,
-        ID.unique(),
-        {
-          userId: user.$id,
-          action: 'update',
-          details: JSON.stringify({ 
-            type: 'custom_fields_reorder',
-            fieldCount: fieldOrders.length,
-            successCount: updated.length,
-            errorCount: errors.length
-          })
-        }
-      );
+      // Log the reorder action if enabled
+      if (await shouldLog('customFieldReorder')) {
+        await databases.createDocument(
+          dbId,
+          logsCollectionId,
+          ID.unique(),
+          {
+            userId: user.$id,
+            action: 'update',
+            details: JSON.stringify({ 
+              type: 'custom_fields_reorder',
+              fieldCount: fieldOrders.length,
+              successCount: updated.length,
+              errorCount: errors.length
+            })
+          }
+        );
+      }
     } catch (logError: unknown) {
       const errorMessage = logError instanceof Error ? logError.message : 'Unknown error';
       console.error('Error creating log:', errorMessage);

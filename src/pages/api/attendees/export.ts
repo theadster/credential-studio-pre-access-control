@@ -2,6 +2,7 @@ import { NextApiResponse } from 'next';
 import { createSessionClient } from '@/lib/appwrite';
 import { Query, ID } from 'appwrite';
 import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
+import { shouldLog } from '@/lib/logSettings';
 
 interface ExportRequest {
   scope: 'all' | 'filtered';
@@ -281,27 +282,32 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     // Join all rows with newlines
     const csvContent = csvRows.join('\n');
 
-    // Log the export activity
-    await databases.createDocument(
-      dbId,
-      logsCollectionId,
-      ID.unique(),
-      {
-        action: 'export',
-        userId: user.$id,
-        details: JSON.stringify({
-          type: 'attendees',
-          scope,
-          recordCount: attendees.length,
-          fields: fields.length,
-          hasFilters: scope === 'filtered' && !!filters
-        })
-      }
-    );
+    // Generate filename
+    const filename = `attendees-export-${new Date().toISOString().split('T')[0]}.csv`;
+    
+    // Log the export activity if enabled
+    if (await shouldLog('attendeeExport')) {
+      const { createExportLogDetails } = await import('@/lib/logFormatting');
+      await databases.createDocument(
+        dbId,
+        logsCollectionId,
+        ID.unique(),
+        {
+          action: 'export',
+          userId: user.$id,
+          details: JSON.stringify(createExportLogDetails('attendees', 'csv', attendees.length, {
+            filename,
+            scope,
+            fields: fields.length,
+            hasFilters: scope === 'filtered' && !!filters
+          }))
+        }
+      );
+    }
 
     // Set response headers for CSV download
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename="attendees-export-${new Date().toISOString().split('T')[0]}.csv"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
 
     return res.status(200).send(csvContent);
 

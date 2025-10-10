@@ -65,6 +65,9 @@ export function useRealtimeSubscription<T extends Models.Document = Models.Docum
     [onError]
   );
 
+  // Stringify channels to create a stable dependency
+  const channelsKey = JSON.stringify(channels);
+  
   useEffect(() => {
     // Don't subscribe if disabled
     if (!enabled) {
@@ -78,13 +81,24 @@ export function useRealtimeSubscription<T extends Models.Document = Models.Docum
     }
 
     let isSubscribed = true;
+    let unsubscribe: (() => void) | null = null;
 
     const subscribe = async () => {
       try {
+        // Cleanup any existing subscription first
+        if (unsubscribeRef.current) {
+          try {
+            unsubscribeRef.current();
+          } catch (err) {
+            // Ignore errors when unsubscribing
+          }
+          unsubscribeRef.current = null;
+        }
+
         const { client } = createBrowserClient();
         
         // Subscribe to the channels
-        const unsubscribe = client.subscribe<T>(channels, (response) => {
+        unsubscribe = client.subscribe<T>(channels, (response) => {
           // Only process if still subscribed
           if (isSubscribed) {
             try {
@@ -116,11 +130,16 @@ export function useRealtimeSubscription<T extends Models.Document = Models.Docum
     return () => {
       isSubscribed = false;
       if (unsubscribeRef.current) {
-        unsubscribeRef.current();
+        try {
+          unsubscribeRef.current();
+        } catch (err) {
+          // Ignore errors when cleaning up - WebSocket might already be closed
+          console.debug('Realtime cleanup: WebSocket already closed');
+        }
         unsubscribeRef.current = null;
       }
     };
-  }, [channels, stableCallback, stableOnError, enabled]);
+  }, [channelsKey, stableCallback, stableOnError, enabled]);
 }
 
 /**

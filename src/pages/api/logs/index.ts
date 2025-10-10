@@ -161,7 +161,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       }
 
       // Check if this action should be logged based on settings
-      const settingKey = action.replace('_', '');
+      // Convert action name to camelCase setting key (e.g., 'auth_login' -> 'authLogin')
+      const settingKey = action.replace(/_([a-z])/g, (_match: string, letter: string) => letter.toUpperCase());
       if (!(await shouldLog(settingKey))) {
         // Return success but don't actually log
         return res.status(201).json({ message: 'Logging disabled for this action' });

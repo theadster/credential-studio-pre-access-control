@@ -2,6 +2,7 @@ import { NextApiResponse } from 'next';
 import { createSessionClient } from '@/lib/appwrite';
 import { ID } from 'node-appwrite';
 import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
+import { shouldLog } from '@/lib/logSettings';
 
 export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   if (req.method !== 'POST') {
@@ -49,22 +50,45 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       }
     });
 
-    // Log the activity
-    await databases.createDocument({
-      databaseId: dbId,
-      collectionId: logsCollectionId,
-      documentId: ID.unique(),
-      data: {
-        userId: user.$id,
-        attendeeId: id,
-        action: 'clear_credential',
-        details: JSON.stringify({
-          type: 'attendee',
-          attendeeName: `${existingAttendee.firstName} ${existingAttendee.lastName}`,
-          previousCredentialUrl: existingAttendee.credentialUrl
-        })
+    // Log the activity if enabled
+    if (await shouldLog('credentialClear')) {
+      try {
+        const fullName = `${existingAttendee.firstName} ${existingAttendee.lastName}`;
+        const description = existingAttendee.credentialUrl
+          ? `Cleared credential for ${fullName}`
+          : `Attempted to clear credential for ${fullName} (no credential existed)`;
+
+        await databases.createDocument({
+          databaseId: dbId,
+          collectionId: logsCollectionId,
+          documentId: ID.unique(),
+          data: {
+            userId: user.$id,
+            attendeeId: id,
+            action: 'clear_credential',
+            details: JSON.stringify({
+              type: 'attendee',
+              target: fullName,
+              description,
+              firstName: existingAttendee.firstName,
+              lastName: existingAttendee.lastName,
+              barcodeNumber: existingAttendee.barcodeNumber,
+              ...(existingAttendee.credentialUrl && {
+                previousCredentialUrl: existingAttendee.credentialUrl
+              })
+            })
+          }
+        });
+      } catch (logError) {
+        console.error('[clear-credential] Failed to create log entry, but continuing with request', {
+          error: logError instanceof Error ? logError.message : 'Unknown error',
+          errorType: (logError as any)?.type,
+          userId: user.$id,
+          attendeeId: id
+        });
+        // Do not re-throw - allow the request to succeed even if logging fails
       }
-    });
+    }
 
     res.status(200).json({
       message: 'Credential cleared successfully',

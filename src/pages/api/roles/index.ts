@@ -3,6 +3,7 @@ import { createSessionClient } from '@/lib/appwrite';
 import { Query, ID } from 'appwrite';
 import { hasPermission } from '@/lib/permissions';
 import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
+import { shouldLog } from '@/lib/logSettings';
 
 export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   // User and userProfile are already attached by middleware
@@ -42,21 +43,52 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           })
         );
 
-        // Log the view action
-        try {
-          await databases.createDocument(
-            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-            process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
-            ID.unique(),
-            {
-              userId: user.$id,
-              action: 'view',
-              details: JSON.stringify({ type: 'roles_list', count: rolesWithCount.length })
+        // Log the view action if enabled
+        if (await shouldLog('systemViewRolesList')) {
+          try {
+            // Check for recent duplicate logs (within last 5 seconds)
+            const recentLogs = await databases.listDocuments(
+              process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+              process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+              [
+                Query.equal('userId', user.$id),
+                Query.equal('action', 'view'),
+                Query.greaterThan('$createdAt', new Date(Date.now() - 5000).toISOString()),
+                Query.limit(5)
+              ]
+            );
+
+            // Check if there's already a recent roles view log
+            const hasDuplicate = recentLogs.documents.some(log => {
+              try {
+                const details = JSON.parse(log.details);
+                return details.target === 'Roles' || (details.type === 'system' && details.operation === 'view_roles');
+              } catch {
+                return false;
+              }
+            });
+
+            if (!hasDuplicate) {
+              await databases.createDocument(
+                process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+                process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+                ID.unique(),
+                {
+                  userId: user.$id,
+                  action: 'view',
+                  details: JSON.stringify({
+                    type: 'system',
+                    target: 'Roles',
+                    description: `Viewed ${rolesWithCount.length} role${rolesWithCount.length !== 1 ? 's' : ''}`,
+                    count: rolesWithCount.length
+                  })
+                }
+              );
             }
-          );
-        } catch (logError) {
-          console.error('Error creating log:', logError);
-          // Continue even if logging fails
+          } catch (logError) {
+            console.error('Error creating log:', logError);
+            // Continue even if logging fails
+          }
         }
 
         return res.status(200).json(rolesWithCount);
@@ -111,6 +143,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
         // Log the create action
         try {
+          const { createRoleLogDetails } = await import('@/lib/logFormatting');
           await databases.createDocument(
             process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
             process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
@@ -118,11 +151,13 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             {
               userId: user.$id,
               action: 'create',
-              details: JSON.stringify({ 
-                type: 'role',
-                roleName: newRole.name,
+              details: JSON.stringify(createRoleLogDetails('create', {
+                name: newRole.name,
+                id: newRole.$id
+              }, {
+                description: newRole.description,
                 permissions: Object.keys(permissions)
-              })
+              }))
             }
           );
         } catch (logError) {

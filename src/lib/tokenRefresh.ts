@@ -209,12 +209,24 @@ export class TokenRefreshManager {
         }
 
         // Update cookie with new JWT using js-cookie for safe handling
-        Cookies.set('appwrite-session', jwt.jwt, {
-          path: '/',
-          expires: 7, // 7 days
-          sameSite: 'Lax',
-          secure: window.location.protocol === 'https:',
-        });
+        const isSecure = window.location.protocol === 'https:';
+        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        
+        // Use most permissive settings for localhost to work in all contexts
+        if (isLocalhost) {
+          // For localhost, don't set SameSite to maximize compatibility
+          Cookies.set('appwrite-session', jwt.jwt, {
+            path: '/',
+            expires: 7,
+          });
+        } else {
+          Cookies.set('appwrite-session', jwt.jwt, {
+            path: '/',
+            expires: 7,
+            sameSite: isSecure ? 'none' : 'lax',
+            secure: isSecure,
+          });
+        }
 
         // Reset consecutive failures counter on success
         this.consecutiveFailures = 0;

@@ -7,18 +7,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
-import { 
-  Settings, 
-  Users, 
-  Shield, 
-  Activity, 
-  FileText, 
-  UserPlus, 
-  Eye, 
-  Edit, 
-  Trash2, 
-  Plus, 
-  Download, 
+import {
+  Settings,
+  Users,
+  Shield,
+  Activity,
+  FileText,
+  UserPlus,
+  Eye,
+  Edit,
+  Trash2,
+  Plus,
+  Download,
   Upload,
   LogIn,
   LogOut,
@@ -126,7 +126,7 @@ const LogSettingsDialog: React.FC<LogSettingsDialogProps> = ({ children, onSetti
       const updatedSettings = await response.json();
       setSettings(updatedSettings);
       setOriginalSettings(updatedSettings);
-      
+
       toast({
         title: "Success",
         description: "Log settings updated successfully!",
@@ -135,6 +135,9 @@ const LogSettingsDialog: React.FC<LogSettingsDialogProps> = ({ children, onSetti
       if (onSettingsUpdate) {
         onSettingsUpdate();
       }
+
+      // Close the dialog after successful save
+      setIsOpen(false);
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -168,7 +171,7 @@ const LogSettingsDialog: React.FC<LogSettingsDialogProps> = ({ children, onSetti
 
   const getEnabledCount = (category: string) => {
     if (!settings) return 0;
-    
+
     const categorySettings = {
       attendees: [
         settings.attendeeCreate,
@@ -315,15 +318,17 @@ const LogSettingsDialog: React.FC<LogSettingsDialogProps> = ({ children, onSetti
                       onCheckedChange={(checked) => updateSetting('attendeeDelete', checked)}
                     />
                   </div>
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between opacity-50">
                     <div className="flex items-center space-x-2">
                       <Eye className="h-4 w-4 text-gray-600" />
-                      <Label htmlFor="attendeeView">View Attendee</Label>
+                      <Label htmlFor="attendeeView" className="text-gray-500">
+                        View Attendee <span className="text-xs">(Inoperable)</span>
+                      </Label>
                     </div>
                     <Switch
                       id="attendeeView"
-                      checked={settings.attendeeView}
-                      onCheckedChange={(checked) => updateSetting('attendeeView', checked)}
+                      checked={false}
+                      disabled={true}
                     />
                   </div>
                   <div className="flex items-center justify-between">
@@ -761,15 +766,17 @@ const LogSettingsDialog: React.FC<LogSettingsDialogProps> = ({ children, onSetti
                         onCheckedChange={(checked) => updateSetting('systemViewEventSettings', checked)}
                       />
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between opacity-50">
                       <div className="flex items-center space-x-2">
                         <Eye className="h-4 w-4 text-gray-600" />
-                        <Label htmlFor="systemViewAttendeeList">View Attendee List</Label>
+                        <Label htmlFor="systemViewAttendeeList" className="text-gray-500">
+                          View Attendee List <span className="text-xs">(Inoperable)</span>
+                        </Label>
                       </div>
                       <Switch
                         id="systemViewAttendeeList"
-                        checked={settings.systemViewAttendeeList}
-                        onCheckedChange={(checked) => updateSetting('systemViewAttendeeList', checked)}
+                        checked={false}
+                        disabled={true}
                       />
                     </div>
                     <div className="flex items-center justify-between">
