@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRealtimeSubscription } from "@/hooks/useRealtimeSubscription";
 import { Button } from "@/components/ui/button";
@@ -102,6 +102,7 @@ interface Attendee {
   firstName: string;
   lastName: string;
   barcodeNumber: string;
+  notes?: string;
   photoUrl: string | null;
   credentialUrl?: string | null;
   credentialGeneratedAt?: string | null;
@@ -642,6 +643,37 @@ export default function Dashboard() {
       setTimeout(() => loadLogs(), 2000);
     }, [loadLogs, pauseLogsRealtime])
   });
+
+  /**
+   * CUSTOM FIELD VISIBILITY FILTERING
+   * 
+   * Filters custom fields to only include those marked as visible on the main page.
+   * This creates a cleaner, more focused attendees table by hiding less frequently used fields.
+   * 
+   * Visibility Logic:
+   * - showOnMainPage === true → Field is visible (explicit)
+   * - showOnMainPage === undefined/null → Field is visible (backward compatibility)
+   * - showOnMainPage === false → Field is hidden (explicit)
+   * 
+   * Performance:
+   * - Uses useMemo to prevent unnecessary recalculations
+   * - Only recalculates when eventSettings.customFields changes
+   * - Efficient for large numbers of custom fields
+   * 
+   * Impact:
+   * - Visible fields appear as columns in the attendees table
+   * - Hidden fields are excluded from the table but remain in edit/create forms
+   * - Reduces visual clutter and improves table readability
+   * - All fields are still included in exports regardless of visibility
+   * 
+   * @returns Array of custom fields where showOnMainPage !== false
+   */
+  const visibleCustomFields = useMemo(() => 
+    eventSettings?.customFields?.filter(
+      (field: any) => field.showOnMainPage !== false // Only exclude if explicitly false
+    ) || [],
+    [eventSettings?.customFields]
+  );
 
   // Enhanced filtering function for attendees including custom fields and photo filter
   const filteredAttendees = attendees
@@ -1251,6 +1283,9 @@ export default function Dashboard() {
       // Don't set the state immediately, instead refresh to get the latest data
       // This ensures we get the updated `updatedAt` timestamp from the database
       await refreshEventSettings();
+      
+      // Also refresh attendees to pick up custom field visibility changes
+      await refreshAttendees();
 
       toast({
         title: "Success",
@@ -2845,7 +2880,9 @@ export default function Dashboard() {
                     <TableBody>
                       {paginatedAttendees.map((attendee, index) => {
                         // Get custom field values for this attendee, sorted by field order
+                        // Filter to only show fields where showOnMainPage !== false
                         const customFieldsWithValues = eventSettings?.customFields
+                          ?.filter((field: any) => field.showOnMainPage !== false) // Only show visible fields
                           ?.sort((a: any, b: any) => a.order - b.order)
                           ?.map((field: any) => {
                             const value = Array.isArray(attendee.customFieldValues)
@@ -2917,7 +2954,14 @@ export default function Dashboard() {
                                   className="text-left hover:text-primary transition-colors cursor-pointer"
                                   disabled={!hasPermission(currentUser?.role, 'attendees', 'update')}
                                 >
-                                  <div className="font-medium text-lg hover:text-primary">{attendee.firstName} {attendee.lastName}</div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium text-lg hover:text-primary">{attendee.firstName} {attendee.lastName}</span>
+                                    {attendee.notes && attendee.notes.trim() !== '' && (
+                                      <span className="inline-flex items-center px-1 py-0 rounded text-[9px] font-semibold uppercase bg-purple-100 text-purple-800 border border-purple-200">
+                                        NOTES
+                                      </span>
+                                    )}
+                                  </div>
                                 </button>
                                 {/* Display custom fields under the name */}
                                 {customFieldsWithValues.length > 0 && (

@@ -52,6 +52,8 @@ describe('/api/custom-fields/[id] - Custom Field Detail API', () => {
     fieldOptions: null,
     required: true,
     order: 1,
+    version: 0,
+    showOnMainPage: true,
     $createdAt: '2024-01-01T00:00:00.000Z',
     $updatedAt: '2024-01-01T00:00:00.000Z',
   };
@@ -179,6 +181,7 @@ describe('/api/custom-fields/[id] - Custom Field Detail API', () => {
         fieldType: 'text',
         required: false,
         order: 2,
+        version: 0,
       };
     });
 
@@ -188,6 +191,7 @@ describe('/api/custom-fields/[id] - Custom Field Detail API', () => {
         fieldName: 'Updated Company Name',
         required: false,
         order: 2,
+        version: 1,
       };
 
       mockDatabases.listDocuments.mockResolvedValueOnce({
@@ -195,21 +199,27 @@ describe('/api/custom-fields/[id] - Custom Field Detail API', () => {
         total: 1,
       });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockDatabases.getDocument
+        .mockResolvedValueOnce(mockAdminRole)
+        .mockResolvedValueOnce(mockCustomField);
       mockDatabases.updateDocument.mockResolvedValueOnce(updatedField);
       mockDatabases.createDocument.mockResolvedValueOnce({ $id: 'log-123' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID,
-        'field-123',
         expect.objectContaining({
-          fieldName: 'Updated Company Name',
-          fieldType: 'text',
-          required: false,
-          order: 2,
+          databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
+          collectionId: process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID,
+          documentId: 'field-123',
+          data: expect.objectContaining({
+            fieldName: 'Updated Company Name',
+            fieldType: 'text',
+            required: false,
+            order: 2,
+            showOnMainPage: true,
+            version: 1,
+          })
         })
       );
 
@@ -262,6 +272,7 @@ describe('/api/custom-fields/[id] - Custom Field Detail API', () => {
       mockReq.body = {
         fieldType: 'text',
         order: 1,
+        version: 0,
       };
 
       mockDatabases.listDocuments.mockResolvedValueOnce({
@@ -281,6 +292,7 @@ describe('/api/custom-fields/[id] - Custom Field Detail API', () => {
       mockReq.body = {
         fieldName: 'Updated Name',
         order: 1,
+        version: 0,
       };
 
       mockDatabases.listDocuments.mockResolvedValueOnce({
@@ -302,6 +314,7 @@ describe('/api/custom-fields/[id] - Custom Field Detail API', () => {
         fieldType: 'select',
         fieldOptions: ['Engineering', 'Sales', 'Marketing'],
         order: 1,
+        version: 0,
       };
 
       mockDatabases.listDocuments.mockResolvedValueOnce({
@@ -309,21 +322,23 @@ describe('/api/custom-fields/[id] - Custom Field Detail API', () => {
         total: 1,
       });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockDatabases.getDocument
+        .mockResolvedValueOnce(mockAdminRole)
+        .mockResolvedValueOnce(mockCustomField);
       mockDatabases.updateDocument.mockResolvedValueOnce({
         ...mockCustomField,
         fieldOptions: JSON.stringify(['Engineering', 'Sales', 'Marketing']),
+        version: 1,
       });
       mockDatabases.createDocument.mockResolvedValueOnce({ $id: 'log-123' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID,
-        'field-123',
         expect.objectContaining({
-          fieldOptions: JSON.stringify(['Engineering', 'Sales', 'Marketing']),
+          data: expect.objectContaining({
+            fieldOptions: JSON.stringify(['Engineering', 'Sales', 'Marketing']),
+          })
         })
       );
     });
@@ -334,6 +349,7 @@ describe('/api/custom-fields/[id] - Custom Field Detail API', () => {
         fieldType: 'select',
         fieldOptions: '["Engineering","Sales","Marketing"]',
         order: 1,
+        version: 0,
       };
 
       mockDatabases.listDocuments.mockResolvedValueOnce({
@@ -341,21 +357,23 @@ describe('/api/custom-fields/[id] - Custom Field Detail API', () => {
         total: 1,
       });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockDatabases.getDocument
+        .mockResolvedValueOnce(mockAdminRole)
+        .mockResolvedValueOnce(mockCustomField);
       mockDatabases.updateDocument.mockResolvedValueOnce({
         ...mockCustomField,
         fieldOptions: '["Engineering","Sales","Marketing"]',
+        version: 1,
       });
       mockDatabases.createDocument.mockResolvedValueOnce({ $id: 'log-123' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID,
-        'field-123',
         expect.objectContaining({
-          fieldOptions: '["Engineering","Sales","Marketing"]',
+          data: expect.objectContaining({
+            fieldOptions: '["Engineering","Sales","Marketing"]',
+          })
         })
       );
     });
@@ -365,6 +383,7 @@ describe('/api/custom-fields/[id] - Custom Field Detail API', () => {
         fieldName: 'Job Title',
         fieldType: 'text',
         order: 1,
+        version: 0,
       };
 
       mockDatabases.listDocuments.mockResolvedValueOnce({
@@ -372,21 +391,23 @@ describe('/api/custom-fields/[id] - Custom Field Detail API', () => {
         total: 1,
       });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockDatabases.getDocument
+        .mockResolvedValueOnce(mockAdminRole)
+        .mockResolvedValueOnce(mockCustomField);
       mockDatabases.updateDocument.mockResolvedValueOnce({
         ...mockCustomField,
         fieldOptions: null,
+        version: 1,
       });
       mockDatabases.createDocument.mockResolvedValueOnce({ $id: 'log-123' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID,
-        'field-123',
         expect.objectContaining({
-          fieldOptions: null,
+          data: expect.objectContaining({
+            fieldOptions: null,
+          })
         })
       );
     });
@@ -396,6 +417,7 @@ describe('/api/custom-fields/[id] - Custom Field Detail API', () => {
         fieldName: 'Job Title',
         fieldType: 'text',
         order: 1,
+        version: 0,
       };
 
       mockDatabases.listDocuments.mockResolvedValueOnce({
@@ -403,21 +425,23 @@ describe('/api/custom-fields/[id] - Custom Field Detail API', () => {
         total: 1,
       });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockDatabases.getDocument
+        .mockResolvedValueOnce(mockAdminRole)
+        .mockResolvedValueOnce(mockCustomField);
       mockDatabases.updateDocument.mockResolvedValueOnce({
         ...mockCustomField,
         required: false,
+        version: 1,
       });
       mockDatabases.createDocument.mockResolvedValueOnce({ $id: 'log-123' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID,
-        'field-123',
         expect.objectContaining({
-          required: false,
+          data: expect.objectContaining({
+            required: false,
+          })
         })
       );
     });
@@ -426,6 +450,7 @@ describe('/api/custom-fields/[id] - Custom Field Detail API', () => {
       mockReq.body = {
         fieldName: 'Job Title',
         fieldType: 'text',
+        version: 0,
       };
 
       mockDatabases.listDocuments.mockResolvedValueOnce({
@@ -433,21 +458,23 @@ describe('/api/custom-fields/[id] - Custom Field Detail API', () => {
         total: 1,
       });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockDatabases.getDocument
+        .mockResolvedValueOnce(mockAdminRole)
+        .mockResolvedValueOnce(mockCustomField);
       mockDatabases.updateDocument.mockResolvedValueOnce({
         ...mockCustomField,
         order: 1,
+        version: 1,
       });
       mockDatabases.createDocument.mockResolvedValueOnce({ $id: 'log-123' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID,
-        'field-123',
         expect.objectContaining({
-          order: 1,
+          data: expect.objectContaining({
+            order: 1,
+          })
         })
       );
     });
@@ -456,6 +483,166 @@ describe('/api/custom-fields/[id] - Custom Field Detail API', () => {
       const updatedField = {
         ...mockCustomField,
         fieldName: 'Updated Company Name',
+        version: 1,
+      };
+
+      mockDatabases.listDocuments.mockResolvedValueOnce({
+        documents: [mockUserProfile],
+        total: 1,
+      });
+
+      mockDatabases.getDocument
+        .mockResolvedValueOnce(mockAdminRole)
+        .mockResolvedValueOnce(mockCustomField);
+      mockDatabases.updateDocument.mockResolvedValueOnce(updatedField);
+      mockDatabases.createDocument.mockResolvedValueOnce({ $id: 'log-123' });
+
+      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+
+      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+        expect.objectContaining({
+          databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
+          collectionId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+          documentId: expect.any(String),
+          data: expect.objectContaining({
+            userId: mockAuthUser.$id,
+            action: 'update',
+            details: expect.stringContaining('custom_field'),
+          })
+        })
+      );
+    });
+
+    it('should update showOnMainPage to false when provided', async () => {
+      mockReq.body = {
+        fieldName: 'Company Name',
+        fieldType: 'text',
+        required: true,
+        order: 1,
+        version: 0,
+        showOnMainPage: false,
+      };
+
+      const updatedField = {
+        ...mockCustomField,
+        showOnMainPage: false,
+        version: 1,
+      };
+
+      mockDatabases.listDocuments.mockResolvedValueOnce({
+        documents: [mockUserProfile],
+        total: 1,
+      });
+
+      mockDatabases.getDocument
+        .mockResolvedValueOnce(mockAdminRole)
+        .mockResolvedValueOnce(mockCustomField);
+      mockDatabases.updateDocument.mockResolvedValueOnce(updatedField);
+      mockDatabases.createDocument.mockResolvedValueOnce({ $id: 'log-123' });
+
+      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+
+      expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            showOnMainPage: false,
+          })
+        })
+      );
+
+      expect(statusMock).toHaveBeenCalledWith(200);
+      expect(jsonMock).toHaveBeenCalledWith(updatedField);
+    });
+
+    it('should update showOnMainPage to true when provided', async () => {
+      mockReq.body = {
+        fieldName: 'Company Name',
+        fieldType: 'text',
+        required: true,
+        order: 1,
+        version: 0,
+        showOnMainPage: true,
+      };
+
+      const updatedField = {
+        ...mockCustomField,
+        showOnMainPage: true,
+        version: 1,
+      };
+
+      mockDatabases.listDocuments.mockResolvedValueOnce({
+        documents: [mockUserProfile],
+        total: 1,
+      });
+
+      mockDatabases.getDocument
+        .mockResolvedValueOnce(mockAdminRole)
+        .mockResolvedValueOnce(mockCustomField);
+      mockDatabases.updateDocument.mockResolvedValueOnce(updatedField);
+      mockDatabases.createDocument.mockResolvedValueOnce({ $id: 'log-123' });
+
+      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+
+      expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            showOnMainPage: true,
+          })
+        })
+      );
+
+      expect(statusMock).toHaveBeenCalledWith(200);
+      expect(jsonMock).toHaveBeenCalledWith(updatedField);
+    });
+
+    it('should default showOnMainPage to true if not provided', async () => {
+      mockReq.body = {
+        fieldName: 'Company Name',
+        fieldType: 'text',
+        required: true,
+        order: 1,
+        version: 0,
+      };
+
+      const updatedField = {
+        ...mockCustomField,
+        showOnMainPage: true,
+        version: 1,
+      };
+
+      mockDatabases.listDocuments.mockResolvedValueOnce({
+        documents: [mockUserProfile],
+        total: 1,
+      });
+
+      mockDatabases.getDocument
+        .mockResolvedValueOnce(mockAdminRole)
+        .mockResolvedValueOnce(mockCustomField);
+      mockDatabases.updateDocument.mockResolvedValueOnce(updatedField);
+      mockDatabases.createDocument.mockResolvedValueOnce({ $id: 'log-123' });
+
+      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+
+      expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            showOnMainPage: true,
+          })
+        })
+      );
+
+      expect(statusMock).toHaveBeenCalledWith(200);
+      expect(jsonMock).toHaveBeenCalledWith(updatedField);
+    });
+
+    it('should return 400 if showOnMainPage is not a boolean', async () => {
+      mockReq.body = {
+        fieldName: 'Company Name',
+        fieldType: 'text',
+        required: true,
+        order: 1,
+        version: 0,
+        showOnMainPage: 'invalid',
       };
 
       mockDatabases.listDocuments.mockResolvedValueOnce({
@@ -464,21 +651,14 @@ describe('/api/custom-fields/[id] - Custom Field Detail API', () => {
       });
 
       mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
-      mockDatabases.updateDocument.mockResolvedValueOnce(updatedField);
-      mockDatabases.createDocument.mockResolvedValueOnce({ $id: 'log-123' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
-        expect.any(String),
-        expect.objectContaining({
-          userId: mockAuthUser.$id,
-          action: 'update',
-          details: expect.stringContaining('custom_field'),
-        })
-      );
+      expect(statusMock).toHaveBeenCalledWith(400);
+      expect(jsonMock).toHaveBeenCalledWith({
+        error: 'Invalid showOnMainPage value',
+        details: 'showOnMainPage must be a boolean value',
+      });
     });
   });
 
@@ -628,6 +808,7 @@ describe('/api/custom-fields/[id] - Custom Field Detail API', () => {
       mockReq.body = {
         fieldName: 'Test Field',
         fieldType: 'text',
+        version: 0,
       };
 
       mockDatabases.listDocuments.mockResolvedValueOnce({
@@ -635,7 +816,9 @@ describe('/api/custom-fields/[id] - Custom Field Detail API', () => {
         total: 1,
       });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockDatabases.getDocument
+        .mockResolvedValueOnce(mockAdminRole)
+        .mockResolvedValueOnce(mockCustomField);
       mockDatabases.updateDocument.mockRejectedValueOnce(new Error('Database error'));
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
@@ -655,6 +838,7 @@ describe('/api/custom-fields/[id] - Custom Field Detail API', () => {
       mockReq.body = {
         fieldName: 'Test Field',
         fieldType: 'text',
+        version: 0,
       };
 
       mockDatabases.listDocuments.mockResolvedValueOnce({
@@ -662,7 +846,9 @@ describe('/api/custom-fields/[id] - Custom Field Detail API', () => {
         total: 1,
       });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockDatabases.getDocument
+        .mockResolvedValueOnce(mockAdminRole)
+        .mockResolvedValueOnce(mockCustomField);
 
       const unauthorizedError = new Error('Unauthorized');
       (unauthorizedError as any).code = 401;
@@ -685,6 +871,7 @@ describe('/api/custom-fields/[id] - Custom Field Detail API', () => {
       mockReq.body = {
         fieldName: 'Test Field',
         fieldType: 'text',
+        version: 0,
       };
 
       mockDatabases.listDocuments.mockResolvedValueOnce({
@@ -692,7 +879,9 @@ describe('/api/custom-fields/[id] - Custom Field Detail API', () => {
         total: 1,
       });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockDatabases.getDocument
+        .mockResolvedValueOnce(mockAdminRole)
+        .mockResolvedValueOnce(mockCustomField);
 
       const notFoundError = new Error('Not found');
       (notFoundError as any).code = 404;
@@ -709,6 +898,7 @@ describe('/api/custom-fields/[id] - Custom Field Detail API', () => {
       mockReq.body = {
         fieldName: 'Test Field',
         fieldType: 'text',
+        version: 0,
       };
 
       mockDatabases.listDocuments.mockResolvedValueOnce({
@@ -716,7 +906,9 @@ describe('/api/custom-fields/[id] - Custom Field Detail API', () => {
         total: 1,
       });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockDatabases.getDocument
+        .mockResolvedValueOnce(mockAdminRole)
+        .mockResolvedValueOnce(mockCustomField);
 
       const conflictError = new Error('Conflict');
       (conflictError as any).code = 409;

@@ -20,6 +20,7 @@ interface CustomFieldOptions {
 interface CustomField {
   id: string;
   fieldName: string;
+  internalFieldName?: string;
   fieldType: string;
   fieldOptions?: CustomFieldOptions;
   required: boolean;
@@ -36,6 +37,7 @@ interface Attendee {
   firstName: string;
   lastName: string;
   barcodeNumber: string;
+  notes?: string;
   profileImageUrl?: string;
   photoUrl?: string | null;
   customFieldValues?: CustomFieldValue[];
@@ -97,6 +99,7 @@ export default function AttendeeForm({
     firstName: '',
     lastName: '',
     barcodeNumber: '',
+    notes: '',
     photoUrl: '',
     customFieldValues: {} as Record<string, string>
   });
@@ -204,6 +207,7 @@ export default function AttendeeForm({
         firstName: attendee.firstName || '',
         lastName: attendee.lastName || '',
         barcodeNumber: attendee.barcodeNumber || '',
+        notes: attendee.notes || '',
         photoUrl: attendee.photoUrl || '',
         customFieldValues: Array.isArray(attendee.customFieldValues)
           ? attendee.customFieldValues.reduce((acc: Record<string, string>, cfv: CustomFieldValue) => {
@@ -221,6 +225,7 @@ export default function AttendeeForm({
         firstName: '',
         lastName: '',
         barcodeNumber: '',
+        notes: '',
         photoUrl: '',
         customFieldValues: {}
       });
@@ -367,6 +372,7 @@ export default function AttendeeForm({
         firstName: formData.firstName,
         lastName: formData.lastName,
         barcodeNumber: formData.barcodeNumber,
+        notes: formData.notes || '',
         photoUrl: formData.photoUrl || null,
         customFieldValues
       };
@@ -379,6 +385,7 @@ export default function AttendeeForm({
         firstName: '',
         lastName: '',
         barcodeNumber: '',
+        notes: '',
         photoUrl: '',
         customFieldValues: {}
       });
@@ -561,7 +568,7 @@ export default function AttendeeForm({
   return (
     <Dialog open={isOpen} onOpenChange={onClose} modal={false}>
       <DialogContent
-        className="max-w-5xl max-h-[90vh] overflow-y-auto"
+        className="max-w-5xl max-h-[90vh] overflow-y-auto bg-gray-50"
         onInteractOutside={(e) => {
           // Prevent closing the dialog when interacting with the Cloudinary widget
           if (isCloudinaryOpen) {
@@ -584,8 +591,8 @@ export default function AttendeeForm({
             <div className="col-span-3">
               <Card className="h-fit">
                 <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Camera className="h-4 w-4 text-muted-foreground" />
+                  <CardTitle className="text-lg flex items-center justify-center gap-2">
+                    <Camera className="h-5 w-5 text-muted-foreground" />
                     Photo
                   </CardTitle>
                 </CardHeader>
@@ -679,36 +686,59 @@ export default function AttendeeForm({
                           required
                         />
                       </div>
-                      <div className="col-span-2 space-y-2">
-                        <Label htmlFor="barcodeNumber" className="flex items-center gap-2">
-                          <Hash className="h-4 w-4 text-muted-foreground" />
-                          Barcode Number *
-                        </Label>
-                        <div className="flex space-x-2">
-                          <Input
-                            id="barcodeNumber"
-                            value={formData.barcodeNumber}
-                            onChange={(e) => setFormData(prev => ({ ...prev, barcodeNumber: e.target.value }))}
-                            required
-                            className="flex-1"
-                          />
-                          {!attendee && (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={generateBarcode}
-                            >
-                              Generate
-                            </Button>
-                          )}
-                        </div>
-                      </div>
+                      
+                      {/* Notes and Barcode - Side by Side */}
+                      {/* Notes Field - Left Column */}
+                          <div className="space-y-2">
+                            <Label htmlFor="notes" className="flex items-center gap-2">
+                              <FileText className="h-4 w-4 text-muted-foreground" />
+                              Notes
+                            </Label>
+                            <Textarea
+                              id="notes"
+                              value={formData.notes || ''}
+                              onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+                              placeholder="Add any additional notes about this attendee..."
+                              rows={2}
+                              className="resize-y"
+                              maxLength={2000}
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              {formData.notes?.length || 0} / 2000 characters
+                            </p>
+                          </div>
+                          
+                          {/* Barcode Field - Right Column */}
+                          <div className="space-y-2">
+                            <Label htmlFor="barcodeNumber" className="flex items-center gap-2">
+                              <Hash className="h-4 w-4 text-muted-foreground" />
+                              Barcode Number *
+                            </Label>
+                            <div className="flex space-x-2">
+                              <Input
+                                id="barcodeNumber"
+                                value={formData.barcodeNumber}
+                                onChange={(e) => setFormData(prev => ({ ...prev, barcodeNumber: e.target.value }))}
+                                required
+                                className="flex-1"
+                              />
+                              {!attendee && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  onClick={generateBarcode}
+                                >
+                                  Generate
+                                </Button>
+                              )}
+                            </div>
+                          </div>
                     </div>
                   </CardContent>
                 </Card>
 
                 {/* Custom Fields */}
-                {customFields.length > 0 && (
+                {customFields.filter(f => f.internalFieldName !== 'notes').length > 0 && (
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-base">Additional Information</CardTitle>
@@ -716,6 +746,7 @@ export default function AttendeeForm({
                     <CardContent>
                       <div className="grid grid-cols-2 gap-4">
                         {customFields
+                          .filter(f => f.internalFieldName !== 'notes') // Exclude notes - it's in Basic Information
                           .sort((a, b) => a.order - b.order)
                           .map((field) => (
                             <div

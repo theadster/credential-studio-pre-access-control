@@ -161,22 +161,31 @@ describe('/api/attendees - Attendee Management API', () => {
         },
       ];
 
+      const mockCustomFields = [
+        {
+          $id: 'field-1',
+          fieldName: 'Field 1',
+          showOnMainPage: true,
+        },
+      ];
+
       // Expected response with parsed customFieldValues and id field
       const expectedResponse = [
         {
           ...mockAttendees[0],
           id: 'attendee-1',
-          customFieldValues: { 'field-1': 'value1' },
+          customFieldValues: [{ customFieldId: 'field-1', value: 'value1' }],
         },
         {
           ...mockAttendees[1],
           id: 'attendee-2',
-          customFieldValues: { 'field-1': 'value2' },
+          customFieldValues: [{ customFieldId: 'field-1', value: 'value2' }],
         },
       ];
 
       mockDatabases.listDocuments
         .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // User profile lookup
+        .mockResolvedValueOnce({ documents: mockCustomFields, total: 1 }) // Custom fields for visibility
         .mockResolvedValueOnce({ documents: mockAttendees, total: 2 }) // Attendees list
         .mockResolvedValueOnce({ documents: [{ systemViewAttendeeList: true }], total: 1 }); // Log settings
 
@@ -210,8 +219,11 @@ describe('/api/attendees - Attendee Management API', () => {
         firstName: JSON.stringify({ value: 'John', operator: 'contains' }),
       };
 
+      const mockCustomFields = [{ $id: 'field-1', showOnMainPage: true }];
+
       mockDatabases.listDocuments
         .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ documents: mockCustomFields, total: 1 })
         .mockResolvedValueOnce({ documents: [mockAttendee], total: 1 })
         .mockResolvedValueOnce({ documents: [{ systemViewAttendeeList: true }], total: 1 });
 
@@ -222,7 +234,7 @@ describe('/api/attendees - Attendee Management API', () => {
       const expectedResponse = [{
         ...mockAttendee,
         id: mockAttendee.$id,
-        customFieldValues: JSON.parse(mockAttendee.customFieldValues as string),
+        customFieldValues: [{ customFieldId: 'field-1', value: 'value1' }],
       }];
 
       expect(statusMock).toHaveBeenCalledWith(200);
@@ -234,8 +246,11 @@ describe('/api/attendees - Attendee Management API', () => {
         lastName: JSON.stringify({ value: 'Doe', operator: 'equals' }),
       };
 
+      const mockCustomFields = [{ $id: 'field-1', showOnMainPage: true }];
+
       mockDatabases.listDocuments
         .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ documents: mockCustomFields, total: 1 })
         .mockResolvedValueOnce({ documents: [mockAttendee], total: 1 })
         .mockResolvedValueOnce({ documents: [{ systemViewAttendeeList: true }], total: 1 });
 
@@ -251,8 +266,11 @@ describe('/api/attendees - Attendee Management API', () => {
         barcode: JSON.stringify({ value: '12345', operator: 'equals' }),
       };
 
+      const mockCustomFields = [{ $id: 'field-1', showOnMainPage: true }];
+
       mockDatabases.listDocuments
         .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ documents: mockCustomFields, total: 1 })
         .mockResolvedValueOnce({ documents: [mockAttendee], total: 1 })
         .mockResolvedValueOnce({ documents: [{ systemViewAttendeeList: true }], total: 1 });
 
@@ -268,8 +286,11 @@ describe('/api/attendees - Attendee Management API', () => {
         photoFilter: 'with',
       };
 
+      const mockCustomFields = [{ $id: 'field-1', showOnMainPage: true }];
+
       mockDatabases.listDocuments
         .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ documents: mockCustomFields, total: 1 })
         .mockResolvedValueOnce({ documents: [mockAttendee], total: 1 })
         .mockResolvedValueOnce({ documents: [{ systemViewAttendeeList: true }], total: 1 });
 
@@ -286,9 +307,11 @@ describe('/api/attendees - Attendee Management API', () => {
       };
 
       const attendeeWithoutPhoto = { ...mockAttendee, photoUrl: null };
+      const mockCustomFields = [{ $id: 'field-1', showOnMainPage: true }];
 
       mockDatabases.listDocuments
         .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ documents: mockCustomFields, total: 1 })
         .mockResolvedValueOnce({ documents: [attendeeWithoutPhoto], total: 1 })
         .mockResolvedValueOnce({ documents: [{ systemViewAttendeeList: true }], total: 1 });
 
@@ -306,8 +329,11 @@ describe('/api/attendees - Attendee Management API', () => {
         }),
       };
 
+      const mockCustomFields = [{ $id: 'field-1', showOnMainPage: true }];
+
       mockDatabases.listDocuments
         .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ documents: mockCustomFields, total: 1 })
         .mockResolvedValueOnce({ documents: [mockAttendee], total: 1 })
         .mockResolvedValueOnce({ documents: [{ systemViewAttendeeList: true }], total: 1 });
 
@@ -323,8 +349,11 @@ describe('/api/attendees - Attendee Management API', () => {
     });
 
     it('should create log entry for viewing attendees list', async () => {
+      const mockCustomFields = [{ $id: 'field-1', showOnMainPage: true }];
+
       mockDatabases.listDocuments
         .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ documents: mockCustomFields, total: 1 })
         .mockResolvedValueOnce({ documents: [mockAttendee], total: 1 })
         .mockResolvedValueOnce({ documents: [{ systemViewAttendeeList: true }], total: 1 });
 
@@ -342,6 +371,173 @@ describe('/api/attendees - Attendee Management API', () => {
           details: expect.stringContaining('attendees_list'),
         })
       );
+    });
+
+    describe('Custom Field Visibility Filtering', () => {
+      it('should filter out custom fields where showOnMainPage is false', async () => {
+        const mockCustomFields = [
+          { $id: 'field-visible', showOnMainPage: true },
+          { $id: 'field-hidden', showOnMainPage: false },
+        ];
+
+        const mockAttendeeWithFields = {
+          $id: 'attendee-test',
+          firstName: 'Test',
+          lastName: 'User',
+          barcodeNumber: '99999',
+          photoUrl: null,
+          customFieldValues: JSON.stringify({
+            'field-visible': 'visible value',
+            'field-hidden': 'hidden value',
+          }),
+          $createdAt: '2024-01-01T00:00:00.000Z',
+          $updatedAt: '2024-01-01T00:00:00.000Z',
+        };
+
+        mockDatabases.listDocuments
+          .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
+          .mockResolvedValueOnce({ documents: mockCustomFields, total: 2 })
+          .mockResolvedValueOnce({ documents: [mockAttendeeWithFields], total: 1 })
+          .mockResolvedValueOnce({ documents: [{ systemViewAttendeeList: true }], total: 1 });
+
+        mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+
+        await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+
+        expect(statusMock).toHaveBeenCalledWith(200);
+        const result = jsonMock.mock.calls[0][0];
+        expect(result[0].customFieldValues).toHaveLength(1);
+        expect(result[0].customFieldValues[0].customFieldId).toBe('field-visible');
+      });
+
+      it('should default to visible when showOnMainPage is undefined', async () => {
+        const mockCustomFields = [
+          { $id: 'field-1' }, // showOnMainPage is undefined
+        ];
+
+        const mockAttendeeWithFields = {
+          $id: 'attendee-test',
+          firstName: 'Test',
+          lastName: 'User',
+          barcodeNumber: '99999',
+          photoUrl: null,
+          customFieldValues: JSON.stringify({ 'field-1': 'value1' }),
+          $createdAt: '2024-01-01T00:00:00.000Z',
+          $updatedAt: '2024-01-01T00:00:00.000Z',
+        };
+
+        mockDatabases.listDocuments
+          .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
+          .mockResolvedValueOnce({ documents: mockCustomFields, total: 1 })
+          .mockResolvedValueOnce({ documents: [mockAttendeeWithFields], total: 1 })
+          .mockResolvedValueOnce({ documents: [{ systemViewAttendeeList: true }], total: 1 });
+
+        mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+
+        await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+
+        expect(statusMock).toHaveBeenCalledWith(200);
+        const result = jsonMock.mock.calls[0][0];
+        expect(result[0].customFieldValues).toHaveLength(1);
+        expect(result[0].customFieldValues[0].customFieldId).toBe('field-1');
+      });
+
+      it('should default to visible when showOnMainPage is null', async () => {
+        const mockCustomFields = [
+          { $id: 'field-1', showOnMainPage: null },
+        ];
+
+        const mockAttendeeWithFields = {
+          $id: 'attendee-test',
+          firstName: 'Test',
+          lastName: 'User',
+          barcodeNumber: '99999',
+          photoUrl: null,
+          customFieldValues: JSON.stringify({ 'field-1': 'value1' }),
+          $createdAt: '2024-01-01T00:00:00.000Z',
+          $updatedAt: '2024-01-01T00:00:00.000Z',
+        };
+
+        mockDatabases.listDocuments
+          .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
+          .mockResolvedValueOnce({ documents: mockCustomFields, total: 1 })
+          .mockResolvedValueOnce({ documents: [mockAttendeeWithFields], total: 1 })
+          .mockResolvedValueOnce({ documents: [{ systemViewAttendeeList: true }], total: 1 });
+
+        mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+
+        await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+
+        expect(statusMock).toHaveBeenCalledWith(200);
+        const result = jsonMock.mock.calls[0][0];
+        expect(result[0].customFieldValues).toHaveLength(1);
+        expect(result[0].customFieldValues[0].customFieldId).toBe('field-1');
+      });
+
+      it('should handle attendees with no custom field values', async () => {
+        const mockCustomFields = [{ $id: 'field-1', showOnMainPage: true }];
+
+        const mockAttendeeNoFields = {
+          $id: 'attendee-test',
+          firstName: 'Test',
+          lastName: 'User',
+          barcodeNumber: '99999',
+          photoUrl: null,
+          customFieldValues: null,
+          $createdAt: '2024-01-01T00:00:00.000Z',
+          $updatedAt: '2024-01-01T00:00:00.000Z',
+        };
+
+        mockDatabases.listDocuments
+          .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
+          .mockResolvedValueOnce({ documents: mockCustomFields, total: 1 })
+          .mockResolvedValueOnce({ documents: [mockAttendeeNoFields], total: 1 })
+          .mockResolvedValueOnce({ documents: [{ systemViewAttendeeList: true }], total: 1 });
+
+        mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+
+        await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+
+        expect(statusMock).toHaveBeenCalledWith(200);
+        const result = jsonMock.mock.calls[0][0];
+        expect(result[0].customFieldValues).toEqual([]);
+      });
+
+      it('should handle array format custom field values with visibility filtering', async () => {
+        const mockCustomFields = [
+          { $id: 'field-visible', showOnMainPage: true },
+          { $id: 'field-hidden', showOnMainPage: false },
+        ];
+
+        const mockAttendeeWithArrayFields = {
+          $id: 'attendee-test',
+          firstName: 'Test',
+          lastName: 'User',
+          barcodeNumber: '99999',
+          photoUrl: null,
+          customFieldValues: JSON.stringify([
+            { customFieldId: 'field-visible', value: 'visible value' },
+            { customFieldId: 'field-hidden', value: 'hidden value' },
+          ]),
+          $createdAt: '2024-01-01T00:00:00.000Z',
+          $updatedAt: '2024-01-01T00:00:00.000Z',
+        };
+
+        mockDatabases.listDocuments
+          .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
+          .mockResolvedValueOnce({ documents: mockCustomFields, total: 2 })
+          .mockResolvedValueOnce({ documents: [mockAttendeeWithArrayFields], total: 1 })
+          .mockResolvedValueOnce({ documents: [{ systemViewAttendeeList: true }], total: 1 });
+
+        mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+
+        await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+
+        expect(statusMock).toHaveBeenCalledWith(200);
+        const result = jsonMock.mock.calls[0][0];
+        expect(result[0].customFieldValues).toHaveLength(1);
+        expect(result[0].customFieldValues[0].customFieldId).toBe('field-visible');
+      });
     });
   });
 

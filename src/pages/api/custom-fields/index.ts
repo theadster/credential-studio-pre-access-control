@@ -39,6 +39,26 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         return res.status(200).json(customFields);
 
       case 'POST':
+        /**
+         * CREATE CUSTOM FIELD ENDPOINT
+         * 
+         * Creates a new custom field for the event.
+         * 
+         * Request Body:
+         * - eventSettingsId: string (required) - ID of the event settings document
+         * - fieldName: string (required) - Display name of the field
+         * - fieldType: string (required) - Type of field (text, number, select, etc.)
+         * - fieldOptions: object (optional) - Configuration options for the field
+         * - required: boolean (optional) - Whether the field is required (default: false)
+         * - order: number (optional) - Display order (auto-generated if not provided)
+         * - showOnMainPage: boolean (optional) - Visibility on main page (default: true)
+         * 
+         * Visibility Control:
+         * - showOnMainPage defaults to true (visible) for new fields
+         * - When true, field appears as a column in the main attendees table
+         * - When false, field is hidden from main page but visible in edit/create forms
+         * - This allows admins to declutter the main page while keeping all fields accessible
+         */
         // Check permissions
         const permissions = userProfile.role ? userProfile.role.permissions : {};
         const hasAdminPermission = permissions?.all === true || permissions?.customFields?.create === true;
@@ -47,10 +67,19 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           return res.status(403).json({ error: 'Insufficient permissions to create custom fields' });
         }
 
-        const { eventSettingsId, fieldName, fieldType, fieldOptions, required, order } = req.body;
+        const { eventSettingsId, fieldName, fieldType, fieldOptions, required, order, showOnMainPage } = req.body;
 
         if (!eventSettingsId || !fieldName || !fieldType) {
           return res.status(400).json({ error: 'Missing required fields' });
+        }
+
+        // Validate showOnMainPage is boolean if provided
+        // This ensures data integrity and prevents type coercion issues
+        if (showOnMainPage !== undefined && typeof showOnMainPage !== 'boolean') {
+          return res.status(400).json({
+            error: 'Invalid showOnMainPage value',
+            details: 'showOnMainPage must be a boolean value'
+          });
         }
 
         // Check if event settings exist
@@ -96,6 +125,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           }
         }
 
+        // Create the custom field document
+        // showOnMainPage defaults to true if not explicitly set to false
+        // This ensures new fields are visible by default, maintaining backward compatibility
         const newCustomField = await databases.createDocument(
           dbId,
           customFieldsCollectionId,
@@ -108,6 +140,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             fieldOptions: fieldOptionsStr,
             required: required || false,
             order: fieldOrder,
+            showOnMainPage: showOnMainPage !== undefined ? showOnMainPage : true, // Default to visible
             version: 0
           }
         );

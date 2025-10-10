@@ -90,6 +90,96 @@ function parseEventDate(eventDate: string | undefined): string {
 }
 
 /**
+ * Create default custom fields for a new event.
+ * 
+ * This function automatically creates two default custom fields when a new event is initialized:
+ * 1. Credential Type - A select field for categorizing attendees (VIP, Staff, Press, etc.)
+ * 2. Notes - A textarea field for capturing additional attendee information
+ * 
+ * Both fields are created with:
+ * - showOnMainPage: true (visible on main attendees page by default)
+ * - required: false (optional fields)
+ * - Empty options for Credential Type (to be configured by admin)
+ * 
+ * Error Handling:
+ * - Errors are logged but not thrown to prevent event creation failure
+ * - If default fields fail to create, the event settings will still be created successfully
+ * 
+ * @param databases - Appwrite databases instance from session or admin client
+ * @param dbId - Database ID from environment variables
+ * @param customFieldsCollectionId - Custom fields collection ID from environment variables
+ * @param eventSettingsId - The ID of the newly created event settings document
+ * @returns Promise<void> - Resolves when fields are created or error is logged
+ * 
+ * @example
+ * ```typescript
+ * await createDefaultCustomFields(
+ *   databases,
+ *   process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+ *   process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID!,
+ *   newEventSettings.$id
+ * );
+ * ```
+ */
+async function createDefaultCustomFields(
+  databases: any,
+  dbId: string,
+  customFieldsCollectionId: string,
+  eventSettingsId: string
+): Promise<void> {
+  try {
+    // Create Credential Type field (select type with empty options)
+    // This field allows event organizers to categorize attendees (e.g., VIP, Staff, Press)
+    // Options are initially empty and must be configured through the Event Settings UI
+    await databases.createDocument(
+      dbId,
+      customFieldsCollectionId,
+      ID.unique(),
+      {
+        eventSettingsId,
+        fieldName: 'Credential Type',
+        internalFieldName: 'credential_type',
+        fieldType: 'select',
+        fieldOptions: JSON.stringify({ options: [] }), // Empty options - to be configured by admin
+        required: false,
+        order: 1,
+        showOnMainPage: true, // Visible on main attendees page by default
+        version: 0
+      }
+    );
+
+    // Create Notes field (textarea type)
+    // This field provides a free-form text area for capturing additional attendee information
+    // Useful for special requirements, dietary restrictions, accessibility needs, etc.
+    await databases.createDocument(
+      dbId,
+      customFieldsCollectionId,
+      ID.unique(),
+      {
+        eventSettingsId,
+        fieldName: 'Notes',
+        internalFieldName: 'notes',
+        fieldType: 'textarea',
+        fieldOptions: null, // No options needed for textarea
+        required: false,
+        order: 2,
+        showOnMainPage: true, // Visible on main attendees page by default
+        version: 0
+      }
+    );
+  } catch (error) {
+    // Log error but don't throw - default fields creation should not fail event settings creation
+    // This ensures that even if default fields fail, the event can still be created
+    // Admins can manually create these fields later if needed
+    console.error('Failed to create default custom fields:', {
+      error: error instanceof Error ? error.message : String(error),
+      eventSettingsId,
+      timestamp: new Date().toISOString()
+    });
+  }
+}
+
+/**
  * Handle custom field deletions and clean up integration templates
  * @returns Object containing needsIntegrationUpdate flag, updated updateData, deletedFieldIds, and deletedFields
  */
@@ -204,6 +294,7 @@ async function handleCustomFieldModifications(
       fieldOptions: fieldOptionsStr,
       required: modifiedField.required || false,
       order: modifiedField.order,
+      showOnMainPage: modifiedField.showOnMainPage !== undefined ? modifiedField.showOnMainPage : true,
     });
   }
 }
@@ -235,6 +326,7 @@ async function handleCustomFieldAdditions(
       fieldOptions: fieldOptionsStr,
       required: field.required || false,
       order: field.order || totalFieldsCount,
+      showOnMainPage: field.showOnMainPage !== undefined ? field.showOnMainPage : true,
     });
   }
 }
@@ -638,6 +730,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           fieldType: field.fieldType,
           required: field.required,
           order: field.order,
+          showOnMainPage: field.showOnMainPage !== undefined ? field.showOnMainPage : true,
           fieldOptions: (() => {
             if (!field.fieldOptions) return null;
             if (typeof field.fieldOptions === 'string') return JSON.parse(field.fieldOptions);
@@ -875,7 +968,16 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
       )
     );
 
-    // Fetch custom fields (should be empty for new settings)
+    // Create default custom fields (Credential Type and Notes)
+    // This is done after event settings creation but errors won't fail the request
+    await createDefaultCustomFields(
+      databases,
+      dbId,
+      customFieldsCollectionId,
+      newEventSettings.$id
+    );
+
+    // Fetch custom fields (should now include the default fields)
     const customFieldsResult = await postPerfTracker.trackQuery(
       'fetchCustomFields',
       () => databases.listDocuments(
@@ -991,6 +1093,7 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
       return existingField.fieldName !== incomingField.fieldName ||
         existingField.fieldType !== incomingField.fieldType ||
         existingField.required !== incomingField.required ||
+        existingField.showOnMainPage !== incomingField.showOnMainPage ||
         JSON.stringify(existingField.fieldOptions) !== JSON.stringify(incomingField.fieldOptions);
     });
 

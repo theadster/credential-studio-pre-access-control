@@ -183,10 +183,12 @@ async function createCustomFieldsCollection(databaseId: string) {
     await databases.createStringAttribute(databaseId, COLLECTIONS.CUSTOM_FIELDS, 'fieldOptions', 5000, false);
     await databases.createBooleanAttribute(databaseId, COLLECTIONS.CUSTOM_FIELDS, 'required', false, false);
     await databases.createIntegerAttribute(databaseId, COLLECTIONS.CUSTOM_FIELDS, 'fieldOrder', true);
+    await databases.createBooleanAttribute(databaseId, COLLECTIONS.CUSTOM_FIELDS, 'showOnMainPage', false, true);
 
     // Create indexes
     await databases.createIndex(databaseId, COLLECTIONS.CUSTOM_FIELDS, 'eventSettingsId_idx', IndexType.Key, ['eventSettingsId']);
     await databases.createIndex(databaseId, COLLECTIONS.CUSTOM_FIELDS, 'fieldOrder_idx', IndexType.Key, ['fieldOrder']);
+    await databases.createIndex(databaseId, COLLECTIONS.CUSTOM_FIELDS, 'showOnMainPage_idx', IndexType.Key, ['showOnMainPage']);
 
     console.log('✓ Custom fields collection created');
   } catch (error: any) {

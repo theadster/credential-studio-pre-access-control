@@ -10,7 +10,8 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, Edit, Save, X, GripVertical, Type, Hash, Mail, Calendar, Link, List, CheckSquare, ToggleLeft, FileText, Settings } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Plus, Trash2, Edit, Save, X, GripVertical, Type, Hash, Mail, Calendar, Link, List, CheckSquare, ToggleLeft, FileText, Settings, Eye } from "lucide-react";
 import { generateInternalFieldName } from "@/util/string";
 import { useToast } from "@/components/ui/use-toast";
 import { validateCustomFieldDeletion } from "@/lib/customFieldValidation";
@@ -34,6 +35,23 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
+/**
+ * CustomField Interface
+ * 
+ * Represents a custom field configuration for attendee data collection.
+ * 
+ * @property id - Unique identifier (optional for new fields, required for existing)
+ * @property fieldName - Display name shown in UI
+ * @property internalFieldName - Snake_case identifier used in data storage and integrations
+ * @property fieldType - Type of field (text, number, select, checkbox, etc.)
+ * @property fieldOptions - Configuration options (e.g., select options, validation rules)
+ * @property required - Whether the field must be filled out
+ * @property order - Display order in forms and tables
+ * @property showOnMainPage - Visibility control for main attendees page
+ *   - true: Field appears as column in main attendees table
+ *   - false: Field is hidden from main page but visible in edit/create forms
+ *   - undefined: Defaults to true (backward compatibility)
+ */
 interface CustomField {
   id?: string;
   fieldName: string;
@@ -42,6 +60,7 @@ interface CustomField {
   fieldOptions?: any;
   required: boolean;
   order: number;
+  showOnMainPage?: boolean;
 }
 
 interface FieldMapping {
@@ -134,7 +153,26 @@ const TIME_ZONES = [
   { value: "Australia/Sydney", label: "AEST" }
 ];
 
-// Sortable Custom Field Component
+/**
+ * SortableCustomField Component
+ * 
+ * Displays a single custom field in the sortable list with drag-and-drop functionality.
+ * 
+ * Features:
+ * - Drag handle for reordering fields
+ * - Visual indicators for field type, required status, and visibility
+ * - Edit and delete buttons
+ * - Visibility badge showing if field is visible on main page
+ * 
+ * Visibility Indicator:
+ * - Shows "Visible" badge with eye icon when showOnMainPage !== false
+ * - Tooltip explains that field is visible on main attendees page
+ * - Helps admins understand which fields appear in the main table
+ * 
+ * @param field - The custom field to display
+ * @param onEdit - Callback when edit button is clicked
+ * @param onDelete - Callback when delete button is clicked
+ */
 interface SortableCustomFieldProps {
   field: CustomField;
   onEdit: (field: CustomField) => void;
@@ -181,6 +219,21 @@ function SortableCustomField({ field, onEdit, onDelete }: SortableCustomFieldPro
               <Badge variant="outline" className="text-xs">
                 UPPERCASE
               </Badge>
+            )}
+            {field.showOnMainPage !== false && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant="outline" className="text-xs">
+                      <Eye className="h-3 w-3 mr-1" />
+                      Visible
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>This field is visible on the main attendees page</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             )}
           </div>
           {field.internalFieldName && (
@@ -2002,6 +2055,23 @@ function CustomFieldForm({ isOpen, field, onSave, onCancel }: CustomFieldFormPro
                 <CheckSquare className="h-4 w-4" />
                 Required field
               </Label>
+            </div>
+
+            <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+              <div className="space-y-0.5">
+                <Label htmlFor="showOnMainPage" className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                  <Eye className="h-4 w-4" />
+                  Show on Main Page
+                </Label>
+                <div className="text-xs text-muted-foreground">
+                  Display this field as a column in the attendees table
+                </div>
+              </div>
+              <Switch
+                id="showOnMainPage"
+                checked={fieldData.showOnMainPage !== false}
+                onCheckedChange={(checked) => setFieldData(prev => ({ ...prev, showOnMainPage: checked }))}
+              />
             </div>
           </div>
           <DialogFooter>

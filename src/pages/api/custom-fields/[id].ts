@@ -68,6 +68,31 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         return res.status(200).json(customField);
 
       case 'PUT':
+        /**
+         * UPDATE CUSTOM FIELD ENDPOINT
+         * 
+         * Updates an existing custom field with new values.
+         * 
+         * Request Body:
+         * - fieldName: string (required) - Display name of the field
+         * - fieldType: string (required) - Type of field (text, number, select, etc.)
+         * - fieldOptions: object (optional) - Configuration options for the field
+         * - required: boolean (optional) - Whether the field is required
+         * - order: number (optional) - Display order
+         * - version: number (required) - Current version for optimistic locking
+         * - showOnMainPage: boolean (optional) - Visibility on main page
+         * 
+         * Visibility Control:
+         * - showOnMainPage can be toggled to show/hide field on main attendees page
+         * - When changed from true to false, field is hidden from main table but remains in forms
+         * - When changed from false to true, field becomes visible in main table
+         * - Defaults to true if not specified (maintains backward compatibility)
+         * 
+         * Optimistic Locking:
+         * - Version number must match current document version
+         * - Prevents concurrent update conflicts
+         * - Returns 409 Conflict if version mismatch detected
+         */
         // Check permissions
         const updatePermissions = userProfile.role ? userProfile.role.permissions : {};
         const hasUpdatePermission = updatePermissions?.all === true || updatePermissions?.customFields?.update === true;
@@ -76,7 +101,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           return res.status(403).json({ error: 'Insufficient permissions to update custom fields' });
         }
 
-        const { fieldName, fieldType, fieldOptions, required, order, version } = req.body;
+        const { fieldName, fieldType, fieldOptions, required, order, version, showOnMainPage } = req.body;
 
         if (!fieldName || !fieldType) {
           return res.status(400).json({ error: 'Missing required fields' });
@@ -87,6 +112,15 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           return res.status(400).json({
             error: 'Version field is required for update operations',
             details: 'Include the current version number from the document you are updating'
+          });
+        }
+
+        // Validate showOnMainPage is boolean if provided
+        // This ensures data integrity and prevents type coercion issues
+        if (showOnMainPage !== undefined && typeof showOnMainPage !== 'boolean') {
+          return res.status(400).json({
+            error: 'Invalid showOnMainPage value',
+            details: 'showOnMainPage must be a boolean value'
           });
         }
 
@@ -128,7 +162,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           (typeof fieldOptions === 'string' ? fieldOptions : JSON.stringify(fieldOptions)) :
           null;
 
-        // Update with incremented version
+        // Update with incremented version for optimistic locking
+        // showOnMainPage defaults to true if not explicitly set to false
+        // This maintains backward compatibility with existing fields that don't have this attribute
         const updatedField = await databases.updateDocument({
           databaseId: dbId,
           collectionId: customFieldsCollectionId,
@@ -139,7 +175,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             fieldOptions: fieldOptionsStr,
             required: required || false,
             order: order || 1,
-            version: currentVersion + 1
+            showOnMainPage: showOnMainPage !== undefined ? showOnMainPage : true, // Default to visible
+            version: currentVersion + 1 // Increment version for optimistic locking
           }
         });
 

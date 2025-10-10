@@ -131,6 +131,45 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         // Add ordering
         queries.push(Query.orderDesc('$createdAt'));
 
+        /**
+         * VISIBILITY FILTERING LOGIC
+         * 
+         * This section implements the custom field visibility control feature.
+         * 
+         * How it works:
+         * 1. Fetch all custom fields from the database
+         * 2. Filter to only include fields where showOnMainPage !== false
+         * 3. Create a Set of visible field IDs for efficient lookup
+         * 4. When mapping attendees, filter customFieldValues to only include visible fields
+         * 
+         * Default Behavior:
+         * - Fields with showOnMainPage = true are visible (explicit)
+         * - Fields with showOnMainPage = undefined/null are visible (backward compatibility)
+         * - Fields with showOnMainPage = false are hidden (explicit)
+         * 
+         * Why this matters:
+         * - Keeps the main attendees table clean and focused
+         * - Reduces visual clutter for fields that are rarely needed
+         * - All fields remain accessible in edit/create forms
+         * - Improves performance by reducing data transferred to client
+         */
+        // Fetch custom fields to determine visibility
+        const customFieldsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID!;
+        const customFieldsResult = await databases.listDocuments(
+          dbId,
+          customFieldsCollectionId,
+          [Query.isNull('deletedAt'), Query.orderAsc('order'), Query.limit(100)]
+        );
+
+        // Create set of visible field IDs (for main page view)
+        // Default to visible if showOnMainPage is missing (undefined or null)
+        // This ensures backward compatibility with existing fields created before this feature
+        const visibleFieldIds = new Set(
+          customFieldsResult.documents
+            .filter((field: any) => field.showOnMainPage !== false) // Only exclude if explicitly false
+            .map((field: any) => field.$id)
+        );
+
         // Fetch attendees
         const attendeesResult = await databases.listDocuments(
           dbId,
@@ -138,7 +177,28 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           queries
         );
 
+        // Map attendees and filter custom field values based on visibility
         let attendees = attendeesResult.documents.map((attendee: any) => {
+          /**
+           * CUSTOM FIELD VALUE FILTERING
+           * 
+           * This filters the attendee's custom field values to only include visible fields.
+           * 
+           * Process:
+           * 1. Parse customFieldValues from JSON string to object
+           * 2. Filter entries to only include fields in visibleFieldIds Set
+           * 3. Convert to array format for frontend consumption
+           * 
+           * Data Format:
+           * - Database stores: { "fieldId1": "value1", "fieldId2": "value2" }
+           * - Frontend expects: [{ customFieldId: "fieldId1", value: "value1" }, ...]
+           * 
+           * Visibility Impact:
+           * - Hidden fields (showOnMainPage = false) are excluded from response
+           * - This reduces payload size and keeps UI clean
+           * - Hidden field values are NOT deleted, just not returned for main page view
+           * - Edit/create forms will still fetch and display all fields
+           */
           // Parse customFieldValues from JSON string to object
           let parsedCustomFieldValues = [];
           if (attendee.customFieldValues) {
@@ -147,13 +207,19 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
               : attendee.customFieldValues;
             
             // Convert object format {fieldId: value} to array format [{customFieldId, value}]
+            // Filter to only include visible fields (showOnMainPage !== false)
             if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-              parsedCustomFieldValues = Object.entries(parsed).map(([customFieldId, value]) => ({
-                customFieldId,
-                value: String(value)
-              }));
+              parsedCustomFieldValues = Object.entries(parsed)
+                .filter(([customFieldId]) => visibleFieldIds.has(customFieldId)) // Only include visible fields
+                .map(([customFieldId, value]) => ({
+                  customFieldId,
+                  value: String(value)
+                }));
             } else if (Array.isArray(parsed)) {
-              parsedCustomFieldValues = parsed;
+              // Handle legacy array format (if any exists)
+              parsedCustomFieldValues = parsed.filter((cfv: any) => 
+                visibleFieldIds.has(cfv.customFieldId)
+              );
             }
           }
           
@@ -225,7 +291,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           return res.status(403).json({ error: 'Insufficient permissions to create attendees' });
         }
 
-        const { firstName, lastName, barcodeNumber, photoUrl, customFieldValues } = req.body;
+        const { firstName, lastName, barcodeNumber, notes, photoUrl, customFieldValues } = req.body;
 
         if (!firstName || !lastName || !barcodeNumber) {
           return res.status(400).json({ error: 'Missing required fields' });
@@ -243,9 +309,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         }
 
         // Validate custom field IDs if provided
-        const customFieldsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID!;
-        
         if (customFieldValues && Array.isArray(customFieldValues) && customFieldValues.length > 0) {
+          const customFieldsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID!;
           const customFieldIds = customFieldValues.map((cfv: any) => cfv.customFieldId);
           
           // Fetch custom fields to validate IDs
@@ -287,6 +352,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             firstName,
             lastName,
             barcodeNumber,
+            notes: notes || '',
             photoUrl: photoUrl || null,
             customFieldValues: JSON.stringify(customFieldValuesObj)
           }

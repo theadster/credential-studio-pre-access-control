@@ -67,7 +67,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           return res.status(403).json({ error: 'Insufficient permissions to update attendees' });
         }
 
-        const { firstName, lastName, barcodeNumber, photoUrl, customFieldValues } = req.body;
+        const { firstName, lastName, barcodeNumber, notes, photoUrl, customFieldValues } = req.body;
 
         // Check if attendee exists and get current values BEFORE making changes
         let existingAttendee;
@@ -122,6 +122,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           firstName: firstName || existingAttendee.firstName,
           lastName: lastName || existingAttendee.lastName,
           barcodeNumber: barcodeNumber || existingAttendee.barcodeNumber,
+          notes: notes !== undefined ? notes : existingAttendee.notes,
           photoUrl: photoUrl !== undefined ? photoUrl : existingAttendee.photoUrl,
         };
 
@@ -190,6 +191,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         }
         if (barcodeNumber && barcodeNumber !== existingAttendee.barcodeNumber) {
           changeDetails.push(`Barcode Number: "${existingAttendee.barcodeNumber}" → "${barcodeNumber}"`);
+        }
+        if (notes !== undefined && notes !== existingAttendee.notes) {
+          const oldNotes = existingAttendee.notes || 'empty';
+          const newNotes = notes || 'empty';
+          changeDetails.push(`Notes: ${oldNotes} → ${newNotes}`);
         }
         if (photoUrl !== undefined && photoUrl !== existingAttendee.photoUrl) {
           const oldPhoto = existingAttendee.photoUrl ? 'has photo' : 'no photo';

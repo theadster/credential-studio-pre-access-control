@@ -259,6 +259,7 @@ describe('/api/custom-fields - Custom Fields Management API', () => {
         fieldOptions: null,
         required: true,
         order: 3,
+        showOnMainPage: true,
         $createdAt: '2024-01-05T00:00:00.000Z',
         $updatedAt: '2024-01-05T00:00:00.000Z',
       };
@@ -289,6 +290,7 @@ describe('/api/custom-fields - Custom Fields Management API', () => {
           fieldType: 'text',
           required: true,
           order: 3,
+          showOnMainPage: true,
         })
       );
 
@@ -683,6 +685,66 @@ describe('/api/custom-fields - Custom Fields Management API', () => {
           internalFieldName: 'company_name',
         })
       );
+    });
+
+    it('should default showOnMainPage to true for new custom fields', async () => {
+      mockReq.body = {
+        eventSettingsId: 'event-settings-123',
+        fieldName: 'Test Field',
+        fieldType: 'text',
+        order: 1,
+      };
+
+      mockDatabases.listDocuments.mockResolvedValueOnce({
+        documents: [mockUserProfile],
+        total: 1,
+      });
+
+      mockDatabases.getDocument
+        .mockResolvedValueOnce(mockAdminRole)
+        .mockResolvedValueOnce(mockEventSettings);
+
+      mockDatabases.createDocument
+        .mockResolvedValueOnce({
+          $id: 'new-field-123',
+          showOnMainPage: true,
+        })
+        .mockResolvedValueOnce({ $id: 'log-123' });
+
+      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+
+      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID,
+        expect.any(String),
+        expect.objectContaining({
+          showOnMainPage: true,
+        })
+      );
+    });
+
+    it('should return 400 if showOnMainPage is not a boolean', async () => {
+      mockReq.body = {
+        eventSettingsId: 'event-settings-123',
+        fieldName: 'Test Field',
+        fieldType: 'text',
+        showOnMainPage: 'invalid', // Invalid type
+      };
+
+      mockDatabases.listDocuments.mockResolvedValueOnce({
+        documents: [mockUserProfile],
+        total: 1,
+      });
+
+      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+
+      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+
+      expect(statusMock).toHaveBeenCalledWith(400);
+      expect(jsonMock).toHaveBeenCalledWith({
+        error: 'Invalid showOnMainPage value',
+        details: 'showOnMainPage must be a boolean value'
+      });
     });
   });
 
