@@ -145,7 +145,6 @@ function sanitizeContext(context?: {
     'roleId',
     'customFieldId',
     'targetId',
-    'invitationId',
     'logId',
     'action',
     'resource',

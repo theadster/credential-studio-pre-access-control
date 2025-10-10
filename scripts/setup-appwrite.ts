@@ -34,7 +34,6 @@ const COLLECTIONS = {
   EVENT_SETTINGS: 'event_settings',
   LOGS: 'logs',
   LOG_SETTINGS: 'log_settings',
-  INVITATIONS: 'invitations',
 };
 
 async function createDatabase() {
@@ -302,42 +301,7 @@ async function createLogSettingsCollection(databaseId: string) {
   }
 }
 
-async function createInvitationsCollection(databaseId: string) {
-  try {
-    console.log('\nCreating invitations collection...');
-    await databases.createCollection(
-      databaseId,
-      COLLECTIONS.INVITATIONS,
-      'Invitations',
-      [
-        Permission.read(Role.any()),
-        Permission.create(Role.users()),
-        Permission.update(Role.users()),
-        Permission.delete(Role.users()),
-      ]
-    );
 
-    // Add attributes
-    await databases.createStringAttribute(databaseId, COLLECTIONS.INVITATIONS, 'userId', 255, true);
-    await databases.createStringAttribute(databaseId, COLLECTIONS.INVITATIONS, 'token', 255, true);
-    await databases.createDatetimeAttribute(databaseId, COLLECTIONS.INVITATIONS, 'expiresAt', true);
-    await databases.createDatetimeAttribute(databaseId, COLLECTIONS.INVITATIONS, 'usedAt', false);
-    await databases.createStringAttribute(databaseId, COLLECTIONS.INVITATIONS, 'createdBy', 255, true);
-
-    // Create indexes
-    await databases.createIndex(databaseId, COLLECTIONS.INVITATIONS, 'token_idx', IndexType.Unique, ['token']);
-    await databases.createIndex(databaseId, COLLECTIONS.INVITATIONS, 'userId_idx', IndexType.Key, ['userId']);
-    await databases.createIndex(databaseId, COLLECTIONS.INVITATIONS, 'expiresAt_idx', IndexType.Key, ['expiresAt']);
-
-    console.log('✓ Invitations collection created');
-  } catch (error: any) {
-    if (error.code === 409) {
-      console.log('✓ Invitations collection already exists');
-    } else {
-      throw error;
-    }
-  }
-}
 
 async function printEnvironmentVariables(databaseId: string) {
   console.log('\n' + '='.repeat(80));
@@ -353,7 +317,6 @@ NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID=${COLLECTIONS.CUSTOM_FIELDS}
 NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID=${COLLECTIONS.EVENT_SETTINGS}
 NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID=${COLLECTIONS.LOGS}
 NEXT_PUBLIC_APPWRITE_LOG_SETTINGS_COLLECTION_ID=${COLLECTIONS.LOG_SETTINGS}
-NEXT_PUBLIC_APPWRITE_INVITATIONS_COLLECTION_ID=${COLLECTIONS.INVITATIONS}
   `);
   console.log('='.repeat(80));
 }
@@ -392,7 +355,6 @@ async function main() {
     await createEventSettingsCollection(databaseId);
     await createLogsCollection(databaseId);
     await createLogSettingsCollection(databaseId);
-    await createInvitationsCollection(databaseId);
 
     // Print environment variables
     await printEnvironmentVariables(databaseId);

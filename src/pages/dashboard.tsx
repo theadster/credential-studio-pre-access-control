@@ -220,7 +220,6 @@ export default function Dashboard() {
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [initializingRoles, setInitializingRoles] = useState(false);
   const [showEventSettingsForm, setShowEventSettingsForm] = useState(false);
-  const [invitingUser, setInvitingUser] = useState<string | null>(null);
   const [showRoleForm, setShowRoleForm] = useState(false);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -1422,50 +1421,7 @@ export default function Dashboard() {
     return false;
   };
 
-  const handleInviteUser = async (userId: string) => {
-    setInvitingUser(userId);
-    try {
-      const response = await fetch('/api/invitations', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ userId }),
-      });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to create invitation');
-      }
-
-      const result = await response.json();
-
-      // Copy invitation URL to clipboard
-      const copySuccess = await copyToClipboard(result.invitationUrl);
-
-      if (copySuccess) {
-        toast({
-          title: "Invitation Created",
-          description: "Invitation link has been copied to your clipboard. Share it with the user to complete their registration.",
-        });
-      } else {
-        // Show the URL in the toast if copying failed
-        toast({
-          title: "Invitation Created",
-          description: `Please copy this invitation link manually: ${result.invitationUrl}`,
-          duration: 10000, // Show longer so user can copy
-        });
-      }
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message,
-      });
-    } finally {
-      setInvitingUser(null);
-    }
-  };
 
   const handleLogsFilterChange = async (newFilters: typeof logsFilters) => {
     setLogsFilters(newFilters);
@@ -3300,21 +3256,6 @@ export default function Dashboard() {
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center space-x-2">
-                              {user.isInvited && hasPermission(currentUser?.role, 'users', 'create') && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleInviteUser(user.id)}
-                                  disabled={invitingUser === user.id}
-                                  className="text-blue-600"
-                                >
-                                  {invitingUser === user.id ? (
-                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                                  ) : (
-                                    <Mail className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              )}
                               {hasPermission(currentUser?.role, 'users', 'update') && (
                                 <Button
                                   variant="ghost"

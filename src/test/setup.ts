@@ -18,7 +18,6 @@ process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID = 'test-attendees-colle
 process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID = 'test-roles-collection';
 process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID = 'test-custom-fields-collection';
 process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID = 'test-logs-collection';
-process.env.NEXT_PUBLIC_APPWRITE_INVITATIONS_COLLECTION_ID = 'test-invitations-collection';
 process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID = 'test-event-settings-collection';
 process.env.NEXT_PUBLIC_APPWRITE_LOG_SETTINGS_COLLECTION_ID = 'test-log-settings-collection';
 process.env.NEXT_PUBLIC_APPWRITE_CLOUDINARY_COLLECTION_ID = 'test-cloudinary-collection';

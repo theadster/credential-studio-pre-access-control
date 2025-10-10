@@ -258,19 +258,12 @@ export default function UserForm({ isOpen, onClose, onSave, user, roles, mode = 
               Search for and select an existing Appwrite auth user to link to your application.
             </DialogDescription>
           ) : user ? (
-            <>
-              <DialogDescription>
-                Update user information and role assignment.
-              </DialogDescription>
-              {user.isInvited && (
-                <Badge variant="secondary" className="w-fit mt-2">
-                  Invited User
-                </Badge>
-              )}
-            </>
+            <DialogDescription>
+              Update user information and role assignment.
+            </DialogDescription>
           ) : (
             <DialogDescription>
-              Create a new user account. An invitation email will be sent automatically.
+              Create a new user account with email and password.
             </DialogDescription>
           )}
         </DialogHeader>

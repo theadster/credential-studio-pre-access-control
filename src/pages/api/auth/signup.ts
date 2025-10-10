@@ -9,7 +9,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { email, password, name, invitationToken } = req.body;
+    const { email, password, name } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
@@ -22,67 +22,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Create admin client for database operations
     const { databases, users } = createAdminClient();
 
-    // If invitation token is provided, validate it
-    let invitation = null;
-    let userProfile = null;
-    
-    if (invitationToken) {
-      // Find the invitation by token
-      const invitationDocs = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        process.env.NEXT_PUBLIC_APPWRITE_INVITATIONS_COLLECTION_ID!,
-        [Query.equal('token', invitationToken)]
-      );
+    // Check if user already exists in database
+    const existingUserDocs = await databases.listDocuments(
+      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+      process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+      [Query.equal('email', email)]
+    );
 
-      if (invitationDocs.documents.length === 0) {
-        return res.status(404).json({ error: 'Invalid invitation token' });
-      }
-
-      invitation = invitationDocs.documents[0];
-
-      // Check if invitation has expired
-      if (new Date(invitation.expiresAt) < new Date()) {
-        return res.status(400).json({ error: 'Invitation has expired' });
-      }
-
-      // Check if invitation has already been used
-      if (invitation.usedAt) {
-        return res.status(400).json({ error: 'Invitation has already been used' });
-      }
-
-      // Get the user profile associated with the invitation
-      const userDocs = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
-        [Query.equal('userId', invitation.userId)]
-      );
-
-      if (userDocs.documents.length === 0) {
-        return res.status(404).json({ error: 'User profile not found for invitation' });
-      }
-
-      userProfile = userDocs.documents[0];
-
-      // Verify the email matches
-      if (userProfile.email.toLowerCase() !== email.toLowerCase()) {
-        return res.status(400).json({ error: 'Email does not match invitation' });
-      }
-
-      // Check if user is still in invited status
-      if (!userProfile.isInvited) {
-        return res.status(400).json({ error: 'User is no longer in invited status' });
-      }
-    } else {
-      // For non-invited signups, check if user already exists in database
-      const existingUserDocs = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
-        [Query.equal('email', email)]
-      );
-
-      if (existingUserDocs.documents.length > 0) {
-        return res.status(400).json({ error: 'User with this email already exists' });
-      }
+    if (existingUserDocs.documents.length > 0) {
+      return res.status(400).json({ error: 'User with this email already exists' });
     }
 
     try {
@@ -95,75 +43,34 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         name
       );
 
-      // If this is an invitation signup, update the existing user profile
-      if (invitation && userProfile) {
-        // Update the user profile with the real Appwrite user ID
-        await databases.updateDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
-          userProfile.$id,
-          {
-            userId: authUser.$id,
-            name: name, // Update name in case it changed
-            isInvited: false
-          }
-        );
+      // Create new user profile in database
+      await databases.createDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+        ID.unique(),
+        {
+          userId: authUser.$id,
+          email: email,
+          name: name,
+          roleId: null, // No role assigned for self-signup
+          isInvited: false
+        }
+      );
 
-        // Mark the invitation as used
-        await databases.updateDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          process.env.NEXT_PUBLIC_APPWRITE_INVITATIONS_COLLECTION_ID!,
-          invitation.$id,
-          {
-            usedAt: new Date().toISOString()
-          }
-        );
-
-        // Log the invitation completion
-        await databases.createDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
-          ID.unique(),
-          {
-            userId: authUser.$id,
-            action: 'complete_invitation',
-            details: JSON.stringify({
-              type: 'invitation_signup',
-              email: email,
-              invitationToken: invitationToken
-            })
-          }
-        );
-      } else {
-        // Create new user profile in database for non-invited signups
-        await databases.createDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
-          ID.unique(),
-          {
-            userId: authUser.$id,
-            email: email,
-            name: name,
-            roleId: null, // No role assigned for self-signup
-            isInvited: false
-          }
-        );
-
-        // Log the signup
-        await databases.createDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
-          ID.unique(),
-          {
-            userId: authUser.$id,
-            action: 'signup',
-            details: JSON.stringify({
-              type: 'self_signup',
-              email: email
-            })
-          }
-        );
-      }
+      // Log the signup
+      await databases.createDocument(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+        ID.unique(),
+        {
+          userId: authUser.$id,
+          action: 'signup',
+          details: JSON.stringify({
+            type: 'self_signup',
+            email: email
+          })
+        }
+      );
 
       return res.status(200).json({
         success: true,
