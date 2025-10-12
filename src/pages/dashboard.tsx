@@ -3191,7 +3191,7 @@ export default function Dashboard() {
                                 rows.forEach(row => row.classList.remove('attendee-row-hover'));
                               }}
                             >
-                              <TableCell className="align-top pt-6" rowSpan={customFieldsWithValues.length > 0 ? 2 : 1}>
+                              <TableCell className="align-top pt-4" rowSpan={customFieldsWithValues.length > 0 ? 2 : 1}>
                                 <Checkbox
                                   checked={selectedAttendees.includes(attendee.id)}
                                   onCheckedChange={(checked) => {
@@ -3204,7 +3204,7 @@ export default function Dashboard() {
                                   aria-label={`Select ${attendee.firstName} ${attendee.lastName}`}
                                 />
                               </TableCell>
-                              <TableCell className="align-top pt-6" rowSpan={customFieldsWithValues.length > 0 ? 2 : 1}>
+                              <TableCell className="align-top pt-4" rowSpan={customFieldsWithValues.length > 0 ? 2 : 1}>
                                 <div className="flex flex-col items-center gap-2">
                                   <div
                                     className="relative w-20 h-[6.67rem] bg-gradient-to-br from-violet-50 to-violet-100 dark:from-violet-950/30 dark:to-violet-900/30 rounded-lg overflow-hidden flex-shrink-0 border border-violet-200 dark:border-violet-800/50 shadow-sm hover:shadow-md transition-all duration-200"
@@ -3246,7 +3246,7 @@ export default function Dashboard() {
                                   )}
                                 </div>
                               </TableCell>
-                              <TableCell className="align-top pt-6">
+                              <TableCell className="align-top pt-4">
                                 <button
                                   onClick={async () => {
                                     if (hasPermission(currentUser?.role, 'attendees', 'update')) {
@@ -3276,7 +3276,7 @@ export default function Dashboard() {
                                   <span className="font-semibold text-xl text-foreground group-hover:text-primary transition-colors">{attendee.firstName} {attendee.lastName}</span>
                                 </button>
                               </TableCell>
-                              <TableCell className="align-top pt-6">
+                              <TableCell className="align-top pt-4">
                                 <div className="flex items-center gap-2" role="group" aria-label={`Barcode: ${attendee.barcodeNumber}`}>
                                   <QrCode className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                                   <Badge variant="outline" className="font-mono text-sm px-3 py-1.5 bg-background">
@@ -3284,7 +3284,7 @@ export default function Dashboard() {
                                   </Badge>
                                 </div>
                               </TableCell>
-                              <TableCell className="align-top pt-6">
+                              <TableCell className="align-top pt-4">
                                 <div className="flex justify-center">
                                   {attendee.credentialUrl ? (
                                     <button
@@ -3301,7 +3301,7 @@ export default function Dashboard() {
                                   )}
                                 </div>
                               </TableCell>
-                              <TableCell className="align-top pt-6">
+                              <TableCell className="align-top pt-4">
                                 <div className="flex justify-center">
                                   {(() => {
                                     const status = getCredentialStatus(attendee);
@@ -3330,7 +3330,7 @@ export default function Dashboard() {
                                   })()}
                                 </div>
                               </TableCell>
-                              <TableCell className="align-top pt-6">
+                              <TableCell className="align-top pt-4">
                                 <div className="flex justify-center">
                                   <DropdownMenu
                                     open={dropdownStates[attendee.id] || false}
@@ -3635,11 +3635,11 @@ export default function Dashboard() {
                     placeholder="Search users..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
+                    className="pl-10 bg-background"
                   />
                 </div>
                 <Select value={selectedRole} onValueChange={setSelectedRole}>
-                  <SelectTrigger className="w-48">
+                  <SelectTrigger className="w-48 bg-background">
                     <SelectValue placeholder="Filter by role" />
                   </SelectTrigger>
                   <SelectContent>
