@@ -509,9 +509,8 @@ describe('Notes Search - Visual Design and Accessibility', () => {
       expect(hasNotesCheckbox).toBeDisabled();
       
       // Disabled elements should not be interactive
-      // Attempting to type should not work
-      await user.type(notesInput, 'test');
-      expect(notesInput).toHaveValue(''); // Value should remain empty
+      await expect(user.type(notesInput, 'test')).rejects.toThrowError(/disabled/i);
+      expect(notesInput).toHaveValue(''); // Value stays empty
     });
   });
 
