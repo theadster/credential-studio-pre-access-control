@@ -15,7 +15,18 @@ docs/
 
 ## Quick Links
 
+### Recent Enhancements
+- [**Attendees Pagination Improvement**](./enhancements/ATTENDEES_PAGINATION_IMPROVEMENT.md) - ✅ Show first/last page with ellipsis for better navigation
+- [**Bulk Import API Key Enhancement**](./enhancements/BULK_IMPORT_API_KEY_ENHANCEMENT.md) - Use API key for bulk imports to prevent rate limiting
+- [**Bulk Delete Log Size Fix**](./fixes/BULK_DELETE_LOG_SIZE_FIX.md) - Use API key for bulk deletes and handle large log entries
+
 ### Recent Fixes
+- [**Bulk Operations Pagination Reset Fix**](./fixes/BULK_OPERATIONS_PAGINATION_RESET_FIX.md) - ✅ Reset to page 1 after bulk delete/edit to prevent empty pages
+- [**🎉 Import Complete Fix Session Summary**](./fixes/IMPORT_COMPLETE_FIX_SESSION_SUMMARY.md) - ✅ **COMPREHENSIVE: All 8 import issues fixed and verified**
+- [**Import Notes and Uppercase Fix**](./fixes/IMPORT_NOTES_AND_UPPERCASE_FIX.md) - ✅ Fixed notes field null issue and custom field uppercase transformation
+- [**Custom Field Storage Format Consistency Fix**](./fixes/CUSTOM_FIELD_STORAGE_FORMAT_CONSISTENCY_FIX.md) - ✅ Fixed update endpoint to use object format, preventing false change detection
+- [**Import Boolean Format Fix**](./fixes/IMPORT_BOOLEAN_FORMAT_FIX.md) - ✅ Fixed boolean values to use 'yes'/'no' instead of 'true'/'false'
+- [**Import API Response and Boolean Debug**](./fixes/IMPORT_API_RESPONSE_AND_BOOLEAN_DEBUG.md) - Fixed async response handling and logs API noise
 - [**Legacy Scripts Cleanup**](./fixes/LEGACY_SCRIPTS_CLEANUP_SUMMARY.md) - Archived legacy migration scripts and removed deprecated dependencies
 - [**TypeScript and Lint Fixes**](./fixes/TYPESCRIPT_LINT_FIXES_SUMMARY.md) - Fixed critical syntax errors and configured ESLint properly
 - [**Custom Fields Enhancements Summary**](./fixes/CUSTOM_FIELDS_ENHANCEMENTS_SUMMARY.md) - Complete overview of optimistic locking and soft delete features
@@ -57,6 +68,14 @@ docs/
 - [User Management API Tests](./testing/USER_MANAGEMENT_API_TESTS_SUMMARY.md)
 
 ### Guides
+
+#### SweetAlert2 Notification System
+- [**SweetAlert Usage Guide**](./guides/SWEETALERT_USAGE_GUIDE.md) - Complete guide to using notifications, confirmations, and loading states
+- [**SweetAlert Customization Guide**](./guides/SWEETALERT_CUSTOMIZATION_GUIDE.md) - Theme, duration, position, and animation customization
+- [**SweetAlert Migration Guide**](./guides/SWEETALERT_MIGRATION_GUIDE.md) - Migrating from old toast system to SweetAlert2
+- [**SweetAlert Best Practices Guide**](./guides/SWEETALERT_BEST_PRACTICES_GUIDE.md) - Best practices for notifications and user experience
+
+#### Other Guides
 - [**Custom Fields API Guide**](./guides/CUSTOM_FIELDS_API_GUIDE.md) - Complete API reference with examples for optimistic locking and soft delete
 - [**Auth User Linking API Guide**](./guides/AUTH_USER_LINKING_API_GUIDE.md) - Complete API documentation for auth user linking
 - [**Auth User Linking Admin Guide**](./guides/AUTH_USER_LINKING_ADMIN_GUIDE.md) - Administrator guide for linking users
@@ -103,6 +122,14 @@ Documentation related to specific specs is located in `.kiro/specs/[spec-name]/`
 `.kiro/specs/multi-session-authentication/`
 - LOGIN_FIX_SUMMARY.md
 - USER_LOGS_FIX_SUMMARY.md
+
+### Toast to SweetAlert Migration
+`.kiro/specs/toast-to-sweetalert-migration/`
+- requirements.md - Feature requirements
+- design.md - System design
+- tasks.md - Implementation tasks
+- TASK_1 through TASK_8 summaries (complete implementation)
+- See [SweetAlert Guides](./guides/) for usage documentation
 
 ## Finding Documentation
 
