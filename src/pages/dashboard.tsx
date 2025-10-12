@@ -42,7 +42,9 @@ import {
   ChevronDown,
   FileText,
   FileUp,
-  UsersRound
+  UsersRound,
+  CheckCircle,
+  Circle
 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -227,12 +229,14 @@ export default function Dashboard() {
     firstName: { value: string; operator: string };
     lastName: { value: string; operator: string };
     barcode: { value: string; operator: string };
+    notes: { value: string; operator: string; hasNotes: boolean };
     photoFilter: 'all' | 'with' | 'without';
     customFields: { [key: string]: { value: string; operator: string } };
   }>({
     firstName: { value: '', operator: 'contains' },
     lastName: { value: '', operator: 'contains' },
     barcode: { value: '', operator: 'contains' },
+    notes: { value: '', operator: 'contains', hasNotes: false },
     photoFilter: 'all',
     customFields: {}
   });
@@ -314,6 +318,87 @@ export default function Dashboard() {
     } catch (error) {
       console.error('Error refreshing event settings:', error);
     }
+  }, []);
+
+  /**
+   * PERFORMANCE OPTIMIZATION: Grid Column Calculation
+   * 
+   * Memoized helper function to determine grid columns based on field count.
+   * Uses useCallback to prevent unnecessary re-creation on every render.
+   * 
+   * The Name column is now wider (w-auto) allowing custom fields to utilize more horizontal space.
+   * The Barcode, Credential, Status, and Actions columns are compact and grouped on the right.
+   * 
+   * Grid Layout Strategy:
+   * - 1 field: Single column (grid-cols-1)
+   * - 2-3 fields: 2 columns on tablet, 3 columns on desktop
+   * - 4-6 fields: 3 columns on tablet, 5 columns on desktop
+   * - 7-9 fields: 4 columns on tablet, 6 columns on desktop
+   * - 10+ fields: 4 columns on tablet, 7 columns on desktop
+   * 
+   * Responsive breakpoints ensure mobile-first design with progressive enhancement.
+   * 
+   * @param fieldCount - Number of visible custom fields
+   * @returns Tailwind CSS grid column classes
+   */
+  const getGridColumns = useCallback((fieldCount: number): string => {
+    if (fieldCount === 1) return 'grid-cols-1';
+    if (fieldCount >= 2 && fieldCount <= 3) return 'md:grid-cols-2 lg:grid-cols-3';
+    if (fieldCount >= 4 && fieldCount <= 6) return 'md:grid-cols-3 lg:grid-cols-5';
+    if (fieldCount >= 7 && fieldCount <= 9) return 'md:grid-cols-4 lg:grid-cols-6';
+    return 'md:grid-cols-4 lg:grid-cols-7'; // 10 or more fields
+  }, []);
+
+  /**
+   * PERFORMANCE OPTIMIZATION: Custom Fields Value Extraction
+   * 
+   * Extracts custom field values for an attendee outside the map function.
+   * This prevents recreating the function on every render and improves performance
+   * when rendering large lists of attendees.
+   * 
+   * Processing Logic:
+   * 1. Filter to only visible fields (showOnMainPage !== false)
+   * 2. Sort by field order for consistent display
+   * 3. Map to display format with value lookup
+   * 4. Format values based on field type (boolean, url, text)
+   * 5. Filter out empty values (except boolean fields which always show)
+   * 
+   * @param attendee - The attendee object
+   * @param customFields - Array of custom field definitions from event settings
+   * @returns Array of custom fields with values ready for display
+   */
+  const getCustomFieldsWithValues = useCallback((attendee: Attendee, customFields: any[]) => {
+    if (!customFields) return [];
+
+    return customFields
+      .filter((field: any) => field.showOnMainPage !== false) // Only show visible fields
+      .sort((a: any, b: any) => a.order - b.order)
+      .map((field: any) => {
+        const value = Array.isArray(attendee.customFieldValues)
+          ? attendee.customFieldValues.find((cfv: any) => cfv.customFieldId === field.id)
+          : null;
+        let displayValue = value?.value || null;
+
+        // Format display value based on field type
+        if (field.fieldType === 'boolean') {
+          // For boolean fields, always show Yes/No, defaulting to No if no value is set
+          displayValue = (displayValue === 'yes') ? 'Yes' : 'No';
+        } else if (displayValue && field.fieldType === 'url') {
+          // For URLs, show a clickable link
+          displayValue = displayValue;
+        }
+
+        return {
+          fieldName: field.fieldName,
+          fieldType: field.fieldType,
+          value: displayValue
+        };
+      })
+      .filter((field: any) => {
+        // Show boolean fields always (they will show Yes/No)
+        // Show other fields only if they have a value
+        return field.fieldType === 'boolean' || field.value;
+      });
   }, []);
 
   const loadLogs = useCallback(async (page = 1, filters = logsFilters, retryCount = 0) => {
@@ -763,6 +848,12 @@ export default function Dashboard() {
         const lastNameMatch = applyTextFilter(attendee.lastName, advancedSearchFilters.lastName);
         const barcodeMatch = applyTextFilter(attendee.barcodeNumber, advancedSearchFilters.barcode);
 
+        // Notes filter
+        const notesMatch = applyTextFilter(attendee.notes || '', advancedSearchFilters.notes);
+        const hasNotesMatch = !advancedSearchFilters.notes.hasNotes ||
+          (attendee.notes && attendee.notes.trim().length > 0);
+        const notesFilterMatch = notesMatch && hasNotesMatch;
+
         // Photo filter
         const photoMatch = advancedSearchFilters.photoFilter === 'all' ||
           (advancedSearchFilters.photoFilter === 'with' && attendee.photoUrl) ||
@@ -800,7 +891,7 @@ export default function Dashboard() {
           }
         });
 
-        return firstNameMatch && lastNameMatch && barcodeMatch && photoMatch && customFieldsMatch;
+        return firstNameMatch && lastNameMatch && barcodeMatch && notesFilterMatch && photoMatch && customFieldsMatch;
       } else {
         // Use simple search
         const basicMatch = `${attendee.firstName} ${attendee.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -893,6 +984,7 @@ export default function Dashboard() {
         firstName: { value: '', operator: 'contains' },
         lastName: { value: '', operator: 'contains' },
         barcode: { value: '', operator: 'contains' },
+        notes: { value: '', operator: 'contains', hasNotes: false },
         photoFilter: 'all',
         customFields
       });
@@ -904,12 +996,14 @@ export default function Dashboard() {
     return advancedSearchFilters.firstName.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.firstName.operator) ||
       advancedSearchFilters.lastName.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.lastName.operator) ||
       advancedSearchFilters.barcode.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.barcode.operator) ||
+      advancedSearchFilters.notes.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.notes.operator) ||
+      advancedSearchFilters.notes.hasNotes ||
       advancedSearchFilters.photoFilter !== 'all' ||
       Object.values(advancedSearchFilters.customFields).some(field => field.value || field.operator === 'isEmpty' || field.operator === 'isNotEmpty');
   };
 
   const handleAdvancedSearchChange = (
-    field: 'firstName' | 'lastName' | 'barcode' | 'photoFilter',
+    field: 'firstName' | 'lastName' | 'barcode' | 'notes' | 'photoFilter',
     value: string,
     property: 'value' | 'operator' = 'value'
   ) => {
@@ -971,6 +1065,7 @@ export default function Dashboard() {
       firstName: { value: '', operator: 'contains' },
       lastName: { value: '', operator: 'contains' },
       barcode: { value: '', operator: 'contains' },
+      notes: { value: '', operator: 'contains', hasNotes: false },
       photoFilter: 'all',
       customFields
     });
@@ -2503,7 +2598,7 @@ export default function Dashboard() {
                           variant="outline"
                           className="flex items-center space-x-2"
                           onClick={() => {
-                            // Initialize custom fields when opening advanced search
+                            // Initialize custom fields and notes when opening advanced search
                             if (!showAdvancedSearch) {
                               const customFields: { [key: string]: { value: string; operator: string } } = {};
                               eventSettings?.customFields?.forEach((field: any) => {
@@ -2512,6 +2607,7 @@ export default function Dashboard() {
                               if (Object.keys(advancedSearchFilters.customFields).length === 0) {
                                 setAdvancedSearchFilters(prev => ({
                                   ...prev,
+                                  notes: { value: '', operator: 'contains', hasNotes: false },
                                   customFields
                                 }));
                               }
@@ -2656,6 +2752,63 @@ export default function Dashboard() {
                                   <SelectItem value="without">Without Photo</SelectItem>
                                 </SelectContent>
                               </Select>
+                            </div>
+
+                            {/* Notes Field */}
+                            <div className="space-y-2">
+                              <Label htmlFor="notes" className="flex items-center space-x-2">
+                                <FileText className="h-4 w-4 text-muted-foreground" />
+                                <span>Notes</span>
+                              </Label>
+                              <div className="space-y-2">
+                                <div className="flex space-x-2">
+                                  <Select
+                                    value={advancedSearchFilters.notes.operator}
+                                    onValueChange={(operator) => handleAdvancedSearchChange('notes', operator, 'operator')}
+                                  >
+                                    <SelectTrigger className="w-[120px]">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="contains">Contains</SelectItem>
+                                      <SelectItem value="equals">Equals</SelectItem>
+                                      <SelectItem value="startsWith">Starts With</SelectItem>
+                                      <SelectItem value="endsWith">Ends With</SelectItem>
+                                      <SelectItem value="isEmpty">Is Empty</SelectItem>
+                                      <SelectItem value="isNotEmpty">Is Not Empty</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  <Input
+                                    id="notes"
+                                    placeholder="Value..."
+                                    value={advancedSearchFilters.notes.value}
+                                    onChange={(e) => handleAdvancedSearchChange('notes', e.target.value, 'value')}
+                                    disabled={['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.notes.operator)}
+                                  />
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <Checkbox
+                                    id="hasNotes"
+                                    checked={advancedSearchFilters.notes.hasNotes}
+                                    onCheckedChange={(checked) => {
+                                      setAdvancedSearchFilters(prev => ({
+                                        ...prev,
+                                        notes: {
+                                          ...prev.notes,
+                                          hasNotes: checked as boolean
+                                        }
+                                      }));
+                                    }}
+                                    disabled={['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.notes.operator)}
+                                  />
+                                  <Label
+                                    htmlFor="hasNotes"
+                                    className="text-sm font-normal cursor-pointer"
+                                  >
+                                    Has Notes
+                                  </Label>
+                                </div>
+                              </div>
                             </div>
 
                             {/* Custom Fields */}
@@ -3006,80 +3159,94 @@ export default function Dashboard() {
                             aria-label="Select all on this page"
                           />
                         </TableHead>
-                        <TableHead>Photo</TableHead>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Barcode</TableHead>
-                        <TableHead>Credential</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Actions</TableHead>
+                        <TableHead className="w-24">Photo</TableHead>
+                        <TableHead className="w-auto">Name</TableHead>
+                        <TableHead className="w-32 text-center">Barcode</TableHead>
+                        <TableHead className="w-24 text-center">Credential</TableHead>
+                        <TableHead className="w-32 text-center">Status</TableHead>
+                        <TableHead className="w-24 text-center">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {paginatedAttendees.map((attendee, index) => {
-                        // Get custom field values for this attendee, sorted by field order
-                        // Filter to only show fields where showOnMainPage !== false
-                        const customFieldsWithValues = eventSettings?.customFields
-                          ?.filter((field: any) => field.showOnMainPage !== false) // Only show visible fields
-                          ?.sort((a: any, b: any) => a.order - b.order)
-                          ?.map((field: any) => {
-                            const value = Array.isArray(attendee.customFieldValues)
-                              ? attendee.customFieldValues.find((cfv: any) => cfv.customFieldId === field.id)
-                              : null;
-                            let displayValue = value?.value || null;
-
-                            // Format display value based on field type
-                            if (field.fieldType === 'boolean') {
-                              // For boolean fields, always show Yes/No, defaulting to No if no value is set
-                              displayValue = (displayValue === 'yes') ? 'Yes' : 'No';
-                            } else if (displayValue && field.fieldType === 'url') {
-                              // For URLs, show a clickable link
-                              displayValue = displayValue;
-                            }
-
-                            return {
-                              fieldName: field.fieldName,
-                              fieldType: field.fieldType,
-                              value: displayValue
-                            };
-                          })
-                          ?.filter((field: any) => {
-                            // Show boolean fields always (they will show Yes/No)
-                            // Show other fields only if they have a value
-                            return field.fieldType === 'boolean' || field.value;
-                          }) || [];
+                        // PERFORMANCE OPTIMIZATION: Use extracted helper function
+                        // This prevents recreating the logic on every render
+                        const customFieldsWithValues = getCustomFieldsWithValues(
+                          attendee,
+                          eventSettings?.customFields || []
+                        );
 
                         return (
-                          <TableRow key={attendee.id} data-state={selectedAttendees.includes(attendee.id) && "selected"}>
-                            <TableCell>
-                              <Checkbox
-                                checked={selectedAttendees.includes(attendee.id)}
-                                onCheckedChange={(checked) => {
-                                  setSelectedAttendees(prev =>
-                                    checked
-                                      ? [...prev, attendee.id]
-                                      : prev.filter(id => id !== attendee.id)
-                                  );
-                                }}
-                                aria-label={`Select attendee ${index + 1}`}
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <div className="relative w-12 h-16 bg-muted rounded overflow-hidden flex-shrink-0">
-                                {attendee.photoUrl ? (
-                                  <img
-                                    src={attendee.photoUrl}
-                                    alt={`${attendee.firstName} ${attendee.lastName}`}
-                                    className="w-full h-full object-cover"
-                                  />
-                                ) : (
-                                  <div className="w-full h-full bg-muted flex items-center justify-center text-muted-foreground text-sm font-medium">
-                                    {attendee.firstName.charAt(0)}{attendee.lastName.charAt(0)}
+                          <React.Fragment key={attendee.id}>
+                            <TableRow
+                              data-state={selectedAttendees.includes(attendee.id) && "selected"}
+                              data-attendee-id={attendee.id}
+                              className={customFieldsWithValues.length > 0 ? "border-b-0" : ""}
+                              onMouseEnter={(e) => {
+                                const rows = document.querySelectorAll(`tr[data-attendee-id="${attendee.id}"]`);
+                                rows.forEach(row => row.classList.add('attendee-row-hover'));
+                              }}
+                              onMouseLeave={(e) => {
+                                const rows = document.querySelectorAll(`tr[data-attendee-id="${attendee.id}"]`);
+                                rows.forEach(row => row.classList.remove('attendee-row-hover'));
+                              }}
+                            >
+                              <TableCell className="align-top pt-6" rowSpan={customFieldsWithValues.length > 0 ? 2 : 1}>
+                                <Checkbox
+                                  checked={selectedAttendees.includes(attendee.id)}
+                                  onCheckedChange={(checked) => {
+                                    setSelectedAttendees(prev =>
+                                      checked
+                                        ? [...prev, attendee.id]
+                                        : prev.filter(id => id !== attendee.id)
+                                    );
+                                  }}
+                                  aria-label={`Select ${attendee.firstName} ${attendee.lastName}`}
+                                />
+                              </TableCell>
+                              <TableCell className="align-top pt-6" rowSpan={customFieldsWithValues.length > 0 ? 2 : 1}>
+                                <div className="flex flex-col items-center gap-2">
+                                  <div
+                                    className="relative w-20 h-[6.67rem] bg-gradient-to-br from-violet-50 to-violet-100 dark:from-violet-950/30 dark:to-violet-900/30 rounded-lg overflow-hidden flex-shrink-0 border border-violet-200 dark:border-violet-800/50 shadow-sm hover:shadow-md transition-all duration-200"
+                                    role="img"
+                                    aria-label={attendee.photoUrl ? `Photo of ${attendee.firstName} ${attendee.lastName}` : `Initials for ${attendee.firstName} ${attendee.lastName}`}
+                                  >
+                                    {attendee.photoUrl ? (
+                                      <img
+                                        src={attendee.photoUrl}
+                                        alt=""
+                                        className="w-full h-full object-contain"
+                                        loading="lazy"
+                                        decoding="async"
+                                        onError={(e) => {
+                                          // Fallback to initials on image load error
+                                          e.currentTarget.style.display = 'none';
+                                          const parent = e.currentTarget.parentElement;
+                                          if (parent) {
+                                            const initialsDiv = document.createElement('div');
+                                            initialsDiv.className = 'w-full h-full flex items-center justify-center';
+                                            initialsDiv.innerHTML = `<span class="text-2xl font-bold text-violet-600 dark:text-violet-400" aria-hidden="true">${attendee.firstName.charAt(0)}${attendee.lastName.charAt(0)}</span>`;
+                                            parent.appendChild(initialsDiv);
+                                          }
+                                        }}
+                                      />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center">
+                                        <span className="text-2xl font-bold text-violet-600 dark:text-violet-400" aria-hidden="true">
+                                          {attendee.firstName.charAt(0)}{attendee.lastName.charAt(0)}
+                                        </span>
+                                      </div>
+                                    )}
                                   </div>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div>
+                                  {attendee.notes && attendee.notes.trim() !== '' && (
+                                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5 bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300 border-violet-200 dark:border-violet-800" aria-label="Has notes">
+                                      <FileText className="h-3 w-3 mr-1" aria-hidden="true" />
+                                      NOTES
+                                    </Badge>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell className="align-top pt-6">
                                 <button
                                   onClick={async () => {
                                     if (hasPermission(currentUser?.role, 'attendees', 'update')) {
@@ -3102,216 +3269,252 @@ export default function Dashboard() {
                                       setShowAttendeeForm(true);
                                     }
                                   }}
-                                  className="text-left hover:text-primary transition-colors cursor-pointer"
+                                  className="text-left group w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded"
                                   disabled={!hasPermission(currentUser?.role, 'attendees', 'update')}
+                                  aria-label={`Edit ${attendee.firstName} ${attendee.lastName}${attendee.notes && attendee.notes.trim() !== '' ? ', has notes' : ''}`}
                                 >
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-medium text-lg hover:text-primary">{attendee.firstName} {attendee.lastName}</span>
-                                    {attendee.notes && attendee.notes.trim() !== '' && (
-                                      <span className="inline-flex items-center px-1 py-0 rounded text-[9px] font-semibold uppercase bg-purple-100 text-purple-800 border border-purple-200">
-                                        NOTES
-                                      </span>
-                                    )}
-                                  </div>
+                                  <span className="font-semibold text-xl text-foreground group-hover:text-primary transition-colors">{attendee.firstName} {attendee.lastName}</span>
                                 </button>
-                                {/* Display custom fields under the name */}
-                                {customFieldsWithValues.length > 0 && (
-                                  <div className="mt-1">
+                              </TableCell>
+                              <TableCell className="align-top pt-6">
+                                <div className="flex items-center gap-2" role="group" aria-label={`Barcode: ${attendee.barcodeNumber}`}>
+                                  <QrCode className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                                  <Badge variant="outline" className="font-mono text-sm px-3 py-1.5 bg-background">
+                                    {attendee.barcodeNumber}
+                                  </Badge>
+                                </div>
+                              </TableCell>
+                              <TableCell className="align-top pt-6">
+                                <div className="flex justify-center">
+                                  {attendee.credentialUrl ? (
+                                    <button
+                                      onClick={() => attendee.credentialUrl && window.open(attendee.credentialUrl, '_blank')}
+                                      className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                                      aria-label={`View credential for ${attendee.firstName} ${attendee.lastName}, opens in new tab`}
+                                    >
+                                      <Image className="h-5 w-5 text-purple-600" aria-hidden="true" />
+                                    </button>
+                                  ) : (
+                                    <div className="p-1" role="status" aria-label="No credential generated">
+                                      <Image className="h-5 w-5 text-gray-400" aria-hidden="true" />
+                                    </div>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell className="align-top pt-6">
+                                <div className="flex justify-center">
+                                  {(() => {
+                                    const status = getCredentialStatus(attendee);
+                                    if (status === 'current') {
+                                      return (
+                                        <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-200 hover:border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800 dark:hover:bg-emerald-900/40 dark:hover:border-emerald-700 font-semibold px-3 py-1 transition-colors" role="status" aria-label="Credential status: Current">
+                                          <CheckCircle className="h-3 w-3 mr-1" aria-hidden="true" />
+                                          CURRENT
+                                        </Badge>
+                                      );
+                                    } else if (status === 'outdated') {
+                                      return (
+                                        <Badge className="bg-red-100 text-red-800 border-red-200 hover:bg-red-200 hover:border-red-300 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800 dark:hover:bg-red-900/40 dark:hover:border-red-700 font-semibold px-3 py-1 transition-colors" role="status" aria-label="Credential status: Outdated">
+                                          <AlertTriangle className="h-3 w-3 mr-1" aria-hidden="true" />
+                                          OUTDATED
+                                        </Badge>
+                                      );
+                                    } else {
+                                      return (
+                                        <Badge variant="secondary" className="text-muted-foreground px-3 py-1" role="status" aria-label="Credential status: None">
+                                          <Circle className="h-3 w-3 mr-1" aria-hidden="true" />
+                                          NONE
+                                        </Badge>
+                                      );
+                                    }
+                                  })()}
+                                </div>
+                              </TableCell>
+                              <TableCell className="align-top pt-6">
+                                <div className="flex justify-center">
+                                  <DropdownMenu
+                                    open={dropdownStates[attendee.id] || false}
+                                    onOpenChange={(open) => {
+                                      setDropdownStates(prev => ({
+                                        ...prev,
+                                        [attendee.id]: open
+                                      }));
+                                    }}
+                                  >
+                                    <DropdownMenuTrigger asChild>
+                                      <Button variant="ghost" size="sm" aria-label={`Actions for ${attendee.firstName} ${attendee.lastName}`}>
+                                        <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                      {hasPermission(currentUser?.role, 'attendees', 'print') && (
+                                        <DropdownMenuItem
+                                          onClick={() => {
+                                            setDropdownStates(prev => ({
+                                              ...prev,
+                                              [attendee.id]: false
+                                            }));
+                                            handleGenerateCredential(attendee.id);
+                                          }}
+                                          disabled={generatingCredential === attendee.id}
+                                        >
+                                          {generatingCredential === attendee.id ? (
+                                            <>
+                                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                                              Generating...
+                                            </>
+                                          ) : (
+                                            <>
+                                              <FileImage className="mr-2 h-4 w-4" />
+                                              Generate Credential
+                                            </>
+                                          )}
+                                        </DropdownMenuItem>
+                                      )}
+                                      {hasPermission(currentUser?.role, 'attendees', 'print') && attendee.credentialUrl && (
+                                        <DropdownMenuItem
+                                          onClick={() => {
+                                            setDropdownStates(prev => ({
+                                              ...prev,
+                                              [attendee.id]: false
+                                            }));
+                                            handleClearCredential(attendee.id);
+                                          }}
+                                        >
+                                          <Trash2 className="mr-2 h-4 w-4" />
+                                          Clear Credential
+                                        </DropdownMenuItem>
+                                      )}
+                                      {hasPermission(currentUser?.role, 'attendees', 'update') && (
+                                        <DropdownMenuItem
+                                          onSelect={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                          }}
+                                          onClick={async (e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+
+                                            // Close dropdown immediately
+                                            setDropdownStates(prev => ({
+                                              ...prev,
+                                              [attendee.id]: false
+                                            }));
+
+                                            // Use a longer delay to ensure dropdown fully closes
+                                            setTimeout(async () => {
+                                              await refreshEventSettings();
+                                              // Fetch full attendee data including hidden fields
+                                              try {
+                                                const response = await fetch(`/api/attendees/${attendee.id}`);
+                                                if (response.ok) {
+                                                  const fullAttendee = await response.json();
+                                                  setEditingAttendee(fullAttendee);
+                                                } else {
+                                                  // Fallback to list data if fetch fails
+                                                  setEditingAttendee(attendee);
+                                                }
+                                              } catch (error) {
+                                                console.error('Error fetching full attendee:', error);
+                                                // Fallback to list data if fetch fails
+                                                setEditingAttendee(attendee);
+                                              }
+                                              setShowAttendeeForm(true);
+                                            }, 100);
+                                          }}
+                                        >
+                                          <Edit className="mr-2 h-4 w-4" />
+                                          Edit
+                                        </DropdownMenuItem>
+                                      )}
+                                      {hasPermission(currentUser?.role, 'attendees', 'delete') && (
+                                        <DropdownMenuItem
+                                          onClick={() => {
+                                            setDropdownStates(prev => ({
+                                              ...prev,
+                                              [attendee.id]: false
+                                            }));
+                                            handleDeleteAttendee(attendee.id);
+                                          }}
+                                          className="text-destructive"
+                                        >
+                                          <Trash2 className="mr-2 h-4 w-4" />
+                                          Delete
+                                        </DropdownMenuItem>
+                                      )}
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                            {/* Custom Fields Row - Spans from Name to Actions columns */}
+                            {customFieldsWithValues.length > 0 && (
+                              <TableRow
+                                data-state={selectedAttendees.includes(attendee.id) && "selected"}
+                                data-attendee-id={attendee.id}
+                                onMouseEnter={(e) => {
+                                  const rows = document.querySelectorAll(`tr[data-attendee-id="${attendee.id}"]`);
+                                  rows.forEach(row => row.classList.add('attendee-row-hover'));
+                                }}
+                                onMouseLeave={(e) => {
+                                  const rows = document.querySelectorAll(`tr[data-attendee-id="${attendee.id}"]`);
+                                  rows.forEach(row => row.classList.remove('attendee-row-hover'));
+                                }}
+                              >
+                                <TableCell colSpan={5} className="pt-1 pb-6">
+                                  <div className="border-t border-border/50 pt-2">
                                     {(() => {
-                                      // Determine grid columns based on number of fields
-                                      const fieldCount = customFieldsWithValues.length;
-                                      let gridCols = 'grid-cols-1';
-                                      if (fieldCount >= 2) gridCols = 'grid-cols-2';
-                                      if (fieldCount >= 4) gridCols = 'grid-cols-3';
-                                      if (fieldCount >= 6) gridCols = 'grid-cols-4';
+                                      // PERFORMANCE OPTIMIZATION: Use memoized getGridColumns function
+                                      const gridCols = getGridColumns(customFieldsWithValues.length);
 
                                       return (
-                                        <div className={`grid ${gridCols} gap-x-4 gap-y-1`}>
+                                        <div className={`grid grid-cols-1 ${gridCols} gap-x-6 gap-y-2`}>
                                           {customFieldsWithValues.map((field, index: number) => (
-                                            <div key={index} className="text-xs text-muted-foreground">
-                                              <span className="font-medium">{field.fieldName}:</span>{' '}
-                                              {field.fieldType === 'url' ? (
-                                                <a
-                                                  href={field.value || ''}
-                                                  target="_blank"
-                                                  rel="noopener noreferrer"
-                                                  className="text-blue-600 hover:text-blue-800 underline"
-                                                >
-                                                  {field.value || ''}
-                                                </a>
-                                              ) : (
-                                                field.value
-                                              )}
+                                            <div key={index} className="flex flex-col space-y-0.5">
+                                              <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide" id={`field-label-${attendee.id}-${index}`}>
+                                                {field.fieldName}
+                                              </span>
+                                              <span className="text-sm font-medium text-foreground" aria-labelledby={`field-label-${attendee.id}-${index}`}>
+                                                {field.fieldType === 'url' ? (
+                                                  <a
+                                                    href={field.value || ''}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-primary hover:text-primary/80 underline inline-flex items-center gap-1 truncate focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    title={field.value || ''}
+                                                    aria-label={`${field.fieldName}: ${field.value}, opens in new tab`}
+                                                  >
+                                                    <Link className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
+                                                    <span className="truncate">{field.value}</span>
+                                                  </a>
+                                                ) : field.fieldType === 'boolean' ? (
+                                                  <Badge
+                                                    variant="outline"
+                                                    className={`text-xs ${field.value === 'Yes'
+                                                      ? 'bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-100 hover:border-violet-300 dark:bg-violet-950/30 dark:text-violet-300 dark:border-violet-800 dark:hover:bg-violet-900/40 dark:hover:border-violet-700'
+                                                      : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100 hover:border-gray-300 dark:bg-gray-950/30 dark:text-gray-300 dark:border-gray-800 dark:hover:bg-gray-900/40 dark:hover:border-gray-700'
+                                                      }`}
+                                                    role="status"
+                                                  >
+                                                    {field.value}
+                                                  </Badge>
+                                                ) : (
+                                                  <span className="truncate" title={field.value || ''}>
+                                                    {field.value}
+                                                  </span>
+                                                )}
+                                              </span>
                                             </div>
                                           ))}
                                         </div>
                                       );
                                     })()}
                                   </div>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline">{attendee.barcodeNumber}</Badge>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex justify-center">
-                                {attendee.credentialUrl ? (
-                                  <button
-                                    onClick={() => attendee.credentialUrl && window.open(attendee.credentialUrl, '_blank')}
-                                    className="p-1 rounded hover:bg-gray-100 transition-colors"
-                                    title="View Credential"
-                                  >
-                                    <Image className="h-5 w-5 text-purple-600" />
-                                  </button>
-                                ) : (
-                                  <div className="p-1" title="No Credential Generated">
-                                    <Image className="h-5 w-5 text-gray-400" />
-                                  </div>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex justify-center">
-                                {(() => {
-                                  const status = getCredentialStatus(attendee);
-                                  if (status === 'current') {
-                                    return (
-                                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-semibold uppercase bg-green-100 text-green-800 border border-green-200">
-                                        CURRENT
-                                      </span>
-                                    );
-                                  } else if (status === 'outdated') {
-                                    return (
-                                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-semibold uppercase bg-red-100 text-red-800 border border-red-200">
-                                        OUTDATED
-                                      </span>
-                                    );
-                                  } else {
-                                    return (
-                                      <span className="text-xs text-muted-foreground">
-                                        —
-                                      </span>
-                                    );
-                                  }
-                                })()}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <DropdownMenu
-                                open={dropdownStates[attendee.id] || false}
-                                onOpenChange={(open) => {
-                                  setDropdownStates(prev => ({
-                                    ...prev,
-                                    [attendee.id]: open
-                                  }));
-                                }}
-                              >
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="sm">
-                                    <MoreHorizontal className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  {hasPermission(currentUser?.role, 'attendees', 'print') && (
-                                    <DropdownMenuItem
-                                      onClick={() => {
-                                        setDropdownStates(prev => ({
-                                          ...prev,
-                                          [attendee.id]: false
-                                        }));
-                                        handleGenerateCredential(attendee.id);
-                                      }}
-                                      disabled={generatingCredential === attendee.id}
-                                    >
-                                      {generatingCredential === attendee.id ? (
-                                        <>
-                                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
-                                          Generating...
-                                        </>
-                                      ) : (
-                                        <>
-                                          <FileImage className="mr-2 h-4 w-4" />
-                                          Generate Credential
-                                        </>
-                                      )}
-                                    </DropdownMenuItem>
-                                  )}
-                                  {hasPermission(currentUser?.role, 'attendees', 'print') && attendee.credentialUrl && (
-                                    <DropdownMenuItem
-                                      onClick={() => {
-                                        setDropdownStates(prev => ({
-                                          ...prev,
-                                          [attendee.id]: false
-                                        }));
-                                        handleClearCredential(attendee.id);
-                                      }}
-                                    >
-                                      <Trash2 className="mr-2 h-4 w-4" />
-                                      Clear Credential
-                                    </DropdownMenuItem>
-                                  )}
-                                  {hasPermission(currentUser?.role, 'attendees', 'update') && (
-                                    <DropdownMenuItem
-                                      onSelect={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                      }}
-                                      onClick={async (e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-
-                                        // Close dropdown immediately
-                                        setDropdownStates(prev => ({
-                                          ...prev,
-                                          [attendee.id]: false
-                                        }));
-
-                                        // Use a longer delay to ensure dropdown fully closes
-                                        setTimeout(async () => {
-                                          await refreshEventSettings();
-                                          // Fetch full attendee data including hidden fields
-                                          try {
-                                            const response = await fetch(`/api/attendees/${attendee.id}`);
-                                            if (response.ok) {
-                                              const fullAttendee = await response.json();
-                                              setEditingAttendee(fullAttendee);
-                                            } else {
-                                              // Fallback to list data if fetch fails
-                                              setEditingAttendee(attendee);
-                                            }
-                                          } catch (error) {
-                                            console.error('Error fetching full attendee:', error);
-                                            // Fallback to list data if fetch fails
-                                            setEditingAttendee(attendee);
-                                          }
-                                          setShowAttendeeForm(true);
-                                        }, 100);
-                                      }}
-                                    >
-                                      <Edit className="mr-2 h-4 w-4" />
-                                      Edit
-                                    </DropdownMenuItem>
-                                  )}
-                                  {hasPermission(currentUser?.role, 'attendees', 'delete') && (
-                                    <DropdownMenuItem
-                                      onClick={() => {
-                                        setDropdownStates(prev => ({
-                                          ...prev,
-                                          [attendee.id]: false
-                                        }));
-                                        handleDeleteAttendee(attendee.id);
-                                      }}
-                                      className="text-destructive"
-                                    >
-                                      <Trash2 className="mr-2 h-4 w-4" />
-                                      Delete
-                                    </DropdownMenuItem>
-                                  )}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </TableCell>
-                          </TableRow>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </React.Fragment>
                         );
                       })}
                     </TableBody>
