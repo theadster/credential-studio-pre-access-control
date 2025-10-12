@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/router'
 import { createBrowserClient } from '@/lib/appwrite'
 import { ID, Query } from 'appwrite'
-import { useToast } from '@/components/ui/use-toast'
+import { useSweetAlert } from '@/hooks/useSweetAlert'
 
 /**
  * Creates a standardized cookie string with consistent formatting
@@ -20,7 +20,7 @@ const createCookieString = (name: string, value: string, maxAge: number = 60 * 6
 export default function AuthCallback() {
   const router = useRouter()
   const { account, databases } = createBrowserClient()
-  const { toast } = useToast()
+  const { success, error } = useSweetAlert()
   const [processing, setProcessing] = useState(true)
   const callbackExecuted = useRef(false)
 
@@ -170,11 +170,7 @@ export default function AuthCallback() {
               email: user.email,
             })
 
-            toast({
-              variant: "destructive",
-              title: "Profile Creation Failed",
-              description: "Failed to create your user profile. Please contact support.",
-            })
+            error("Profile Creation Failed", "Failed to create your user profile. Please contact support.");
 
             throw new Error('Failed to create user profile')
           }
@@ -198,10 +194,7 @@ export default function AuthCallback() {
             email: user.email,
           })
 
-          toast({
-            title: "Success",
-            description: "You have successfully signed in",
-          })
+          success("Success", "You have successfully signed in");
 
           // Redirect to dashboard
           // Note: Token refresh will be started by AuthContext when it detects the new session
@@ -273,11 +266,7 @@ export default function AuthCallback() {
                   email: user.email,
                 })
 
-                toast({
-                  variant: "destructive",
-                  title: "Profile Creation Failed",
-                  description: "Failed to create your user profile. Please contact support.",
-                })
+                error("Profile Creation Failed", "Failed to create your user profile. Please contact support.");
 
                 throw new Error('Failed to create user profile')
               }
@@ -301,10 +290,7 @@ export default function AuthCallback() {
                 email: user.email,
               })
 
-              toast({
-                title: "Success",
-                description: "You have successfully signed in with Google",
-              })
+              success("Success", "You have successfully signed in with Google");
 
               // Redirect to dashboard
               // Note: Token refresh will be started by AuthContext when it detects the new session
@@ -312,9 +298,9 @@ export default function AuthCallback() {
             } else {
               throw new Error('No user found after OAuth')
             }
-          } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-            const errorType = (error as any)?.type || 'unknown'
+          } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Unknown error'
+            const errorType = (err as any)?.type || 'unknown'
 
             console.error('[OAuth Callback] ✗ OAuth authentication failed', {
               timestamp: new Date().toISOString(),
@@ -322,11 +308,7 @@ export default function AuthCallback() {
               errorType,
             })
 
-            toast({
-              variant: "destructive",
-              title: "Error",
-              description: "Failed to complete authentication",
-            })
+            error("Error", "Failed to complete authentication");
 
             // Clean up any partial state
             try {
@@ -348,19 +330,15 @@ export default function AuthCallback() {
               }).catch(logError => console.error('Failed to log cleanup error:', logError))
 
               // Show user-visible warning
-              toast({
-                variant: "destructive",
-                title: "Warning",
-                description: "Failed to clean up session data. Please clear your browser cookies if you experience issues.",
-              })
+              error("Warning", "Failed to clean up session data. Please clear your browser cookies if you experience issues.");
             }
 
             router.push('/login')
           }
         }
-      } catch (error: any) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-        const errorType = (error as any)?.type || 'unknown'
+      } catch (err: any) {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error'
+        const errorType = (err as any)?.type || 'unknown'
 
         console.error('[Auth Callback] ✗ Authentication callback failed', {
           timestamp: new Date().toISOString(),
@@ -370,11 +348,7 @@ export default function AuthCallback() {
           hasSecret: !!router.query.secret,
         })
 
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: error.message || "Authentication failed",
-        })
+        error("Error", err.message || "Authentication failed");
 
         // Clean up any partial state
         try {
@@ -396,11 +370,7 @@ export default function AuthCallback() {
           }).catch(logError => console.error('Failed to log cleanup error:', logError))
 
           // Show user-visible warning
-          toast({
-            variant: "destructive",
-            title: "Warning",
-            description: "Failed to clean up session data. Please clear your browser cookies if you experience issues.",
-          })
+          error("Warning", "Failed to clean up session data. Please clear your browser cookies if you experience issues.");
         }
 
         router.push('/login')

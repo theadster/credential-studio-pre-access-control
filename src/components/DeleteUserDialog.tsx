@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Trash2, Unlink } from 'lucide-react';
+import { useSweetAlert } from '@/hooks/useSweetAlert';
 
 interface User {
   id: string;
@@ -29,6 +30,7 @@ interface DeleteUserDialogProps {
 }
 
 export default function DeleteUserDialog({ isOpen, onClose, onConfirm, user }: DeleteUserDialogProps) {
+  const { confirm } = useSweetAlert();
   const [deleteOption, setDeleteOption] = useState<'full' | 'unlink'>('full');
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +44,21 @@ export default function DeleteUserDialog({ isOpen, onClose, onConfirm, user }: D
   }, [isOpen]);
 
   const handleConfirm = async () => {
+    const actionText = deleteOption === 'full' ? 'permanently delete' : 'unlink';
+    const userName = user?.name || user?.email || 'this user';
+    
+    const confirmed = await confirm({
+      title: deleteOption === 'full' ? 'Confirm Full Deletion' : 'Confirm Unlink',
+      text: `Are you sure you want to ${actionText} ${userName}? ${deleteOption === 'full' ? 'This action cannot be undone and will remove the user from both the database and authentication system.' : 'The user will be removed from the database but can be re-linked later.'}`,
+      icon: 'warning',
+      confirmButtonText: deleteOption === 'full' ? 'Delete User' : 'Unlink User',
+      cancelButtonText: 'Cancel'
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
     setError(null);
     setIsDeleting(true);
     try {

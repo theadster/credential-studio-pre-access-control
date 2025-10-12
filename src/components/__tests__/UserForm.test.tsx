@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import UserForm from '../UserForm';
-import { useToast } from '@/components/ui/use-toast';
+import { useSweetAlert } from '@/hooks/useSweetAlert';
 
 // Mock ResizeObserver
 global.ResizeObserver = vi.fn().mockImplementation(() => ({
@@ -11,8 +11,8 @@ global.ResizeObserver = vi.fn().mockImplementation(() => ({
 }));
 
 // Mock the toast hook
-vi.mock('@/components/ui/use-toast', () => ({
-  useToast: vi.fn(() => ({
+vi.mock('@/hooks/useSweetAlert', () => ({
+  useSweetAlert: vi.fn(() => ({
     toast: vi.fn(),
   })),
 }));
@@ -109,7 +109,7 @@ describe('UserForm', () => {
 
     it('should show validation error when no user is selected', async () => {
       const mockToast = vi.fn();
-      (useToast as any).mockReturnValue({ toast: mockToast });
+      (useSweetAlert as any).mockReturnValue({ toast: mockToast });
 
       render(
         <UserForm
@@ -135,7 +135,7 @@ describe('UserForm', () => {
 
     it('should show validation error when no role is selected', async () => {
       const mockToast = vi.fn();
-      (useToast as any).mockReturnValue({ toast: mockToast });
+      (useSweetAlert as any).mockReturnValue({ toast: mockToast });
 
       render(
         <UserForm

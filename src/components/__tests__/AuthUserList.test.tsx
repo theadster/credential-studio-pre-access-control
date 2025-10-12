@@ -5,8 +5,8 @@ import { AppwriteAuthUser } from '../AuthUserSearch';
 
 // Mock the toast hook
 const mockToast = vi.fn();
-vi.mock('@/components/ui/use-toast', () => ({
-  useToast: () => ({ toast: mockToast })
+vi.mock('@/hooks/useSweetAlert', () => ({
+  useSweetAlert: () => ({ toast: mockToast })
 }));
 
 // Mock fetch

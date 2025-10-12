@@ -140,10 +140,12 @@ async function createAttendeesCollection(databaseId: string) {
     await databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'firstName', 255, true);
     await databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'lastName', 255, true);
     await databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'barcodeNumber', 255, true);
+    await databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'notes', 5000, false);
     await databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'photoUrl', 1000, false);
     await databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'credentialUrl', 1000, false);
     await databases.createDatetimeAttribute(databaseId, COLLECTIONS.ATTENDEES, 'credentialGeneratedAt', false);
     await databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'customFieldValues', 10000, false);
+    await databases.createDatetimeAttribute(databaseId, COLLECTIONS.ATTENDEES, 'lastSignificantUpdate', false);
 
     // Create indexes
     await databases.createIndex(databaseId, COLLECTIONS.ATTENDEES, 'barcodeNumber_idx', IndexType.Unique, ['barcodeNumber']);

@@ -1,10 +1,11 @@
 import React, { createContext, useState, ReactNode, useContext, useEffect } from 'react';
 import { createBrowserClient } from '@/lib/appwrite';
 import { Models, OAuthProvider, ID, Query } from 'appwrite';
-import { useToast } from "@/components/ui/use-toast";
+import { useSweetAlert } from "@/hooks/useSweetAlert";
 import { useRouter } from 'next/router';
 import { TokenRefreshManager } from '@/lib/tokenRefresh';
 import { createTabCoordinator, TabCoordinator } from '@/lib/tabCoordinator';
+import { validateEmail } from '@/lib/validation';
 
 interface UserProfile {
   $id: string;
@@ -53,7 +54,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [initializing, setInitializing] = useState(true);
   const { account, databases } = createBrowserClient();
-  const { toast } = useToast();
+  const { toast } = useSweetAlert();
 
   // Initialize TokenRefreshManager and TabCoordinator
   const [tokenRefreshManager] = useState(() => new TokenRefreshManager());
@@ -473,6 +474,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         loginMethod: 'password',
       });
 
+      // Validate email format before making API call
+      validateEmail(email);
+
       // Reset notification flag on new login
       setHasShownExpirationNotification(false);
 
@@ -669,7 +673,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       let errorTitle = "Login Failed";
       let errorMessage = error.message || "Failed to sign in";
 
-      if (error.code === 401 || error.type === 'user_invalid_credentials') {
+      if (error.type === 'invalid_email' || (error.message && error.message.toLowerCase().includes('valid email'))) {
+        errorTitle = "Invalid Email";
+        errorMessage = "Please enter a valid email address (e.g., user@example.com)";
+      } else if (error.code === 401 || error.type === 'user_invalid_credentials') {
         errorMessage = "Invalid email or password. Please check your credentials and try again.";
       } else if (error.code === 429 || error.type === 'general_rate_limit_exceeded') {
         errorTitle = "Too Many Attempts";

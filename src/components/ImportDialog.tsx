@@ -8,7 +8,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/components/ui/use-toast';
+import { useSweetAlert } from '@/hooks/useSweetAlert';
 import { useDropzone } from 'react-dropzone';
 import { Upload, FileText, AlertCircle } from 'lucide-react';
 
@@ -29,7 +29,7 @@ export default function ImportDialog({ children, onImportSuccess, customFields }
   const [isOpen, setIsOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const { toast } = useToast();
+  const { success, error } = useSweetAlert();
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
@@ -47,11 +47,7 @@ export default function ImportDialog({ children, onImportSuccess, customFields }
 
   const handleImport = async () => {
     if (!file) {
-      toast({
-        variant: 'destructive',
-        title: 'No file selected',
-        description: 'Please select a CSV file to import.',
-      });
+      error('No file selected', 'Please select a CSV file to import.');
       return;
     }
 
@@ -71,19 +67,12 @@ export default function ImportDialog({ children, onImportSuccess, customFields }
         throw new Error(result.error || 'Failed to import attendees');
       }
 
-      toast({
-        title: 'Import Successful',
-        description: `${result.count} attendees were imported successfully.`,
-      });
+      success('Import Successful', `${result.count} attendees were imported successfully.`);
       onImportSuccess();
       setIsOpen(false);
       setFile(null);
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Import Failed',
-        description: error.message,
-      });
+    } catch (err: any) {
+      error('Import Failed', err.message);
     } finally {
       setIsUploading(false);
     }

@@ -89,14 +89,18 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
               ? JSON.parse(existingAttendee.customFieldValues)
               : existingAttendee.customFieldValues;
             
-            // Convert array format to object format for easier comparison
+            // Convert to object format for easier comparison
             if (Array.isArray(parsed)) {
+              // Convert array format to object format
               currentCustomFieldValues = parsed.reduce((acc: Record<string, any>, item: any) => {
                 if (item.customFieldId) {
                   acc[item.customFieldId] = item.value;
                 }
                 return acc;
               }, {});
+            } else if (parsed && typeof parsed === 'object') {
+              // Already in object format
+              currentCustomFieldValues = parsed;
             }
           }
         } catch (error) {
@@ -117,6 +121,44 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           }
         }
 
+        // Check if any significant fields (non-notes) are being updated
+        let hasCustomFieldChanges = false;
+        if (customFieldValues !== undefined && Array.isArray(customFieldValues)) {
+          // Compare custom field values to see if they actually changed
+          const newCustomFieldValues: Record<string, any> = {};
+          customFieldValues.forEach((cfv: any) => {
+            if (cfv.customFieldId) {
+              newCustomFieldValues[cfv.customFieldId] = cfv.value;
+            }
+          });
+          
+          // Check if any custom field value is different
+          for (const [fieldId, newValue] of Object.entries(newCustomFieldValues)) {
+            const oldValue = currentCustomFieldValues[fieldId];
+            if (String(oldValue || '') !== String(newValue || '')) {
+              hasCustomFieldChanges = true;
+              break;
+            }
+          }
+          
+          // Also check if any existing custom field was removed
+          if (!hasCustomFieldChanges) {
+            for (const fieldId of Object.keys(currentCustomFieldValues)) {
+              if (!(fieldId in newCustomFieldValues) && currentCustomFieldValues[fieldId]) {
+                hasCustomFieldChanges = true;
+                break;
+              }
+            }
+          }
+        }
+        
+        const hasSignificantChanges = 
+          (firstName && firstName !== existingAttendee.firstName) ||
+          (lastName && lastName !== existingAttendee.lastName) ||
+          (barcodeNumber && barcodeNumber !== existingAttendee.barcodeNumber) ||
+          (photoUrl !== undefined && photoUrl !== existingAttendee.photoUrl) ||
+          hasCustomFieldChanges;
+
         // Prepare update data
         const updateData: any = {
           firstName: firstName || existingAttendee.firstName,
@@ -125,6 +167,23 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           notes: notes !== undefined ? notes : existingAttendee.notes,
           photoUrl: photoUrl !== undefined ? photoUrl : existingAttendee.photoUrl,
         };
+
+        // Handle lastSignificantUpdate field
+        if (hasSignificantChanges) {
+          // If significant fields changed, update the lastSignificantUpdate timestamp
+          updateData.lastSignificantUpdate = new Date().toISOString();
+        } else if (!existingAttendee.lastSignificantUpdate) {
+          // Only initialize if it doesn't exist AND we're not making significant changes
+          // Use the credential generation time if available, otherwise use current time
+          if (existingAttendee.credentialGeneratedAt) {
+            // If a credential was generated, use that time as the baseline
+            updateData.lastSignificantUpdate = existingAttendee.credentialGeneratedAt;
+          } else {
+            // Otherwise, use the record's creation time
+            updateData.lastSignificantUpdate = existingAttendee.$createdAt || new Date().toISOString();
+          }
+        }
+        // If lastSignificantUpdate exists and no significant changes, don't update it (leave it as is)
 
         // Update custom field values if provided
         if (customFieldValues !== undefined) {
@@ -154,16 +213,18 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
               }
             }
 
-            // Convert custom field values array to JSON array format (not object)
-            // Filter out entries without customFieldId but keep all values including empty ones
-            const validCustomFieldValues = customFieldValues
-              .filter((cfv: any) => cfv.customFieldId)
-              .map((cfv: any) => ({
-                customFieldId: cfv.customFieldId,
-                value: cfv.value !== null && cfv.value !== undefined ? String(cfv.value) : ''
-              }));
+            // Merge new custom field values with existing ones
+            // This preserves hidden field values that weren't sent in the update
+            const customFieldValuesObj: { [key: string]: string } = { ...currentCustomFieldValues };
+            
+            // Update only the fields that were sent
+            customFieldValues.forEach((cfv: any) => {
+              if (cfv.customFieldId) {
+                customFieldValuesObj[cfv.customFieldId] = cfv.value !== null && cfv.value !== undefined ? String(cfv.value) : '';
+              }
+            });
 
-            updateData.customFieldValues = JSON.stringify(validCustomFieldValues);
+            updateData.customFieldValues = JSON.stringify(customFieldValuesObj);
             console.log('Storing customFieldValues as:', updateData.customFieldValues);
           }
         }

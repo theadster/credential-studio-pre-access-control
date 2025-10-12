@@ -5,7 +5,7 @@ import * as Yup from 'yup';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import { AuthContext } from '@/contexts/AuthContext';
 import Logo from '@/components/Logo';
-import { useToast } from "@/components/ui/use-toast";
+import { useSweetAlert } from "@/hooks/useSweetAlert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,7 +22,7 @@ const ResetPasswordPage = () => {
     userId: null,
     secret: null,
   });
-  const { toast } = useToast();
+  const { toast } = useSweetAlert();
 
   // Handle auth session from URL parameters
   useEffect(() => {

@@ -5,7 +5,7 @@
  * Requirements: 7.2, 7.4, 7.6
  */
 
-import { useToast } from '@/components/ui/use-toast';
+import { useSweetAlert } from '@/hooks/useSweetAlert';
 import { useCallback } from 'react';
 
 export interface ApiErrorResponse {
@@ -138,13 +138,13 @@ export function formatRateLimitTime(resetAt: number): string {
  * Custom hook for API error handling
  */
 export function useApiError() {
-  const { toast } = useToast();
+  const { error, success } = useSweetAlert();
 
   /**
    * Handle API error and show appropriate toast
    */
-  const handleError = useCallback((error: any, customMessage?: string) => {
-    const parsed = parseApiError(error);
+  const handleError = useCallback((err: any, customMessage?: string) => {
+    const parsed = parseApiError(err);
 
     // Use custom message if provided, otherwise use parsed message
     const message = customMessage || parsed.message;
@@ -155,25 +155,18 @@ export function useApiError() {
       description += ` Try again in ${formatRateLimitTime(parsed.resetAt)}.`;
     }
 
-    // Show toast with appropriate variant
-    toast({
-      variant: 'destructive',
-      title: parsed.isAuthError ? 'Permission Denied' : 'Error',
-      description
-    });
+    // Show notification with appropriate title
+    error(parsed.isAuthError ? 'Permission Denied' : 'Error', description);
 
     return parsed;
-  }, [toast]);
+  }, [error]);
 
   /**
    * Handle API success and show toast
    */
   const handleSuccess = useCallback((message: string, description?: string) => {
-    toast({
-      title: message,
-      description
-    });
-  }, [toast]);
+    success(message, description);
+  }, [success]);
 
   /**
    * Fetch with error handling and retry logic

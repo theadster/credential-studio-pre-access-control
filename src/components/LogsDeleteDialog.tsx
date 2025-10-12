@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Trash2, Loader2 } from 'lucide-react';
-import { useToast } from '@/components/ui/use-toast';
+import { useSweetAlert } from '@/hooks/useSweetAlert';
 
 interface User {
   id: string;
@@ -23,7 +23,7 @@ interface LogsDeleteDialogProps {
 }
 
 export default function LogsDeleteDialog({ users, onDeleteSuccess, onDeleteStart, onDeleteEnd, children }: LogsDeleteDialogProps) {
-  const { toast } = useToast();
+  const { success, error, confirm } = useSweetAlert();
   const [isOpen, setIsOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -36,11 +36,31 @@ export default function LogsDeleteDialog({ users, onDeleteSuccess, onDeleteStart
 
   const handleDelete = async () => {
     if (!filters.beforeDate && !filters.action && !filters.userId) {
-      toast({
-        variant: "destructive",
-        title: "No filters selected",
-        description: "Please select at least one filter to prevent accidental deletion of all logs.",
-      });
+      error("No filters selected", "Please select at least one filter to prevent accidental deletion of all logs.");
+      return;
+    }
+
+    // Build confirmation message based on filters
+    let filterDescription = '';
+    const filterParts = [];
+    if (filters.beforeDate) filterParts.push(`before ${filters.beforeDate}`);
+    if (filters.action) filterParts.push(`of type "${filters.action}"`);
+    if (filters.userId) {
+      const user = users.find(u => u.id === filters.userId);
+      const userName = user ? (user.name || user.email) : 'selected user';
+      filterParts.push(`from ${userName}`);
+    }
+    filterDescription = filterParts.join(', ');
+
+    const confirmed = await confirm({
+      title: 'Delete Activity Logs',
+      text: `Are you sure you want to permanently delete all logs ${filterDescription}? This action cannot be undone.`,
+      icon: 'warning',
+      confirmButtonText: 'Delete Logs',
+      cancelButtonText: 'Cancel'
+    });
+
+    if (!confirmed) {
       return;
     }
 
@@ -79,10 +99,7 @@ export default function LogsDeleteDialog({ users, onDeleteSuccess, onDeleteStart
       // Show final count
       setDeletedCount(result.deletedCount);
       
-      toast({
-        title: "Success",
-        description: result.message,
-      });
+      success("Success", result.message);
 
       // Wait a moment to show results and let rate limits reset before closing
       setTimeout(() => {
@@ -102,13 +119,9 @@ export default function LogsDeleteDialog({ users, onDeleteSuccess, onDeleteStart
           onDeleteSuccess();
         }, 3000);
       }, 1500);
-    } catch (error: any) {
+    } catch (err: any) {
       clearInterval(timerInterval);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message,
-      });
+      error("Error", err.message);
       setIsDeleting(false);
       setElapsedTime(0);
       setDeletedCount(null);

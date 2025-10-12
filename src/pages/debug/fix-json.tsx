@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Textarea } from '@/components/ui/textarea';
 import { XCircle, AlertCircle, Loader2, Copy, Save } from 'lucide-react';
-import { useToast } from '@/components/ui/use-toast';
+import { useSweetAlert } from '@/hooks/useSweetAlert';
 import { apiFetch, ApiFetchError } from '@/lib/apiFetch';
 
 interface ErrorContext {
@@ -33,7 +33,7 @@ export default function FixSwitchboardJson() {
   const [saving, setSaving] = useState(false);
   const [data, setData] = useState<SwitchboardTemplateData | null>(null);
   const [editedJson, setEditedJson] = useState('');
-  const { toast } = useToast();
+  const { success, error } = useSweetAlert();
 
   const loadTemplate = useCallback(async () => {
     setLoading(true);
@@ -48,15 +48,11 @@ export default function FixSwitchboardJson() {
           ? err.message
           : 'Unknown error';
 
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: errorMessage
-      });
+      error('Error', errorMessage);
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [error]);
 
   const saveTemplate = async () => {
     setSaving(true);
@@ -67,10 +63,7 @@ export default function FixSwitchboardJson() {
         body: JSON.stringify({ requestBody: editedJson })
       });
 
-      toast({
-        title: 'Success',
-        description: 'Template saved successfully!'
-      });
+      success('Success', 'Template saved successfully!');
 
       // Reload to show updated data
       await loadTemplate();
@@ -81,11 +74,7 @@ export default function FixSwitchboardJson() {
           ? err.message
           : 'Unknown error';
 
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: errorMessage
-      });
+      error('Error', errorMessage);
     } finally {
       setSaving(false);
     }
@@ -95,33 +84,19 @@ export default function FixSwitchboardJson() {
     try {
       const parsed = JSON.parse(editedJson);
       setEditedJson(JSON.stringify(parsed, null, 2));
-      toast({
-        title: 'Success',
-        description: 'JSON formatted successfully!'
-      });
+      success('Success', 'JSON formatted successfully!');
     } catch (e) {
-      const error = e as Error;
-      toast({
-        variant: 'destructive',
-        title: 'Invalid JSON',
-        description: error.message
-      });
+      const err = e as Error;
+      error('Invalid JSON', err.message);
     }
   };
 
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      toast({
-        title: 'Copied',
-        description: 'Copied to clipboard'
-      });
+      success('Copied', 'Copied to clipboard');
     } catch (err) {
-      toast({
-        variant: 'destructive',
-        title: 'Failed to copy',
-        description: 'Unable to access clipboard'
-      });
+      error('Failed to copy', 'Unable to access clipboard');
     }
   };
 
@@ -137,10 +112,7 @@ export default function FixSwitchboardJson() {
       }
     };
     setEditedJson(JSON.stringify(example, null, 2));
-    toast({
-      title: 'Example Loaded',
-      description: 'You can now edit and save this template'
-    });
+    success('Example Loaded', 'You can now edit and save this template');
   };
 
   useEffect(() => {

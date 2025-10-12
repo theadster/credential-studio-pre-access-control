@@ -4,7 +4,7 @@ import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import { AuthContext } from '@/contexts/AuthContext';
 import Logo from '@/components/Logo';
-import { useToast } from "@/components/ui/use-toast";
+import { useSweetAlert } from "@/hooks/useSweetAlert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,7 +14,7 @@ const ForgotPasswordPage = () => {
   const router = useRouter();
   const { resetPassword } = useContext(AuthContext);
   const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
+  const { toast } = useSweetAlert();
 
   const validationSchema = Yup.object().shape({
     email: Yup.string().required("Email is required").email("Email is invalid"),

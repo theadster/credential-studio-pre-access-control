@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { useToast } from '@/components/ui/use-toast';
+import { useSweetAlert } from '@/hooks/useSweetAlert';
 import { Camera, X, Save, Loader2, User, Users, Hash, FileText, Link, ToggleLeft, Calendar, Mail, ChevronDown, Type, Hash as NumberIcon } from 'lucide-react';
 
 interface CustomFieldOptions {
@@ -90,7 +90,7 @@ export default function AttendeeForm({
   customFields,
   eventSettings
 }: AttendeeFormProps) {
-  const { toast } = useToast();
+  const { success, error } = useSweetAlert();
   const [loading, setLoading] = useState(false);
   const [isCloudinaryOpen, setIsCloudinaryOpen] = useState(false);
   const cloudinaryRef = useRef<CloudinaryInstance | null>(null);
@@ -172,24 +172,17 @@ export default function AttendeeForm({
           setIsCloudinaryOpen(false);
           if (!error && result && result.event === 'success') {
             setFormData(prev => ({ ...prev, photoUrl: result.info.secure_url }));
-            toast({
-              title: "Success",
-              description: "Photo uploaded successfully!",
-            });
+            success("Success", "Photo uploaded successfully!");
           } else if (error) {
             // Don't show an error toast if the user just closes the widget
             if (result && result.event !== 'close') {
-              toast({
-                variant: "destructive",
-                title: "Upload Error",
-                description: error?.message || "Failed to upload photo",
-              });
+              error("Upload Error", error?.message || "Failed to upload photo");
             }
           }
         }
       );
     }
-  }, [eventSettings, toast]);
+  }, [eventSettings, success, error]);
 
   // Create a stable representation of custom field IDs
   const customFieldIds = useMemo(() =>
@@ -203,21 +196,33 @@ export default function AttendeeForm({
       // Get current custom field IDs to filter out deleted fields
       const currentCustomFieldIds = new Set(customFields.map(cf => cf.id));
 
+      // Initialize custom field values from attendee data
+      const initialCustomFieldValues: Record<string, string> = {};
+      
+      // Load actual values from attendee
+      if (Array.isArray(attendee.customFieldValues)) {
+        attendee.customFieldValues.forEach((cfv: CustomFieldValue) => {
+          if (currentCustomFieldIds.has(cfv.customFieldId)) {
+            initialCustomFieldValues[cfv.customFieldId] = cfv.value;
+          }
+        });
+      }
+      
+      // Set defaults ONLY for fields that don't have values yet
+      customFields.forEach(field => {
+        if (field.fieldType === 'boolean' && !initialCustomFieldValues[field.id]) {
+          // Boolean fields without values default to 'no'
+          initialCustomFieldValues[field.id] = 'no';
+        }
+      });
+      
       setFormData({
         firstName: attendee.firstName || '',
         lastName: attendee.lastName || '',
         barcodeNumber: attendee.barcodeNumber || '',
         notes: attendee.notes || '',
         photoUrl: attendee.photoUrl || '',
-        customFieldValues: Array.isArray(attendee.customFieldValues)
-          ? attendee.customFieldValues.reduce((acc: Record<string, string>, cfv: CustomFieldValue) => {
-            // Only include custom field values for fields that still exist
-            if (currentCustomFieldIds.has(cfv.customFieldId)) {
-              acc[cfv.customFieldId] = cfv.value;
-            }
-            return acc;
-          }, {})
-          : {}
+        customFieldValues: initialCustomFieldValues
       });
     } else {
       // Reset form for new attendee
@@ -284,11 +289,7 @@ export default function AttendeeForm({
 
   const handleCloudinaryUpload = () => {
     if (!eventSettings?.cloudinaryCloudName || !eventSettings?.cloudinaryUploadPreset) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Cloudinary not configured. Please check event settings.",
-      });
+      error("Error", "Cloudinary not configured. Please check event settings.");
       return;
     }
 
@@ -296,11 +297,7 @@ export default function AttendeeForm({
       setIsCloudinaryOpen(true);
       widgetRef.current.open();
     } else {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Cloudinary widget not initialized. Please refresh the page.",
-      });
+      error("Error", "Cloudinary widget not initialized. Please refresh the page.");
     }
   };
 
@@ -335,37 +332,25 @@ export default function AttendeeForm({
     try {
       // Validate required fields
       if (!formData.firstName || !formData.lastName || !formData.barcodeNumber) {
-        toast({
-          variant: "destructive",
-          title: "Validation Error",
-          description: "Please fill in all required fields.",
-        });
+        error("Validation Error", "Please fill in all required fields.");
         return;
       }
 
       // Validate required custom fields
       for (const field of customFields) {
         if (field.required && !formData.customFieldValues[field.id]) {
-          toast({
-            variant: "destructive",
-            title: "Validation Error",
-            description: `${field.fieldName} is required.`,
-          });
+          error("Validation Error", `${field.fieldName} is required.`);
           return;
         }
       }
 
       // Prepare custom field values for API
-      // Only include values for custom fields that currently exist
-      const currentCustomFieldIds = new Set(customFields.map(cf => cf.id));
+      // Send all custom field values from formData
+      // The API will merge these with existing values to preserve any fields not in the form
       const customFieldValues = Object.entries(formData.customFieldValues)
-        .filter(([customFieldId, value]) => {
-          // Filter out empty values and deleted custom fields
-          return value && currentCustomFieldIds.has(customFieldId);
-        })
         .map(([customFieldId, value]) => ({
           customFieldId,
-          value
+          value: value || ''
         }));
 
       const attendeeData = {

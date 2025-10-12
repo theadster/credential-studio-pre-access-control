@@ -56,8 +56,8 @@ vi.mock('next/router', () => ({
   })),
 }));
 
-vi.mock('@/components/ui/use-toast', () => ({
-  useToast: vi.fn(() => ({
+vi.mock('@/hooks/useSweetAlert', () => ({
+  useSweetAlert: vi.fn(() => ({
     toast: vi.fn(),
   })),
 }));

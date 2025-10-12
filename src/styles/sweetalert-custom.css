@@ -1,0 +1,301 @@
+/* SweetAlert2 Custom Styling */
+
+/* Toast positioning and sizing */
+.swal2-container.swal2-top-end {
+  top: 1rem;
+  right: 1rem;
+}
+
+.swal2-popup.swal2-toast {
+  padding: 1rem;
+  border-radius: var(--radius);
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  min-width: 300px;
+  max-width: 400px;
+}
+
+/* Icon styling - let SweetAlert2 handle the icon rendering */
+.swal2-icon {
+  flex-shrink: 0;
+}
+
+/* Toast icons - inline with text */
+.swal2-popup.swal2-toast .swal2-icon {
+  margin: 0 1rem 0 0;
+}
+
+/* Customize icon colors to match theme */
+.swal2-icon.swal2-error {
+  border-color: hsl(var(--destructive));
+  color: hsl(var(--destructive));
+}
+
+.swal2-icon.swal2-error [class^='swal2-x-mark-line'] {
+  background-color: hsl(var(--destructive));
+}
+
+.swal2-icon.swal2-warning {
+  border-color: hsl(var(--warning));
+  color: hsl(var(--warning));
+}
+
+.swal2-icon.swal2-success {
+  border-color: hsl(var(--success));
+}
+
+.swal2-icon.swal2-success [class^='swal2-success-line'] {
+  background-color: hsl(var(--success));
+}
+
+.swal2-icon.swal2-success .swal2-success-ring {
+  border-color: hsl(var(--success));
+}
+
+.swal2-icon.swal2-info {
+  border-color: hsl(var(--info));
+  color: hsl(var(--info));
+}
+
+/* Center icon and title in modal dialogs */
+.swal2-popup:not(.swal2-toast) .swal2-header {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  margin-bottom: 1.5rem !important;
+}
+
+.swal2-popup:not(.swal2-toast) .swal2-icon {
+  margin: 0 auto 1rem auto !important;
+  position: static !important;
+  left: auto !important;
+  right: auto !important;
+  transform: none !important;
+}
+
+.swal2-popup:not(.swal2-toast) .swal2-title {
+  text-align: center;
+  width: 100%;
+  padding: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.swal2-popup:not(.swal2-toast) .swal2-html-container {
+  font-size: 1rem;
+  margin: 0.5rem 0 1rem 0;
+  padding: 0;
+}
+
+/* Toast title and content */
+.swal2-popup.swal2-toast .swal2-title {
+  font-size: 1rem;
+  font-weight: 600;
+  padding: 0;
+  margin: 0;
+}
+
+.swal2-popup.swal2-toast .swal2-html-container {
+  font-size: 0.875rem;
+  margin: 0.25rem 0 0 0;
+  padding: 0;
+}
+
+/* Button styling */
+.swal2-styled {
+  padding: 0.5rem 1rem;
+  border-radius: calc(var(--radius) - 2px);
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.swal2-styled:focus {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* Timer progress bar */
+.swal2-timer-progress-bar {
+  background: hsl(var(--primary));
+}
+
+/* Loading spinner */
+.swal2-loader {
+  border-color: hsl(var(--primary)) transparent hsl(var(--primary)) transparent;
+  animation: swal2-rotate-loading 1.5s linear infinite;
+  will-change: transform;
+}
+
+/* Confirmation dialog specific styles */
+.swal2-popup:not(.swal2-toast) {
+  padding: 1.5rem;
+  border-radius: var(--radius);
+}
+
+/* GPU-Accelerated Animations */
+.swal2-popup {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+/* Smooth entrance animation with elastic bounce */
+@keyframes swal2-show {
+  0% {
+    transform: scale(0.7) translateZ(0);
+    opacity: 0;
+  }
+  45% {
+    transform: scale(1.05) translateZ(0);
+    opacity: 1;
+  }
+  80% {
+    transform: scale(0.95) translateZ(0);
+  }
+  100% {
+    transform: scale(1) translateZ(0);
+    opacity: 1;
+  }
+}
+
+/* Smooth exit animation with fade and scale */
+@keyframes swal2-hide {
+  0% {
+    transform: scale(1) translateZ(0);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.5) translateZ(0);
+    opacity: 0;
+  }
+}
+
+/* Slide in from right for toast notifications */
+@keyframes swal2-toast-show {
+  0% {
+    transform: translateX(100%) translateZ(0);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(0) translateZ(0);
+    opacity: 1;
+  }
+}
+
+/* Slide out to right for toast notifications */
+@keyframes swal2-toast-hide {
+  0% {
+    transform: translateX(0) translateZ(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(100%) translateZ(0);
+    opacity: 0;
+  }
+}
+
+/* Fade in animation for backdrop */
+@keyframes swal2-backdrop-show {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 0.4;
+  }
+}
+
+/* Fade out animation for backdrop */
+@keyframes swal2-backdrop-hide {
+  0% {
+    opacity: 0.4;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Apply toast-specific animations */
+.swal2-popup.swal2-toast.swal2-show {
+  animation: swal2-toast-show 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.swal2-popup.swal2-toast.swal2-hide {
+  animation: swal2-toast-hide 0.2s cubic-bezier(0.7, 0, 0.84, 0);
+}
+
+/* Apply modal-specific animations */
+.swal2-popup:not(.swal2-toast).swal2-show {
+  animation: swal2-show 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.swal2-popup:not(.swal2-toast).swal2-hide {
+  animation: swal2-hide 0.15s cubic-bezier(0.7, 0, 0.84, 0);
+}
+
+/* Backdrop animations */
+.swal2-container.swal2-backdrop-show {
+  animation: swal2-backdrop-show 0.2s;
+}
+
+.swal2-container.swal2-backdrop-hide {
+  animation: swal2-backdrop-hide 0.15s;
+}
+
+/* Icon animations */
+.swal2-icon {
+  animation: swal2-icon-show 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes swal2-icon-show {
+  0% {
+    transform: scale(0) rotate(-45deg) translateZ(0);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.2) rotate(10deg) translateZ(0);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(0deg) translateZ(0);
+    opacity: 1;
+  }
+}
+
+/* Progress bar animation */
+.swal2-timer-progress-bar {
+  animation: swal2-timer-progress linear;
+}
+
+@keyframes swal2-timer-progress {
+  0% {
+    width: 100%;
+  }
+  100% {
+    width: 0%;
+  }
+}
+
+/* Loading spinner animation - optimized for GPU */
+@keyframes swal2-rotate-loading {
+  0% {
+    transform: rotate(0deg) translateZ(0);
+  }
+  100% {
+    transform: rotate(360deg) translateZ(0);
+  }
+}
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  .swal2-popup,
+  .swal2-icon,
+  .swal2-loader {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

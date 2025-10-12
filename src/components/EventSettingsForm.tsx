@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Plus, Trash2, Edit, Save, X, GripVertical, Type, Hash, Mail, Calendar, Link, List, CheckSquare, ToggleLeft, FileText, Settings, Eye } from "lucide-react";
 import { generateInternalFieldName } from "@/util/string";
-import { useToast } from "@/components/ui/use-toast";
+import { useSweetAlert } from "@/hooks/useSweetAlert";
 import { validateCustomFieldDeletion } from "@/lib/customFieldValidation";
 import {
   DndContext,
@@ -267,7 +267,7 @@ function SortableCustomField({ field, onEdit, onDelete }: SortableCustomFieldPro
 }
 
 export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettings }: EventSettingsFormProps) {
-  const { toast } = useToast();
+  const { success, error, info } = useSweetAlert();
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("general");
   const [formData, setFormData] = useState<EventSettings>({
@@ -390,16 +390,11 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
 
       await onSave(settingsData);
       onClose();
-      toast({
-        title: "Success",
-        description: eventSettings ? "Event settings updated successfully!" : "Event settings created successfully!",
-      });
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message || "Failed to save event settings",
-      });
+      // Success notification is now handled by the parent component (dashboard)
+    } catch (err: any) {
+      // Error notification is now handled by the parent component (dashboard)
+      // Just re-throw to let parent handle it
+      throw err;
     } finally {
       setLoading(false);
     }
@@ -515,19 +510,13 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
 
       if (window.confirm(confirmMessage)) {
         setCustomFields(prev => prev.filter(f => f.id !== fieldId));
-        toast({
-          title: "Field Deleted",
-          description: `Custom field "${fieldToDelete.fieldName}" has been deleted. Integration references have been cleaned up.`,
-        });
+        info("Field Deleted", `Custom field "${fieldToDelete.fieldName}" has been deleted. Integration references have been cleaned up.`);
       }
     } else {
       // Simple deletion without warnings
       if (window.confirm(`Are you sure you want to delete the field "${fieldToDelete.fieldName}"? This action cannot be undone.`)) {
         setCustomFields(prev => prev.filter(f => f.id !== fieldId));
-        toast({
-          title: "Field Deleted",
-          description: `Custom field "${fieldToDelete.fieldName}" has been deleted.`,
-        });
+        info("Field Deleted", `Custom field "${fieldToDelete.fieldName}" has been deleted.`);
       }
     }
   };
@@ -564,16 +553,11 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({ fieldOrders }),
-          }).catch(error => {
-            console.error('Error saving field order:', error);
-            toast({
-              variant: "destructive",
-              title: "Error",
-              description: "Failed to save field order. Please try again.",
-            });
+          }).catch((err) => {
+            console.error('Error saving field order:', err);
+            error("Error", "Failed to save field order. Please try again.");
           });
         }
-
         return updatedItems;
       });
     }
@@ -1368,23 +1352,12 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                                     const result = await response.json();
 
                                     if (result.success) {
-                                      toast({
-                                        title: "Connection Successful",
-                                        description: "Switchboard Canvas API is responding correctly",
-                                      });
+                                      success("Connection Successful", "Switchboard Canvas API is responding correctly");
                                     } else {
-                                      toast({
-                                        variant: "destructive",
-                                        title: "Connection Failed",
-                                        description: `API returned ${result.status}: ${JSON.stringify(result.response)}`,
-                                      });
+                                      error("Connection Failed", `API returned ${result.status}: ${JSON.stringify(result.response)}`);
                                     }
-                                  } catch (error) {
-                                    toast({
-                                      variant: "destructive",
-                                      title: "Test Failed",
-                                      description: "Failed to test Switchboard Canvas connection",
-                                    });
+                                  } catch (err) {
+                                    error("Test Failed", "Failed to test Switchboard Canvas connection");
                                   }
                                 }}
                               >

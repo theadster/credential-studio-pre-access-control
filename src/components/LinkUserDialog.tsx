@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { useToast } from '@/components/ui/use-toast';
+import { useSweetAlert } from '@/hooks/useSweetAlert';
 import { Loader2, UserCheck, Link as LinkIcon, Mail, Calendar, Users } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -34,7 +34,7 @@ interface LinkUserDialogProps {
 }
 
 export default function LinkUserDialog({ isOpen, onClose, onLink, roles }: LinkUserDialogProps) {
-  const { toast } = useToast();
+  const { success, error } = useSweetAlert();
   const [loading, setLoading] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [availableUsers, setAvailableUsers] = useState<AvailableUser[]>([]);
@@ -54,28 +54,34 @@ export default function LinkUserDialog({ isOpen, onClose, onLink, roles }: LinkU
 
   const fetchAvailableUsers = async () => {
     setLoadingUsers(true);
+    let errorMessage: string | null = null;
+
     try {
       const response = await fetch('/api/users/available');
       if (response.ok) {
         const data = await response.json();
         setAvailableUsers(data.users || []);
       } else {
-        const error = await response.json();
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: error.error || "Failed to fetch available users",
-        });
+        // Extract error message from response
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || "Failed to fetch available users";
+        } catch {
+          // If JSON parsing fails, use generic message
+          errorMessage = "Failed to fetch available users";
+        }
       }
-    } catch (error) {
-      console.error('Error fetching available users:', error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to fetch available users",
-      });
+    } catch (err) {
+      console.error('Error fetching available users:', err);
+      // Extract error message from caught error
+      errorMessage = err instanceof Error ? err.message : "Failed to fetch available users";
     } finally {
       setLoadingUsers(false);
+
+      // Consolidated error display
+      if (errorMessage) {
+        error("Error", errorMessage);
+      }
     }
   };
 
@@ -86,20 +92,12 @@ export default function LinkUserDialog({ isOpen, onClose, onLink, roles }: LinkU
     try {
       // Validation
       if (!selectedUserId) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Please select a user to link",
-        });
+        error("Error", "Please select a user to link");
         return;
       }
 
       if (!selectedRoleId) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Please select a role for the user",
-        });
+        error("Error", "Please select a role for the user");
         return;
       }
 
@@ -118,7 +116,7 @@ export default function LinkUserDialog({ isOpen, onClose, onLink, roles }: LinkU
 
       if (response.ok) {
         const data = await response.json();
-        
+
         // Show success message with team membership status
         let description = `User ${data.user.email} has been linked successfully`;
         if (data.teamMembership) {
@@ -128,28 +126,17 @@ export default function LinkUserDialog({ isOpen, onClose, onLink, roles }: LinkU
             description += `, but team membership failed: ${data.teamMembership.error}`;
           }
         }
-        
-        toast({
-          title: "Success",
-          description,
-        });
+
+        success("Success", description);
         await onLink();
         onClose();
       } else {
-        const error = await response.json();
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: error.error || "Failed to link user",
-        });
+        const errorData = await response.json();
+        error("Error", errorData.error || "Failed to link user");
       }
-    } catch (error: any) {
-      console.error('Error linking user:', error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to link user. Please try again.",
-      });
+    } catch (err: any) {
+      console.error('Error linking user:', err);
+      error("Error", "Failed to link user. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -226,8 +213,8 @@ export default function LinkUserDialog({ isOpen, onClose, onLink, roles }: LinkU
 
             <div className="space-y-2">
               <Label htmlFor="role-link">Assign Role *</Label>
-              <Select 
-                value={selectedRoleId} 
+              <Select
+                value={selectedRoleId}
                 onValueChange={(value) => {
                   setSelectedRoleId(value);
                 }}

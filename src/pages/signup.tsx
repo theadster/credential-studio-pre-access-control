@@ -6,7 +6,7 @@ import { AuthContext } from '@/contexts/AuthContext';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import GoogleButton from '@/components/GoogleButton';
 import Logo from '@/components/Logo';
-import { useToast } from "@/components/ui/use-toast";
+import { useSweetAlert } from "@/hooks/useSweetAlert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,7 +18,7 @@ const SignUpPage = () => {
   const { initializing } = useContext(AuthContext);
   const [showPw, setShowPw] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
+  const { toast } = useSweetAlert();
 
   interface FormValues {
     email: string;

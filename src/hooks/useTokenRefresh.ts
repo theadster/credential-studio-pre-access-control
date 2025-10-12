@@ -1,5 +1,5 @@
 import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/components/ui/use-toast';
+import { useSweetAlert } from '@/hooks/useSweetAlert';
 import { useRouter } from 'next/router';
 
 /**
@@ -8,7 +8,7 @@ import { useRouter } from 'next/router';
  */
 export function useTokenRefresh() {
   const { refreshToken, isTokenRefreshing, user } = useAuth();
-  const { toast } = useToast();
+  const { error } = useSweetAlert();
   const router = useRouter();
 
   /**
@@ -43,12 +43,7 @@ export function useTokenRefresh() {
     if (!success) {
       console.error('[useTokenRefresh] Token refresh failed');
 
-      toast({
-        variant: "destructive",
-        title: "Session Error",
-        description: "Your session has expired. Please log in again.",
-        duration: 5000,
-      });
+      error("Session Error", "Your session has expired. Please log in again.");
 
       // Preserve current URL for post-login redirect
       if (typeof window !== 'undefined' && window.sessionStorage) {

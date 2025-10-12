@@ -115,14 +115,29 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     // Add ordering
     queries.push(Query.orderDesc('$createdAt'));
 
-    // Fetch attendees
-    const attendeesResult = await databases.listDocuments(
-      dbId,
-      attendeesCollectionId,
-      queries
-    );
+    // Fetch all attendees with pagination
+    let attendees: any[] = [];
+    let offset = 0;
+    const limit = 100; // Fetch in batches of 100
+    let hasMore = true;
 
-    let attendees = attendeesResult.documents;
+    while (hasMore) {
+      const paginatedQueries = [
+        ...queries,
+        Query.limit(limit),
+        Query.offset(offset)
+      ];
+
+      const attendeesResult = await databases.listDocuments(
+        dbId,
+        attendeesCollectionId,
+        paginatedQueries
+      );
+
+      attendees = attendees.concat(attendeesResult.documents);
+      offset += limit;
+      hasMore = attendeesResult.documents.length === limit;
+    }
 
     // Apply custom field filters in memory if needed
     if (scope === 'filtered' && filters?.advancedFilters?.customFields) {

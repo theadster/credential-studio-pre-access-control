@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/components/ui/use-toast';
+import { useSweetAlert } from '@/hooks/useSweetAlert';
 import {
   Settings,
   Users,
@@ -69,7 +69,7 @@ interface LogSettingsDialogProps {
 }
 
 const LogSettingsDialog: React.FC<LogSettingsDialogProps> = ({ children, onSettingsUpdate }) => {
-  const { toast } = useToast();
+  const { success, error } = useSweetAlert();
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -94,12 +94,8 @@ const LogSettingsDialog: React.FC<LogSettingsDialogProps> = ({ children, onSetti
       } else {
         throw new Error('Failed to load log settings');
       }
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message || "Failed to load log settings",
-      });
+    } catch (err: any) {
+      error("Error", err.message || "Failed to load log settings");
     } finally {
       setLoading(false);
     }
@@ -127,10 +123,7 @@ const LogSettingsDialog: React.FC<LogSettingsDialogProps> = ({ children, onSetti
       setSettings(updatedSettings);
       setOriginalSettings(updatedSettings);
 
-      toast({
-        title: "Success",
-        description: "Log settings updated successfully!",
-      });
+      success("Success", "Log settings updated successfully!");
 
       if (onSettingsUpdate) {
         onSettingsUpdate();
@@ -138,12 +131,8 @@ const LogSettingsDialog: React.FC<LogSettingsDialogProps> = ({ children, onSetti
 
       // Close the dialog after successful save
       setIsOpen(false);
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message,
-      });
+    } catch (err: any) {
+      error("Error", err.message);
     } finally {
       setSaving(false);
     }

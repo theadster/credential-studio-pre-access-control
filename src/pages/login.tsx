@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { AuthContext } from '@/contexts/AuthContext';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import Logo from '@/components/Logo';
-import { useToast } from "@/components/ui/use-toast";
+import { useSweetAlert } from "@/hooks/useSweetAlert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,7 +22,7 @@ const LoginPage = () => {
   const [showPw, setShowPw] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [signInBannerUrl, setSignInBannerUrl] = useState<string | null>(null);
-  const { toast } = useToast();
+  const { toast } = useSweetAlert();
 
   // Fetch event settings to get the sign-in banner URL
   useEffect(() => {

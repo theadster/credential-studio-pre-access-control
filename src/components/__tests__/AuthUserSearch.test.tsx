@@ -3,8 +3,8 @@ import { render, screen, waitFor } from '@testing-library/react';
 import AuthUserSearch from '../AuthUserSearch';
 
 // Mock the toast hook
-vi.mock('@/components/ui/use-toast', () => ({
-  useToast: () => ({
+vi.mock('@/hooks/useSweetAlert', () => ({
+  useSweetAlert: () => ({
     toast: vi.fn(),
   }),
 }));

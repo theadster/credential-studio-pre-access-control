@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/components/ui/use-toast';
+import { useSweetAlert } from '@/hooks/useSweetAlert';
 import { Download, FileSpreadsheet, Activity, Filter, Calendar, Users, Clock } from 'lucide-react';
 
 interface User {
@@ -42,7 +42,7 @@ export default function LogsExportDialog({
   totalLogs,
   currentFilters
 }: LogsExportDialogProps) {
-  const { toast } = useToast();
+  const { success, error } = useSweetAlert();
   const [open, setOpen] = useState(false);
   const [exportScope, setExportScope] = useState<'all' | 'filtered' | 'custom'>('all');
   const [selectedFields, setSelectedFields] = useState<string[]>([
@@ -206,18 +206,11 @@ export default function LogsExportDialog({
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
 
-      toast({
-        title: "Export Complete",
-        description: `Successfully exported activity logs to CSV format.`,
-      });
+      success("Export Complete", "Successfully exported activity logs to CSV format.");
 
       setOpen(false);
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Export Failed",
-        description: error.message || "An error occurred while exporting data.",
-      });
+    } catch (err: any) {
+      error("Export Failed", err.message || "An error occurred while exporting data.");
     } finally {
       setIsExporting(false);
     }

@@ -54,7 +54,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { useToast } from "@/components/ui/use-toast";
+import { useSweetAlert } from "@/hooks/useSweetAlert";
+import { showProgressModal, closeProgressModal } from "@/lib/sweetalert-progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import AttendeeForm from "@/components/AttendeeForm";
@@ -167,7 +168,33 @@ interface Log {
 
 export default function Dashboard() {
   const { user, signOut } = useAuth();
-  const { toast } = useToast();
+  const { toast, success, error, warning, info, confirm, alert, loading: showLoading, close } = useSweetAlert();
+
+  // Helper function to format action names for display
+  const formatActionName = (action: string): string => {
+    // Handle special cases
+    const specialCases: Record<string, string> = {
+      'delete_logs': 'Delete Logs',
+      'bulk_update': 'Bulk Update',
+      'bulk_delete': 'Bulk Delete',
+      'login': 'Log In',
+      'auth_login': 'Log In',
+      'logout': 'Log Out',
+      'auth_logout': 'Log Out',
+      'generate_credential': 'Generate Credential',
+      'clear_credential': 'Clear Credential',
+      'bulk_export': 'Bulk Export',
+      'bulk_import': 'Bulk Import',
+    };
+
+    if (specialCases[action]) {
+      return specialCases[action];
+    }
+
+    // Default: split by underscore and capitalize each word
+    return action.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  };
+
   const [activeTab, setActiveTab] = useState("attendees");
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -228,16 +255,11 @@ export default function Dashboard() {
   const [showBulkEdit, setShowBulkEdit] = useState(false);
   const [bulkEditChanges, setBulkEditChanges] = useState<{ [key: string]: any }>({});
   const [isBulkEditing, setIsBulkEditing] = useState(false);
-  const [attendeeToDelete, setAttendeeToDelete] = useState<Attendee | null>(null);
   const [dropdownStates, setDropdownStates] = useState<{ [key: string]: boolean }>({});
   const [selectedAttendees, setSelectedAttendees] = useState<string[]>([]);
   const [exportingPdfs, setExportingPdfs] = useState(false);
-  const [showPdfGenerationModal, setShowPdfGenerationModal] = useState(false);
-  const [showCredentialGenerationModal, setShowCredentialGenerationModal] = useState(false);
-  const [credentialGenerationAttendeeName, setCredentialGenerationAttendeeName] = useState('');
   const [bulkGeneratingCredentials, setBulkGeneratingCredentials] = useState(false);
-  const [showBulkCredentialModal, setShowBulkCredentialModal] = useState(false);
-  const [bulkCredentialProgress, setBulkCredentialProgress] = useState({ current: 0, total: 0, currentName: '' });
+  const [isDark, setIsDark] = useState(false);
 
   const refreshAttendees = useCallback(async () => {
     try {
@@ -347,6 +369,23 @@ export default function Dashboard() {
     return tabs;
   };
 
+  // Dark mode detection
+  useEffect(() => {
+    const checkDarkMode = () => {
+      setIsDark(document.documentElement.classList.contains('dark'));
+    };
+
+    checkDarkMode();
+
+    const observer = new MutationObserver(checkDarkMode);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
   // Redirect to first available tab if current tab is not accessible
   useEffect(() => {
     if (currentUser?.role) {
@@ -386,6 +425,12 @@ export default function Dashboard() {
   // Load real data from APIs
   useEffect(() => {
     const loadData = async () => {
+      // Show loading notification
+      showLoading({
+        title: "Loading Dashboard",
+        text: "Please wait while we load your data..."
+      });
+
       try {
         // Load users
         const usersResponse = await fetch('/api/users');
@@ -426,8 +471,15 @@ export default function Dashboard() {
 
         // Load logs with pagination
         await loadLogs();
-      } catch (error) {
-        console.error('Error loading data:', error);
+
+        // Close loading and show success
+        close();
+        success("Dashboard Loaded", "All data loaded successfully!");
+      } catch (err) {
+        console.error('Error loading data:', err);
+        // Close loading and show error
+        close();
+        error("Loading Failed", "Failed to load dashboard data. Using fallback data.");
         // Fall back to mock data if API fails
         loadMockData();
       } finally {
@@ -668,7 +720,7 @@ export default function Dashboard() {
    * 
    * @returns Array of custom fields where showOnMainPage !== false
    */
-  const visibleCustomFields = useMemo(() => 
+  const visibleCustomFields = useMemo(() =>
     eventSettings?.customFields?.filter(
       (field: any) => field.showOnMainPage !== false // Only exclude if explicitly false
     ) || [],
@@ -956,6 +1008,12 @@ export default function Dashboard() {
 
   // API Functions
   const handleSaveAttendee = async (attendeeData: any) => {
+    // Show loading notification
+    showLoading({
+      title: editingAttendee ? "Updating Attendee" : "Creating Attendee",
+      text: "Please wait..."
+    });
+
     try {
       const url = editingAttendee
         ? `/api/attendees/${editingAttendee.id}`
@@ -972,38 +1030,46 @@ export default function Dashboard() {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to save attendee');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to save attendee');
       }
 
       const savedAttendee = await response.json();
 
       if (editingAttendee) {
         setAttendees(prev => prev.map(a => a.id === editingAttendee.id ? savedAttendee : a));
-        toast({
-          title: "Success",
-          description: "Attendee updated successfully!",
-        });
+        close();
+        success("Success", "Attendee updated successfully!");
       } else {
         setAttendees(prev => [savedAttendee, ...prev]);
-        toast({
-          title: "Success",
-          description: "Attendee created successfully!",
-        });
+        close();
+        success("Success", "Attendee created successfully!");
       }
 
       setEditingAttendee(null);
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message,
-      });
-      throw error;
+    } catch (err: any) {
+      close();
+      error("Error", err.message);
+      throw err;
     }
   };
 
   const handleDeleteAttendee = async (attendeeId: string) => {
+    const attendee = attendees.find(a => a.id === attendeeId);
+    const attendeeName = attendee ? `${attendee.firstName} ${attendee.lastName}` : 'this attendee';
+
+    const confirmed = await confirm({
+      title: 'Delete Attendee',
+      text: `Are you sure you want to delete ${attendeeName}? This action cannot be undone.`,
+      icon: 'warning',
+      confirmButtonText: 'Delete',
+      cancelButtonText: 'Cancel'
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
     try {
       const response = await fetch(`/api/attendees/${attendeeId}`, {
         method: 'DELETE',
@@ -1015,16 +1081,9 @@ export default function Dashboard() {
       }
 
       setAttendees(prev => prev.filter(a => a.id !== attendeeId));
-      toast({
-        title: "Success",
-        description: "Attendee deleted successfully!",
-      });
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message,
-      });
+      success("Success", "Attendee deleted successfully!");
+    } catch (err: any) {
+      error("Error", err.message || "Failed to delete attendee");
     }
   };
 
@@ -1033,9 +1092,17 @@ export default function Dashboard() {
     const attendee = attendees.find(a => a.id === attendeeId);
     const attendeeName = attendee ? `${attendee.firstName} ${attendee.lastName}` : 'attendee';
 
-    setCredentialGenerationAttendeeName(attendeeName);
     setGeneratingCredential(attendeeId);
-    setShowCredentialGenerationModal(true);
+
+    // Show SweetAlert2 progress modal
+    const updateProgress = showProgressModal(isDark);
+    updateProgress({
+      title: 'Generating Credential',
+      text: `Processing credential for ${attendeeName}...`,
+      current: 0,
+      total: 1,
+      currentItemName: attendeeName
+    });
 
     try {
       const response = await fetch(`/api/attendees/${attendeeId}/generate-credential`, {
@@ -1061,25 +1128,39 @@ export default function Dashboard() {
           : a
       ));
 
+      // Close progress modal
+      closeProgressModal();
+
       // Open the generated credential in a new tab
       if (result.credentialUrl) {
         window.open(result.credentialUrl, '_blank');
       }
 
-      toast({
-        title: "Success",
-        description: "Credential generated successfully!",
-      });
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message,
+      success("Success", "Credential generated successfully!");
+    } catch (err: any) {
+      closeProgressModal();
+
+      // Get attendee name for error message
+      const attendee = attendees.find(a => a.id === attendeeId);
+      const attendeeName = attendee ? `${attendee.firstName} ${attendee.lastName}` : 'Unknown Attendee';
+
+      // Show detailed error modal that requires acknowledgment
+      await alert({
+        title: 'Credential Generation Failed',
+        html: `
+          <div style="text-align: left;">
+            <p style="margin-bottom: 12px;"><strong>Attendee:</strong> ${attendeeName}</p>
+            <p style="margin-bottom: 12px;"><strong>Error:</strong></p>
+            <p style="color: #ef4444; font-family: monospace; font-size: 0.9em; background: #fee; padding: 8px; border-radius: 4px; word-break: break-word;">
+              ${err.message || 'Failed to generate credential'}
+            </p>
+          </div>
+        `,
+        icon: 'error',
+        confirmButtonText: 'OK, I Understand'
       });
     } finally {
       setGeneratingCredential(null);
-      setShowCredentialGenerationModal(false);
-      setCredentialGenerationAttendeeName('');
     }
   };
 
@@ -1101,16 +1182,9 @@ export default function Dashboard() {
           : a
       ));
 
-      toast({
-        title: "Success",
-        description: "Credential cleared successfully!",
-      });
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message,
-      });
+      success("Success", "Credential cleared successfully!");
+    } catch (err: any) {
+      error("Error", err.message || "Failed to clear credential");
     }
   };
 
@@ -1133,16 +1207,9 @@ export default function Dashboard() {
         window.open(result.credential.imageUrl, '_blank');
       }
 
-      toast({
-        title: "Success",
-        description: "Credential generated successfully!",
-      });
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message,
-      });
+      success("Success", "Credential generated successfully!");
+    } catch (err: any) {
+      error("Error", err.message || "Failed to generate credential");
     } finally {
       setPrintingAttendee(null);
     }
@@ -1170,16 +1237,9 @@ export default function Dashboard() {
         setRoles(Array.isArray(rolesData) ? rolesData : []);
       }
 
-      toast({
-        title: "Success",
-        description: "Roles initialized successfully!",
-      });
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message,
-      });
+      success("Success", "Roles initialized successfully!");
+    } catch (err: any) {
+      error("Error", err.message || "Failed to initialize roles");
     } finally {
       setInitializingRoles(false);
     }
@@ -1210,30 +1270,35 @@ export default function Dashboard() {
 
       if (editingRole) {
         setRoles(prev => prev.map(r => r.id === editingRole.id ? savedRole : r));
-        toast({
-          title: "Success",
-          description: "Role updated successfully!",
-        });
+        success("Success", "Role updated successfully!");
       } else {
         setRoles(prev => [savedRole, ...prev]);
-        toast({
-          title: "Success",
-          description: "Role created successfully!",
-        });
+        success("Success", "Role created successfully!");
       }
 
       setEditingRole(null);
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message,
-      });
-      throw error;
+    } catch (err: any) {
+      error("Error", err.message || "Failed to save role");
+      throw err;
     }
   };
 
   const handleDeleteRole = async (roleId: string) => {
+    const role = roles.find(r => r.id === roleId);
+    const roleName = role ? role.name : 'this role';
+
+    const confirmed = await confirm({
+      title: 'Delete Role',
+      text: `Are you sure you want to delete the "${roleName}" role? This action cannot be undone.`,
+      icon: 'warning',
+      confirmButtonText: 'Delete',
+      cancelButtonText: 'Cancel'
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
     try {
       const response = await fetch(`/api/roles/${roleId}`, {
         method: 'DELETE',
@@ -1245,21 +1310,20 @@ export default function Dashboard() {
       }
 
       setRoles(prev => prev.filter(r => r.id !== roleId));
-      toast({
-        title: "Success",
-        description: "Role deleted successfully!",
-      });
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message,
-      });
+      success("Success", "Role deleted successfully!");
+    } catch (err: any) {
+      error("Error", err.message || "Failed to delete role");
     }
   };
 
   // Event Settings Functions
   const handleSaveEventSettings = async (settingsData: any) => {
+    // Show loading notification
+    showLoading({
+      title: eventSettings ? "Updating Settings" : "Creating Settings",
+      text: "Please wait while we save your changes..."
+    });
+
     try {
       const url = eventSettings
         ? `/api/event-settings`
@@ -1276,28 +1340,23 @@ export default function Dashboard() {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to save event settings');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to save event settings');
       }
 
       // Don't set the state immediately, instead refresh to get the latest data
       // This ensures we get the updated `updatedAt` timestamp from the database
       await refreshEventSettings();
-      
+
       // Also refresh attendees to pick up custom field visibility changes
       await refreshAttendees();
 
-      toast({
-        title: "Success",
-        description: eventSettings ? "Event settings updated successfully!" : "Event settings created successfully!",
-      });
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message,
-      });
-      throw error;
+      close();
+      success("Success", eventSettings ? "Event settings updated successfully!" : "Event settings created successfully!");
+    } catch (err: any) {
+      close();
+      error("Error", err.message);
+      throw err;
     }
   };
 
@@ -1331,10 +1390,7 @@ export default function Dashboard() {
 
       if (editingUser) {
         setUsers(prev => prev.map(u => u.id === editingUser.id ? savedUser : u));
-        toast({
-          title: "Success",
-          description: "User updated successfully!",
-        });
+        success("Success", "User updated successfully!");
       } else {
         // Handle new user linking response
         setUsers(prev => [savedUser, ...prev]);
@@ -1342,22 +1398,12 @@ export default function Dashboard() {
         // Check team membership status and display appropriate message
         if (savedUser.teamMembership) {
           if (savedUser.teamMembership.status === 'success') {
-            toast({
-              title: "Success",
-              description: "User linked successfully and added to team!",
-            });
+            success("Success", "User linked successfully and added to team!");
           } else if (savedUser.teamMembership.status === 'failed') {
-            toast({
-              title: "Warning",
-              description: `User linked successfully, but team membership failed: ${savedUser.teamMembership.error || 'Unknown error'}`,
-              variant: "default",
-            });
+            warning("Warning", `User linked successfully, but team membership failed: ${savedUser.teamMembership.error || 'Unknown error'}`);
           }
         } else {
-          toast({
-            title: "Success",
-            description: "User linked successfully!",
-          });
+          success("Success", "User linked successfully!");
         }
       }
 
@@ -1365,13 +1411,9 @@ export default function Dashboard() {
 
       // Refresh user list to ensure we have the latest data
       await refreshUsers();
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message,
-      });
-      throw error;
+    } catch (err: any) {
+      error("Error", err.message || "Failed to save user");
+      throw err;
     }
   };
 
@@ -1391,16 +1433,9 @@ export default function Dashboard() {
       }
 
       setUsers(prev => prev.filter(u => u.id !== userId));
-      toast({
-        title: "Success",
-        description: "User deleted successfully!",
-      });
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message,
-      });
+      success("Success", "User deleted successfully!");
+    } catch (err: any) {
+      error("Error", err.message || "Failed to delete user");
     }
   };
 
@@ -1504,23 +1539,36 @@ export default function Dashboard() {
         document.body.removeChild(a);
         window.URL.revokeObjectURL(url);
 
-        toast({
-          title: "Export Complete",
-          description: "Activity logs have been exported successfully.",
-        });
+        success("Export Complete", "Activity logs have been exported successfully.");
       }
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Export Failed",
-        description: error.message,
-      });
+    } catch (err: any) {
+      error("Export Failed", err.message || "Failed to export logs");
     }
   };
 
   // Bulk Delete Functions
   const handleBulkDelete = async () => {
+    const count = selectedAttendees.length;
+    const confirmed = await confirm({
+      title: 'Delete Multiple Attendees',
+      text: `Are you sure you want to delete ${count} attendee${count !== 1 ? 's' : ''}? This action cannot be undone.`,
+      icon: 'warning',
+      confirmButtonText: 'Delete All',
+      cancelButtonText: 'Cancel'
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
     setBulkDeleting(true);
+
+    // Show loading notification
+    showLoading({
+      title: "Deleting Attendees",
+      text: `Deleting ${count} attendee${count !== 1 ? 's' : ''}...`
+    });
+
     try {
       const attendeeIds = selectedAttendees;
 
@@ -1533,8 +1581,8 @@ export default function Dashboard() {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to delete attendees');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete attendees');
       }
 
       const result = await response.json();
@@ -1543,16 +1591,14 @@ export default function Dashboard() {
       setAttendees(prev => prev.filter(a => !attendeeIds.includes(a.id)));
       setSelectedAttendees([]);
 
-      toast({
-        title: "Success",
-        description: `Successfully deleted ${result.deletedCount} attendees.`,
-      });
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message,
-      });
+      // Reset to page 1 to avoid being on a page that no longer exists
+      setCurrentPage(1);
+
+      close();
+      success("Success", `Successfully deleted ${result.deletedCount} attendees.`);
+    } catch (err: any) {
+      close();
+      error("Error", err.message);
     } finally {
       setBulkDeleting(false);
     }
@@ -1560,11 +1606,7 @@ export default function Dashboard() {
 
   const handleBulkExportPdf = async () => {
     if (selectedAttendees.length === 0) {
-      toast({
-        title: "No Selection",
-        description: "Please select attendees to export PDFs for.",
-        variant: "destructive",
-      });
+      error("No Selection", "Please select attendees to export PDFs for.");
       return;
     }
 
@@ -1578,14 +1620,35 @@ export default function Dashboard() {
     );
 
     if (attendeesWithoutCredentials.length > 0) {
-      const attendeeNames = attendeesWithoutCredentials.map(attendee =>
-        `${attendee.firstName} ${attendee.lastName}`
-      ).join(', ');
+      const attendeeList = attendeesWithoutCredentials
+        .slice(0, 5)
+        .map(attendee => `<li>${attendee.firstName} ${attendee.lastName}</li>`)
+        .join('');
+      const moreCount = attendeesWithoutCredentials.length > 5
+        ? `<li style="color: #6b7280; margin-top: 8px;">...and ${attendeesWithoutCredentials.length - 5} more</li>`
+        : '';
 
-      toast({
-        title: "Missing Credentials",
-        description: `Cannot export PDFs for attendees without generated credentials: ${attendeeNames}. Please generate credentials first using the "Generate Credential" action.`,
-        variant: "destructive",
+      await alert({
+        title: 'Missing Credentials',
+        html: `
+          <div style="text-align: left;">
+            <p style="margin-bottom: 16px;">
+              Cannot export PDFs for attendees without generated credentials.
+            </p>
+            <div style="background: #fee; padding: 12px; border-radius: 6px;">
+              <p style="margin-bottom: 8px; font-weight: 600;">Attendees without credentials:</p>
+              <ul style="margin: 0; padding-left: 20px; font-size: 0.9em; max-height: 200px; overflow-y: auto;">
+                ${attendeeList}
+                ${moreCount}
+              </ul>
+            </div>
+            <p style="margin-top: 16px; font-size: 0.9em; color: #6b7280;">
+              Please generate credentials first using the "Generate Credential" action.
+            </p>
+          </div>
+        `,
+        icon: 'error',
+        confirmButtonText: 'OK, I Understand'
       });
       return;
     }
@@ -1596,16 +1659,32 @@ export default function Dashboard() {
     );
 
     if (attendeesWithCredentials.length === 0) {
-      toast({
-        title: "No Credentials",
-        description: "None of the selected attendees have generated credentials.",
-        variant: "destructive",
+      await alert({
+        title: 'No Credentials',
+        html: `
+          <div style="text-align: left;">
+            <p>None of the selected attendees have generated credentials.</p>
+            <p style="margin-top: 12px; font-size: 0.9em; color: #6b7280;">
+              Please generate credentials first using the "Generate Credential" action.
+            </p>
+          </div>
+        `,
+        icon: 'error',
+        confirmButtonText: 'OK'
       });
       return;
     }
 
     setExportingPdfs(true);
-    setShowPdfGenerationModal(true);
+
+    // Show SweetAlert2 progress modal
+    const updateProgress = showProgressModal(isDark);
+    updateProgress({
+      title: 'Exporting PDFs',
+      text: `Generating PDF for ${attendeesWithCredentials.length} attendee${attendeesWithCredentials.length === 1 ? '' : 's'}...`,
+      current: 1,
+      total: 1,
+    });
 
     try {
       const response = await fetch('/api/attendees/bulk-export-pdf', {
@@ -1623,24 +1702,72 @@ export default function Dashboard() {
 
         // Handle missing credentials error specifically
         if (errorData.errorType === 'missing_credentials') {
-          const missingNames = errorData.attendeesWithoutCredentials?.join(', ') || 'some attendees';
-          toast({
-            title: "Missing Credentials Warning",
-            description: `The following attendees do not have generated credentials and cannot be included in PDF export: ${missingNames}. Please generate their credentials using the "Generate Credential" action and try again.`,
-            variant: "destructive",
-            duration: 10000, // Show longer for this important warning
+          const missingAttendees = errorData.attendeesWithoutCredentials || [];
+          const attendeeList = missingAttendees
+            .slice(0, 5)
+            .map((name: string) => `<li>${name}</li>`)
+            .join('');
+          const moreCount = missingAttendees.length > 5
+            ? `<li style="color: #6b7280; margin-top: 8px;">...and ${missingAttendees.length - 5} more</li>`
+            : '';
+
+          await alert({
+            title: 'Missing Credentials',
+            html: `
+              <div style="text-align: left;">
+                <p style="margin-bottom: 16px;">
+                  The following attendees do not have generated credentials and cannot be included in PDF export.
+                </p>
+                <div style="background: #fee; padding: 12px; border-radius: 6px;">
+                  <p style="margin-bottom: 8px; font-weight: 600;">Attendees without credentials:</p>
+                  <ul style="margin: 0; padding-left: 20px; font-size: 0.9em; max-height: 200px; overflow-y: auto;">
+                    ${attendeeList}
+                    ${moreCount}
+                  </ul>
+                </div>
+                <p style="margin-top: 16px; font-size: 0.9em; color: #6b7280;">
+                  Please generate their credentials using the "Generate Credential" action and try again.
+                </p>
+              </div>
+            `,
+            icon: 'error',
+            confirmButtonText: 'OK, I Understand'
           });
           return;
         }
 
         // Handle outdated credentials error specifically
         if (errorData.errorType === 'outdated_credentials') {
-          const outdatedNames = errorData.attendeesWithOutdatedCredentials?.join(', ') || 'some attendees';
-          toast({
-            title: "Outdated Credentials Warning",
-            description: `The following attendees have outdated credentials that need to be regenerated before PDF export: ${outdatedNames}. Please regenerate their credentials using the "Generate Credential" action and try again.`,
-            variant: "destructive",
-            duration: 10000, // Show longer for this important warning
+          const outdatedAttendees = errorData.attendeesWithOutdatedCredentials || [];
+          const attendeeList = outdatedAttendees
+            .slice(0, 5)
+            .map((name: string) => `<li>${name}</li>`)
+            .join('');
+          const moreCount = outdatedAttendees.length > 5
+            ? `<li style="color: #6b7280; margin-top: 8px;">...and ${outdatedAttendees.length - 5} more</li>`
+            : '';
+
+          await alert({
+            title: 'Outdated Credentials',
+            html: `
+              <div style="text-align: left;">
+                <p style="margin-bottom: 16px;">
+                  The following attendees have outdated credentials that need to be regenerated before PDF export.
+                </p>
+                <div style="background: #fef3c7; padding: 12px; border-radius: 6px;">
+                  <p style="margin-bottom: 8px; font-weight: 600;">Attendees with outdated credentials:</p>
+                  <ul style="margin: 0; padding-left: 20px; font-size: 0.9em; max-height: 200px; overflow-y: auto;">
+                    ${attendeeList}
+                    ${moreCount}
+                  </ul>
+                </div>
+                <p style="margin-top: 16px; font-size: 0.9em; color: #6b7280;">
+                  Please regenerate their credentials using the "Generate Credential" action and try again.
+                </p>
+              </div>
+            `,
+            icon: 'warning',
+            confirmButtonText: 'OK, I Understand'
           });
           return;
         }
@@ -1650,38 +1777,30 @@ export default function Dashboard() {
 
       const result = await response.json();
 
+      // Close progress modal
+      closeProgressModal();
+
       if (result.success && result.url) {
         // Open the PDF URL in a new tab
         window.open(result.url, '_blank');
 
-        toast({
-          title: "Success",
-          description: `PDF generated successfully for ${attendeesWithCredentials.length} attendees.`,
-        });
+        success("Success", `PDF generated successfully for ${attendeesWithCredentials.length} attendees.`);
       } else {
         throw new Error('Invalid response from PDF generation service');
       }
 
-    } catch (error: any) {
-      console.error('Error generating bulk PDF:', error);
-      toast({
-        title: "Export Error",
-        description: error.message || "Failed to generate PDF",
-        variant: "destructive",
-      });
+    } catch (err: any) {
+      console.error('Error generating bulk PDF:', err);
+      closeProgressModal();
+      error("Export Error", err.message || "Failed to generate PDF");
     } finally {
       setExportingPdfs(false);
-      setShowPdfGenerationModal(false);
     }
   };
 
   const handleBulkGenerateCredentials = async () => {
     if (selectedAttendees.length === 0) {
-      toast({
-        title: "No Selection",
-        description: "Please select attendees to generate credentials for.",
-        variant: "destructive",
-      });
+      error("No Selection", "Please select attendees to generate credentials for.");
       return;
     }
 
@@ -1691,86 +1810,69 @@ export default function Dashboard() {
     );
 
     const attendeesNeedingCredentials = selectedAttendeesData.filter(attendee => {
-      console.log('[Bulk Credential Check]', {
-        name: `${attendee.firstName} ${attendee.lastName}`,
-        hasCredentialUrl: !!attendee.credentialUrl,
-        credentialUrl: attendee.credentialUrl,
-        hasGeneratedAt: !!attendee.credentialGeneratedAt,
-        credentialGeneratedAt: attendee.credentialGeneratedAt,
-        updatedAt: attendee.updatedAt,
-      });
-
       // No credential at all
       if (!attendee.credentialUrl || attendee.credentialUrl.trim() === '') {
-        console.log('[Bulk Credential Check] → NEEDS GENERATION (no credential URL)');
         return true;
       }
 
       // Has credential but no generation timestamp - treat as outdated (legacy data)
       if (!attendee.credentialGeneratedAt) {
-        console.log('[Bulk Credential Check] → NEEDS GENERATION (no timestamp - legacy)');
         return true;
       }
 
       // Has credential with timestamp - check if it's outdated
-      // Use $updatedAt from Appwrite if available, otherwise fall back to updatedAt
+      const credentialGeneratedAt = new Date(attendee.credentialGeneratedAt);
+
+      // Check if the attendee has a lastSignificantUpdate field
+      // This field is set by the API when non-notes fields are updated
+      const lastSignificantUpdate = (attendee as any).lastSignificantUpdate;
+
+      if (lastSignificantUpdate) {
+        // Use lastSignificantUpdate for comparison (ignores notes-only updates)
+        const significantUpdateDate = new Date(lastSignificantUpdate);
+        const timeDifference = Math.abs(credentialGeneratedAt.getTime() - significantUpdateDate.getTime());
+        const isCredentialFromSameUpdate = timeDifference <= 5000; // 5 seconds tolerance
+
+        if (isCredentialFromSameUpdate || credentialGeneratedAt > significantUpdateDate) {
+          return false;
+        } else {
+          return true;
+        }
+      }
+
+      // Fall back to $updatedAt if lastSignificantUpdate doesn't exist (legacy records)
       const updatedAtField = (attendee as any).$updatedAt || attendee.updatedAt;
       if (updatedAtField) {
-        const credentialGeneratedAt = new Date(attendee.credentialGeneratedAt);
         const recordUpdatedAt = new Date(updatedAtField);
-
-        // Since generating a credential also updates the record, we need to account for this
-        // We'll consider the credential "outdated" if it was generated before the last record update
-        // with a 5-second tolerance for simultaneous updates
         const timeDifference = Math.abs(credentialGeneratedAt.getTime() - recordUpdatedAt.getTime());
         const isCredentialFromSameUpdate = timeDifference <= 5000; // 5 seconds tolerance
 
-        console.log('[Bulk Credential Check] Timestamp comparison:', {
-          credentialGeneratedAt: credentialGeneratedAt.toISOString(),
-          recordUpdatedAt: recordUpdatedAt.toISOString(),
-          timeDifference: `${timeDifference}ms`,
-          isCredentialFromSameUpdate,
-          credentialIsNewer: credentialGeneratedAt > recordUpdatedAt,
-        });
-
-        if (isCredentialFromSameUpdate) {
-          // If the credential was generated as part of the same update, it's CURRENT
-          console.log('[Bulk Credential Check] → CURRENT (same update)');
-          return false;
-        } else if (credentialGeneratedAt > recordUpdatedAt) {
-          // If credential was generated after the record was last updated, it's CURRENT
-          console.log('[Bulk Credential Check] → CURRENT (credential newer)');
+        if (isCredentialFromSameUpdate || credentialGeneratedAt > recordUpdatedAt) {
           return false;
         } else {
-          // If credential was generated before the record was last updated, it's OUTDATED
-          console.log('[Bulk Credential Check] → NEEDS GENERATION (outdated)');
           return true;
         }
       }
 
       // Has credential and timestamp but no updatedAt (shouldn't happen) - treat as current
-      console.log('[Bulk Credential Check] → CURRENT (no updatedAt - edge case)');
       return false;
     });
 
-    console.log('[Bulk Credential Summary]', {
-      totalSelected: selectedAttendeesData.length,
-      needingCredentials: attendeesNeedingCredentials.length,
-      attendeesNeedingCredentials: attendeesNeedingCredentials.map(a => `${a.firstName} ${a.lastName}`),
-    });
-
     if (attendeesNeedingCredentials.length === 0) {
-      toast({
-        title: "All Selected Attendees Have Current Credentials",
-        description: "All selected attendees already have current credentials generated.",
-        variant: "default",
-      });
+      info("All Selected Attendees Have Current Credentials", "All selected attendees already have current credentials generated.");
       return;
     }
 
     setBulkGeneratingCredentials(true);
-    setShowBulkCredentialModal(true);
-    setBulkCredentialProgress({ current: 0, total: attendeesNeedingCredentials.length, currentName: '' });
+
+    // Show SweetAlert2 progress modal
+    const updateProgress = showProgressModal(isDark);
+    updateProgress({
+      title: 'Generating Credentials',
+      text: 'Processing credentials for selected attendees...',
+      current: 0,
+      total: attendeesNeedingCredentials.length,
+    });
 
     let successCount = 0;
     let errorCount = 0;
@@ -1781,11 +1883,17 @@ export default function Dashboard() {
         const attendee = attendeesNeedingCredentials[i];
         const attendeeName = `${attendee.firstName} ${attendee.lastName}`;
 
-        setBulkCredentialProgress({
+        updateProgress({
+          title: 'Generating Credentials',
+          text: 'Processing credentials for selected attendees...',
           current: i + 1,
           total: attendeesNeedingCredentials.length,
-          currentName: attendeeName
+          currentItemName: attendeeName
         });
+
+        // Process each attendee with error handling
+        let hasError = false;
+        let errorMessage = '';
 
         try {
           const response = await fetch(`/api/attendees/${attendee.id}/generate-credential`, {
@@ -1796,30 +1904,45 @@ export default function Dashboard() {
           });
 
           if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to generate credential');
+            hasError = true;
+            errorMessage = 'Failed to generate credential';
+            try {
+              const errorData = await response.json();
+              // Include detailed error information if available
+              errorMessage = errorData.details
+                ? `${errorData.error}: ${errorData.details}`
+                : errorData.error || errorMessage;
+            } catch (parseError) {
+              // If we can't parse the error response, use the status text
+              errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+            }
+          } else {
+            const result = await response.json();
+
+            // Update the attendee in the local state with the new credential URL and updated timestamp
+            setAttendees(prev => prev.map(a =>
+              a.id === attendee.id
+                ? {
+                  ...a,
+                  credentialUrl: result.credentialUrl,
+                  credentialGeneratedAt: result.generatedAt,
+                  $updatedAt: result.updatedAt || result.generatedAt // Use the actual Appwrite timestamp
+                }
+                : a
+            ));
+
+            successCount++;
           }
+        } catch (err) {
+          hasError = true;
+          errorMessage = err instanceof Error ? err.message : 'Unknown error';
+          console.error(`Error generating credential for ${attendeeName}:`, err);
+        }
 
-          const result = await response.json();
-
-          // Update the attendee in the local state with the new credential URL and updated timestamp
-          setAttendees(prev => prev.map(a =>
-            a.id === attendee.id
-              ? {
-                ...a,
-                credentialUrl: result.credentialUrl,
-                credentialGeneratedAt: result.generatedAt,
-                $updatedAt: result.updatedAt || result.generatedAt // Use the actual Appwrite timestamp
-              }
-              : a
-          ));
-
-          successCount++;
-        } catch (error) {
+        // Record error if one occurred
+        if (hasError) {
           errorCount++;
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
           errors.push(`${attendeeName}: ${errorMessage}`);
-          console.error(`Error generating credential for ${attendeeName}:`, error);
         }
 
         // Small delay between requests to avoid overwhelming the API
@@ -1828,51 +1951,108 @@ export default function Dashboard() {
         }
       }
 
+      // Close progress modal
+      closeProgressModal();
+
       // Show final results
       if (successCount > 0 && errorCount === 0) {
-        toast({
-          title: "Success",
-          description: `Successfully generated ${successCount} credential${successCount === 1 ? '' : 's'}.`,
-        });
+        success("Success", `Successfully generated ${successCount} credential${successCount === 1 ? '' : 's'}.`);
       } else if (successCount > 0 && errorCount > 0) {
-        toast({
-          title: "Partial Success",
-          description: `Generated ${successCount} credential${successCount === 1 ? '' : 's'}, ${errorCount} failed. Check console for details.`,
-          variant: "destructive",
-          duration: 10000,
+        // Partial success - show detailed error modal
+        const errorListHtml = errors.slice(0, 5).map(err =>
+          `<li style="margin-bottom: 8px; color: #ef4444;">${err}</li>`
+        ).join('');
+        const moreErrors = errors.length > 5 ? `<li style="margin-top: 8px; color: #6b7280;">...and ${errors.length - 5} more errors</li>` : '';
+
+        await alert({
+          title: 'Partial Success',
+          html: `
+            <div style="text-align: left;">
+              <p style="margin-bottom: 16px;">
+                <strong style="color: #10b981;">✓ Successfully generated:</strong> ${successCount} credential${successCount === 1 ? '' : 's'}
+              </p>
+              <p style="margin-bottom: 12px;">
+                <strong style="color: #ef4444;">✗ Failed to generate:</strong> ${errorCount} credential${errorCount === 1 ? '' : 's'}
+              </p>
+              <div style="background: #fee; padding: 12px; border-radius: 6px; margin-top: 12px;">
+                <p style="margin-bottom: 8px; font-weight: 600;">Error Details:</p>
+                <ul style="margin: 0; padding-left: 20px; font-size: 0.9em; max-height: 200px; overflow-y: auto;">
+                  ${errorListHtml}
+                  ${moreErrors}
+                </ul>
+              </div>
+            </div>
+          `,
+          icon: 'warning',
+          confirmButtonText: 'OK, I Understand'
         });
       } else {
-        toast({
-          title: "Generation Failed",
-          description: `Failed to generate any credentials. ${errors.length > 0 ? 'Check console for details.' : ''}`,
-          variant: "destructive",
-          duration: 10000,
+        // Complete failure - show detailed error modal
+        const errorListHtml = errors.slice(0, 5).map(err =>
+          `<li style="margin-bottom: 8px; color: #ef4444;">${err}</li>`
+        ).join('');
+        const moreErrors = errors.length > 5 ? `<li style="margin-top: 8px; color: #6b7280;">...and ${errors.length - 5} more errors</li>` : '';
+
+        await alert({
+          title: 'Credential Generation Failed',
+          html: `
+            <div style="text-align: left;">
+              <p style="margin-bottom: 16px; color: #ef4444;">
+                Failed to generate any credentials. Please review the errors below:
+              </p>
+              <div style="background: #fee; padding: 12px; border-radius: 6px;">
+                <p style="margin-bottom: 8px; font-weight: 600;">Error Details:</p>
+                <ul style="margin: 0; padding-left: 20px; font-size: 0.9em; max-height: 200px; overflow-y: auto;">
+                  ${errorListHtml}
+                  ${moreErrors}
+                </ul>
+              </div>
+            </div>
+          `,
+          icon: 'error',
+          confirmButtonText: 'OK, I Understand'
         });
       }
 
     } finally {
       setBulkGeneratingCredentials(false);
-      setShowBulkCredentialModal(false);
-      setBulkCredentialProgress({ current: 0, total: 0, currentName: '' });
     }
   };
 
   const handleBulkEdit = async () => {
+    const changesToApply = Object.fromEntries(
+      Object.entries(bulkEditChanges).filter(([, value]) => value && value !== 'no-change')
+    );
+
+    if (Object.keys(changesToApply).length === 0) {
+      warning("No Changes", "You haven't specified any changes to apply.");
+      return;
+    }
+
+    const count = selectedAttendees.length;
+    const changeCount = Object.keys(changesToApply).length;
+    const confirmed = await confirm({
+      title: 'Bulk Edit Attendees',
+      text: `Are you sure you want to apply ${changeCount} change${changeCount !== 1 ? 's' : ''} to ${count} attendee${count !== 1 ? 's' : ''}?`,
+      icon: 'warning',
+      confirmButtonText: 'Apply Changes',
+      cancelButtonText: 'Cancel'
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
     setIsBulkEditing(true);
+
+    // Show loading notification
+    showLoading({
+      title: "Updating Attendees",
+      text: `Applying changes to ${count} attendee${count !== 1 ? 's' : ''}...`
+    });
+
     try {
       const attendeeIds = selectedAttendees;
-      const changesToApply = Object.fromEntries(
-        Object.entries(bulkEditChanges).filter(([, value]) => value && value !== 'no-change')
-      );
-
-      if (Object.keys(changesToApply).length === 0) {
-        toast({
-          title: "No Changes",
-          description: "You haven't specified any changes to apply.",
-        });
-        setIsBulkEditing(false);
-        return;
-      }
 
       const response = await fetch('/api/attendees/bulk-edit', {
         method: 'POST',
@@ -1881,8 +2061,8 @@ export default function Dashboard() {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to bulk edit attendees');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to bulk edit attendees');
       }
 
       const result = await response.json();
@@ -1892,17 +2072,15 @@ export default function Dashboard() {
       setBulkEditChanges({});
       setSelectedAttendees([]);
 
-      toast({
-        title: "Success",
-        description: `Successfully updated ${result.updatedCount} attendees.`,
-      });
+      // Reset to page 1 for consistent UX after bulk operations
+      setCurrentPage(1);
 
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message,
-      });
+      close();
+      success("Success", `Successfully updated ${result.updatedCount} attendees.`);
+
+    } catch (err: any) {
+      close();
+      error("Error", err.message);
     } finally {
       setIsBulkEditing(false);
     }
@@ -1916,24 +2094,33 @@ export default function Dashboard() {
     }
 
     const credentialGeneratedAt = new Date(attendee.credentialGeneratedAt);
-    // Use $updatedAt from Appwrite if available, otherwise fall back to updatedAt
+
+    // Check if the attendee has a lastSignificantUpdate field
+    // This field is set by the API when non-notes fields are updated
+    const lastSignificantUpdate = (attendee as any).lastSignificantUpdate;
+
+    if (lastSignificantUpdate) {
+      // Use lastSignificantUpdate for comparison (ignores notes-only updates)
+      const significantUpdateDate = new Date(lastSignificantUpdate);
+      const timeDifference = Math.abs(credentialGeneratedAt.getTime() - significantUpdateDate.getTime());
+      const isCredentialFromSameUpdate = timeDifference <= 5000; // 5 seconds tolerance
+
+      if (isCredentialFromSameUpdate || credentialGeneratedAt >= significantUpdateDate) {
+        return 'current';
+      } else {
+        return 'outdated';
+      }
+    }
+
+    // Fall back to $updatedAt if lastSignificantUpdate doesn't exist (legacy records)
     const updatedAtField = (attendee as any).$updatedAt || attendee.updatedAt;
     const recordUpdatedAt = new Date(updatedAtField);
-
-    // Since generating a credential also updates the record, we need to account for this
-    // We'll consider the credential "current" if it was generated within a reasonable time
-    // of the last record update (e.g., within 5 seconds to account for processing time)
     const timeDifference = Math.abs(credentialGeneratedAt.getTime() - recordUpdatedAt.getTime());
     const isCredentialFromSameUpdate = timeDifference <= 5000; // 5 seconds tolerance
 
-    if (isCredentialFromSameUpdate) {
-      // If the credential was generated as part of the same update, it's current
-      return 'current';
-    } else if (credentialGeneratedAt > recordUpdatedAt) {
-      // If credential was generated after the record was last updated, it's current
+    if (isCredentialFromSameUpdate || credentialGeneratedAt >= recordUpdatedAt) {
       return 'current';
     } else {
-      // If credential was generated before the record was last updated, it's outdated
       return 'outdated';
     }
   };
@@ -2258,11 +2445,11 @@ export default function Dashboard() {
                             placeholder="Search attendees..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-10"
+                            className="pl-10 bg-background"
                           />
                         </div>
                         <Select value={photoFilter} onValueChange={(value) => setPhotoFilter(value as 'all' | 'with' | 'without')}>
-                          <SelectTrigger className="w-48">
+                          <SelectTrigger className="w-48 bg-background">
                             <SelectValue placeholder="Filter by photo" />
                           </SelectTrigger>
                           <SelectContent>
@@ -2639,54 +2826,23 @@ export default function Dashboard() {
                                 </DropdownMenuItem>
                               )}
                               {hasPermission(currentUser?.role, 'attendees', 'bulkDelete') && (
-                                <AlertDialog>
-                                  <AlertDialogTrigger asChild>
-                                    <DropdownMenuItem
-                                      onSelect={(e) => e.preventDefault()}
-                                      disabled={bulkDeleting}
-                                      className="text-destructive focus:text-destructive"
-                                    >
-                                      {bulkDeleting ? (
-                                        <>
-                                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
-                                          Deleting...
-                                        </>
-                                      ) : (
-                                        <>
-                                          <Trash2 className="mr-2 h-4 w-4" />
-                                          Bulk Delete
-                                        </>
-                                      )}
-                                    </DropdownMenuItem>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        This action cannot be undone. This will permanently delete{' '}
-                                        <strong>{selectedAttendees.length}</strong> attendee{selectedAttendees.length !== 1 ? 's' : ''}
-                                        {' '}from the database. All associated data including photos, credentials, and custom field values will be lost.
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel disabled={bulkDeleting}>Cancel</AlertDialogCancel>
-                                      <AlertDialogAction
-                                        onClick={handleBulkDelete}
-                                        disabled={bulkDeleting}
-                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                      >
-                                        {bulkDeleting ? (
-                                          <>
-                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                            Deleting...
-                                          </>
-                                        ) : (
-                                          'Delete Attendees'
-                                        )}
-                                      </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
+                                <DropdownMenuItem
+                                  onClick={handleBulkDelete}
+                                  disabled={bulkDeleting}
+                                  className="text-destructive focus:text-destructive"
+                                >
+                                  {bulkDeleting ? (
+                                    <>
+                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                                      Deleting...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Trash2 className="mr-2 h-4 w-4" />
+                                      Bulk Delete
+                                    </>
+                                  )}
+                                </DropdownMenuItem>
                               )}
                               {hasPermission(currentUser?.role, 'attendees', 'bulkGeneratePDFs') && (eventSettings as any)?.oneSimpleApiEnabled && (
                                 <DropdownMenuItem
@@ -2714,81 +2870,62 @@ export default function Dashboard() {
                         {hasPermission(currentUser?.role, 'attendees', 'bulkEdit') && (
                           <Dialog open={showBulkEdit} onOpenChange={setShowBulkEdit}>
                             <DialogContent>
-                              <AlertDialog>
-                                <DialogHeader>
-                                  <DialogTitle>Bulk Edit Attendees</DialogTitle>
-                                  <DialogDescription>
-                                    Apply changes to all {selectedAttendees.length} selected attendees.
-                                    Only fields you change will be updated.
-                                  </DialogDescription>
-                                </DialogHeader>
-                                <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
-                                  {eventSettings?.customFields
-                                    ?.filter(field => ['text', 'url', 'email', 'number', 'select', 'boolean', 'uppercase'].includes(field.fieldType))
-                                    .map((field: any) => (
-                                      <div key={field.id} className="space-y-2">
-                                        <Label htmlFor={`bulk-edit-${field.id}`}>{field.fieldName}</Label>
-                                        {field.fieldType === 'boolean' ? (
-                                          <Select
-                                            onValueChange={(value) => setBulkEditChanges(prev => ({ ...prev, [field.id]: value }))}
-                                          >
-                                            <SelectTrigger>
-                                              <SelectValue placeholder="No Change" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                              <SelectItem value="no-change">No Change</SelectItem>
-                                              <SelectItem value="yes">Yes</SelectItem>
-                                              <SelectItem value="no">No</SelectItem>
-                                            </SelectContent>
-                                          </Select>
-                                        ) : field.fieldType === 'select' ? (
-                                          <Select
-                                            onValueChange={(value) => setBulkEditChanges(prev => ({ ...prev, [field.id]: value }))}
-                                          >
-                                            <SelectTrigger>
-                                              <SelectValue placeholder="No Change" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                              <SelectItem value="no-change">No Change</SelectItem>
-                                              {field.fieldOptions?.options?.map((option: string, index: number) => (
-                                                <SelectItem key={index} value={option}>{option}</SelectItem>
-                                              ))}
-                                            </SelectContent>
-                                          </Select>
-                                        ) : (
-                                          <Input
-                                            id={`bulk-edit-${field.id}`}
-                                            placeholder="Leave empty for no change"
-                                            onChange={(e) => setBulkEditChanges(prev => ({ ...prev, [field.id]: e.target.value }))}
-                                          />
-                                        )}
-                                      </div>
-                                    ))}
-                                </div>
-                                <div className="flex justify-end space-x-2">
-                                  <Button variant="outline" onClick={() => setShowBulkEdit(false)}>Cancel</Button>
-                                  <AlertDialogTrigger asChild>
-                                    <Button disabled={isBulkEditing}>
-                                      {isBulkEditing ? 'Applying...' : 'Apply Changes'}
-                                    </Button>
-                                  </AlertDialogTrigger>
-                                </div>
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                      This action cannot be undone. This will permanently modify the custom fields for{' '}
-                                      <strong>{selectedAttendees.length}</strong> attendees.
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction onClick={handleBulkEdit}>
-                                      Confirm Bulk Edit
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
+                              <DialogHeader>
+                                <DialogTitle>Bulk Edit Attendees</DialogTitle>
+                                <DialogDescription>
+                                  Apply changes to all {selectedAttendees.length} selected attendees.
+                                  Only fields you change will be updated.
+                                </DialogDescription>
+                              </DialogHeader>
+                              <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+                                {eventSettings?.customFields
+                                  ?.filter(field => ['text', 'url', 'email', 'number', 'select', 'boolean', 'uppercase'].includes(field.fieldType))
+                                  .map((field: any) => (
+                                    <div key={field.id} className="space-y-2">
+                                      <Label htmlFor={`bulk-edit-${field.id}`}>{field.fieldName}</Label>
+                                      {field.fieldType === 'boolean' ? (
+                                        <Select
+                                          onValueChange={(value) => setBulkEditChanges(prev => ({ ...prev, [field.id]: value }))}
+                                        >
+                                          <SelectTrigger>
+                                            <SelectValue placeholder="No Change" />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="no-change">No Change</SelectItem>
+                                            <SelectItem value="yes">Yes</SelectItem>
+                                            <SelectItem value="no">No</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      ) : field.fieldType === 'select' ? (
+                                        <Select
+                                          onValueChange={(value) => setBulkEditChanges(prev => ({ ...prev, [field.id]: value }))}
+                                        >
+                                          <SelectTrigger>
+                                            <SelectValue placeholder="No Change" />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="no-change">No Change</SelectItem>
+                                            {field.fieldOptions?.options?.map((option: string, index: number) => (
+                                              <SelectItem key={index} value={option}>{option}</SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                      ) : (
+                                        <Input
+                                          id={`bulk-edit-${field.id}`}
+                                          placeholder="Leave empty for no change"
+                                          onChange={(e) => setBulkEditChanges(prev => ({ ...prev, [field.id]: e.target.value }))}
+                                        />
+                                      )}
+                                    </div>
+                                  ))}
+                              </div>
+                              <div className="flex justify-end space-x-2">
+                                <Button variant="outline" onClick={() => setShowBulkEdit(false)}>Cancel</Button>
+                                <Button onClick={handleBulkEdit} disabled={isBulkEditing}>
+                                  {isBulkEditing ? 'Applying...' : 'Apply Changes'}
+                                </Button>
+                              </div>
                             </DialogContent>
                           </Dialog>
                         )}
@@ -2947,7 +3084,21 @@ export default function Dashboard() {
                                   onClick={async () => {
                                     if (hasPermission(currentUser?.role, 'attendees', 'update')) {
                                       await refreshEventSettings();
-                                      setEditingAttendee(attendee);
+                                      // Fetch full attendee data including hidden fields
+                                      try {
+                                        const response = await fetch(`/api/attendees/${attendee.id}`);
+                                        if (response.ok) {
+                                          const fullAttendee = await response.json();
+                                          setEditingAttendee(fullAttendee);
+                                        } else {
+                                          // Fallback to list data if fetch fails
+                                          setEditingAttendee(attendee);
+                                        }
+                                      } catch (error) {
+                                        console.error('Error fetching full attendee:', error);
+                                        // Fallback to list data if fetch fails
+                                        setEditingAttendee(attendee);
+                                      }
                                       setShowAttendeeForm(true);
                                     }
                                   }}
@@ -3119,7 +3270,21 @@ export default function Dashboard() {
                                         // Use a longer delay to ensure dropdown fully closes
                                         setTimeout(async () => {
                                           await refreshEventSettings();
-                                          setEditingAttendee(attendee);
+                                          // Fetch full attendee data including hidden fields
+                                          try {
+                                            const response = await fetch(`/api/attendees/${attendee.id}`);
+                                            if (response.ok) {
+                                              const fullAttendee = await response.json();
+                                              setEditingAttendee(fullAttendee);
+                                            } else {
+                                              // Fallback to list data if fetch fails
+                                              setEditingAttendee(attendee);
+                                            }
+                                          } catch (error) {
+                                            console.error('Error fetching full attendee:', error);
+                                            // Fallback to list data if fetch fails
+                                            setEditingAttendee(attendee);
+                                          }
                                           setShowAttendeeForm(true);
                                         }, 100);
                                       }}
@@ -3135,7 +3300,7 @@ export default function Dashboard() {
                                           ...prev,
                                           [attendee.id]: false
                                         }));
-                                        setAttendeeToDelete(attendee);
+                                        handleDeleteAttendee(attendee.id);
                                       }}
                                       className="text-destructive"
                                     >
@@ -3168,30 +3333,78 @@ export default function Dashboard() {
                           Previous
                         </Button>
                         <div className="flex items-center space-x-1">
-                          {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                            let pageNumber;
-                            if (totalPages <= 5) {
-                              pageNumber = i + 1;
-                            } else if (currentPage <= 3) {
-                              pageNumber = i + 1;
-                            } else if (currentPage >= totalPages - 2) {
-                              pageNumber = totalPages - 4 + i;
-                            } else {
-                              pageNumber = currentPage - 2 + i;
+                          {(() => {
+                            const pages = [];
+                            const maxVisiblePages = 5;
+
+                            let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+                            const endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+                            if (endPage - startPage + 1 < maxVisiblePages) {
+                              startPage = Math.max(1, endPage - maxVisiblePages + 1);
                             }
 
-                            return (
-                              <Button
-                                key={pageNumber}
-                                variant={currentPage === pageNumber ? "default" : "outline"}
-                                size="sm"
-                                onClick={() => handlePageChange(pageNumber)}
-                                className="w-8 h-8 p-0"
-                              >
-                                {pageNumber}
-                              </Button>
-                            );
-                          })}
+                            // Add first page and ellipsis if needed
+                            if (startPage > 1) {
+                              pages.push(
+                                <Button
+                                  key={1}
+                                  variant={1 === currentPage ? "default" : "outline"}
+                                  size="sm"
+                                  onClick={() => handlePageChange(1)}
+                                  className="w-8 h-8 p-0"
+                                >
+                                  1
+                                </Button>
+                              );
+                              if (startPage > 2) {
+                                pages.push(
+                                  <span key="ellipsis1" className="text-muted-foreground px-1">
+                                    ...
+                                  </span>
+                                );
+                              }
+                            }
+
+                            // Add visible page numbers
+                            for (let i = startPage; i <= endPage; i++) {
+                              pages.push(
+                                <Button
+                                  key={i}
+                                  variant={i === currentPage ? "default" : "outline"}
+                                  size="sm"
+                                  onClick={() => handlePageChange(i)}
+                                  className="w-8 h-8 p-0"
+                                >
+                                  {i}
+                                </Button>
+                              );
+                            }
+
+                            // Add ellipsis and last page if needed
+                            if (endPage < totalPages) {
+                              if (endPage < totalPages - 1) {
+                                pages.push(
+                                  <span key="ellipsis2" className="text-muted-foreground px-1">
+                                    ...
+                                  </span>
+                                );
+                              }
+                              pages.push(
+                                <Button
+                                  key={totalPages}
+                                  variant={totalPages === currentPage ? "default" : "outline"}
+                                  size="sm"
+                                  onClick={() => handlePageChange(totalPages)}
+                                  className="w-8 h-8 p-0"
+                                >
+                                  {totalPages}
+                                </Button>
+                              );
+                            }
+
+                            return pages;
+                          })()}
                         </div>
                         <Button
                           variant="outline"
@@ -3935,16 +4148,16 @@ export default function Dashboard() {
                     <div className="p-3 rounded-lg bg-amber-500/20 dark:bg-amber-400/20">
                       <BarChart3 className="h-8 w-8 text-amber-600 dark:text-amber-400" />
                     </div>
-                    <div className="ml-4">
+                    <div className="ml-4 flex-1 min-w-0">
                       <p className="text-sm font-medium text-amber-700 dark:text-amber-300">Most Common</p>
-                      <p className="text-2xl font-bold text-amber-900 dark:text-amber-100">
+                      <p className="text-lg font-bold text-amber-900 dark:text-amber-100 break-words">
                         {(() => {
                           const actionCounts = logs.reduce((acc: Record<string, number>, log) => {
                             acc[log.action] = (acc[log.action] || 0) + 1;
                             return acc;
                           }, {});
                           const mostCommon = Object.entries(actionCounts).sort(([, a], [, b]) => (b as number) - (a as number))[0];
-                          return mostCommon ? capitalizeFirst(mostCommon[0]) : 'N/A';
+                          return mostCommon ? formatActionName(mostCommon[0]) : 'N/A';
                         })()}
                       </p>
                     </div>
@@ -3959,7 +4172,7 @@ export default function Dashboard() {
                     value={logsFilters.action}
                     onValueChange={(value) => handleLogsFilterChange({ ...logsFilters, action: value })}
                   >
-                    <SelectTrigger className="w-48">
+                    <SelectTrigger className="w-48 bg-background">
                       <SelectValue placeholder="Filter by action" />
                     </SelectTrigger>
                     <SelectContent>
@@ -3977,7 +4190,7 @@ export default function Dashboard() {
                     value={logsFilters.userId}
                     onValueChange={(value) => handleLogsFilterChange({ ...logsFilters, userId: value })}
                   >
-                    <SelectTrigger className="w-48">
+                    <SelectTrigger className="w-48 bg-background">
                       <SelectValue placeholder="Filter by user" />
                     </SelectTrigger>
                     <SelectContent>
@@ -3995,10 +4208,7 @@ export default function Dashboard() {
                     <LogSettingsDialog
                       onSettingsUpdate={() => {
                         // Optionally refresh logs or show a success message
-                        toast({
-                          title: "Log Settings Updated",
-                          description: "Logging preferences have been updated successfully.",
-                        });
+                        success("Log Settings Updated", "Logging preferences have been updated successfully.");
                       }}
                     >
                       <Button variant="outline">
@@ -4090,12 +4300,7 @@ export default function Dashboard() {
                                           log.action === "print" ? "default" :
                                             "outline"
                                 }>
-                                  {log.action === 'delete_logs' ? 'Delete Logs' :
-                                    log.action === 'bulk_update' ? 'Bulk Update' :
-                                      log.action === 'bulk_delete' ? 'Bulk Delete' :
-                                        log.action === 'login' || log.action === 'auth_login' ? 'Log In' :
-                                          log.action === 'logout' || log.action === 'auth_logout' ? 'Log Out' :
-                                            log.action.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                                  {formatActionName(log.action)}
                                 </Badge>
                               </TableCell>
                               <TableCell>
@@ -4423,25 +4628,14 @@ export default function Dashboard() {
 
             if (response.ok) {
               const data = await response.json();
-              toast({
-                title: "Success",
-                description: data.message,
-              });
+              success("Success", data.message);
               await refreshUsers();
             } else {
-              const error = await response.json();
-              toast({
-                variant: "destructive",
-                title: "Error",
-                description: error.error || "Failed to delete user",
-              });
+              const errorData = await response.json();
+              error("Error", errorData.error || "Failed to delete user");
             }
-          } catch (error) {
-            toast({
-              variant: "destructive",
-              title: "Error",
-              description: "Failed to delete user",
-            });
+          } catch (err) {
+            error("Error", "Failed to delete user");
           } finally {
             setShowDeleteUserDialog(false);
             setUserToDelete(null);
@@ -4469,120 +4663,8 @@ export default function Dashboard() {
         role={editingRole}
       />
 
-      {/* Delete Attendee Confirmation Dialog */}
-      <AlertDialog open={!!attendeeToDelete} onOpenChange={(open) => { if (!open) setAttendeeToDelete(null) }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete 1 attendee from the database. All associated data including photos, credentials, and custom field values will be lost.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (attendeeToDelete) {
-                  handleDeleteAttendee(attendeeToDelete.id);
-                }
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Delete Attendee
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
-      {/* PDF Generation Loading Modal */}
-      <Dialog open={showPdfGenerationModal} onOpenChange={() => { }}>
-        <DialogContent className="sm:max-w-md [&>button]:hidden">
-          <DialogHeader>
-            <DialogTitle>Generating PDFs</DialogTitle>
-            <DialogDescription>
-              Please wait while we generate your PDF. This may take a few minutes depending on the number of attendees selected.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col items-center space-y-4 py-6">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground">
-                Processing {selectedAttendees.length} attendee{selectedAttendees.length !== 1 ? 's' : ''}...
-              </p>
-              <p className="text-xs text-muted-foreground mt-2">
-                Please do not navigate away from this page.
-              </p>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
 
-      {/* Credential Generation Loading Modal */}
-      <Dialog open={showCredentialGenerationModal} onOpenChange={() => { }}>
-        <DialogContent className="sm:max-w-md [&>button]:hidden">
-          <DialogHeader>
-            <DialogTitle>Generating Credential</DialogTitle>
-            <DialogDescription>
-              Please wait while we generate the credential. This may take a moment depending on the complexity of your template.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col items-center space-y-4 py-6">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground">
-                Processing credential for {credentialGenerationAttendeeName}...
-              </p>
-              <p className="text-xs text-muted-foreground mt-2">
-                Please do not navigate away from this page.
-              </p>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Bulk Credential Generation Loading Modal */}
-      <Dialog open={showBulkCredentialModal} onOpenChange={() => { }}>
-        <DialogContent className="sm:max-w-md [&>button]:hidden">
-          <DialogHeader>
-            <DialogTitle>Generating Credentials</DialogTitle>
-            <DialogDescription>
-              Please wait while we generate credentials for selected attendees. Each credential is processed individually to ensure quality.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col items-center space-y-6 py-6">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-
-            {/* Progress Bar */}
-            <div className="w-full space-y-2">
-              <div className="flex justify-between text-sm text-muted-foreground">
-                <span>Progress</span>
-                <span>{bulkCredentialProgress.current} of {bulkCredentialProgress.total}</span>
-              </div>
-              <Progress
-                value={bulkCredentialProgress.total > 0 ? (bulkCredentialProgress.current / bulkCredentialProgress.total) * 100 : 0}
-                className="w-full h-2"
-              />
-              <div className="text-center text-xs text-muted-foreground">
-                {bulkCredentialProgress.total > 0 ? Math.round((bulkCredentialProgress.current / bulkCredentialProgress.total) * 100) : 0}% Complete
-              </div>
-            </div>
-
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground">
-                Processing {bulkCredentialProgress.current} of {bulkCredentialProgress.total} credentials...
-              </p>
-              {bulkCredentialProgress.currentName && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Currently generating: {bulkCredentialProgress.currentName}
-                </p>
-              )}
-              <p className="text-xs text-muted-foreground mt-2">
-                Please do not navigate away from this page.
-              </p>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

@@ -51,8 +51,15 @@ async function enrichLogWithRelations(
         firstName: attendeeDoc.firstName,
         lastName: attendeeDoc.lastName
       };
-    } catch (error) {
-      console.error('Error fetching attendee for log:', error);
+    } catch (error: any) {
+      // Attendee may have been deleted - this is expected and not an error
+      if (error.code === 404) {
+        // Silently handle deleted attendees - logs should persist even after attendee deletion
+        attendeeDoc = null;
+      } else {
+        // Log unexpected errors
+        console.error('Error fetching attendee for log:', error);
+      }
     }
   }
 
