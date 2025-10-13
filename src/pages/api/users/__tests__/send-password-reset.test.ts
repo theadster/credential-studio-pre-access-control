@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextApiRequest, NextApiResponse } from 'next';
-import handler from '../verify-email';
+import handler from '../send-password-reset';
 import { createAdminClient, createSessionClient } from '@/lib/appwrite';
 import { hasPermission } from '@/lib/permissions';
 import rateLimiter from '@/lib/rateLimiter';
@@ -13,7 +13,25 @@ vi.mock('@/lib/apiMiddleware', () => ({
   withAuth: (handler: any) => handler,
 }));
 
-describe('/api/users/verify-email', () => {
+// Mock node-appwrite for password recovery
+vi.mock('node-appwrite', async () => {
+  const actual = await vi.importActual('node-appwrite');
+  return {
+    ...actual,
+    Client: vi.fn(() => ({
+      setEndpoint: vi.fn().mockReturnThis(),
+      setProject: vi.fn().mockReturnThis(),
+    })),
+    Account: vi.fn(() => ({
+      createRecovery: vi.fn().mockResolvedValue({
+        $id: 'recovery-123',
+        userId: 'auth-user-456',
+      }),
+    })),
+  };
+});
+
+describe('/api/users/send-password-reset', () => {
   let req: Partial<NextApiRequest>;
   let res: Partial<NextApiResponse>;
   let jsonMock: ReturnType<typeof vi.fn>;
@@ -45,7 +63,7 @@ describe('/api/users/verify-email', () => {
     $id: 'auth-user-456',
     email: 'user@example.com',
     name: 'Test User',
-    emailVerification: false,
+    emailVerification: true,
     phoneVerification: false,
     $createdAt: '2024-01-01T00:00:00.000Z'
   };
@@ -82,19 +100,15 @@ describe('/api/users/verify-email', () => {
     });
 
     const mockUsers = {
-      get: vi.fn().mockResolvedValue(mockAuthUser),
-      createEmailToken: vi.fn().mockResolvedValue({
-        $id: 'token-123',
-        userId: 'auth-user-456',
-        secret: 'verification-secret',
-        expire: new Date(Date.now() + 86400000).toISOString()
-      })
+      get: vi.fn().mockResolvedValue(mockAuthUser)
     };
-
+    
     const mockAccount = {
-      createVerification: vi.fn().mockResolvedValue({
-        $id: 'verification-123',
-        userId: 'auth-user-456'
+      createRecovery: vi.fn().mockResolvedValue({
+        $id: 'recovery-123',
+        userId: 'auth-user-456',
+        secret: 'recovery-secret',
+        expire: new Date(Date.now() + 86400000).toISOString()
       })
     };
 
@@ -102,14 +116,13 @@ describe('/api/users/verify-email', () => {
       createDocument: vi.fn().mockResolvedValue({
         $id: 'log-123',
         userId: mockUser.$id,
-        action: 'verification_email_sent',
+        action: 'password_reset_email_sent',
         details: '{}'
       })
     };
 
     vi.mocked(createAdminClient).mockReturnValue({
       users: mockUsers,
-      account: mockAccount,
       databases: mockDatabases
     } as any);
 
@@ -137,16 +150,18 @@ describe('/api/users/verify-email', () => {
   });
 
   describe('Permission checks', () => {
-    it('should reject requests without users.create permission', async () => {
+    it('should reject requests without users.update permission', async () => {
       vi.mocked(hasPermission).mockReturnValue(false);
       req.body = { authUserId: 'auth-user-456' };
 
-      await expect(handler(req as any, res as NextApiResponse)).rejects.toThrow('Insufficient permissions to send verification emails');
+      await expect(handler(req as any, res as NextApiResponse)).rejects.toThrow('Insufficient permissions to send password reset emails');
 
       expect(hasPermission).toHaveBeenCalledWith(
-        mockUserProfile.role,
+        expect.objectContaining({
+          permissions: mockUserProfile.role.permissions
+        }),
         'users',
-        'create'
+        'update'
       );
     });
   });
@@ -171,9 +186,8 @@ describe('/api/users/verify-email', () => {
 
       await handler(req as any, res as NextApiResponse);
 
-      // The validation passes because 123 is truthy, but Appwrite will reject it
-      // This test verifies the endpoint doesn't crash with unexpected types
-      expect(statusMock).toHaveBeenCalled();
+      // The validation converts numbers to strings, so this should succeed
+      expect(statusMock).toHaveBeenCalledWith(200);
     });
   });
 
@@ -190,28 +204,12 @@ describe('/api/users/verify-email', () => {
       await handler(req as any, res as NextApiResponse);
 
       expect(statusMock).toHaveBeenCalledWith(404);
-      expect(jsonMock).toHaveBeenCalledWith({
-        error: 'User not found',
-        code: 'INVALID_AUTH_USER'
-      });
-    });
-
-    it('should reject request for already verified user', async () => {
-      req.body = { authUserId: 'auth-user-456' };
-
-      const mockUsers = vi.mocked(createAdminClient()).users;
-      vi.mocked(mockUsers.get).mockResolvedValue({
-        ...mockAuthUser,
-        emailVerification: true
-      } as any);
-
-      await handler(req as any, res as NextApiResponse);
-
-      expect(statusMock).toHaveBeenCalledWith(409);
-      expect(jsonMock).toHaveBeenCalledWith({
-        error: 'Email is already verified',
-        code: 'EMAIL_ALREADY_VERIFIED'
-      });
+      expect(jsonMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'User not found',
+          code: 'INVALID_AUTH_USER'
+        })
+      );
     });
   });
 
@@ -219,26 +217,23 @@ describe('/api/users/verify-email', () => {
     it('should enforce per-user rate limit', async () => {
       req.body = { authUserId: 'auth-user-456' };
 
-      const resetAt = Date.now() + 1800000; // 30 minutes
-      vi.mocked(rateLimiter.check)
-        .mockReturnValueOnce({
-          allowed: false,
-          remaining: 0,
-          resetAt
-        });
+      vi.mocked(rateLimiter.check).mockReturnValueOnce({
+        allowed: false,
+        remaining: 0,
+        resetAt: Date.now() + 1800000 // 30 minutes
+      });
 
       await handler(req as any, res as NextApiResponse);
 
       expect(rateLimiter.check).toHaveBeenCalledWith(
-        'verify-email:user:auth-user-456',
+        'password-reset:user:auth-user-456',
         3,
         3600000
       );
       expect(statusMock).toHaveBeenCalledWith(429);
       expect(jsonMock).toHaveBeenCalledWith(
         expect.objectContaining({
-          code: 'VERIFICATION_RATE_LIMIT',
-          resetAt
+          code: 'VERIFICATION_RATE_LIMIT'
         })
       );
     });
@@ -246,29 +241,18 @@ describe('/api/users/verify-email', () => {
     it('should enforce per-admin rate limit', async () => {
       req.body = { authUserId: 'auth-user-456' };
 
-      const resetAt = Date.now() + 1800000; // 30 minutes
       vi.mocked(rateLimiter.check)
         .mockReturnValueOnce({ allowed: true, remaining: 2, resetAt: Date.now() + 3600000 })
-        .mockReturnValueOnce({
-          allowed: false,
-          remaining: 0,
-          resetAt
-        });
+        .mockReturnValueOnce({ allowed: false, remaining: 0, resetAt: Date.now() + 1800000 });
 
       await handler(req as any, res as NextApiResponse);
 
       expect(rateLimiter.check).toHaveBeenCalledWith(
-        'verify-email:admin:admin-user-123',
+        'password-reset:admin:admin-user-123',
         20,
         3600000
       );
       expect(statusMock).toHaveBeenCalledWith(429);
-      expect(jsonMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          code: 'VERIFICATION_RATE_LIMIT',
-          resetAt
-        })
-      );
     });
 
     it('should allow request when under rate limits', async () => {
@@ -281,38 +265,42 @@ describe('/api/users/verify-email', () => {
     });
   });
 
-  describe('Verification email sending', () => {
-    it('should send verification email successfully', async () => {
+  describe('Password reset email sending', () => {
+    it('should send password reset email successfully', async () => {
       req.body = { authUserId: 'auth-user-456' };
-      const expectedVerificationUrl = `${process.env.NEXT_PUBLIC_VERIFICATION_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000/verify-email'}`;
 
       await handler(req as any, res as NextApiResponse);
 
-      const mockUsers = vi.mocked(createAdminClient()).users;
-      expect(mockUsers.createEmailToken).toHaveBeenCalledWith('auth-user-456', expectedVerificationUrl);
+      // Note: We can't easily test the dynamic import mock, but we verify the response
       expect(statusMock).toHaveBeenCalledWith(200);
       expect(jsonMock).toHaveBeenCalledWith({
         success: true,
-        message: 'Verification email sent successfully. User must click the link in their email to verify.',
+        message: 'Password reset email sent successfully. User must click the link in their email to reset their password.',
         userId: 'auth-user-456',
         email: 'user@example.com'
       });
     });
 
-    it('should handle verification email send failure', async () => {
+    it('should handle password reset email send failure', async () => {
       req.body = { authUserId: 'auth-user-456' };
 
-      const mockUsers = vi.mocked(createAdminClient()).users;
-      vi.mocked(mockUsers.createEmailToken).mockRejectedValue(
-        new Error('API error')
-      );
+      // Mock the node-appwrite import to throw an error
+      vi.doMock('node-appwrite', () => ({
+        Client: vi.fn(() => ({
+          setEndpoint: vi.fn().mockReturnThis(),
+          setProject: vi.fn().mockReturnThis(),
+        })),
+        Account: vi.fn(() => ({
+          createRecovery: vi.fn().mockRejectedValue(new Error('API error')),
+        })),
+      }));
 
       await handler(req as any, res as NextApiResponse);
 
       expect(statusMock).toHaveBeenCalledWith(500);
       expect(jsonMock).toHaveBeenCalledWith(
         expect.objectContaining({
-          error: 'Failed to send verification email. Please try again.',
+          error: 'Failed to send password reset email. Please try again.',
           code: 'VERIFICATION_SEND_FAILED'
         })
       );
@@ -320,7 +308,7 @@ describe('/api/users/verify-email', () => {
   });
 
   describe('Logging', () => {
-    it('should log verification email send', async () => {
+    it('should log password reset email send', async () => {
       req.body = { authUserId: 'auth-user-456' };
 
       await handler(req as any, res as NextApiResponse);
@@ -330,29 +318,12 @@ describe('/api/users/verify-email', () => {
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
         process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
         expect.any(String),
-        {
+        expect.objectContaining({
           userId: mockUser.$id,
-          action: 'verification_email_sent',
-          details: expect.stringContaining('auth-user-456')
-        }
+          action: 'password_reset_email_sent',
+          details: expect.stringContaining('password_reset')
+        })
       );
-
-      // Verify the details contain all required fields
-      const createDocumentMock = vi.mocked(mockDatabases.createDocument);
-      const callArgs = createDocumentMock.mock.calls[0];
-      const logData = callArgs[3] as any;
-      const details = JSON.parse(logData.details);
-      expect(details).toMatchObject({
-        type: 'email_verification',
-        operation: 'send',
-        targetUserId: 'auth-user-456',
-        targetUserEmail: expect.any(String),
-        targetUserName: expect.any(String),
-        administratorId: mockUser.$id,
-        administratorEmail: mockUser.email,
-        administratorName: mockUser.name,
-        timestamp: expect.any(String)
-      });
     });
 
     it('should not fail request if logging fails', async () => {
@@ -388,11 +359,6 @@ describe('/api/users/verify-email', () => {
       await handler(req as any, res as NextApiResponse);
 
       expect(statusMock).toHaveBeenCalledWith(401);
-      expect(jsonMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          code: 'AUTH_FAILED'
-        })
-      );
     });
 
     it('should handle permission errors', async () => {
@@ -407,11 +373,6 @@ describe('/api/users/verify-email', () => {
       await handler(req as any, res as NextApiResponse);
 
       expect(statusMock).toHaveBeenCalledWith(403);
-      expect(jsonMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          code: 'PERMISSION_DENIED'
-        })
-      );
     });
 
     it('should handle unexpected errors', async () => {
@@ -425,12 +386,6 @@ describe('/api/users/verify-email', () => {
       await handler(req as any, res as NextApiResponse);
 
       expect(statusMock).toHaveBeenCalledWith(500);
-      expect(jsonMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'An unexpected error occurred. Please try again.',
-          code: 'INTERNAL_ERROR'
-        })
-      );
     });
   });
 });

@@ -5,9 +5,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Loader2, UserCheck, UserPlus, Link as LinkIcon, Mail, User as UserIcon } from 'lucide-react';
+import { Loader2, UserCheck, UserPlus, Link as LinkIcon, Mail, User as UserIcon, KeyRound } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import AuthUserSearch, { AppwriteAuthUser } from './AuthUserSearch';
 import AuthUserList from './AuthUserList';
 import { useApiError } from '@/hooks/useApiError';
@@ -17,6 +18,7 @@ const PROJECT_TEAM_ID = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_TEAM_ID;
 
 interface User {
   id: string;
+  userId?: string; // Appwrite auth user ID
   email: string;
   name: string | null;
   role: {
@@ -46,11 +48,12 @@ interface UserFormProps {
 }
 
 export default function UserForm({ isOpen, onClose, onSave, user, roles, mode = 'edit' }: UserFormProps) {
-  const { handleError, fetchWithRetry } = useApiError();
+  const { handleError, handleSuccess, fetchWithRetry } = useApiError();
   const [loading, setLoading] = useState(false);
   const [selectedAuthUser, setSelectedAuthUser] = useState<AppwriteAuthUser | null>(null);
   const [authUsers, setAuthUsers] = useState<AppwriteAuthUser[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [sendingPasswordReset, setSendingPasswordReset] = useState(false);
   const [formData, setFormData] = useState<{
     email: string;
     name: string;
@@ -229,6 +232,44 @@ export default function UserForm({ isOpen, onClose, onSave, user, roles, mode = 
       ...prev,
       [field]: value
     }));
+  };
+
+  const handleSendPasswordReset = async () => {
+    if (!user) return;
+
+    // Check if user has an auth ID (userId)
+    if (!user.userId) {
+      handleError(
+        new Error('This user does not have an associated auth account. Password reset is only available for users with auth accounts.'),
+        'Cannot send password reset'
+      );
+      return;
+    }
+
+    setSendingPasswordReset(true);
+
+    try {
+      // Send password reset email using the user's auth ID
+      await fetchWithRetry('/api/users/send-password-reset', {
+        method: 'POST',
+        body: JSON.stringify({
+          authUserId: user.userId,
+        }),
+      });
+
+      handleSuccess(
+        'Password Reset Email Sent',
+        `Password reset email sent to ${user.email}. User must click the link in their email to reset their password.`
+      );
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error('Error sending password reset email:', errorMessage);
+
+      const error = err instanceof Error ? err : new Error(String(err));
+      handleError(error, 'Failed to send password reset email');
+    } finally {
+      setSendingPasswordReset(false);
+    }
   };
 
   return (
@@ -472,6 +513,55 @@ export default function UserForm({ isOpen, onClose, onSave, user, roles, mode = 
                     The user will be able to sign in with this password immediately.
                   </p>
                 </div>
+              )}
+
+              {/* Password Reset for Existing Users with Auth Accounts */}
+              {user && user.userId && (
+                <Alert className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20">
+                  <KeyRound className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                  <AlertDescription className="flex items-center justify-between gap-4">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-amber-900 dark:text-amber-100 mb-1">
+                        Password Reset
+                      </p>
+                      <p className="text-xs text-amber-700 dark:text-amber-300">
+                        Send a password reset email to help this user change their password.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={handleSendPasswordReset}
+                      disabled={sendingPasswordReset || loading}
+                      className="shrink-0 border-amber-300 hover:bg-amber-100 dark:border-amber-700 dark:hover:bg-amber-900/30"
+                    >
+                      {sendingPasswordReset ? (
+                        <>
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          Sending...
+                        </>
+                      ) : (
+                        <>
+                          <KeyRound className="h-3 w-3 mr-1" />
+                          Send Reset Email
+                        </>
+                      )}
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {/* Info message for invited users without auth accounts */}
+              {user && !user.userId && user.isInvited && (
+                <Alert className="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/20">
+                  <Mail className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  <AlertDescription>
+                    <p className="text-sm text-blue-900 dark:text-blue-100">
+                      This user was invited but hasn't created their account yet. Password reset will be available after they complete signup.
+                    </p>
+                  </AlertDescription>
+                </Alert>
               )}
             </>
           )}

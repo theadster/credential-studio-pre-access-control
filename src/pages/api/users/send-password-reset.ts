@@ -7,18 +7,17 @@ import rateLimiter from '@/lib/rateLimiter';
 import { ApiError, ErrorCode, handleApiError, validateInput, formatRateLimitTime } from '@/lib/errorHandling';
 
 // Rate limit configuration (from environment or defaults)
-const USER_RATE_LIMIT = parseInt(process.env.VERIFICATION_EMAIL_USER_LIMIT || '3', 10);
-const ADMIN_RATE_LIMIT = parseInt(process.env.VERIFICATION_EMAIL_ADMIN_LIMIT || '20', 10);
-const RATE_LIMIT_WINDOW_HOURS = parseInt(process.env.VERIFICATION_EMAIL_WINDOW_HOURS || '1', 10);
+const USER_RATE_LIMIT = parseInt(process.env.PASSWORD_RESET_USER_LIMIT || '3', 10);
+const ADMIN_RATE_LIMIT = parseInt(process.env.PASSWORD_RESET_ADMIN_LIMIT || '20', 10);
+const RATE_LIMIT_WINDOW_HOURS = parseInt(process.env.PASSWORD_RESET_WINDOW_HOURS || '1', 10);
 const RATE_LIMIT_WINDOW_MS = RATE_LIMIT_WINDOW_HOURS * 60 * 60 * 1000;
 
 /**
- * POST /api/users/verify-email
+ * POST /api/users/send-password-reset
  * 
- * Send email verification to an unverified Appwrite auth user
+ * Send password reset email to an Appwrite auth user
  * Implements rate limiting and permission checks
- * 
- * Requirements: 8.5, 8.6, 8.7, 8.8, 8.9, 8.11
+ * Allows administrators to help users reset their passwords
  */
 export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   if (req.method !== 'POST') {
@@ -34,10 +33,10 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     permissions: userProfile.role.permissions
   } : null;
 
-  // Check create permission for users (Requirement 8.5)
-  if (!hasPermission(role, 'users', 'create')) {
+  // Check users.update permission (password reset is an update operation)
+  if (!hasPermission(role, 'users', 'update')) {
     throw new ApiError(
-      'Insufficient permissions to send verification emails',
+      'Insufficient permissions to send password reset emails',
       ErrorCode.PERMISSION_DENIED,
       403
     );
@@ -47,7 +46,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     // Parse request body
     const { authUserId } = req.body;
 
-    // Validate input (Requirement 7.3)
+    // Validate input
     validateInput([
       {
         field: 'authUserId',
@@ -61,9 +60,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
     // Create admin client to access Users API
     const adminClient = createAdminClient();
-    const { users, databases } = adminClient;
+    const { users } = adminClient;
 
-    // Fetch the auth user to validate existence and check verification status (Requirement 8.6)
+    // Fetch the auth user to validate existence
     let authUser;
     try {
       authUser = await users.get(authUserId);
@@ -78,23 +77,14 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       throw error;
     }
 
-    // Check if email is already verified (Requirement 8.7)
-    if (authUser.emailVerification) {
-      throw new ApiError(
-        'Email is already verified',
-        ErrorCode.EMAIL_ALREADY_VERIFIED,
-        409
-      );
-    }
-
-    // Rate limiting (Requirements 8.8, 8.9)
+    // Rate limiting
     // Check per-user rate limit (3 per hour)
-    const userRateLimitKey = `verify-email:user:${authUserId}`;
+    const userRateLimitKey = `password-reset:user:${authUserId}`;
     const userRateLimit = rateLimiter.check(userRateLimitKey, USER_RATE_LIMIT, RATE_LIMIT_WINDOW_MS);
     
     if (!userRateLimit.allowed) {
       throw new ApiError(
-        `Too many verification emails sent for this user. Please try again in ${formatRateLimitTime(userRateLimit.resetAt)}.`,
+        `Too many password reset emails sent for this user. Please try again in ${formatRateLimitTime(userRateLimit.resetAt)}.`,
         ErrorCode.VERIFICATION_RATE_LIMIT,
         429,
         undefined,
@@ -103,12 +93,12 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     }
 
     // Check per-admin rate limit (20 per hour)
-    const adminRateLimitKey = `verify-email:admin:${user.$id}`;
+    const adminRateLimitKey = `password-reset:admin:${user.$id}`;
     const adminRateLimit = rateLimiter.check(adminRateLimitKey, ADMIN_RATE_LIMIT, RATE_LIMIT_WINDOW_MS);
     
     if (!adminRateLimit.allowed) {
       throw new ApiError(
-        `You have sent too many verification emails. Please try again in ${formatRateLimitTime(adminRateLimit.resetAt)}.`,
+        `You have sent too many password reset emails. Please try again in ${formatRateLimitTime(adminRateLimit.resetAt)}.`,
         ErrorCode.VERIFICATION_RATE_LIMIT,
         429,
         undefined,
@@ -116,33 +106,33 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       );
     }
 
-    // Send verification email using Appwrite API (Requirement 8.5)
-    // 
-    // IMPORTANT LIMITATION:
-    // Appwrite does not provide a way for admins to send verification emails to other users.
-    // The Account.createVerification() method only works for the currently authenticated user.
-    // The Users API does not have a method to send verification emails on behalf of other users.
-    //
-    // This is by design - email verification is meant to be user-initiated for security reasons.
-    //
-    // WORKAROUND OPTIONS:
-    // 1. Manually mark email as verified (current approach - not ideal but functional)
-    // 2. Use custom email service (SendGrid, AWS SES, etc.)
-    // 3. Use Appwrite Functions to trigger verification emails
-    // 4. Have users verify their own emails through normal signup flow
-    //
+    // Send password reset email using Appwrite API
     try {
-      console.log('Marking email as verified for user:', authUserId);
-      console.log('Note: Appwrite does not support admin-initiated email verification');
-      console.log('Email will be marked as verified without sending verification email');
+      // Get reset URL from environment or use default
+      const resetUrl = process.env.NEXT_PUBLIC_PASSWORD_RESET_URL || 
+                      (process.env.NEXT_PUBLIC_APP_URL ? process.env.NEXT_PUBLIC_APP_URL + '/reset-password' : null) || 
+                      'http://localhost:3000/reset-password';
       
-      // Manually mark email as verified
-      // This is the only option available through the Appwrite SDK for admin operations
-      await users.updateEmailVerification(authUserId, true);
+      console.log('Password reset URL:', resetUrl); // Debug log
       
-      console.log('Email marked as verified successfully');
+      // Create password recovery token
+      // Note: Appwrite's Users API (admin) doesn't have a password recovery method
+      // We need to use the Account API, which is public and doesn't require authentication
+      // Create a new client without authentication for this public operation
+      const { Client, Account } = await import('node-appwrite');
+      const publicClient = new Client()
+        .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || 'https://nyc.cloud.appwrite.io/v1')
+        .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID || '');
+      
+      const publicAccount = new Account(publicClient);
+      
+      // This generates a secure token and triggers Appwrite to send the password reset email
+      await publicAccount.createRecovery(authUser.email, resetUrl);
+      
+      // Note: The password is NOT reset yet - user must click the link in their email
+      // The reset is completed when they visit the reset URL with the token and set a new password
     } catch (error: any) {
-      console.error('Error marking email as verified:', error);
+      console.error('Error sending password reset email:', error);
       console.error('Error details:', {
         code: error.code,
         type: error.type,
@@ -151,12 +141,14 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       });
       
       // Provide more specific error messages based on error type
-      let errorMessage = 'Failed to send verification email. Please try again.';
+      let errorMessage = 'Failed to send password reset email. Please try again.';
       
       if (error.code === 429 || error.message?.includes('rate limit')) {
-        errorMessage = 'Too many verification emails sent. Please try again later.';
-      } else if (error.code === 400 || error.message?.includes('already verified')) {
-        errorMessage = 'This email is already verified.';
+        errorMessage = 'Too many password reset emails sent. Please try again later.';
+      } else if (error.code === 400 || error.message?.includes('invalid email')) {
+        errorMessage = 'Invalid email address.';
+      } else if (error.message?.includes('SMTP') || error.message?.includes('email')) {
+        errorMessage = 'Email service configuration error. Please contact your administrator.';
       }
       
       throw new ApiError(
@@ -167,7 +159,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       );
     }
 
-    // Log the verification email send (Requirement 8.11, 9.7)
+    // Log the password reset email send
     try {
       const sessionClient = createSessionClient(req);
       await sessionClient.databases.createDocument(
@@ -176,9 +168,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         ID.unique(),
         {
           userId: user.$id,
-          action: 'verification_email_sent',
+          action: 'password_reset_email_sent',
           details: JSON.stringify({
-            type: 'email_verification',
+            type: 'password_reset',
             operation: 'send',
             targetUserId: authUserId,
             targetUserEmail: authUser.email,
@@ -192,19 +184,19 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       );
     } catch (logError) {
       // Log error but don't fail the request
-      console.error('Error logging verification email send:', logError);
+      console.error('Error logging password reset email send:', logError);
     }
 
-    // Return success response (Requirement 8.6)
+    // Return success response
     return res.status(200).json({
       success: true,
-      message: 'Email marked as verified. Note: Appwrite does not support sending verification emails from admin accounts.',
+      message: 'Password reset email sent successfully. User must click the link in their email to reset their password.',
       userId: authUserId,
       email: authUser.email
     });
 
   } catch (error: any) {
-    // Use centralized error handling (Requirement 7.1, 7.6)
+    // Use centralized error handling
     handleApiError(error, res);
   }
 });

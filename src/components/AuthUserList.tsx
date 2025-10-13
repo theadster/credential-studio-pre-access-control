@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, Mail, CheckCircle2, XCircle, UserCheck } from 'lucide-react';
+import { Loader2, Mail, CheckCircle2, XCircle, UserCheck, KeyRound } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AppwriteAuthUser } from './AuthUserSearch';
 import { useApiError } from '@/hooks/useApiError';
@@ -23,6 +23,7 @@ export default function AuthUserList({
 }: AuthUserListProps) {
   const { handleError, handleSuccess, fetchWithRetry } = useApiError();
   const [sendingVerificationTo, setSendingVerificationTo] = useState<string | null>(null);
+  const [sendingPasswordResetTo, setSendingPasswordResetTo] = useState<string | null>(null);
 
   const handleSendVerificationEmail = async (user: AppwriteAuthUser, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent user selection when clicking button
@@ -40,8 +41,8 @@ export default function AuthUserList({
 
       // Use centralized success handling (Requirement 7.6)
       handleSuccess(
-        'Verification Email Sent',
-        `Verification email sent to ${user.email}`
+        'Email Verified',
+        `Email address ${user.email} has been marked as verified. Note: Appwrite does not support sending verification emails from admin accounts.`
       );
     } catch (err: unknown) {
       // Type guard to safely handle error
@@ -54,6 +55,38 @@ export default function AuthUserList({
       handleError(error, 'Failed to send verification email');
     } finally {
       setSendingVerificationTo(null);
+    }
+  };
+
+  const handleSendPasswordReset = async (user: AppwriteAuthUser, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent user selection when clicking button
+
+    setSendingPasswordResetTo(user.$id);
+
+    try {
+      // Use fetchWithRetry for automatic retry
+      await fetchWithRetry('/api/users/send-password-reset', {
+        method: 'POST',
+        body: JSON.stringify({
+          authUserId: user.$id,
+        }),
+      });
+
+      // Use centralized success handling
+      handleSuccess(
+        'Password Reset Email Sent',
+        `Password reset email sent to ${user.email}. User must click the link in their email to reset their password.`
+      );
+    } catch (err: unknown) {
+      // Type guard to safely handle error
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error('Error sending password reset email:', errorMessage);
+
+      // Use centralized error handling
+      const error = err instanceof Error ? err : new Error(String(err));
+      handleError(error, 'Failed to send password reset email');
+    } finally {
+      setSendingPasswordResetTo(null);
     }
   };
 
@@ -130,37 +163,71 @@ export default function AuthUserList({
                 </div>
               </div>
 
-              {!user.emailVerification && !isLinked && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={(e) => handleSendVerificationEmail(user, e)}
-                  onKeyDown={(e) => {
-                    // Prevent keyboard activation from bubbling to row
-                    if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
-                      e.stopPropagation();
-                      // Prevent default scroll behavior for Space key
-                      if (e.key === ' ' || e.key === 'Spacebar') {
-                        e.preventDefault();
+              <div className="flex items-center gap-2 shrink-0">
+                {!user.emailVerification && !isLinked && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={(e) => handleSendVerificationEmail(user, e)}
+                    onKeyDown={(e) => {
+                      // Prevent keyboard activation from bubbling to row
+                      if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+                        e.stopPropagation();
+                        // Prevent default scroll behavior for Space key
+                        if (e.key === ' ' || e.key === 'Spacebar') {
+                          e.preventDefault();
+                        }
                       }
-                    }
-                  }}
-                  disabled={sendingVerificationTo === user.$id}
-                  className="shrink-0"
-                >
-                  {sendingVerificationTo === user.$id ? (
-                    <>
-                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                      Sending...
-                    </>
-                  ) : (
-                    <>
-                      <Mail className="h-3 w-3 mr-1" />
-                      Send Verification
-                    </>
-                  )}
-                </Button>
-              )}
+                    }}
+                    disabled={sendingVerificationTo === user.$id || sendingPasswordResetTo === user.$id}
+                    className="shrink-0"
+                  >
+                    {sendingVerificationTo === user.$id ? (
+                      <>
+                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        Verifying...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                        Mark as Verified
+                      </>
+                    )}
+                  </Button>
+                )}
+                
+                {!isLinked && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={(e) => handleSendPasswordReset(user, e)}
+                    onKeyDown={(e) => {
+                      // Prevent keyboard activation from bubbling to row
+                      if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+                        e.stopPropagation();
+                        // Prevent default scroll behavior for Space key
+                        if (e.key === ' ' || e.key === 'Spacebar') {
+                          e.preventDefault();
+                        }
+                      }
+                    }}
+                    disabled={sendingPasswordResetTo === user.$id || sendingVerificationTo === user.$id}
+                    className="shrink-0"
+                  >
+                    {sendingPasswordResetTo === user.$id ? (
+                      <>
+                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <KeyRound className="h-3 w-3 mr-1" />
+                        Reset Password
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         );

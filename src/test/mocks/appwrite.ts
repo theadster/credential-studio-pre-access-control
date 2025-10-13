@@ -39,6 +39,8 @@ export const mockAccount = {
   createMagicURLToken: vi.fn(),
   createRecovery: vi.fn(),
   updateRecovery: vi.fn(),
+  createVerification: vi.fn(),
+  updateVerification: vi.fn(),
   updatePassword: vi.fn(),
   updateEmail: vi.fn(),
   updateName: vi.fn(),
@@ -94,6 +96,7 @@ export const mockUsers = {
   create: vi.fn(),
   update: vi.fn(),
   updateEmail: vi.fn(),
+  updateEmailVerification: vi.fn(),
   updateName: vi.fn(),
   updatePassword: vi.fn(),
   updatePrefs: vi.fn(),
@@ -105,6 +108,7 @@ export const mockUsers = {
   deleteSession: vi.fn(),
   createRecovery: vi.fn(),
   createVerification: vi.fn(),
+  createEmailToken: vi.fn(),
 };
 
 /**
