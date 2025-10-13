@@ -21,6 +21,8 @@ docs/
 - [**Bulk Delete Log Size Fix**](./fixes/BULK_DELETE_LOG_SIZE_FIX.md) - Use API key for bulk deletes and handle large log entries
 
 ### Recent Fixes
+- [**Roles Page Redesign Restoration**](./fixes/ROLES_PAGE_REDESIGN_RESTORATION.md) - ✅ Restored modern role card design by importing and using RoleCard component
+- [**Role User Assignment Display Fix**](./fixes/ROLE_USER_ASSIGNMENT_FIX.md) - ✅ Fixed role cards showing "no users assigned" by normalizing API field names
 - [**Bulk Operations Pagination Reset Fix**](./fixes/BULK_OPERATIONS_PAGINATION_RESET_FIX.md) - ✅ Reset to page 1 after bulk delete/edit to prevent empty pages
 - [**🎉 Import Complete Fix Session Summary**](./fixes/IMPORT_COMPLETE_FIX_SESSION_SUMMARY.md) - ✅ **COMPREHENSIVE: All 8 import issues fixed and verified**
 - [**Import Notes and Uppercase Fix**](./fixes/IMPORT_NOTES_AND_UPPERCASE_FIX.md) - ✅ Fixed notes field null issue and custom field uppercase transformation
