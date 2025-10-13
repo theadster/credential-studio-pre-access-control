@@ -8,6 +8,16 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+// Mock ResizeObserver for Radix UI components
+// Mock ResizeObserver for Radix UI components
+class ResizeObserverMock {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
+(globalThis as typeof globalThis & { ResizeObserver: typeof ResizeObserverMock }).ResizeObserver = ResizeObserverMock;
+
 // Mock environment variables
 process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT = 'https://test.appwrite.io/v1';
 process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID = 'test-project-id';

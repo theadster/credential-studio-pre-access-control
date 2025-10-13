@@ -64,6 +64,7 @@ import AttendeeForm from "@/components/AttendeeForm";
 import UserForm from "@/components/UserForm";
 import EventSettingsForm from "@/components/EventSettingsForm";
 import RoleForm from "@/components/RoleForm";
+import RoleCard from "@/components/RoleCard";
 import LinkUserDialog from "@/components/LinkUserDialog";
 import DeleteUserDialog from "@/components/DeleteUserDialog";
 import ExportDialog from "@/components/ExportDialog";
@@ -2441,6 +2442,16 @@ export default function Dashboard() {
               </p>
             </div>
             <div className="flex items-center space-x-2">
+              {activeTab === "attendees" && hasPermission(currentUser?.role, 'attendees', 'create') && (
+                <Button onClick={async () => {
+                  await refreshEventSettings();
+                  setEditingAttendee(null);
+                  setShowAttendeeForm(true);
+                }}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Attendee
+                </Button>
+              )}
               {activeTab === "users" && hasPermission(currentUser?.role, 'users', 'create') && (
                 <>
                   <Button onClick={() => {
@@ -2530,241 +2541,84 @@ export default function Dashboard() {
 
               {/* Search and Actions */}
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
-                    {!showAdvancedSearch && (
-                      <>
-                        <div className="relative flex-1 max-w-sm">
-                          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input
-                            placeholder="Search attendees..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-10 bg-background"
-                          />
-                        </div>
-                        <Select value={photoFilter} onValueChange={(value) => setPhotoFilter(value as 'all' | 'with' | 'without')}>
-                          <SelectTrigger className="w-48 bg-background">
-                            <SelectValue placeholder="Filter by photo" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All Attendees</SelectItem>
-                            <SelectItem value="with">With Photo</SelectItem>
-                            <SelectItem value="without">Without Photo</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </>
-                    )}
-                    {showAdvancedSearch && hasAdvancedFilters() && (
-                      <div className="flex items-center space-x-2">
-                        <Badge variant="secondary" className="flex items-center space-x-1">
-                          <Filter className="h-3 w-3" />
-                          <span>Advanced filters active</span>
-                        </Badge>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setShowAdvancedSearch(false);
-                            clearAdvancedSearch();
-                          }}
-                          className="text-muted-foreground hover:text-foreground"
-                        >
-                          Clear filters
-                        </Button>
+                <div className="flex items-center justify-between gap-4">
+                  {!showAdvancedSearch ? (
+                    <div className="flex items-center space-x-4">
+                      <div className="relative w-64">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Search attendees..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="pl-10 bg-background"
+                        />
                       </div>
-                    )}
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    {hasPermission(currentUser?.role, 'attendees', 'create') && (
-                      <Button onClick={async () => {
-                        await refreshEventSettings();
-                        setEditingAttendee(null);
-                        setShowAttendeeForm(true);
-                      }}>
-                        <Plus className="mr-2 h-4 w-4" />
-                        Add Attendee
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Advanced Search Button and Import/Export Buttons */}
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center space-x-2">
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className="flex items-center space-x-2"
-                          onClick={() => {
-                            // Initialize custom fields and notes when opening advanced search
-                            if (!showAdvancedSearch) {
-                              const customFields: { [key: string]: { value: string; operator: string } } = {};
-                              eventSettings?.customFields?.forEach((field: any) => {
-                                customFields[field.id] = { value: '', operator: 'contains' };
-                              });
-                              if (Object.keys(advancedSearchFilters.customFields).length === 0) {
-                                setAdvancedSearchFilters(prev => ({
-                                  ...prev,
-                                  notes: { value: '', operator: 'contains', hasNotes: false },
-                                  customFields
-                                }));
+                      <Select value={photoFilter} onValueChange={(value) => setPhotoFilter(value as 'all' | 'with' | 'without')}>
+                        <SelectTrigger className="w-48 bg-background">
+                          <SelectValue placeholder="Filter by photo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Attendees</SelectItem>
+                          <SelectItem value="with">With Photo</SelectItem>
+                          <SelectItem value="without">Without Photo</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className="flex items-center space-x-2"
+                            data-advanced-search-trigger
+                            onClick={() => {
+                              // Initialize custom fields and notes when opening advanced search
+                              if (!showAdvancedSearch) {
+                                const customFields: { [key: string]: { value: string; operator: string } } = {};
+                                eventSettings?.customFields?.forEach((field: any) => {
+                                  customFields[field.id] = { value: '', operator: 'contains' };
+                                });
+                                if (Object.keys(advancedSearchFilters.customFields).length === 0) {
+                                  setAdvancedSearchFilters(prev => ({
+                                    ...prev,
+                                    notes: { value: '', operator: 'contains', hasNotes: false },
+                                    customFields
+                                  }));
+                                }
                               }
-                            }
-                          }}
-                        >
-                          <Filter className="h-4 w-4" />
-                          <span>Advanced Search</span>
-                          {hasAdvancedFilters() && (
-                            <Badge variant="secondary" className="ml-1 h-5 w-5 p-0 flex items-center justify-center">
-                              <span className="text-xs">!</span>
-                            </Badge>
-                          )}
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-5xl max-h-[80vh] overflow-y-auto">
-                        <DialogHeader>
-                          <DialogTitle className="flex items-center justify-between">
+                            }}
+                          >
+                            <Filter className="h-4 w-4" />
                             <span>Advanced Search</span>
-                            <Button variant="ghost" size="sm" onClick={clearAdvancedSearch}>
-                              Clear All
-                            </Button>
-                          </DialogTitle>
-                          <DialogDescription>
-                            Search attendees using multiple criteria. Leave fields empty to ignore them in the search.
-                          </DialogDescription>
-                        </DialogHeader>
-                        <div className="space-y-6">
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {/* Basic Fields */}
-                            <div className="space-y-2">
-                              <Label htmlFor="firstName" className="flex items-center space-x-2">
-                                <User className="h-4 w-4 text-muted-foreground" />
-                                <span>First Name</span>
-                              </Label>
-                              <div className="flex space-x-2">
-                                <Select
-                                  value={advancedSearchFilters.firstName.operator}
-                                  onValueChange={(operator) => handleAdvancedSearchChange('firstName', operator, 'operator')}
-                                >
-                                  <SelectTrigger className="w-[120px]">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="contains">Contains</SelectItem>
-                                    <SelectItem value="equals">Equals</SelectItem>
-                                    <SelectItem value="startsWith">Starts With</SelectItem>
-                                    <SelectItem value="endsWith">Ends With</SelectItem>
-                                    <SelectItem value="isEmpty">Is Empty</SelectItem>
-                                    <SelectItem value="isNotEmpty">Is Not Empty</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                                <Input
-                                  id="firstName"
-                                  placeholder="Value..."
-                                  value={advancedSearchFilters.firstName.value}
-                                  onChange={(e) => handleAdvancedSearchChange('firstName', e.target.value, 'value')}
-                                  disabled={['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.firstName.operator)}
-                                />
-                              </div>
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label htmlFor="lastName" className="flex items-center space-x-2">
-                                <User className="h-4 w-4 text-muted-foreground" />
-                                <span>Last Name</span>
-                              </Label>
-                              <div className="flex space-x-2">
-                                <Select
-                                  value={advancedSearchFilters.lastName.operator}
-                                  onValueChange={(operator) => handleAdvancedSearchChange('lastName', operator, 'operator')}
-                                >
-                                  <SelectTrigger className="w-[120px]">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="contains">Contains</SelectItem>
-                                    <SelectItem value="equals">Equals</SelectItem>
-                                    <SelectItem value="startsWith">Starts With</SelectItem>
-                                    <SelectItem value="endsWith">Ends With</SelectItem>
-                                    <SelectItem value="isEmpty">Is Empty</SelectItem>
-                                    <SelectItem value="isNotEmpty">Is Not Empty</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                                <Input
-                                  id="lastName"
-                                  placeholder="Value..."
-                                  value={advancedSearchFilters.lastName.value}
-                                  onChange={(e) => handleAdvancedSearchChange('lastName', e.target.value, 'value')}
-                                  disabled={['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.lastName.operator)}
-                                />
-                              </div>
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label htmlFor="barcode" className="flex items-center space-x-2">
-                                <QrCode className="h-4 w-4 text-muted-foreground" />
-                                <span>Barcode</span>
-                              </Label>
-                              <div className="flex space-x-2">
-                                <Select
-                                  value={advancedSearchFilters.barcode.operator}
-                                  onValueChange={(operator) => handleAdvancedSearchChange('barcode', operator, 'operator')}
-                                >
-                                  <SelectTrigger className="w-[120px]">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="contains">Contains</SelectItem>
-                                    <SelectItem value="equals">Equals</SelectItem>
-                                    <SelectItem value="startsWith">Starts With</SelectItem>
-                                    <SelectItem value="endsWith">Ends With</SelectItem>
-                                    <SelectItem value="isEmpty">Is Empty</SelectItem>
-                                    <SelectItem value="isNotEmpty">Is Not Empty</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                                <Input
-                                  id="barcode"
-                                  placeholder="Value..."
-                                  value={advancedSearchFilters.barcode.value}
-                                  onChange={(e) => handleAdvancedSearchChange('barcode', e.target.value, 'value')}
-                                  disabled={['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.barcode.operator)}
-                                />
-                              </div>
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label htmlFor="photoFilter" className="flex items-center space-x-2">
-                                <Image className="h-4 w-4 text-muted-foreground" />
-                                <span>Photo Status</span>
-                              </Label>
-                              <Select
-                                value={advancedSearchFilters.photoFilter}
-                                onValueChange={(value) => handleAdvancedSearchChange('photoFilter', value)}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Filter by photo" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="all">All Attendees</SelectItem>
-                                  <SelectItem value="with">With Photo</SelectItem>
-                                  <SelectItem value="without">Without Photo</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-
-                            {/* Notes Field */}
-                            <div className="space-y-2">
-                              <Label htmlFor="notes" className="flex items-center space-x-2">
-                                <FileText className="h-4 w-4 text-muted-foreground" />
-                                <span>Notes</span>
-                              </Label>
+                            {hasAdvancedFilters() && (
+                              <Badge variant="secondary" className="ml-1 h-5 w-5 p-0 flex items-center justify-center">
+                                <span className="text-xs">!</span>
+                              </Badge>
+                            )}
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-5xl max-h-[80vh] overflow-y-auto">
+                          <DialogHeader>
+                            <DialogTitle className="flex items-center justify-between">
+                              <span>Advanced Search</span>
+                              <Button variant="ghost" size="sm" onClick={clearAdvancedSearch}>
+                                Clear All
+                              </Button>
+                            </DialogTitle>
+                            <DialogDescription>
+                              Search attendees using multiple criteria. Leave fields empty to ignore them in the search.
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                              {/* Basic Fields */}
                               <div className="space-y-2">
+                                <Label htmlFor="firstName" className="flex items-center space-x-2">
+                                  <User className="h-4 w-4 text-muted-foreground" />
+                                  <span>First Name</span>
+                                </Label>
                                 <div className="flex space-x-2">
                                   <Select
-                                    value={advancedSearchFilters.notes.operator}
-                                    onValueChange={(operator) => handleAdvancedSearchChange('notes', operator, 'operator')}
+                                    value={advancedSearchFilters.firstName.operator}
+                                    onValueChange={(operator) => handleAdvancedSearchChange('firstName', operator, 'operator')}
                                   >
                                     <SelectTrigger className="w-[120px]">
                                       <SelectValue />
@@ -2779,162 +2633,343 @@ export default function Dashboard() {
                                     </SelectContent>
                                   </Select>
                                   <Input
-                                    id="notes"
+                                    id="firstName"
                                     placeholder="Value..."
-                                    value={advancedSearchFilters.notes.value}
-                                    onChange={(e) => handleAdvancedSearchChange('notes', e.target.value, 'value')}
-                                    disabled={['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.notes.operator)}
+                                    value={advancedSearchFilters.firstName.value}
+                                    onChange={(e) => handleAdvancedSearchChange('firstName', e.target.value, 'value')}
+                                    disabled={['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.firstName.operator)}
                                   />
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                  <Checkbox
-                                    id="hasNotes"
-                                    checked={advancedSearchFilters.notes.hasNotes}
-                                    onCheckedChange={(checked) => {
-                                      setAdvancedSearchFilters(prev => ({
-                                        ...prev,
-                                        notes: {
-                                          ...prev.notes,
-                                          hasNotes: checked as boolean
-                                        }
-                                      }));
-                                    }}
-                                    disabled={['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.notes.operator)}
-                                  />
-                                  <Label
-                                    htmlFor="hasNotes"
-                                    className="text-sm font-normal cursor-pointer"
-                                  >
-                                    Has Notes
-                                  </Label>
                                 </div>
                               </div>
-                            </div>
 
-                            {/* Custom Fields */}
-                            {eventSettings?.customFields?.map((field: any) => {
-                              // Function to get icon based on field type
-                              const getFieldIcon = (fieldType: string) => {
-                                switch (fieldType) {
-                                  case 'text':
-                                  case 'uppercase':
-                                    return <Type className="h-4 w-4 text-muted-foreground" />;
-                                  case 'url':
-                                    return <Link className="h-4 w-4 text-muted-foreground" />;
-                                  case 'email':
-                                    return <Mail className="h-4 w-4 text-muted-foreground" />;
-                                  case 'number':
-                                    return <Hash className="h-4 w-4 text-muted-foreground" />;
-                                  case 'boolean':
-                                    return <ToggleLeft className="h-4 w-4 text-muted-foreground" />;
-                                  case 'select':
-                                    return <ChevronDown className="h-4 w-4 text-muted-foreground" />;
-                                  default:
-                                    return <FileText className="h-4 w-4 text-muted-foreground" />;
-                                }
-                              };
+                              <div className="space-y-2">
+                                <Label htmlFor="lastName" className="flex items-center space-x-2">
+                                  <User className="h-4 w-4 text-muted-foreground" />
+                                  <span>Last Name</span>
+                                </Label>
+                                <div className="flex space-x-2">
+                                  <Select
+                                    value={advancedSearchFilters.lastName.operator}
+                                    onValueChange={(operator) => handleAdvancedSearchChange('lastName', operator, 'operator')}
+                                  >
+                                    <SelectTrigger className="w-[120px]">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="contains">Contains</SelectItem>
+                                      <SelectItem value="equals">Equals</SelectItem>
+                                      <SelectItem value="startsWith">Starts With</SelectItem>
+                                      <SelectItem value="endsWith">Ends With</SelectItem>
+                                      <SelectItem value="isEmpty">Is Empty</SelectItem>
+                                      <SelectItem value="isNotEmpty">Is Not Empty</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  <Input
+                                    id="lastName"
+                                    placeholder="Value..."
+                                    value={advancedSearchFilters.lastName.value}
+                                    onChange={(e) => handleAdvancedSearchChange('lastName', e.target.value, 'value')}
+                                    disabled={['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.lastName.operator)}
+                                  />
+                                </div>
+                              </div>
 
-                              return (
-                                <div key={field.id} className="space-y-2">
-                                  <Label htmlFor={`custom-${field.id}`} className="flex items-center space-x-2">
-                                    {getFieldIcon(field.fieldType)}
-                                    <span>{field.fieldName}</span>
-                                    {field.fieldType && (
-                                      <Badge variant="outline" className="ml-2 text-xs">
-                                        {field.fieldType}
-                                      </Badge>
-                                    )}
-                                  </Label>
-                                  <div className="space-y-2">
-                                    {['text', 'url', 'email', 'number'].includes(field.fieldType) ? (
-                                      <div className="flex space-x-2">
-                                        <Select
-                                          value={advancedSearchFilters.customFields[field.id]?.operator || 'contains'}
-                                          onValueChange={(operator) => handleCustomFieldOperatorChange(field.id, operator)}
-                                        >
-                                          <SelectTrigger className="w-[120px]">
-                                            <SelectValue />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            <SelectItem value="contains">Contains</SelectItem>
-                                            <SelectItem value="equals">Equals</SelectItem>
-                                            <SelectItem value="startsWith">Starts With</SelectItem>
-                                            <SelectItem value="endsWith">Ends With</SelectItem>
-                                            <SelectItem value="isEmpty">Is Empty</SelectItem>
-                                            <SelectItem value="isNotEmpty">Is Not Empty</SelectItem>
-                                          </SelectContent>
-                                        </Select>
-                                        <Input
-                                          id={`custom-${field.id}`}
-                                          placeholder={`Value...`}
-                                          value={advancedSearchFilters.customFields[field.id]?.value || ''}
-                                          onChange={(e) => handleCustomFieldSearchChange(field.id, e.target.value)}
-                                          disabled={['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.customFields[field.id]?.operator)}
-                                        />
-                                      </div>
-                                    ) : field.fieldType === 'select' ? (
-                                      <Select
-                                        value={advancedSearchFilters.customFields[field.id]?.value || 'all'}
-                                        onValueChange={(value) => handleCustomFieldSearchChange(field.id, value === 'all' ? '' : value, 'equals')}
-                                      >
-                                        <SelectTrigger>
-                                          <SelectValue placeholder={`Select ${field.fieldName.toLowerCase()}...`} />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          <SelectItem value="all">All options</SelectItem>
-                                          {field.fieldOptions?.options?.filter((option: string) => option && option.trim() !== '').map((option: string, index: number) => (
-                                            <SelectItem key={index} value={option}>
-                                              {option}
-                                            </SelectItem>
-                                          ))}
-                                        </SelectContent>
-                                      </Select>
-                                    ) : field.fieldType === 'boolean' ? (
-                                      <Select
-                                        value={advancedSearchFilters.customFields[field.id]?.value || 'all'}
-                                        onValueChange={(value) => handleCustomFieldSearchChange(field.id, value === 'all' ? '' : value, 'equals')}
-                                      >
-                                        <SelectTrigger>
-                                          <SelectValue placeholder={`Select ${field.fieldName.toLowerCase()}...`} />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          <SelectItem value="all">All options</SelectItem>
-                                          <SelectItem value="yes">Yes</SelectItem>
-                                          <SelectItem value="no">No</SelectItem>
-                                        </SelectContent>
-                                      </Select>
-                                    ) : (
-                                      <Input
-                                        id={`custom-${field.id}`}
-                                        placeholder={`Search by ${field.fieldName.toLowerCase()}...`}
-                                        value={advancedSearchFilters.customFields[field.id]?.value || ''}
-                                        onChange={(e) => handleCustomFieldSearchChange(field.id, e.target.value)}
-                                      />
-                                    )}
+                              <div className="space-y-2">
+                                <Label htmlFor="barcode" className="flex items-center space-x-2">
+                                  <QrCode className="h-4 w-4 text-muted-foreground" />
+                                  <span>Barcode</span>
+                                </Label>
+                                <div className="flex space-x-2">
+                                  <Select
+                                    value={advancedSearchFilters.barcode.operator}
+                                    onValueChange={(operator) => handleAdvancedSearchChange('barcode', operator, 'operator')}
+                                  >
+                                    <SelectTrigger className="w-[120px]">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="contains">Contains</SelectItem>
+                                      <SelectItem value="equals">Equals</SelectItem>
+                                      <SelectItem value="startsWith">Starts With</SelectItem>
+                                      <SelectItem value="endsWith">Ends With</SelectItem>
+                                      <SelectItem value="isEmpty">Is Empty</SelectItem>
+                                      <SelectItem value="isNotEmpty">Is Not Empty</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  <Input
+                                    id="barcode"
+                                    placeholder="Value..."
+                                    value={advancedSearchFilters.barcode.value}
+                                    onChange={(e) => handleAdvancedSearchChange('barcode', e.target.value, 'value')}
+                                    disabled={['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.barcode.operator)}
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="space-y-2">
+                                <Label htmlFor="photoFilter" className="flex items-center space-x-2">
+                                  <Image className="h-4 w-4 text-muted-foreground" />
+                                  <span>Photo Status</span>
+                                </Label>
+                                <Select
+                                  value={advancedSearchFilters.photoFilter}
+                                  onValueChange={(value) => handleAdvancedSearchChange('photoFilter', value)}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Filter by photo" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="all">All Attendees</SelectItem>
+                                    <SelectItem value="with">With Photo</SelectItem>
+                                    <SelectItem value="without">Without Photo</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+
+                              {/* Notes Field */}
+                              <div className="space-y-2">
+                                <Label htmlFor="notes" className="flex items-center space-x-2">
+                                  <FileText className="h-4 w-4 text-muted-foreground" />
+                                  <span>Notes</span>
+                                </Label>
+                                <div className="space-y-2">
+                                  <div className="flex space-x-2">
+                                    <Select
+                                      value={advancedSearchFilters.notes.operator}
+                                      onValueChange={(operator) => handleAdvancedSearchChange('notes', operator, 'operator')}
+                                    >
+                                      <SelectTrigger className="w-[120px]">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="contains">Contains</SelectItem>
+                                        <SelectItem value="equals">Equals</SelectItem>
+                                        <SelectItem value="startsWith">Starts With</SelectItem>
+                                        <SelectItem value="endsWith">Ends With</SelectItem>
+                                        <SelectItem value="isEmpty">Is Empty</SelectItem>
+                                        <SelectItem value="isNotEmpty">Is Not Empty</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                    <Input
+                                      id="notes"
+                                      placeholder="Value..."
+                                      value={advancedSearchFilters.notes.value}
+                                      onChange={(e) => handleAdvancedSearchChange('notes', e.target.value, 'value')}
+                                      disabled={['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.notes.operator)}
+                                    />
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                    <Checkbox
+                                      id="hasNotes"
+                                      checked={advancedSearchFilters.notes.hasNotes}
+                                      onCheckedChange={(checked) => {
+                                        setAdvancedSearchFilters(prev => ({
+                                          ...prev,
+                                          notes: {
+                                            ...prev.notes,
+                                            hasNotes: checked as boolean
+                                          }
+                                        }));
+                                      }}
+                                      disabled={['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.notes.operator)}
+                                    />
+                                    <Label
+                                      htmlFor="hasNotes"
+                                      className="text-sm font-normal cursor-pointer"
+                                    >
+                                      Has Notes
+                                    </Label>
                                   </div>
                                 </div>
-                              );
-                            })}
-                          </div>
+                              </div>
 
-                          {/* Apply Search Button */}
-                          <div className="flex justify-end space-x-2 pt-4 border-t">
-                            <DialogTrigger asChild>
-                              <Button variant="outline">
-                                Cancel
-                              </Button>
-                            </DialogTrigger>
-                            <DialogTrigger asChild>
-                              <Button onClick={() => setShowAdvancedSearch(true)}>
-                                Apply Search
-                              </Button>
-                            </DialogTrigger>
-                          </div>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
+                              {/* Custom Fields */}
+                              {eventSettings?.customFields?.map((field: any) => {
+                                // Function to get icon based on field type
+                                const getFieldIcon = (fieldType: string) => {
+                                  switch (fieldType) {
+                                    case 'text':
+                                    case 'uppercase':
+                                      return <Type className="h-4 w-4 text-muted-foreground" />;
+                                    case 'url':
+                                      return <Link className="h-4 w-4 text-muted-foreground" />;
+                                    case 'email':
+                                      return <Mail className="h-4 w-4 text-muted-foreground" />;
+                                    case 'number':
+                                      return <Hash className="h-4 w-4 text-muted-foreground" />;
+                                    case 'boolean':
+                                      return <ToggleLeft className="h-4 w-4 text-muted-foreground" />;
+                                    case 'select':
+                                      return <ChevronDown className="h-4 w-4 text-muted-foreground" />;
+                                    default:
+                                      return <FileText className="h-4 w-4 text-muted-foreground" />;
+                                  }
+                                };
 
+                                return (
+                                  <div key={field.id} className="space-y-2">
+                                    <Label htmlFor={`custom-${field.id}`} className="flex items-center space-x-2">
+                                      {getFieldIcon(field.fieldType)}
+                                      <span>{field.fieldName}</span>
+                                      {field.fieldType && (
+                                        <Badge variant="outline" className="ml-2 text-xs">
+                                          {field.fieldType}
+                                        </Badge>
+                                      )}
+                                    </Label>
+                                    <div className="space-y-2">
+                                      {['text', 'url', 'email', 'number'].includes(field.fieldType) ? (
+                                        <div className="flex space-x-2">
+                                          <Select
+                                            value={advancedSearchFilters.customFields[field.id]?.operator || 'contains'}
+                                            onValueChange={(operator) => handleCustomFieldOperatorChange(field.id, operator)}
+                                          >
+                                            <SelectTrigger className="w-[120px]">
+                                              <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              <SelectItem value="contains">Contains</SelectItem>
+                                              <SelectItem value="equals">Equals</SelectItem>
+                                              <SelectItem value="startsWith">Starts With</SelectItem>
+                                              <SelectItem value="endsWith">Ends With</SelectItem>
+                                              <SelectItem value="isEmpty">Is Empty</SelectItem>
+                                              <SelectItem value="isNotEmpty">Is Not Empty</SelectItem>
+                                            </SelectContent>
+                                          </Select>
+                                          <Input
+                                            id={`custom-${field.id}`}
+                                            placeholder={`Value...`}
+                                            value={advancedSearchFilters.customFields[field.id]?.value || ''}
+                                            onChange={(e) => handleCustomFieldSearchChange(field.id, e.target.value)}
+                                            disabled={['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.customFields[field.id]?.operator)}
+                                          />
+                                        </div>
+                                      ) : field.fieldType === 'select' ? (
+                                        <Select
+                                          value={advancedSearchFilters.customFields[field.id]?.value || 'all'}
+                                          onValueChange={(value) => handleCustomFieldSearchChange(field.id, value === 'all' ? '' : value, 'equals')}
+                                        >
+                                          <SelectTrigger>
+                                            <SelectValue placeholder={`Select ${field.fieldName.toLowerCase()}...`} />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="all">All options</SelectItem>
+                                            {field.fieldOptions?.options?.filter((option: string) => option && option.trim() !== '').map((option: string, index: number) => (
+                                              <SelectItem key={index} value={option}>
+                                                {option}
+                                              </SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                      ) : field.fieldType === 'boolean' ? (
+                                        <Select
+                                          value={advancedSearchFilters.customFields[field.id]?.value || 'all'}
+                                          onValueChange={(value) => handleCustomFieldSearchChange(field.id, value === 'all' ? '' : value, 'equals')}
+                                        >
+                                          <SelectTrigger>
+                                            <SelectValue placeholder={`Select ${field.fieldName.toLowerCase()}...`} />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="all">All options</SelectItem>
+                                            <SelectItem value="yes">Yes</SelectItem>
+                                            <SelectItem value="no">No</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      ) : (
+                                        <Input
+                                          id={`custom-${field.id}`}
+                                          placeholder={`Search by ${field.fieldName.toLowerCase()}...`}
+                                          value={advancedSearchFilters.customFields[field.id]?.value || ''}
+                                          onChange={(e) => handleCustomFieldSearchChange(field.id, e.target.value)}
+                                        />
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {/* Apply Search Button */}
+                            <div className="flex justify-end space-x-2 pt-4 border-t">
+                              <DialogTrigger asChild>
+                                <Button variant="outline">
+                                  Cancel
+                                </Button>
+                              </DialogTrigger>
+                              <DialogTrigger asChild>
+                                <Button onClick={() => {
+                                  if (hasAdvancedFilters()) {
+                                    setShowAdvancedSearch(true);
+                                  } else {
+                                    error("No Search Criteria", "Please enter at least one search criterion to use advanced search.");
+                                  }
+                                }}>
+                                  Apply Search
+                                </Button>
+                              </DialogTrigger>
+                            </div>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                  ) : (
+                    <div className="flex items-center space-x-4">
+                      <Alert className="bg-primary/10 border-primary/30 dark:bg-primary/20 dark:border-primary/40">
+                        <Filter className="h-5 w-5 text-primary" />
+                        <AlertDescription className="flex items-center justify-between w-full ml-2">
+                          <div className="flex items-center space-x-3">
+                            <span className="font-semibold text-primary text-base">Advanced Search Active</span>
+                            <Badge variant="default" className="bg-primary text-primary-foreground">
+                              {(() => {
+                                let count = 0;
+                                if (advancedSearchFilters.firstName.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.firstName.operator)) count++;
+                                if (advancedSearchFilters.lastName.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.lastName.operator)) count++;
+                                if (advancedSearchFilters.barcode.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.barcode.operator)) count++;
+                                if (advancedSearchFilters.notes.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.notes.operator) || advancedSearchFilters.notes.hasNotes) count++;
+                                if (advancedSearchFilters.photoFilter !== 'all') count++;
+                                count += Object.values(advancedSearchFilters.customFields).filter(field => field.value || field.operator === 'isEmpty' || field.operator === 'isNotEmpty').length;
+                                return `${count} ${count === 1 ? 'filter' : 'filters'}`;
+                              })()}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-[140px]"
+                              onClick={() => {
+                                // Turn off advanced search mode to show the dialog
+                                setShowAdvancedSearch(false);
+                                // Trigger the dialog to open by clicking the Advanced Search button
+                                setTimeout(() => {
+                                  const advancedSearchButton = document.querySelector('[data-advanced-search-trigger]') as HTMLButtonElement;
+                                  if (advancedSearchButton) {
+                                    advancedSearchButton.click();
+                                  }
+                                }, 50);
+                              }}
+                            >
+                              <Edit className="mr-2 h-4 w-4" />
+                              Edit Filters
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              className="w-[140px]"
+                              onClick={() => {
+                                setShowAdvancedSearch(false);
+                                clearAdvancedSearch();
+                              }}
+                            >
+                              Clear All Filters
+                            </Button>
+                          </div>
+                        </AlertDescription>
+                      </Alert>
+                    </div>
+                  )}
+
+                  {/* Import/Export Buttons */}
                   <div className="flex items-center space-x-2">
                     {selectedAttendees.length > 0 && (
                       <>
@@ -3129,8 +3164,6 @@ export default function Dashboard() {
                 </div>
               </div>
 
-
-
               {/* Attendees Table */}
               <Card className="glass-effect border-0">
                 <CardContent className="pt-6">
@@ -3239,7 +3272,7 @@ export default function Dashboard() {
                                     )}
                                   </div>
                                   {attendee.notes && attendee.notes.trim() !== '' && (
-                                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5 bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300 border-violet-200 dark:border-violet-800" aria-label="Has notes">
+                                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5 bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800" aria-label="Has notes">
                                       <FileText className="h-3 w-3 mr-1" aria-hidden="true" />
                                       NOTES
                                     </Badge>
@@ -3835,183 +3868,24 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {/* Roles Table */}
+              {/* Roles List */}
               {roles.length > 0 && (
-                <Card className="glass-effect border-0">
-                  <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <Shield className="h-5 w-5 text-primary" />
-                        <span>System Roles</span>
-                      </div>
-                      <Badge variant="outline" className="text-sm">
-                        {roles.length} role{roles.length !== 1 ? 's' : ''} configured
-                      </Badge>
-                    </CardTitle>
-                    <CardDescription>
-                      Manage user roles and their permissions across the system
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {roles.map((role, index) => {
-                        const userCount = users.filter(u => u.role?.id === role.id).length;
-                        const permissionCount = Object.values(role.permissions || {}).reduce((count, perms) => {
-                          if (typeof perms === 'object' && perms !== null) {
-                            return count + Object.values(perms).filter(Boolean).length;
-                          }
-                          return count + (perms ? 1 : 0);
-                        }, 0);
-
-                        return (
-                          <div
-                            key={role.id}
-                            className="group relative border rounded-lg p-6 hover:shadow-md transition-all duration-200 hover:border-primary/20 bg-gradient-to-r from-background to-muted/20"
-                          >
-                            {/* Role Header */}
-                            <div className="flex items-start justify-between mb-4">
-                              <div className="flex-1">
-                                <div className="flex items-center space-x-3 mb-2">
-                                  <div className={`p-2 rounded-lg ${role.name === 'Super Administrator' ? 'bg-red-100 dark:bg-red-900/20' :
-                                    role.name === 'Administrator' ? 'bg-purple-100 dark:bg-purple-900/20' :
-                                      role.name === 'Manager' ? 'bg-blue-100 dark:bg-blue-900/20' :
-                                        role.name === 'Editor' ? 'bg-green-100 dark:bg-green-900/20' :
-                                          'bg-gray-100 dark:bg-gray-900/20'
-                                    }`}>
-                                    <Shield className={`h-5 w-5 ${role.name === 'Super Administrator' ? 'text-red-600 dark:text-red-400' :
-                                      role.name === 'Administrator' ? 'text-purple-600 dark:text-purple-400' :
-                                        role.name === 'Manager' ? 'text-blue-600 dark:text-blue-400' :
-                                          role.name === 'Editor' ? 'text-green-600 dark:text-green-400' :
-                                            'text-gray-600 dark:text-gray-400'
-                                      }`} />
-                                  </div>
-                                  <div>
-                                    <h3 className="text-lg font-semibold text-foreground group-hover:text-primary transition-colors">
-                                      {role.name}
-                                    </h3>
-                                    <p className="text-sm text-muted-foreground">
-                                      {role.description || 'No description provided'}
-                                    </p>
-                                  </div>
-                                </div>
-
-                                {/* Role Stats */}
-                                <div className="flex items-center space-x-6 text-sm text-muted-foreground">
-                                  <div className="flex items-center space-x-1">
-                                    <Users className="h-4 w-4" />
-                                    <span>{userCount} user{userCount !== 1 ? 's' : ''}</span>
-                                  </div>
-                                  <div className="flex items-center space-x-1">
-                                    <Settings className="h-4 w-4" />
-                                    <span>{permissionCount} permission{permissionCount !== 1 ? 's' : ''}</span>
-                                  </div>
-                                  <div className="flex items-center space-x-1">
-                                    <Calendar className="h-4 w-4" />
-                                    <span>Created {new Date(role.createdAt).toLocaleDateString()}</span>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Actions */}
-                              <div className="flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                {hasPermission(currentUser?.role, 'roles', 'update') && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => {
-                                      setEditingRole(role);
-                                      setShowRoleForm(true);
-                                    }}
-                                    className="hover:bg-primary/10 hover:text-primary"
-                                  >
-                                    <Edit className="h-4 w-4" />
-                                  </Button>
-                                )}
-                                {hasPermission(currentUser?.role, 'roles', 'delete') && role.name !== 'Super Administrator' && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="text-destructive hover:bg-destructive/10"
-                                    onClick={() => handleDeleteRole(role.id)}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Permissions Overview */}
-                            <div className="space-y-3">
-                              <div className="text-sm font-medium text-foreground">Permissions Overview</div>
-                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                {Object.entries(role.permissions || {}).map(([resource, perms]: [string, boolean | Record<string, boolean>]) => {
-                                  const resourcePermissions = typeof perms === 'object' && perms !== null
-                                    ? Object.entries(perms).filter(([, allowed]) => allowed).map(([action]) => action)
-                                    : perms ? [String(perms)] : [];
-
-                                  if (resourcePermissions.length === 0) return null;
-
-                                  return (
-                                    <div key={resource} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border">
-                                      <div className="flex items-center space-x-2">
-                                        <div className={`h-2 w-2 rounded-full ${resourcePermissions.length > 0 ? 'bg-green-500' : 'bg-gray-400'
-                                          }`}></div>
-                                        <span className="text-sm font-medium capitalize">{resource}</span>
-                                      </div>
-                                      <div className="flex flex-wrap gap-1">
-                                        {resourcePermissions.slice(0, 3).map((action, idx) => (
-                                          <Badge key={idx} variant="secondary" className="text-xs px-2 py-0.5">
-                                            {action}
-                                          </Badge>
-                                        ))}
-                                        {resourcePermissions.length > 3 && (
-                                          <Badge variant="outline" className="text-xs px-2 py-0.5">
-                                            +{resourcePermissions.length - 3}
-                                          </Badge>
-                                        )}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-
-                            {/* Users with this role */}
-                            {userCount > 0 && (
-                              <div className="mt-4 pt-4 border-t">
-                                <div className="text-sm font-medium text-foreground mb-2">Users with this role</div>
-                                <div className="flex flex-wrap gap-2">
-                                  {users
-                                    .filter(u => u.role?.id === role.id)
-                                    .slice(0, 5)
-                                    .map((user) => (
-                                      <div key={user.id} className="flex items-center space-x-2 bg-muted/50 rounded-full px-3 py-1">
-                                        <Avatar className="h-5 w-5">
-                                          <AvatarFallback className="text-xs">
-                                            {(user.name || user.email).charAt(0).toUpperCase()}
-                                          </AvatarFallback>
-                                        </Avatar>
-                                        <span className="text-xs font-medium">
-                                          {user.name || user.email.split('@')[0]}
-                                        </span>
-                                      </div>
-                                    ))}
-                                  {userCount > 5 && (
-                                    <div className="flex items-center justify-center bg-muted/50 rounded-full px-3 py-1">
-                                      <span className="text-xs text-muted-foreground">
-                                        +{userCount - 5} more
-                                      </span>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </CardContent>
-                </Card>
+                <div className="space-y-4">
+                  {roles.map((role) => (
+                    <RoleCard
+                      key={role.id}
+                      role={role}
+                      users={users}
+                      canEdit={hasPermission(currentUser?.role, 'roles', 'update')}
+                      canDelete={hasPermission(currentUser?.role, 'roles', 'delete')}
+                      onEdit={(role) => {
+                        setEditingRole(role);
+                        setShowRoleForm(true);
+                      }}
+                      onDelete={handleDeleteRole}
+                    />
+                  ))}
+                </div>
               )}
             </div>
           )}

@@ -79,7 +79,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const userCount = await getRoleUserCount(databases, role.$id);
 
         const roleWithCount = {
-          ...role,
+          id: role.$id,
+          name: role.name,
+          description: role.description,
+          createdAt: role.$createdAt,
+          permissions: typeof role.permissions === 'string' 
+            ? JSON.parse(role.permissions) 
+            : role.permissions,
           _count: {
             users: userCount
           }
@@ -184,7 +190,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const updatedUserCount = await getRoleUserCount(databases, updatedRole.$id);
 
         const updatedRoleWithCount = {
-          ...updatedRole,
+          id: updatedRole.$id,
+          name: updatedRole.name,
+          description: updatedRole.description,
+          createdAt: updatedRole.$createdAt,
+          permissions: typeof updatedRole.permissions === 'string' 
+            ? JSON.parse(updatedRole.permissions) 
+            : updatedRole.permissions,
           _count: {
             users: updatedUserCount
           }

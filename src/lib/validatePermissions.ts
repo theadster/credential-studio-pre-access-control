@@ -13,7 +13,16 @@ export interface PermissionValidationResult {
   };
 }
 
-const ALLOWED_PERMISSION_KEYS = ['roles', 'users', 'attendees', 'logs', 'all'];
+const ALLOWED_PERMISSION_KEYS = [
+  'attendees',
+  'users',
+  'roles',
+  'eventSettings',
+  'customFields',
+  'logs',
+  'system',
+  'all'
+];
 
 /**
  * Validates a permissions object structure

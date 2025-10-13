@@ -4,11 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Shield, Users, Settings, Activity, CreditCard, Edit, Trash2, Plus, Download, Upload, AlertTriangle } from "lucide-react";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Shield, Users, Settings, Activity, Plus, AlertTriangle } from "lucide-react";
 
 interface Role {
   id: string;
@@ -263,6 +263,11 @@ export default function RoleForm({ isOpen, onClose, onSave, role }: RoleFormProp
         }
       }
     }));
+    
+    // Clear permission error when user makes changes
+    if (errors.permissions) {
+      setErrors((prev: any) => ({ ...prev, permissions: undefined }));
+    }
   };
 
   const handleSelectAllForResource = (resource: keyof UserPermissions, value: boolean) => {
@@ -291,7 +296,7 @@ export default function RoleForm({ isOpen, onClose, onSave, role }: RoleFormProp
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center space-x-2">
             <Shield className="h-5 w-5" />
@@ -311,7 +316,12 @@ export default function RoleForm({ isOpen, onClose, onSave, role }: RoleFormProp
                 <Input
                   id="name"
                   value={formData.name}
-                  onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                  onChange={(e) => {
+                    setFormData(prev => ({ ...prev, name: e.target.value }));
+                    if (errors.name) {
+                      setErrors((prev: any) => ({ ...prev, name: undefined }));
+                    }
+                  }}
                   placeholder="Enter role name"
                   className={errors.name ? "border-destructive" : ""}
                 />
@@ -350,44 +360,49 @@ export default function RoleForm({ isOpen, onClose, onSave, role }: RoleFormProp
               )}
             </div>
 
-            <div className="grid grid-cols-1 gap-4">
+            <Accordion type="single" collapsible defaultValue="attendees" className="space-y-2">
               {Object.entries(permissionLabels).map(([resource, config]) => {
                 const IconComponent = config.icon;
                 const { granted, total } = getPermissionCount(resource as keyof UserPermissions);
                 const allSelected = granted === total;
-                const someSelected = granted > 0 && granted < total;
 
                 return (
-                  <Card key={resource} className="border">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-center justify-between">
+                  <AccordionItem key={resource} value={resource} className="border rounded-lg px-4">
+                    <div className="flex items-center justify-between w-full py-4">
+                      <AccordionTrigger 
+                        className="hover:no-underline flex-1 py-0" 
+                        aria-label={`${config.title} permissions: ${granted} of ${total} granted`}
+                      >
                         <div className="flex items-center space-x-3">
                           <div className="p-2 rounded-lg bg-primary/10">
-                            <IconComponent className="h-4 w-4 text-primary" />
+                            <IconComponent className="h-4 w-4 text-primary" aria-hidden="true" />
                           </div>
-                          <div>
-                            <CardTitle className="text-base">{config.title}</CardTitle>
-                            <CardDescription className="text-sm">
+                          <div className="text-left">
+                            <div className="font-medium text-base">{config.title}</div>
+                            <div className="text-sm text-muted-foreground font-normal">
                               {config.description}
-                            </CardDescription>
+                            </div>
                           </div>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <Badge variant={granted > 0 ? "default" : "outline"}>
-                            {granted}/{total}
-                          </Badge>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleSelectAllForResource(resource as keyof UserPermissions, !allSelected)}
-                          >
-                            {allSelected ? "Deselect All" : "Select All"}
-                          </Button>
-                        </div>
+                      </AccordionTrigger>
+                      <div className="flex items-center space-x-2 pr-4">
+                        <Badge variant={granted > 0 ? "default" : "outline"} className="mr-2">
+                          {granted}/{total}
+                        </Badge>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSelectAllForResource(resource as keyof UserPermissions, !allSelected);
+                          }}
+                        >
+                          {allSelected ? "Deselect All" : "Select All"}
+                        </Button>
                       </div>
-                    </CardHeader>
-                    <CardContent className="pt-0">
+                    </div>
+                    <AccordionContent className="pt-2 pb-4">
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                         {Object.entries(config.actions).map(([action, label]) => {
                           const isChecked = formData.permissions[resource as keyof UserPermissions]?.[action as keyof Permission] || false;
@@ -400,6 +415,7 @@ export default function RoleForm({ isOpen, onClose, onSave, role }: RoleFormProp
                                 onCheckedChange={(checked) => 
                                   handlePermissionChange(resource as keyof UserPermissions, action, checked)
                                 }
+                                aria-label={`${label} permission for ${config.title}`}
                               />
                               <Label 
                                 htmlFor={`${resource}-${action}`}
@@ -411,11 +427,11 @@ export default function RoleForm({ isOpen, onClose, onSave, role }: RoleFormProp
                           );
                         })}
                       </div>
-                    </CardContent>
-                  </Card>
+                    </AccordionContent>
+                  </AccordionItem>
                 );
               })}
-            </div>
+            </Accordion>
           </div>
 
           {/* Error Display */}

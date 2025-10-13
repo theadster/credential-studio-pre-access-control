@@ -32,7 +32,10 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             );
             
             return {
-              ...roleDoc,
+              id: roleDoc.$id,
+              name: roleDoc.name,
+              description: roleDoc.description,
+              createdAt: roleDoc.$createdAt,
               permissions: typeof roleDoc.permissions === 'string' 
                 ? JSON.parse(roleDoc.permissions) 
                 : roleDoc.permissions,
@@ -133,9 +136,15 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           }
         );
 
-        // Add user count (0 for new role)
+        // Add user count (0 for new role) and normalize field names
         const newRoleWithCount = {
-          ...newRole,
+          id: newRole.$id,
+          name: newRole.name,
+          description: newRole.description,
+          createdAt: newRole.$createdAt,
+          permissions: typeof newRole.permissions === 'string' 
+            ? JSON.parse(newRole.permissions) 
+            : newRole.permissions,
           _count: {
             users: 0
           }
