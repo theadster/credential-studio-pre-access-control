@@ -21,6 +21,13 @@ docs/
 - [**Bulk Delete Log Size Fix**](./fixes/BULK_DELETE_LOG_SIZE_FIX.md) - Use API key for bulk deletes and handle large log entries
 
 ### Recent Fixes
+- [**🔒 Email Verification Security Fix**](./fixes/EMAIL_VERIFICATION_SECURITY_FIX.md) - ✅ **CRITICAL:** Fixed automatic verification bypass
+- [**📧 Email Verification Appwrite Limitation**](./fixes/EMAIL_VERIFICATION_APPWRITE_LIMITATION.md) - ⚠️ **IMPORTANT:** Appwrite doesn't support admin-initiated email verification
+- [**Email Verification Fix Summary**](./fixes/EMAIL_VERIFICATION_FIX_SUMMARY.md) - Quick reference for the email verification security fix
+- [**🔑 Password Reset Feature**](./fixes/PASSWORD_RESET_FEATURE_SUMMARY.md) - ✅ **NEW:** Administrators can now send password reset emails to users
+- [**🔑 Password Reset in Edit Dialog**](./fixes/PASSWORD_RESET_EDIT_USER_DIALOG.md) - ✅ **ENHANCED:** Password reset now available directly in Edit User dialog
+- [**🔧 Password Reset User ID Fix**](./fixes/PASSWORD_RESET_USER_ID_FIX.md) - ✅ **FIXED:** Resolved userId fetching issue
+- [**🔧 Password Reset API Method Fix**](./fixes/PASSWORD_RESET_API_METHOD_FIX.md) - ✅ **FIXED:** Corrected API method from Users to Account API
 - [**Roles Page Redesign Restoration**](./fixes/ROLES_PAGE_REDESIGN_RESTORATION.md) - ✅ Restored modern role card design by importing and using RoleCard component
 - [**Role User Assignment Display Fix**](./fixes/ROLE_USER_ASSIGNMENT_FIX.md) - ✅ Fixed role cards showing "no users assigned" by normalizing API field names
 - [**Bulk Operations Pagination Reset Fix**](./fixes/BULK_OPERATIONS_PAGINATION_RESET_FIX.md) - ✅ Reset to page 1 after bulk delete/edit to prevent empty pages
@@ -78,6 +85,8 @@ docs/
 - [**SweetAlert Best Practices Guide**](./guides/SWEETALERT_BEST_PRACTICES_GUIDE.md) - Best practices for notifications and user experience
 
 #### Other Guides
+- [**Password Reset Admin Guide**](./guides/PASSWORD_RESET_ADMIN_GUIDE.md) - Complete guide for administrators to help users reset passwords
+- [**Email Verification Testing Guide**](./guides/EMAIL_VERIFICATION_TESTING_GUIDE.md) - Complete testing guide for email verification flow
 - [**Custom Fields API Guide**](./guides/CUSTOM_FIELDS_API_GUIDE.md) - Complete API reference with examples for optimistic locking and soft delete
 - [**Auth User Linking API Guide**](./guides/AUTH_USER_LINKING_API_GUIDE.md) - Complete API documentation for auth user linking
 - [**Auth User Linking Admin Guide**](./guides/AUTH_USER_LINKING_ADMIN_GUIDE.md) - Administrator guide for linking users
