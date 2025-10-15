@@ -7,6 +7,8 @@ import csv from 'csv-parser';
 import { generateBarcode } from '@/util/string';
 import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
 import { shouldLog } from '@/lib/logSettings';
+import { bulkImportWithFallback } from '@/lib/bulkOperations';
+import { handleTransactionError, detectTransactionErrorType, TransactionErrorType } from '@/lib/transactions';
 
 export const config = {
   api: {
@@ -16,7 +18,15 @@ export const config = {
 
 const handler = async (req: AuthenticatedRequest, res: NextApiResponse) => {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).json({ 
+      error: 'Method not allowed',
+      message: 'This endpoint only accepts POST requests.',
+      retryable: false,
+      type: 'VALIDATION',
+      details: {
+        suggestion: 'Use POST method to import attendees.'
+      }
+    });
   }
 
   try {
@@ -27,7 +37,7 @@ const handler = async (req: AuthenticatedRequest, res: NextApiResponse) => {
     const { databases: sessionDatabases } = createSessionClient(req);
     
     // Use admin client for bulk operations to avoid rate limiting
-    const { databases: adminDatabases } = createAdminClient();
+    const { databases: adminDatabases, tablesDB } = createAdminClient();
 
     const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
     const attendeesCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID!;
@@ -41,7 +51,15 @@ const handler = async (req: AuthenticatedRequest, res: NextApiResponse) => {
     const hasImportPermission = permissions?.attendees?.import === true || permissions?.all === true;
 
     if (!hasImportPermission) {
-      return res.status(403).json({ error: 'Insufficient permissions' });
+      return res.status(403).json({ 
+        error: 'Permission denied',
+        message: 'You do not have permission to import attendees.',
+        retryable: false,
+        type: 'PERMISSION',
+        details: {
+          suggestion: 'Contact your administrator to request import permissions.'
+        }
+      });
     }
 
     const form = formidable({});
@@ -50,7 +68,15 @@ const handler = async (req: AuthenticatedRequest, res: NextApiResponse) => {
     const file = files.file?.[0];
 
     if (!file) {
-      return res.status(400).json({ error: 'No file uploaded' });
+      return res.status(400).json({ 
+        error: 'Validation error',
+        message: 'No file uploaded. Please select a CSV file to import.',
+        retryable: false,
+        type: 'VALIDATION',
+        details: {
+          suggestion: 'Select a valid CSV file and try again.'
+        }
+      });
     }
 
     // Wrap CSV parsing in a Promise to properly handle async response
@@ -67,7 +93,13 @@ const handler = async (req: AuthenticatedRequest, res: NextApiResponse) => {
 
           if (!eventSettings || !eventSettings.barcodeType || !eventSettings.barcodeLength) {
             return res.status(400).json({
-              error: 'Event settings not found or incomplete. Please configure event settings first.'
+              error: 'Validation error',
+              message: 'Event settings not found or incomplete. Please configure event settings first.',
+              retryable: false,
+              type: 'VALIDATION',
+              details: {
+                suggestion: 'Go to Event Settings and configure barcode type and length before importing attendees.'
+              }
             });
           }
 
@@ -133,9 +165,14 @@ const handler = async (req: AuthenticatedRequest, res: NextApiResponse) => {
               });
 
               return res.status(500).json({
-                error: 'Failed to fetch existing barcodes',
-                details: `Error occurred at page ${pageNumber} (offset ${offset})`,
-                message: error instanceof Error ? error.message : 'Unknown error'
+                error: 'Internal server error',
+                message: `Failed to fetch existing barcodes. Error occurred at page ${pageNumber} (offset ${offset}).`,
+                retryable: true,
+                type: 'NETWORK',
+                details: {
+                  suggestion: 'Wait a moment and try again. If the problem persists, contact support.',
+                  technicalDetails: error instanceof Error ? error.message : 'Unknown error'
+                }
               });
             }
           }
@@ -220,9 +257,14 @@ const handler = async (req: AuthenticatedRequest, res: NextApiResponse) => {
                 });
 
                 return res.status(500).json({
-                  error: 'Barcode generation failed',
-                  details: errorMsg,
-                  suggestion: 'Consider increasing barcode length or changing barcode type to expand the available barcode space.'
+                  error: 'Internal server error',
+                  message: errorMsg,
+                  retryable: false,
+                  type: 'VALIDATION',
+                  details: {
+                    suggestion: 'Consider increasing barcode length or changing barcode type to expand the available barcode space.',
+                    technicalDetails: `Barcode type: ${eventSettings.barcodeType}, Length: ${eventSettings.barcodeLength}, Existing count: ${existingBarcodes.size}`
+                  }
                 });
               }
             } while (existingBarcodes.has(generatedBarcode));
@@ -239,128 +281,111 @@ const handler = async (req: AuthenticatedRequest, res: NextApiResponse) => {
             };
           }).filter(Boolean) as any[];
 
-          // Create all attendees using admin client to avoid rate limiting
-          console.log(`[Import] Creating ${attendeesToCreate.length} attendees using admin client`);
-          let createdCount = 0;
-          const errors: Array<{ row: number; error: string }> = [];
-          const createdAttendees: Array<{ firstName: string; lastName: string }> = [];
-          const delayBetweenCreations = 50; // 50ms delay between creations (20 per second)
+          // Prepare attendees for bulk import
+          console.log(`[Import] Creating ${attendeesToCreate.length} attendees using transactions`);
+          const createdAttendees: Array<{ firstName: string; lastName: string }> = attendeesToCreate.map(a => ({
+            firstName: a.firstName,
+            lastName: a.lastName
+          }));
 
-          for (let i = 0; i < attendeesToCreate.length; i++) {
-            try {
-              await adminDatabases.createDocument(
-                dbId,
-                attendeesCollectionId,
-                ID.unique(),
-                attendeesToCreate[i]
-              );
-              createdCount++;
-              createdAttendees.push({
-                firstName: attendeesToCreate[i].firstName,
-                lastName: attendeesToCreate[i].lastName,
-              });
-              
-              // Small delay to avoid overwhelming the API
-              if (i < attendeesToCreate.length - 1) {
-                await new Promise(resolve => setTimeout(resolve, delayBetweenCreations));
-              }
-            } catch (error: any) {
-              const errorMessage = error.message || 'Failed to create';
-              errors.push({ row: i + 1, error: errorMessage });
-              console.error(`[Import] Failed to create attendee at row ${i + 1}: ${errorMessage}`);
-              
-              // If rate limited, wait longer before continuing
-              if (error.code === 429) {
-                console.log('[Import] Rate limit detected, waiting 2 seconds before continuing...');
-                await new Promise(resolve => setTimeout(resolve, 2000));
-              }
-            }
-          }
-          
-          console.log(`[Import] Import complete: ${createdCount} created, ${errors.length} errors`);
-          // Log the import action with detailed information if enabled
-          // Use admin client for logging to avoid rate limiting
+          // Prepare audit log details
+          const importedNames = createdAttendees.map((a) => `${a.firstName} ${a.lastName}`);
+          let auditLogDetails: any = {
+            type: 'attendees',
+            action: 'import',
+            filename: file.originalFilename,
+            totalRows: results.length,
+            successCount: attendeesToCreate.length
+          };
+
+          // If logging is enabled, include more details
           if (await shouldLog('attendeeImport')) {
-            try {
-              const { createImportLogDetails } = await import('@/lib/logFormatting');
-              const importedNames = createdAttendees.map((a) => `${a.firstName} ${a.lastName}`);
-              
-              // Create log details
-              const logDetails = createImportLogDetails('attendees', createdCount, {
-                filename: file.originalFilename,
-                names: importedNames,
-                totalRows: results.length,
-                successCount: createdCount,
-                errorCount: errors.length,
-                ...(errors.length > 0 && { errors: errors.slice(0, 10) }) // Include first 10 errors
-              });
+            const { createImportLogDetails } = await import('@/lib/logFormatting');
+            auditLogDetails = createImportLogDetails('attendees', attendeesToCreate.length, {
+              filename: file.originalFilename,
+              names: importedNames.slice(0, 10), // Keep first 10 names
+              namesTruncated: importedNames.length > 10,
+              totalNames: importedNames.length,
+              totalRows: results.length,
+              successCount: attendeesToCreate.length,
+              errorCount: 0
+            });
+          }
 
-              // Convert to JSON string
-              let detailsString = JSON.stringify(logDetails);
-
-              // Appwrite has a 10,000 character limit for string attributes
-              const MAX_DETAILS_LENGTH = 9500; // Leave some buffer
-              
-              if (detailsString.length > MAX_DETAILS_LENGTH) {
-                console.warn(`[Import] Log details too large (${detailsString.length} chars), truncating...`);
-                
-                // Create a truncated version with summary only
-                const truncatedDetails = createImportLogDetails('attendees', createdCount, {
-                  filename: file.originalFilename,
-                  names: importedNames.slice(0, 10), // Keep first 10 names
-                  namesTruncated: importedNames.length > 10,
-                  totalNames: importedNames.length,
-                  totalRows: results.length,
-                  successCount: createdCount,
-                  errorCount: errors.length,
-                  ...(errors.length > 0 && { 
-                    errors: errors.slice(0, 10),
-                    errorsTruncated: errors.length > 10
-                  }),
-                  note: `Full details truncated due to size. Imported ${createdCount} attendees.`
-                });
-                
-                detailsString = JSON.stringify(truncatedDetails);
-                
-                // If still too large, create minimal log
-                if (detailsString.length > MAX_DETAILS_LENGTH) {
-                  console.warn(`[Import] Log details still too large, using minimal log`);
-                  detailsString = JSON.stringify({
-                    type: 'attendees',
-                    action: 'import',
-                    filename: file.originalFilename,
-                    totalRows: results.length,
-                    successCount: createdCount,
-                    errorCount: errors.length,
-                    note: `Imported ${createdCount} attendees. Details truncated due to size.`
-                  });
-                }
-              }
-              
-              await adminDatabases.createDocument(
-                dbId,
-                logsCollectionId,
-                ID.unique(),
-                {
+          // Use bulk import with transaction support and fallback
+          try {
+            const importResult = await bulkImportWithFallback(
+              tablesDB,
+              adminDatabases,
+              {
+                databaseId: dbId,
+                tableId: attendeesCollectionId,
+                items: attendeesToCreate.map(data => ({ data })),
+                auditLog: {
+                  tableId: logsCollectionId,
                   userId: user.$id,
                   action: 'import',
-                  details: detailsString
+                  details: auditLogDetails
                 }
-              );
-            } catch (logError) {
-              console.error('[Import] Failed to write audit log:', logError);
-            }
-          }
+              }
+            );
 
-          res.status(200).json({
-            message: 'Attendees imported successfully',
-            count: createdCount,
-            errors
-          });
-          resolve();
+            const createdCount = importResult.createdCount;
+            const usedTransactions = importResult.usedTransactions;
+            
+            console.log(
+              `[Import] Import complete: ${createdCount} created, ` +
+              `used transactions: ${usedTransactions}` +
+              (importResult.batchCount ? `, batches: ${importResult.batchCount}` : '')
+            );
+            // Audit log is now created within the transaction
+            // No separate logging needed here
+
+            res.status(200).json({
+              message: 'Attendees imported successfully',
+              count: createdCount,
+              usedTransactions,
+              ...(importResult.batchCount && { batchCount: importResult.batchCount })
+            });
+            resolve();
+          } catch (importError: any) {
+            // Detect error type for logging and monitoring
+            const errorType = detectTransactionErrorType(importError);
+            
+            // Log conflict occurrences for monitoring
+            if (errorType === TransactionErrorType.CONFLICT) {
+              console.warn('[Import] Transaction conflict detected after retries', {
+                userId: user.$id,
+                attemptedCount: attendeesToCreate.length,
+                errorMessage: importError.message,
+                timestamp: new Date().toISOString()
+              });
+            } else {
+              console.error('[Import] Transaction error', {
+                userId: user.$id,
+                errorType,
+                attemptedCount: attendeesToCreate.length,
+                errorMessage: importError.message,
+                timestamp: new Date().toISOString()
+              });
+            }
+            
+            // Use centralized error handler for consistent responses
+            handleTransactionError(importError, res);
+            resolve();
+          }
         } catch (error: any) {
           console.error('Error importing attendees:', error);
-          res.status(500).json({ error: 'Failed to import attendees', details: error.message });
+          res.status(500).json({ 
+            error: 'Internal server error',
+            message: 'Failed to import attendees. An unexpected error occurred.',
+            retryable: false,
+            type: 'UNKNOWN',
+            details: {
+              suggestion: 'If this error continues, please contact support with the error details.',
+              technicalDetails: error.message
+            }
+          });
           reject(error);
         } finally {
           // Clean up the uploaded file
@@ -370,7 +395,16 @@ const handler = async (req: AuthenticatedRequest, res: NextApiResponse) => {
       .on('error', (error) => {
         console.error('Error reading CSV file:', error);
         fs.unlinkSync(file.filepath);
-        res.status(500).json({ error: 'Failed to read CSV file', details: error.message });
+        res.status(400).json({ 
+          error: 'Validation error',
+          message: 'Failed to read CSV file. The file may be corrupted or in an invalid format.',
+          retryable: false,
+          type: 'VALIDATION',
+          details: {
+            suggestion: 'Ensure the file is a valid CSV format and try again.',
+            technicalDetails: error.message
+          }
+        });
         reject(error);
       });
     });
@@ -379,12 +413,37 @@ const handler = async (req: AuthenticatedRequest, res: NextApiResponse) => {
 
     // Handle Appwrite-specific errors
     if (error.code === 401) {
-      return res.status(401).json({ error: 'Unauthorized' });
+      return res.status(401).json({ 
+        error: 'Unauthorized',
+        message: 'Your session has expired. Please log in again.',
+        retryable: false,
+        type: 'PERMISSION',
+        details: {
+          suggestion: 'Log out and log back in to refresh your session.'
+        }
+      });
     } else if (error.code === 404) {
-      return res.status(404).json({ error: 'Resource not found' });
+      return res.status(404).json({ 
+        error: 'Resource not found',
+        message: 'The requested resource could not be found.',
+        retryable: false,
+        type: 'NOT_FOUND',
+        details: {
+          suggestion: 'Refresh the page and try again.'
+        }
+      });
     }
 
-    res.status(500).json({ error: 'Failed to process upload' });
+    res.status(500).json({ 
+      error: 'Internal server error',
+      message: 'Failed to process upload. An unexpected error occurred.',
+      retryable: false,
+      type: 'UNKNOWN',
+      details: {
+        suggestion: 'If this error continues, please contact support.',
+        technicalDetails: error.message
+      }
+    });
   }
 };
 

@@ -13,6 +13,11 @@ import {
 import { PerformanceTracker } from '@/lib/performance';
 import { eventSettingsCache } from '@/lib/cache';
 import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
+import { 
+  executeTransactionWithRetry, 
+  TransactionOperation,
+  handleTransactionError 
+} from '@/lib/transactions';
 
 /**
  * Extract integration fields from the update payload
@@ -329,6 +334,510 @@ async function handleCustomFieldAdditions(
       showOnMainPage: field.showOnMainPage !== undefined ? field.showOnMainPage : true,
     });
   }
+}
+
+/**
+ * Handle event settings update using transactions
+ * Provides atomic updates for core settings, custom fields, integrations, and audit log
+ */
+async function handleEventSettingsUpdateWithTransactions(
+  req: AuthenticatedRequest,
+  res: NextApiResponse,
+  databases: any,
+  dbId: string,
+  customFieldsCollectionId: string,
+  eventSettingsCollectionId: string,
+  logsCollectionId: string,
+  currentSettings: any,
+  updateData: any,
+  customFields: any[] | undefined,
+  authUser: any,
+  perfTracker: PerformanceTracker
+): Promise<any> {
+  // Get TablesDB client
+  const { tablesDB } = createSessionClient(req);
+
+  // Fetch current custom fields
+  const currentCustomFieldsResult = await perfTracker.trackQuery(
+    'fetchCurrentCustomFields',
+    () => databases.listDocuments(
+      dbId,
+      customFieldsCollectionId,
+      [
+        Query.equal('eventSettingsId', currentSettings.$id),
+        Query.orderAsc('order'),
+        Query.limit(100)
+      ]
+    )
+  ) as any;
+
+  const currentCustomFields = currentCustomFieldsResult.documents;
+
+  // Build transaction operations
+  const {
+    operations,
+    deletedFieldIds,
+    deletedFields,
+    needsIntegrationUpdate,
+    updatedUpdateData
+  } = await buildEventSettingsTransactionOperations(
+    databases,
+    dbId,
+    customFieldsCollectionId,
+    eventSettingsCollectionId,
+    logsCollectionId,
+    currentSettings,
+    currentCustomFields,
+    updateData,
+    customFields,
+    authUser.$id
+  );
+
+  console.log(`[Event Settings Transaction] Executing ${operations.length} operations atomically`);
+
+  // Execute transaction with retry logic
+  await executeTransactionWithRetry(tablesDB, operations);
+
+  console.log('[Event Settings Transaction] Successfully committed all operations');
+
+  // Handle integration updates separately (not in transaction due to optimistic locking)
+  const integrationFields = extractIntegrationFields(updatedUpdateData);
+  let integrationWarnings: any[] = [];
+
+  const integrationUpdates = [];
+
+  if (Object.keys(integrationFields.cloudinary).length > 0) {
+    integrationUpdates.push(
+      updateCloudinaryIntegration(
+        databases,
+        currentSettings.$id,
+        integrationFields.cloudinary
+      ).catch(error => {
+        if (error instanceof IntegrationConflictError) {
+          throw error;
+        }
+        console.error('Failed to update Cloudinary integration:', error);
+        return {
+          error: 'cloudinary',
+          message: error instanceof Error ? error.message : 'Unknown error',
+          fields: Object.keys(integrationFields.cloudinary)
+        };
+      })
+    );
+  }
+
+  if (Object.keys(integrationFields.switchboard).length > 0) {
+    integrationUpdates.push(
+      updateSwitchboardIntegration(
+        databases,
+        currentSettings.$id,
+        integrationFields.switchboard
+      ).catch(error => {
+        if (error instanceof IntegrationConflictError) {
+          throw error;
+        }
+        console.error('Failed to update Switchboard integration:', error);
+        return {
+          error: 'switchboard',
+          message: error instanceof Error ? error.message : 'Unknown error',
+          fields: Object.keys(integrationFields.switchboard)
+        };
+      })
+    );
+  }
+
+  if (Object.keys(integrationFields.oneSimpleApi).length > 0) {
+    integrationUpdates.push(
+      updateOneSimpleApiIntegration(
+        databases,
+        currentSettings.$id,
+        integrationFields.oneSimpleApi
+      ).catch(error => {
+        if (error instanceof IntegrationConflictError) {
+          throw error;
+        }
+        console.error('Failed to update OneSimpleAPI integration:', error);
+        return {
+          error: 'onesimpleapi',
+          message: error instanceof Error ? error.message : 'Unknown error',
+          fields: Object.keys(integrationFields.oneSimpleApi)
+        };
+      })
+    );
+  }
+
+  if (integrationUpdates.length > 0) {
+    try {
+      const integrationResults = await Promise.all(integrationUpdates);
+      const integrationErrors = integrationResults.filter(r => r && typeof r === 'object' && 'error' in r);
+      if (integrationErrors.length > 0) {
+        integrationWarnings = integrationErrors.map(e => ({
+          integration: e.error,
+          message: e.message,
+          fields: e.fields
+        }));
+      }
+    } catch (error) {
+      if (error instanceof IntegrationConflictError) {
+        return res.status(409).json({
+          error: 'Conflict',
+          message: error.message,
+          integrationType: error.integrationType,
+          eventSettingsId: error.eventSettingsId,
+          expectedVersion: error.expectedVersion,
+          actualVersion: error.actualVersion,
+          resolution: 'Please refresh the page and try again. Another user may have modified these settings.'
+        });
+      }
+      throw error;
+    }
+  }
+
+  // Invalidate cache after successful updates
+  eventSettingsCache.invalidate('event-settings');
+
+  // Fetch updated data
+  const updatedEventSettings = await databases.getDocument(
+    dbId,
+    eventSettingsCollectionId,
+    currentSettings.$id
+  );
+
+  const updatedCustomFieldsResult = await databases.listDocuments(
+    dbId,
+    customFieldsCollectionId,
+    [
+      Query.equal('eventSettingsId', currentSettings.$id),
+      Query.orderAsc('order'),
+      Query.limit(100)
+    ]
+  );
+
+  // Fetch updated integration data
+  const switchboardCollectionId = process.env.NEXT_PUBLIC_APPWRITE_SWITCHBOARD_COLLECTION_ID!;
+  const cloudinaryCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CLOUDINARY_COLLECTION_ID!;
+  const oneSimpleApiCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ONESIMPLEAPI_COLLECTION_ID!;
+
+  const [
+    updatedSwitchboardResult,
+    updatedCloudinaryResult,
+    updatedOneSimpleApiResult
+  ] = await Promise.allSettled([
+    databases.listDocuments(
+      dbId,
+      switchboardCollectionId,
+      [Query.equal('eventSettingsId', currentSettings.$id), Query.limit(1)]
+    ),
+    databases.listDocuments(
+      dbId,
+      cloudinaryCollectionId,
+      [Query.equal('eventSettingsId', currentSettings.$id), Query.limit(1)]
+    ),
+    databases.listDocuments(
+      dbId,
+      oneSimpleApiCollectionId,
+      [Query.equal('eventSettingsId', currentSettings.$id), Query.limit(1)]
+    )
+  ]);
+
+  let updatedSwitchboardData = null;
+  if (updatedSwitchboardResult.status === 'fulfilled' && updatedSwitchboardResult.value.documents.length > 0) {
+    updatedSwitchboardData = updatedSwitchboardResult.value.documents[0];
+  }
+
+  let updatedCloudinaryData = null;
+  if (updatedCloudinaryResult.status === 'fulfilled' && updatedCloudinaryResult.value.documents.length > 0) {
+    updatedCloudinaryData = updatedCloudinaryResult.value.documents[0];
+  }
+
+  let updatedOneSimpleApiData = null;
+  if (updatedOneSimpleApiResult.status === 'fulfilled' && updatedOneSimpleApiResult.value.documents.length > 0) {
+    updatedOneSimpleApiData = updatedOneSimpleApiResult.value.documents[0];
+  }
+
+  // Parse custom fields
+  const parsedUpdatedCustomFields = updatedCustomFieldsResult.documents.map((field: any) => ({
+    id: field.$id,
+    fieldName: field.fieldName,
+    internalFieldName: field.internalFieldName,
+    fieldType: field.fieldType,
+    required: field.required,
+    order: field.order,
+    showOnMainPage: field.showOnMainPage,
+    fieldOptions: (() => {
+      if (!field.fieldOptions) return null;
+      if (typeof field.fieldOptions === 'string') return JSON.parse(field.fieldOptions);
+      return field.fieldOptions;
+    })()
+  }));
+
+  // Prepare response
+  const updatedEventSettingsWithIntegrations = {
+    ...updatedEventSettings,
+    cloudinary: updatedCloudinaryData || undefined,
+    switchboard: updatedSwitchboardData || undefined,
+    oneSimpleApi: updatedOneSimpleApiData || undefined
+  } as any;
+
+  const flattenedUpdatedSettings = flattenEventSettings(updatedEventSettingsWithIntegrations);
+
+  const updatedEventSettingsWithFields = {
+    ...flattenedUpdatedSettings,
+    customFields: parsedUpdatedCustomFields
+  };
+
+  // Log performance metrics
+  perfTracker.logSummary('PUT /api/event-settings (transactions)');
+
+  const perfHeaders = perfTracker.getResponseHeaders();
+  Object.entries(perfHeaders).forEach(([key, value]) => {
+    res.setHeader(key, value);
+  });
+
+  // Add transaction indicator header
+  res.setHeader('X-Transaction-Used', 'true');
+
+  const response: any = {
+    ...updatedEventSettingsWithFields
+  };
+
+  if (integrationWarnings.length > 0) {
+    response.warnings = {
+      integrations: integrationWarnings,
+      message: 'Some integration updates failed. Core event settings were updated successfully.'
+    };
+    res.setHeader('X-Integration-Warnings', 'true');
+  }
+
+  return res.status(200).json(response);
+}
+
+/**
+ * Build transaction operations for event settings update
+ * Creates operations for core settings, custom fields, integrations, and audit log
+ */
+async function buildEventSettingsTransactionOperations(
+  databases: any,
+  dbId: string,
+  customFieldsCollectionId: string,
+  eventSettingsCollectionId: string,
+  logsCollectionId: string,
+  currentSettings: any,
+  currentCustomFields: any[],
+  updateData: any,
+  customFields: any[] | undefined,
+  userId: string
+): Promise<{
+  operations: TransactionOperation[];
+  deletedFieldIds: string[];
+  deletedFields: any[];
+  needsIntegrationUpdate: boolean;
+  updatedUpdateData: any;
+}> {
+  const operations: TransactionOperation[] = [];
+  let deletedFieldIds: string[] = [];
+  let deletedFields: any[] = [];
+  let needsIntegrationUpdate = false;
+  let updatedUpdateData = { ...updateData };
+
+  // 1. Handle custom field deletions first (to clean up integration templates)
+  if (customFields && Array.isArray(customFields)) {
+    const existingFieldIds = currentCustomFields.map((f) => f.$id);
+    const incomingFieldIds = customFields.filter((f) => f.id && !f.id.startsWith('temp_')).map((f) => f.id);
+    deletedFieldIds = existingFieldIds.filter((id) => !incomingFieldIds.includes(id));
+
+    if (deletedFieldIds.length > 0) {
+      // Fetch deleted fields info before deleting
+      deletedFields = currentCustomFields.filter((f) => deletedFieldIds.includes(f.$id));
+
+      // Add delete operations for custom fields
+      for (const fieldId of deletedFieldIds) {
+        operations.push({
+          action: 'delete',
+          databaseId: dbId,
+          tableId: customFieldsCollectionId,
+          rowId: fieldId
+        });
+      }
+
+      // Clean up integration templates if fields were deleted
+      let updatedSwitchboardBody = updateData.switchboardRequestBody || currentSettings.switchboardRequestBody;
+      let updatedOneSimpleApiValue = updateData.oneSimpleApiFormDataValue || currentSettings.oneSimpleApiFormDataValue;
+      let updatedOneSimpleApiTemplate = updateData.oneSimpleApiRecordTemplate || currentSettings.oneSimpleApiRecordTemplate;
+      let updatedFieldMappings =
+        updateData.switchboardFieldMappings ||
+        (currentSettings.switchboardFieldMappings
+          ? typeof currentSettings.switchboardFieldMappings === 'string'
+            ? JSON.parse(currentSettings.switchboardFieldMappings as string)
+            : currentSettings.switchboardFieldMappings
+          : []);
+
+      for (const deletedField of deletedFields) {
+        const placeholder = `{{${deletedField.internalFieldName}}}`;
+        const escapedPlaceholder = placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+        if (updatedSwitchboardBody && updatedSwitchboardBody.includes(placeholder)) {
+          updatedSwitchboardBody = updatedSwitchboardBody.replace(new RegExp(escapedPlaceholder, 'g'), '""');
+          needsIntegrationUpdate = true;
+        }
+
+        if (updatedOneSimpleApiValue && updatedOneSimpleApiValue.includes(placeholder)) {
+          updatedOneSimpleApiValue = updatedOneSimpleApiValue.replace(new RegExp(escapedPlaceholder, 'g'), '');
+          needsIntegrationUpdate = true;
+        }
+
+        if (updatedOneSimpleApiTemplate && updatedOneSimpleApiTemplate.includes(placeholder)) {
+          updatedOneSimpleApiTemplate = updatedOneSimpleApiTemplate.replace(new RegExp(escapedPlaceholder, 'g'), '');
+          needsIntegrationUpdate = true;
+        }
+
+        if (Array.isArray(updatedFieldMappings)) {
+          const originalLength = updatedFieldMappings.length;
+          updatedFieldMappings = updatedFieldMappings.filter((mapping: any) => mapping.fieldId !== deletedField.$id);
+          if (updatedFieldMappings.length !== originalLength) {
+            needsIntegrationUpdate = true;
+          }
+        }
+      }
+
+      if (needsIntegrationUpdate) {
+        updatedUpdateData.switchboardRequestBody = updatedSwitchboardBody;
+        updatedUpdateData.oneSimpleApiFormDataValue = updatedOneSimpleApiValue;
+        updatedUpdateData.oneSimpleApiRecordTemplate = updatedOneSimpleApiTemplate;
+        updatedUpdateData.switchboardFieldMappings = updatedFieldMappings;
+      }
+    }
+
+    // 2. Handle custom field modifications
+    const existingFields = customFields.filter(f => f.id && !f.id.startsWith('temp_'));
+    const modifiedFields = existingFields.filter(incomingField => {
+      const existingField = currentCustomFields.find(f => f.$id === incomingField.id);
+      if (!existingField) return false;
+
+      return existingField.fieldName !== incomingField.fieldName ||
+        existingField.fieldType !== incomingField.fieldType ||
+        existingField.required !== incomingField.required ||
+        existingField.showOnMainPage !== incomingField.showOnMainPage ||
+        JSON.stringify(existingField.fieldOptions) !== JSON.stringify(incomingField.fieldOptions);
+    });
+
+    for (const modifiedField of modifiedFields) {
+      const fieldOptionsStr = modifiedField.fieldOptions
+        ? typeof modifiedField.fieldOptions === 'string'
+          ? modifiedField.fieldOptions
+          : JSON.stringify(modifiedField.fieldOptions)
+        : null;
+
+      operations.push({
+        action: 'update',
+        databaseId: dbId,
+        tableId: customFieldsCollectionId,
+        rowId: modifiedField.id,
+        data: {
+          fieldName: modifiedField.fieldName,
+          internalFieldName: modifiedField.internalFieldName || generateInternalFieldName(modifiedField.fieldName),
+          fieldType: modifiedField.fieldType,
+          fieldOptions: fieldOptionsStr,
+          required: modifiedField.required || false,
+          order: modifiedField.order,
+          showOnMainPage: modifiedField.showOnMainPage !== undefined ? modifiedField.showOnMainPage : true,
+        }
+      });
+    }
+
+    // 3. Handle custom field additions
+    const newFields = customFields.filter(f => !f.id || f.id.startsWith('temp_'));
+    for (const field of newFields) {
+      const fieldOptionsStr = field.fieldOptions
+        ? typeof field.fieldOptions === 'string'
+          ? field.fieldOptions
+          : JSON.stringify(field.fieldOptions)
+        : null;
+
+      operations.push({
+        action: 'create',
+        databaseId: dbId,
+        tableId: customFieldsCollectionId,
+        rowId: ID.unique(),
+        data: {
+          eventSettingsId: currentSettings.$id,
+          fieldName: field.fieldName,
+          internalFieldName: field.internalFieldName || generateInternalFieldName(field.fieldName),
+          fieldType: field.fieldType,
+          fieldOptions: fieldOptionsStr,
+          required: field.required || false,
+          order: field.order || customFields.length,
+          showOnMainPage: field.showOnMainPage !== undefined ? field.showOnMainPage : true,
+        }
+      });
+    }
+
+    // 4. Handle order updates for unchanged fields
+    const unchangedFields = existingFields.filter(incomingField => {
+      const existingField = currentCustomFields.find(f => f.$id === incomingField.id);
+      if (!existingField) return false;
+
+      return existingField.fieldName === incomingField.fieldName &&
+        existingField.fieldType === incomingField.fieldType &&
+        existingField.required === incomingField.required &&
+        JSON.stringify(existingField.fieldOptions) === JSON.stringify(incomingField.fieldOptions);
+    });
+
+    for (const field of unchangedFields) {
+      operations.push({
+        action: 'update',
+        databaseId: dbId,
+        tableId: customFieldsCollectionId,
+        rowId: field.id,
+        data: { order: field.order }
+      });
+    }
+  }
+
+  // 5. Update core event settings
+  const coreFields = getCoreEventSettingsFields(updatedUpdateData);
+  const updatePayload: any = { ...coreFields };
+  
+  if (updatedUpdateData.eventDate) {
+    updatePayload.eventDate = parseEventDate(updatedUpdateData.eventDate);
+  }
+
+  operations.push({
+    action: 'update',
+    databaseId: dbId,
+    tableId: eventSettingsCollectionId,
+    rowId: currentSettings.$id,
+    data: updatePayload
+  });
+
+  // 6. Add audit log operation
+  const changedFields = detectChanges(updatedUpdateData, currentSettings);
+  const shouldLogUpdate = await shouldLog('eventSettingsUpdate');
+  if (shouldLogUpdate) {
+    const { createSettingsLogDetails } = await import('@/lib/logFormatting');
+    operations.push({
+      action: 'create',
+      databaseId: dbId,
+      tableId: logsCollectionId,
+      rowId: ID.unique(),
+      data: {
+        userId,
+        action: 'update',
+        details: JSON.stringify(createSettingsLogDetails('update', 'event', {
+          eventName: currentSettings.eventName,
+          changes: changedFields
+        }))
+      }
+    });
+  }
+
+  return {
+    operations,
+    deletedFieldIds,
+    deletedFields,
+    needsIntegrationUpdate,
+    updatedUpdateData
+  };
 }
 
 /**
@@ -1060,7 +1569,27 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
 
   const currentSettings = currentSettingsResult.documents[0];
 
-  // Fetch current custom fields
+  // Use transaction-based update
+  try {
+    return await handleEventSettingsUpdateWithTransactions(
+        req,
+        res,
+        databases,
+        dbId,
+        customFieldsCollectionId,
+        eventSettingsCollectionId,
+        logsCollectionId,
+        currentSettings,
+        updateData,
+        customFields,
+        authUser,
+        putPerfTracker
+      );
+    } catch (error: any) {
+      // Transaction failed, return error
+      console.error('[Event Settings] Transaction failed:', error);
+      return handleTransactionError(error, res);
+    }
   const currentCustomFieldsResult = await putPerfTracker.trackQuery(
     'fetchCurrentCustomFields',
     () => databases.listDocuments(

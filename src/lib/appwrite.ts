@@ -1,5 +1,5 @@
 import { Client, Account, Databases, Storage, Functions } from 'appwrite';
-import { Client as AdminClient, Account as AdminAccount, Databases as AdminDatabases, Storage as AdminStorage, Functions as AdminFunctions, Users, Teams } from 'node-appwrite';
+import { Client as AdminClient, Account as AdminAccount, Databases as AdminDatabases, Storage as AdminStorage, Functions as AdminFunctions, Users, Teams, TablesDB } from 'node-appwrite';
 import type { NextApiRequest } from 'next';
 
 /**
@@ -49,6 +49,7 @@ export const createSessionClient = (req: NextApiRequest) => {
     client,
     account: new AdminAccount(client),
     databases: new AdminDatabases(client),
+    tablesDB: new TablesDB(client),
     storage: new AdminStorage(client),
     functions: new AdminFunctions(client),
   };
@@ -74,6 +75,7 @@ export const createAdminClient = () => {
     client,
     account: new AdminAccount(client),
     databases: new AdminDatabases(client),
+    tablesDB: new TablesDB(client),
     storage: new AdminStorage(client),
     functions: new AdminFunctions(client),
     users: new Users(client),

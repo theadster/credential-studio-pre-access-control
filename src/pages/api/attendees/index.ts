@@ -570,40 +570,73 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           customFieldValuesObj[cfv.customFieldId] = String(cfv.value);
         });
 
-        // Create attendee document
-        const newAttendee = await databases.createDocument(
-          dbId,
-          attendeesCollectionId,
-          ID.unique(),
-          {
-            firstName,
-            lastName,
-            barcodeNumber,
-            notes: notes || '',
-            photoUrl: photoUrl || null,
-            customFieldValues: JSON.stringify(customFieldValuesObj)
-          }
-        );
+        // Generate attendee ID upfront for transaction
+        const attendeeId = ID.unique();
+        const attendeeData = {
+          firstName,
+          lastName,
+          barcodeNumber,
+          notes: notes || '',
+          photoUrl: photoUrl || null,
+          customFieldValues: JSON.stringify(customFieldValuesObj)
+        };
 
-        // Log the create action if enabled
-        if (await shouldLog('attendeeCreate')) {
-          const { createAttendeeLogDetails } = await import('@/lib/logFormatting');
-          await databases.createDocument(
-            dbId,
-            logsCollectionId,
-            ID.unique(),
-            {
-              userId: user.$id,
-              attendeeId: newAttendee.$id,
-              action: 'create',
-              details: JSON.stringify(createAttendeeLogDetails('create', {
-                firstName: newAttendee.firstName,
-                lastName: newAttendee.lastName,
-                barcodeNumber: newAttendee.barcodeNumber
-              }))
+        let newAttendee: any;
+
+        // Use transaction-based approach
+        console.log('[Attendee Create] Using transaction-based approach');
+          
+          try {
+            const { tablesDB } = createSessionClient(req);
+            const { executeTransactionWithRetry, handleTransactionError } = await import('@/lib/transactions');
+            
+            // Build transaction operations
+            const operations: any[] = [
+              {
+                action: 'create',
+                databaseId: dbId,
+                tableId: attendeesCollectionId,
+                rowId: attendeeId,
+                data: attendeeData
+              }
+            ];
+
+            // Add audit log if enabled
+            if (await shouldLog('attendeeCreate')) {
+              const { createAttendeeLogDetails } = await import('@/lib/logFormatting');
+              operations.push({
+                action: 'create',
+                databaseId: dbId,
+                tableId: logsCollectionId,
+                rowId: ID.unique(),
+                data: {
+                  userId: user.$id,
+                  attendeeId: attendeeId,
+                  action: 'create',
+                  details: JSON.stringify({
+                    ...createAttendeeLogDetails('create', {
+                      firstName: attendeeData.firstName,
+                      lastName: attendeeData.lastName,
+                      barcodeNumber: attendeeData.barcodeNumber
+                    }),
+                    timestamp: new Date().toISOString()
+                  })
+                }
+              });
             }
-          );
-        }
+
+            // Execute transaction with retry logic
+            await executeTransactionWithRetry(tablesDB, operations);
+
+            // Fetch the created attendee to return to client
+            newAttendee = await databases.getDocument(dbId, attendeesCollectionId, attendeeId);
+            
+            console.log('[Attendee Create] Transaction completed successfully');
+          } catch (error: any) {
+            console.error('[Attendee Create] Transaction failed:', error);
+            const { handleTransactionError } = await import('@/lib/transactions');
+            return handleTransactionError(error, res);
+          }
 
         // Parse and return the new attendee with proper structure
         let parsedCustomFieldValues = [];

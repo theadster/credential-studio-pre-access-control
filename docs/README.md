@@ -21,6 +21,7 @@ docs/
 - [**Bulk Delete Log Size Fix**](./fixes/BULK_DELETE_LOG_SIZE_FIX.md) - Use API key for bulk deletes and handle large log entries
 
 ### Recent Fixes
+- [**🔧 Bulk Delete Timestamp Fix**](./fixes/BULK_DELETE_TIMESTAMP_FIX.md) - ✅ **FIXED:** Removed invalid timestamp attribute from audit logs
 - [**🔒 Email Verification Security Fix**](./fixes/EMAIL_VERIFICATION_SECURITY_FIX.md) - ✅ **CRITICAL:** Fixed automatic verification bypass
 - [**📧 Email Verification Appwrite Limitation**](./fixes/EMAIL_VERIFICATION_APPWRITE_LIMITATION.md) - ⚠️ **IMPORTANT:** Appwrite doesn't support admin-initiated email verification
 - [**Email Verification Fix Summary**](./fixes/EMAIL_VERIFICATION_FIX_SUMMARY.md) - Quick reference for the email verification security fix
@@ -76,7 +77,23 @@ docs/
 - [Realtime Tests](./testing/REALTIME_TESTS_SUMMARY.md)
 - [User Management API Tests](./testing/USER_MANAGEMENT_API_TESTS_SUMMARY.md)
 
+### API Reference
+- [**📖 API Transactions Reference**](./reference/API_TRANSACTIONS_REFERENCE.md) - 🔥 **NEW:** Complete API reference for transaction-enabled endpoints
+  - Transaction behavior and atomicity guarantees
+  - Error responses with HTTP status codes
+  - Retry behavior and exponential backoff
+  - Fallback scenarios and performance metrics
+  - All bulk operations, single operations, and multi-step workflows
+
 ### Guides
+
+#### Appwrite Transactions API
+- [**🚀 Transactions Quick Reference**](./guides/TRANSACTIONS_QUICK_REFERENCE.md) - ⚡ Quick reference card for common operations
+- [**Transactions Developer Guide**](./guides/TRANSACTIONS_DEVELOPER_GUIDE.md) - 📚 Comprehensive guide to using transactions (500+ lines)
+- [**Transactions Best Practices**](./guides/TRANSACTIONS_BEST_PRACTICES.md) - ✅ Production-ready best practices (600+ lines)
+- [**Transactions Code Examples**](./guides/TRANSACTIONS_CODE_EXAMPLES.md) - 💻 15 real-world code examples (400+ lines)
+- [**Transaction Monitoring Guide**](./guides/TRANSACTION_MONITORING_GUIDE.md) - 📊 Metrics, alerts, and monitoring
+- [**Transaction Monitoring Integration**](./guides/TRANSACTION_MONITORING_INTEGRATION_EXAMPLE.md) - 🔧 Integration examples
 
 #### SweetAlert2 Notification System
 - [**SweetAlert Usage Guide**](./guides/SWEETALERT_USAGE_GUIDE.md) - Complete guide to using notifications, confirmations, and loading states

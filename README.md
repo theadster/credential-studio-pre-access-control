@@ -109,6 +109,12 @@ CLOUDINARY_API_SECRET=your_api_secret
 
 # Switchboard Canvas Configuration
 NEXT_PUBLIC_SWITCHBOARD_API_KEY=your_switchboard_key
+
+# Appwrite Transactions Configuration
+APPWRITE_PLAN=PRO
+ENABLE_TRANSACTIONS=true
+ENABLE_TRANSACTION_FALLBACK=true
+TRANSACTIONS_ENDPOINTS=
 ```
 
 #### Environment Variable Details
@@ -125,6 +131,15 @@ NEXT_PUBLIC_SWITCHBOARD_API_KEY=your_switchboard_key
 - `VERIFICATION_EMAIL_USER_LIMIT` - Max verification emails per user per hour (default: 3)
 - `VERIFICATION_EMAIL_ADMIN_LIMIT` - Max verification emails per admin per hour (default: 20)
 - `VERIFICATION_EMAIL_WINDOW_HOURS` - Rate limit window in hours (default: 1)
+
+**Transaction Configuration Variables:**
+- `APPWRITE_PLAN` - Your Appwrite plan tier (FREE, PRO, or SCALE). Determines transaction operation limits:
+  - FREE: 100 operations per transaction
+  - PRO: 1,000 operations per transaction (recommended)
+  - SCALE: 2,500 operations per transaction
+- `ENABLE_TRANSACTIONS` - Enable/disable TablesDB transactions (default: true). Set to 'false' to use legacy Documents API
+- `ENABLE_TRANSACTION_FALLBACK` - Enable automatic fallback to legacy API if transactions fail (default: true)
+- `TRANSACTIONS_ENDPOINTS` - Comma-separated list of endpoints using transactions (e.g., 'bulk-import,bulk-delete,bulk-edit'). Leave empty initially and add endpoints as they are migrated
 
 ### 6. Initialize Default Roles
 

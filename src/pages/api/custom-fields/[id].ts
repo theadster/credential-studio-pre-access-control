@@ -5,12 +5,13 @@ import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
 import { getAppwriteCollectionIds } from '@/lib/envValidation';
 import { logger } from '@/lib/logger';
 import { shouldLog } from '@/lib/logSettings';
+import { executeTransactionWithRetry, handleTransactionError, type TransactionOperation } from '@/lib/transactions';
 
 export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   try {
     // User and userProfile are already attached by middleware
     const { user, userProfile } = req;
-    const { databases } = createSessionClient(req);
+    const { databases, tablesDB } = createSessionClient(req);
 
     const { id } = req.query;
 
@@ -69,9 +70,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
       case 'PUT':
         /**
-         * UPDATE CUSTOM FIELD ENDPOINT
+         * UPDATE CUSTOM FIELD ENDPOINT (TRANSACTION-BASED)
          * 
-         * Updates an existing custom field with new values.
+         * Updates an existing custom field with new values using atomic transactions.
+         * The update and audit log are created in a single transaction to ensure
+         * data consistency and complete audit trail.
          * 
          * Request Body:
          * - fieldName: string (required) - Display name of the field
@@ -92,6 +95,12 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
          * - Version number must match current document version
          * - Prevents concurrent update conflicts
          * - Returns 409 Conflict if version mismatch detected
+         * 
+         * Transaction Behavior:
+         * - Update and audit log are atomic (both succeed or both fail)
+         * - Automatic retry on conflicts (up to 3 times with exponential backoff)
+         * - Automatic rollback on any failure
+         * - No orphaned audit logs or partial updates
          */
         // Check permissions
         const updatePermissions = userProfile.role ? userProfile.role.permissions : {};
@@ -124,7 +133,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           });
         }
 
-        // Fetch current document to check version
+        // Fetch current document to check version and soft-delete status
         let currentField;
         try {
           currentField = await databases.getDocument({
@@ -162,57 +171,120 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           (typeof fieldOptions === 'string' ? fieldOptions : JSON.stringify(fieldOptions)) :
           null;
 
-        // Update with incremented version for optimistic locking
-        // showOnMainPage defaults to true if not explicitly set to false
-        // This maintains backward compatibility with existing fields that don't have this attribute
-        const updatedField = await databases.updateDocument({
-          databaseId: dbId,
-          collectionId: customFieldsCollectionId,
-          documentId: id,
-          data: {
-            fieldName,
-            fieldType,
-            fieldOptions: fieldOptionsStr,
-            required: required || false,
-            order: order || 1,
-            showOnMainPage: showOnMainPage !== undefined ? showOnMainPage : true, // Default to visible
-            version: currentVersion + 1 // Increment version for optimistic locking
-          }
-        });
+        // Prepare update data
+        const updateData = {
+          fieldName,
+          fieldType,
+          fieldOptions: fieldOptionsStr,
+          required: required || false,
+          order: order || 1,
+          showOnMainPage: showOnMainPage !== undefined ? showOnMainPage : true, // Default to visible
+          version: currentVersion + 1 // Increment version for optimistic locking
+        };
 
-        // Log the update action if enabled
-        if (await shouldLog('customFieldUpdate')) {
-          try {
-            await databases.createDocument({
-              databaseId: dbId,
-              collectionId: logsCollectionId,
-              documentId: ID.unique(),
-              data: {
-                userId: user.$id,
-                action: 'update',
-                details: JSON.stringify({
-                  type: 'custom_field',
-                  fieldId: id,
-                  fieldName: updatedField.fieldName,
-                  fieldType: updatedField.fieldType
-                })
-              }
-            });
-          } catch (logError) {
-            console.error('[custom-fields/[id]] Failed to create log entry, but continuing with request', {
-              error: logError instanceof Error ? logError.message : 'Unknown error',
-              errorType: (logError as any)?.type,
-              userId: user.$id,
-              fieldId: id,
-              fieldName: updatedField.fieldName
-            });
-            // Do not re-throw - allow the request to succeed even if logging fails
+        // Check if logging is enabled
+        const loggingEnabled = await shouldLog('customFieldUpdate');
+
+        // Build transaction operations
+        const operations: TransactionOperation[] = [
+          {
+            action: 'update',
+            databaseId: dbId,
+            tableId: customFieldsCollectionId,
+            rowId: id,
+            data: updateData
           }
+        ];
+
+        // Add audit log if logging is enabled
+        if (loggingEnabled) {
+          operations.push({
+            action: 'create',
+            databaseId: dbId,
+            tableId: logsCollectionId,
+            rowId: ID.unique(),
+            data: {
+              userId: user.$id,
+              action: 'update',
+              details: JSON.stringify({
+                type: 'custom_field',
+                fieldId: id,
+                fieldName: fieldName,
+                fieldType: fieldType,
+                changes: {
+                  fieldName: currentField.fieldName !== fieldName ? { from: currentField.fieldName, to: fieldName } : undefined,
+                  fieldType: currentField.fieldType !== fieldType ? { from: currentField.fieldType, to: fieldType } : undefined,
+                  showOnMainPage: currentField.showOnMainPage !== (showOnMainPage !== undefined ? showOnMainPage : true) ? 
+                    { from: currentField.showOnMainPage, to: showOnMainPage !== undefined ? showOnMainPage : true } : undefined
+                },
+                timestamp: new Date().toISOString()
+              })
+            }
+          });
         }
 
-        return res.status(200).json(updatedField);
+        // Execute transaction with automatic retry
+        try {
+          await executeTransactionWithRetry(tablesDB, operations, {
+            maxRetries: 3,
+            retryDelay: 100
+          });
+
+          logger.info('[CUSTOM_FIELD_UPDATE] Transaction completed successfully', {
+            fieldId: id,
+            fieldName: fieldName,
+            userId: user.$id,
+            loggingEnabled,
+            operationCount: operations.length
+          });
+
+          // Return updated field data
+          // Note: In a real transaction, we'd fetch the updated document
+          // For now, we return the expected state
+          return res.status(200).json({
+            $id: id,
+            ...updateData,
+            $createdAt: currentField.$createdAt,
+            $updatedAt: new Date().toISOString(),
+            eventSettingsId: currentField.eventSettingsId,
+            internalFieldName: currentField.internalFieldName
+          });
+
+        } catch (error: any) {
+          logger.error('[CUSTOM_FIELD_UPDATE] Transaction failed', {
+            fieldId: id,
+            fieldName: fieldName,
+            userId: user.$id,
+            error: error.message,
+            code: error.code
+          });
+
+          // Use centralized error handler
+          return handleTransactionError(error, res);
+        }
 
       case 'DELETE':
+        /**
+         * DELETE CUSTOM FIELD ENDPOINT (TRANSACTION-BASED)
+         * 
+         * Soft-deletes a custom field using atomic transactions.
+         * The soft delete and audit log are created in a single transaction to ensure
+         * data consistency and complete audit trail.
+         * 
+         * Soft Delete Strategy:
+         * - Sets deletedAt timestamp instead of hard delete
+         * - Preserves data for recovery and audit purposes
+         * - Orphaned values remain in attendee documents (filtered by UI)
+         * - Instant operation with no risk of timeout
+         * 
+         * Transaction Behavior:
+         * - Soft delete and audit log are atomic (both succeed or both fail)
+         * - Automatic retry on conflicts (up to 3 times with exponential backoff)
+         * - Automatic rollback on any failure
+         * - No orphaned audit logs or partial deletes
+         * 
+         * Requirements: 7.3, 7.6
+         */
         // Check permissions
         const deletePermissions = userProfile.role ? userProfile.role.permissions : {};
         const hasDeletePermission = deletePermissions?.all === true || deletePermissions?.customFields?.delete === true;
@@ -274,7 +346,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
         const deletedAt = new Date().toISOString();
 
-        logger.info('[CUSTOM_FIELD_DELETE] Starting soft delete', {
+        logger.info('[CUSTOM_FIELD_DELETE] Starting soft delete with transaction', {
           fieldId: id,
           fieldName: fieldToDelete.fieldName,
           fieldType: fieldToDelete.fieldType,
@@ -282,61 +354,63 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           deletedAt
         });
 
-        try {
-          // Soft delete: Set deletedAt timestamp
-          const softDeletedField = await databases.updateDocument({
+        // Check if logging is enabled
+        const deleteLoggingEnabled = await shouldLog('customFieldDelete');
+
+        // Build transaction operations
+        const deleteOperations: TransactionOperation[] = [
+          {
+            action: 'update',
             databaseId: dbId,
-            collectionId: customFieldsCollectionId,
-            documentId: id,
+            tableId: customFieldsCollectionId,
+            rowId: id,
             data: {
               deletedAt,
               // Increment version for optimistic locking consistency
               version: (fieldToDelete.version || 0) + 1
             }
+          }
+        ];
+
+        // Add audit log if logging is enabled
+        if (deleteLoggingEnabled) {
+          deleteOperations.push({
+            action: 'create',
+            databaseId: dbId,
+            tableId: logsCollectionId,
+            rowId: ID.unique(),
+            data: {
+              userId: user.$id,
+              action: 'delete',
+              details: JSON.stringify({
+                type: 'custom_field',
+                fieldId: id,
+                fieldName: fieldToDelete.fieldName,
+                fieldType: fieldToDelete.fieldType,
+                internalFieldName: fieldToDelete.internalFieldName,
+                deletedAt,
+                deleteType: 'soft_delete',
+                note: 'Field soft-deleted. Orphaned values remain in attendee documents.',
+                timestamp: new Date().toISOString()
+              })
+            }
+          });
+        }
+
+        // Execute transaction with automatic retry
+        try {
+          await executeTransactionWithRetry(tablesDB, deleteOperations, {
+            maxRetries: 3,
+            retryDelay: 100
           });
 
-          logger.info('[CUSTOM_FIELD_DELETE] Soft delete successful', {
+          logger.info('[CUSTOM_FIELD_DELETE] Transaction completed successfully', {
             fieldId: id,
             fieldName: fieldToDelete.fieldName,
-            newVersion: softDeletedField.version
-          });
-
-          // Log the delete action if enabled
-          if (await shouldLog('customFieldDelete')) {
-            try {
-              await databases.createDocument({
-                databaseId: dbId,
-                collectionId: logsCollectionId,
-                documentId: ID.unique(),
-                data: {
-                  userId: user.$id,
-                  action: 'delete',
-                  details: JSON.stringify({
-                    type: 'custom_field',
-                    fieldId: id,
-                    fieldName: fieldToDelete.fieldName,
-                    fieldType: fieldToDelete.fieldType,
-                    internalFieldName: fieldToDelete.internalFieldName,
-                    deletedAt,
-                    deleteType: 'soft_delete',
-                    note: 'Field soft-deleted. Orphaned values remain in attendee documents.'
-                  })
-                }
-              });
-            } catch (logError) {
-              logger.error('[CUSTOM_FIELD_DELETE] Failed to create log entry, but continuing with request', {
-                error: logError instanceof Error ? logError.message : 'Unknown error',
-                errorType: (logError as any)?.type,
-                userId: user.$id,
-                fieldId: id,
-                fieldName: fieldToDelete.fieldName
-              });
-              // Do not re-throw - allow the request to succeed even if logging fails
-            }
-          }
-
-          logger.debug('[CUSTOM_FIELD_DELETE] Delete logged successfully', {
-            fieldId: id
+            userId: user.$id,
+            loggingEnabled: deleteLoggingEnabled,
+            operationCount: deleteOperations.length,
+            deletedAt
           });
 
           return res.status(200).json({
@@ -346,15 +420,17 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             note: 'Field has been soft-deleted. Existing values in attendee records are preserved but will not be displayed.'
           });
 
-        } catch (deleteError: unknown) {
-          const error = deleteError as any;
-          logger.error('[CUSTOM_FIELD_DELETE] Soft delete failed', {
+        } catch (error: any) {
+          logger.error('[CUSTOM_FIELD_DELETE] Transaction failed', {
             fieldId: id,
             fieldName: fieldToDelete.fieldName,
+            userId: user.$id,
             error: error.message,
             code: error.code
           });
-          throw deleteError;
+
+          // Use centralized error handler
+          return handleTransactionError(error, res);
         }
 
       default:

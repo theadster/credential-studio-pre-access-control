@@ -5,11 +5,13 @@ import { hasPermission } from '@/lib/permissions';
 import { getRoleUserCount } from '@/lib/getRoleUserCount';
 import { invalidateRoleUserCount } from '@/lib/roleUserCountCache';
 import { validatePermissions } from '@/lib/validatePermissions';
+import { executeTransactionWithRetry, handleTransactionError } from '@/lib/transactions';
+import type { TransactionOperation } from '@/lib/transactions';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     // Create session client
-    const { account, databases } = createSessionClient(req);
+    const { account, databases, tablesDB } = createSessionClient(req);
 
     // Verify authentication
     const user = await account.get();
@@ -171,22 +173,59 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           return res.status(403).json({ error: 'Cannot modify Super Administrator role' });
         }
 
-        // Update the role
-        const updatedRole = await databases.updateDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
-          id,
+        // Create transaction operations for role update + audit log
+        const logId = ID.unique();
+        const logDetails = (await import('@/lib/logFormatting')).createRoleLogDetails('update', {
+          name,
+          id
+        }, {
+          changes: Object.keys({ name, description, permissions }).filter(k => ({ name, description, permissions } as any)[k] !== undefined)
+        });
+
+        const operations: TransactionOperation[] = [
           {
-            name,
-            description: description || '',
-            permissions: JSON.stringify(permissions)
+            action: 'update',
+            databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            tableId: process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+            rowId: id,
+            data: {
+              name,
+              description: description || '',
+              permissions: JSON.stringify(permissions)
+            }
+          },
+          {
+            action: 'create',
+            databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+            rowId: logId,
+            data: {
+              userId: user.$id,
+              action: 'update',
+              details: JSON.stringify(logDetails)
+            }
           }
-        );
+        ];
+
+        // Execute transaction with retry logic
+        try {
+          await executeTransactionWithRetry(tablesDB, operations);
+          console.log('[Role Update] Transaction completed successfully');
+        } catch (error: any) {
+          console.error('[Role Update] Transaction failed:', error);
+          return handleTransactionError(error, res);
+        }
 
         // Invalidate cache for this role since it was updated
-        invalidateRoleUserCount(updatedRole.$id);
+        invalidateRoleUserCount(id);
 
-        // Get user count for updated role (will refresh cache)
+        // Get updated role and user count
+        const updatedRole = await databases.getDocument(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+          id
+        );
+
         const updatedUserCount = await getRoleUserCount(databases, updatedRole.$id);
 
         const updatedRoleWithCount = {
@@ -201,27 +240,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             users: updatedUserCount
           }
         };
-
-        // Log the update action
-        try {
-          await databases.createDocument(
-            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-            process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
-            ID.unique(),
-            {
-              userId: user.$id,
-              action: 'update',
-              details: JSON.stringify((await import('@/lib/logFormatting')).createRoleLogDetails('update', {
-                name: updatedRole.name,
-                id: updatedRole.$id
-              }, {
-                changes: Object.keys({ name, description, permissions }).filter(k => ({ name, description, permissions } as any)[k] !== undefined)
-              }))
-            }
-          );
-        } catch (logError) {
-          console.error('Error creating log:', logError);
-        }
 
         return res.status(200).json(updatedRoleWithCount);
 
@@ -260,34 +278,44 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           });
         }
 
-        // Delete the role
-        await databases.deleteDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
-          id
-        );
+        // Create transaction operations for role delete + audit log
+        const deleteLogId = ID.unique();
+        const deleteLogDetails = (await import('@/lib/logFormatting')).createRoleLogDetails('delete', {
+          name: roleToDelete.name,
+          id: roleToDelete.$id
+        });
+
+        const deleteOperations: TransactionOperation[] = [
+          {
+            action: 'delete',
+            databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            tableId: process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+            rowId: id
+          },
+          {
+            action: 'create',
+            databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+            rowId: deleteLogId,
+            data: {
+              userId: user.$id,
+              action: 'delete',
+              details: JSON.stringify(deleteLogDetails)
+            }
+          }
+        ];
+
+        // Execute transaction with retry logic
+        try {
+          await executeTransactionWithRetry(tablesDB, deleteOperations);
+          console.log('[Role Delete] Transaction completed successfully');
+        } catch (error: any) {
+          console.error('[Role Delete] Transaction failed:', error);
+          return handleTransactionError(error, res);
+        }
 
         // Invalidate cache for deleted role
         invalidateRoleUserCount(roleToDelete.$id);
-
-        // Log the delete action
-        try {
-          await databases.createDocument(
-            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-            process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
-            ID.unique(),
-            {
-              userId: user.$id,
-              action: 'delete',
-              details: JSON.stringify((await import('@/lib/logFormatting')).createRoleLogDetails('delete', {
-                name: roleToDelete.name,
-                id: roleToDelete.$id
-              }))
-            }
-          );
-        } catch (logError) {
-          console.error('Error creating log:', logError);
-        }
 
         return res.status(200).json({ message: 'Role deleted successfully' });
 

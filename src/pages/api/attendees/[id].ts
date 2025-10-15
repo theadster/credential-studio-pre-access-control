@@ -229,18 +229,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           }
         }
 
-        // Update attendee
-        const updatedAttendee = await databases.updateDocument(
-          dbId,
-          attendeesCollectionId,
-          id,
-          updateData
-        );
-
-        // Fetch the final updated attendee
-        const finalAttendee = await databases.getDocument(dbId, attendeesCollectionId, id);
-
-        // Log the update action with detailed before/after values
+        // Prepare change details for logging
         const changeDetails: string[] = [];
 
         // Check for basic field changes with before/after values
@@ -331,26 +320,64 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           changeDetails.push('No changes detected');
         }
 
-        if (await shouldLog('attendeeUpdate')) {
-          const { createAttendeeLogDetails } = await import('@/lib/logFormatting');
-          await databases.createDocument(
-            dbId,
-            logsCollectionId,
-            ID.unique(),
-            {
-              userId: user.$id,
-              attendeeId: updatedAttendee.$id,
-              action: 'update',
-              details: JSON.stringify(createAttendeeLogDetails('update', {
-                firstName: updatedAttendee.firstName,
-                lastName: updatedAttendee.lastName,
-                barcodeNumber: updatedAttendee.barcodeNumber
-              }, {
-                changes: changeDetails
-              }))
+        let finalAttendee;
+
+        // Use transaction-based approach
+        console.log('[Attendee Update] Using transaction-based approach');
+          
+          try {
+            const { tablesDB } = createSessionClient(req);
+            const { executeTransactionWithRetry, handleTransactionError } = await import('@/lib/transactions');
+            
+            // Build transaction operations
+            const operations: any[] = [
+              {
+                action: 'update',
+                databaseId: dbId,
+                tableId: attendeesCollectionId,
+                rowId: id,
+                data: updateData
+              }
+            ];
+
+            // Add audit log if enabled
+            if (await shouldLog('attendeeUpdate')) {
+              const { createAttendeeLogDetails } = await import('@/lib/logFormatting');
+              operations.push({
+                action: 'create',
+                databaseId: dbId,
+                tableId: logsCollectionId,
+                rowId: ID.unique(),
+                data: {
+                  userId: user.$id,
+                  attendeeId: id,
+                  action: 'update',
+                  details: JSON.stringify({
+                    ...createAttendeeLogDetails('update', {
+                      firstName: updateData.firstName,
+                      lastName: updateData.lastName,
+                      barcodeNumber: updateData.barcodeNumber
+                    }, {
+                      changes: changeDetails
+                    }),
+                    timestamp: new Date().toISOString()
+                  })
+                }
+              });
             }
-          );
-        }
+
+            // Execute transaction with retry logic
+            await executeTransactionWithRetry(tablesDB, operations);
+
+            // Fetch the updated attendee to return to client
+            finalAttendee = await databases.getDocument(dbId, attendeesCollectionId, id);
+            
+            console.log('[Attendee Update] Transaction completed successfully');
+          } catch (error: any) {
+            console.error('[Attendee Update] Transaction failed:', error);
+            const { handleTransactionError } = await import('@/lib/transactions');
+            return handleTransactionError(error, res);
+          }
 
         // Parse and return the updated attendee with proper structure
         const customFieldValuesArray = parseCustomFieldValues(finalAttendee.customFieldValues);
@@ -372,34 +399,68 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           return res.status(403).json({ error: 'Insufficient permissions to delete attendees' });
         }
 
-        // Check if attendee exists
-        const attendeeToDelete = await databases.getDocument(dbId, attendeesCollectionId, id);
+        // Check if attendee exists and get details BEFORE deletion
+        let attendeeToDelete;
+        try {
+          attendeeToDelete = await databases.getDocument(dbId, attendeesCollectionId, id);
+        } catch (error: any) {
+          console.error('Error fetching attendee:', error);
+          return res.status(404).json({ error: 'Attendee not found', details: error.message });
+        }
 
         if (!attendeeToDelete) {
           return res.status(404).json({ error: 'Attendee not found' });
         }
 
-        // Delete attendee
-        await databases.deleteDocument(dbId, attendeesCollectionId, id);
+        // Use transaction-based approach
+        console.log('[Attendee Delete] Using transaction-based approach');
+          
+          try {
+            const { tablesDB } = createSessionClient(req);
+            const { executeTransactionWithRetry, handleTransactionError } = await import('@/lib/transactions');
+            
+            // Build transaction operations
+            const deleteOperations: any[] = [
+              {
+                action: 'delete',
+                databaseId: dbId,
+                tableId: attendeesCollectionId,
+                rowId: id
+              }
+            ];
 
-        // Log the delete action if enabled
-        if (await shouldLog('attendeeDelete')) {
-          const { createAttendeeLogDetails } = await import('@/lib/logFormatting');
-          await databases.createDocument(
-            dbId,
-            logsCollectionId,
-            ID.unique(),
-            {
-              userId: user.$id,
-              action: 'delete',
-              details: JSON.stringify(createAttendeeLogDetails('delete', {
-                firstName: attendeeToDelete.firstName,
-                lastName: attendeeToDelete.lastName,
-                barcodeNumber: attendeeToDelete.barcodeNumber
-              }))
+            // Add audit log if enabled
+            if (await shouldLog('attendeeDelete')) {
+              const { createAttendeeLogDetails } = await import('@/lib/logFormatting');
+              deleteOperations.push({
+                action: 'create',
+                databaseId: dbId,
+                tableId: logsCollectionId,
+                rowId: ID.unique(),
+                data: {
+                  userId: user.$id,
+                  action: 'delete',
+                  details: JSON.stringify({
+                    ...createAttendeeLogDetails('delete', {
+                      firstName: attendeeToDelete.firstName,
+                      lastName: attendeeToDelete.lastName,
+                      barcodeNumber: attendeeToDelete.barcodeNumber
+                    }),
+                    timestamp: new Date().toISOString()
+                  })
+                }
+              });
             }
-          );
-        }
+
+            // Execute transaction with retry logic
+            await executeTransactionWithRetry(tablesDB, deleteOperations);
+            
+            console.log('[Attendee Delete] Transaction completed successfully');
+          } catch (error: any) {
+            console.error('[Attendee Delete] Transaction failed:', error);
+            const { handleTransactionError } = await import('@/lib/transactions');
+            return handleTransactionError(error, res);
+          }
 
         return res.status(200).json({ message: 'Attendee deleted successfully' });
 

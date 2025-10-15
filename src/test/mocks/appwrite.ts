@@ -131,6 +131,17 @@ export const mockTeams = {
 };
 
 /**
+ * Mock Appwrite TablesDB (for transactions)
+ */
+export const mockTablesDB = {
+  createTransaction: vi.fn(),
+  createOperations: vi.fn(),
+  updateTransaction: vi.fn(),
+  getTransaction: vi.fn(),
+  listTransactions: vi.fn(),
+};
+
+/**
  * Reset all mocks
  */
 export const resetAllMocks = () => {
@@ -165,6 +176,11 @@ export const resetAllMocks = () => {
     }
   });
   Object.values(mockTeams).forEach(mock => {
+    if (typeof mock === 'function' && 'mockClear' in mock) {
+      mock.mockClear();
+    }
+  });
+  Object.values(mockTablesDB).forEach(mock => {
     if (typeof mock === 'function' && 'mockClear' in mock) {
       mock.mockClear();
     }

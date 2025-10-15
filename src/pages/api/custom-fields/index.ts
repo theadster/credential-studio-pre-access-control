@@ -4,12 +4,13 @@ import { Query, ID } from 'appwrite';
 import { generateInternalFieldName } from '@/util/string';
 import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
 import { shouldLog } from '@/lib/logSettings';
+import { executeTransactionWithRetry, handleTransactionError, type TransactionOperation } from '@/lib/transactions';
 
 export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   try {
     // User and userProfile are already attached by middleware
     const { user, userProfile } = req;
-    const { databases } = createSessionClient(req);
+    const { databases, tablesDB } = createSessionClient(req);
 
     const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
     const customFieldsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID!;
@@ -125,56 +126,80 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           }
         }
 
-        // Create the custom field document
-        // showOnMainPage defaults to true if not explicitly set to false
-        // This ensures new fields are visible by default, maintaining backward compatibility
-        const newCustomField = await databases.createDocument(
-          dbId,
-          customFieldsCollectionId,
-          ID.unique(),
-          {
-            eventSettingsId,
-            fieldName,
-            internalFieldName,
-            fieldType,
-            fieldOptions: fieldOptionsStr,
-            required: required || false,
-            order: fieldOrder,
-            showOnMainPage: showOnMainPage !== undefined ? showOnMainPage : true, // Default to visible
-            version: 0
-          }
-        );
+        // Generate unique ID for the custom field
+        const customFieldId = ID.unique();
+        
+        // Prepare custom field data
+        const customFieldData = {
+          eventSettingsId,
+          fieldName,
+          internalFieldName,
+          fieldType,
+          fieldOptions: fieldOptionsStr,
+          required: required || false,
+          order: fieldOrder,
+          showOnMainPage: showOnMainPage !== undefined ? showOnMainPage : true, // Default to visible
+          version: 0
+        };
 
-        // Log the create action
-        // Log the create action if enabled
-        if (await shouldLog('customFieldCreate')) {
-          try {
-            await databases.createDocument(
-              dbId,
-              logsCollectionId,
-              ID.unique(),
-              {
-                userId: user.$id,
-                action: 'create',
-                details: JSON.stringify({
-                  type: 'custom_field',
-                  fieldName: newCustomField.fieldName,
-                  fieldType: newCustomField.fieldType
-                })
-              }
-            );
-          } catch (logError) {
-            console.error('[custom-fields] Failed to create log entry, but continuing with request', {
-              error: logError instanceof Error ? logError.message : 'Unknown error',
-              errorType: (logError as any)?.type,
-              userId: user.$id,
-              fieldName: newCustomField.fieldName
-            });
-            // Do not re-throw - allow the request to succeed even if logging fails
+        // Check if logging is enabled
+        const loggingEnabled = await shouldLog('customFieldCreate');
+
+        // Create transaction operations
+        const operations: TransactionOperation[] = [
+          {
+            action: 'create',
+            databaseId: dbId,
+            tableId: customFieldsCollectionId,
+            rowId: customFieldId,
+            data: customFieldData
           }
+        ];
+
+        // Add audit log to transaction if logging is enabled
+        if (loggingEnabled) {
+          operations.push({
+            action: 'create',
+            databaseId: dbId,
+            tableId: logsCollectionId,
+            rowId: ID.unique(),
+            data: {
+              userId: user.$id,
+              action: 'create',
+              details: JSON.stringify({
+                type: 'custom_field',
+                fieldName: fieldName,
+                fieldType: fieldType,
+                customFieldId: customFieldId,
+                timestamp: new Date().toISOString()
+              })
+            }
+          });
         }
 
-        return res.status(201).json(newCustomField);
+        // Execute transaction with retry logic
+        try {
+          await executeTransactionWithRetry(tablesDB, operations);
+          
+          console.log('[custom-fields] Custom field created with transaction', {
+            customFieldId,
+            fieldName,
+            loggingEnabled,
+            operationCount: operations.length
+          });
+
+          // Return the created custom field data
+          // Note: In a transaction, we don't get the document back, so we return what we created
+          return res.status(201).json({
+            $id: customFieldId,
+            ...customFieldData,
+            $createdAt: new Date().toISOString(),
+            $updatedAt: new Date().toISOString()
+          });
+        } catch (error: any) {
+          console.error('[custom-fields] Transaction failed:', error);
+          return handleTransactionError(error, res);
+        }
 
       default:
         res.setHeader('Allow', ['GET', 'POST']);

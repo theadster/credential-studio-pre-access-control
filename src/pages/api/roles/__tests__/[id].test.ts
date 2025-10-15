@@ -3,11 +3,19 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import handler from '../[id]';
 import { mockAccount, mockDatabases, resetAllMocks } from '@/test/mocks/appwrite';
 
+// Mock TablesDB
+const mockTablesDB = {
+  createTransaction: vi.fn(),
+  createOperations: vi.fn(),
+  updateTransaction: vi.fn(),
+};
+
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn((req: NextApiRequest) => ({
     account: mockAccount,
     databases: mockDatabases,
+    tablesDB: mockTablesDB,
   })),
 }));
 
@@ -100,6 +108,16 @@ describe('/api/roles/[id] - Single Role API', () => {
       action: 'view',
       details: '{}',
     });
+
+    // Reset TablesDB mocks
+    mockTablesDB.createTransaction.mockReset();
+    mockTablesDB.createOperations.mockReset();
+    mockTablesDB.updateTransaction.mockReset();
+    
+    // Default transaction success
+    mockTablesDB.createTransaction.mockResolvedValue({ $id: 'tx-123' });
+    mockTablesDB.createOperations.mockResolvedValue(undefined);
+    mockTablesDB.updateTransaction.mockResolvedValue(undefined);
   });
 
   describe('Authentication', () => {
@@ -278,7 +296,7 @@ describe('/api/roles/[id] - Single Role API', () => {
       };
     });
 
-    it('should update role successfully', async () => {
+    it('should update role successfully with transaction', async () => {
       const updatedRole = {
         $id: 'role-viewer',
         name: 'Updated Viewer',
@@ -298,23 +316,43 @@ describe('/api/roles/[id] - Single Role API', () => {
 
       mockDatabases.getDocument
         .mockResolvedValueOnce(getFreshRole(mockAdminRole)) // Current user's role
-        .mockResolvedValueOnce(getFreshRole(mockViewerRole)); // Existing role
-
-      mockDatabases.updateDocument.mockResolvedValue(updatedRole);
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'log-123' });
+        .mockResolvedValueOnce(getFreshRole(mockViewerRole)) // Existing role
+        .mockResolvedValueOnce(updatedRole); // Get updated role after transaction
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID,
-        'role-viewer',
-        expect.objectContaining({
-          name: 'Updated Viewer',
-          description: 'Updated description',
-          permissions: expect.any(String),
-        })
-      );
+      // Verify transaction was created
+      expect(mockTablesDB.createTransaction).toHaveBeenCalled();
+      
+      // Verify operations were created (update + audit log)
+      expect(mockTablesDB.createOperations).toHaveBeenCalledWith({
+        transactionId: 'tx-123',
+        operations: expect.arrayContaining([
+          expect.objectContaining({
+            action: 'update',
+            tableId: process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID,
+            rowId: 'role-viewer',
+            data: expect.objectContaining({
+              name: 'Updated Viewer',
+              description: 'Updated description',
+            }),
+          }),
+          expect.objectContaining({
+            action: 'create',
+            tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+            data: expect.objectContaining({
+              userId: mockAuthUser.$id,
+              action: 'update',
+            }),
+          }),
+        ]),
+      });
+
+      // Verify transaction was committed
+      expect(mockTablesDB.updateTransaction).toHaveBeenCalledWith({
+        transactionId: 'tx-123',
+        commit: true,
+      });
 
       expect(statusMock).toHaveBeenCalledWith(200);
       expect(jsonMock).toHaveBeenCalledWith(
@@ -533,7 +571,7 @@ describe('/api/roles/[id] - Single Role API', () => {
       expect(statusMock).toHaveBeenCalledWith(200);
     });
 
-    it('should create log entry for role update', async () => {
+    it('should include audit log in transaction', async () => {
       const updatedRole = {
         ...mockViewerRole,
         name: 'Updated Viewer',
@@ -542,27 +580,89 @@ describe('/api/roles/[id] - Single Role API', () => {
 
       mockDatabases.listDocuments
         .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ documents: [], total: 0 })
+        .mockResolvedValueOnce({ documents: [], total: 2 });
+
+      mockDatabases.getDocument
+        .mockResolvedValueOnce(getFreshRole(mockAdminRole)) // Current user's role
+        .mockResolvedValueOnce(getFreshRole(mockViewerRole)) // Existing role
+        .mockResolvedValueOnce(updatedRole); // Get updated role after transaction
+
+      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+
+      // Verify audit log is part of the transaction
+      expect(mockTablesDB.createOperations).toHaveBeenCalledWith({
+        transactionId: 'tx-123',
+        operations: expect.arrayContaining([
+          expect.objectContaining({
+            action: 'create',
+            tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+            data: expect.objectContaining({
+              userId: mockAuthUser.$id,
+              action: 'update',
+              details: expect.stringContaining('role'),
+            }),
+          }),
+        ]),
+      });
+    });
+
+    it('should rollback transaction on failure', async () => {
+      mockDatabases.listDocuments
+        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
         .mockResolvedValueOnce({ documents: [], total: 0 });
 
       mockDatabases.getDocument
         .mockResolvedValueOnce(getFreshRole(mockAdminRole)) // Current user's role
         .mockResolvedValueOnce(getFreshRole(mockViewerRole)); // Existing role
 
-      mockDatabases.updateDocument.mockResolvedValue(updatedRole);
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'log-123' });
+      // Simulate transaction failure
+      const txError = new Error('Transaction failed');
+      mockTablesDB.createOperations.mockRejectedValueOnce(txError);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
-        expect.any(String),
-        expect.objectContaining({
-          userId: mockAuthUser.$id,
-          action: 'update',
-          details: expect.stringContaining('role'),
-        })
-      );
+      // Verify rollback was attempted
+      expect(mockTablesDB.updateTransaction).toHaveBeenCalledWith({
+        transactionId: 'tx-123',
+        rollback: true,
+      });
+
+      // Verify error response
+      expect(statusMock).toHaveBeenCalledWith(500);
+    });
+
+    it('should handle transaction conflict with retry', async () => {
+      mockDatabases.listDocuments
+        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ documents: [], total: 0 })
+        .mockResolvedValueOnce({ documents: [], total: 2 });
+
+      mockDatabases.getDocument
+        .mockResolvedValueOnce(getFreshRole(mockAdminRole)) // Current user's role
+        .mockResolvedValueOnce(getFreshRole(mockViewerRole)) // Existing role
+        .mockResolvedValueOnce(getFreshRole(mockViewerRole)); // Get updated role after transaction
+
+      // Simulate conflict on first attempt, success on second
+      const conflictError = new Error('Conflict');
+      (conflictError as any).code = 409;
+      
+      mockTablesDB.createTransaction
+        .mockResolvedValueOnce({ $id: 'tx-123' })
+        .mockResolvedValueOnce({ $id: 'tx-456' });
+      
+      mockTablesDB.createOperations
+        .mockRejectedValueOnce(conflictError)
+        .mockResolvedValueOnce(undefined);
+
+      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+
+      // Verify retry occurred
+      expect(mockTablesDB.createTransaction).toHaveBeenCalledTimes(2);
+      expect(mockTablesDB.createOperations).toHaveBeenCalledTimes(2);
+      
+      // Verify success response
+      expect(statusMock).toHaveBeenCalledWith(200);
     });
   });
 

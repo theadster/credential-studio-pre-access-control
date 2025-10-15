@@ -3,11 +3,19 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import handler from '../reorder';
 import { mockAccount, mockDatabases, resetAllMocks } from '@/test/mocks/appwrite';
 
+// Mock TablesDB for transaction support
+const mockTablesDB = {
+  createTransaction: vi.fn(),
+  createOperations: vi.fn(),
+  updateTransaction: vi.fn(),
+};
+
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn((req: NextApiRequest) => ({
     account: mockAccount,
     databases: mockDatabases,
+    tablesDB: mockTablesDB,
   })),
 }));
 
@@ -45,6 +53,7 @@ describe('/api/custom-fields/reorder - Custom Fields Reorder API', () => {
 
   beforeEach(() => {
     resetAllMocks();
+    vi.clearAllMocks();
     
     jsonMock = vi.fn();
     statusMock = vi.fn(() => ({ json: jsonMock }));
@@ -73,16 +82,11 @@ describe('/api/custom-fields/reorder - Custom Fields Reorder API', () => {
       total: 1,
     });
     mockDatabases.getDocument.mockResolvedValue(mockAdminRole);
-    mockDatabases.updateDocument.mockResolvedValue({
-      $id: 'field-1',
-      order: 1,
-    });
-    mockDatabases.createDocument.mockResolvedValue({
-      $id: 'new-log-123',
-      userId: mockAuthUser.$id,
-      action: 'update',
-      details: '{}',
-    });
+    
+    // Mock transaction flow
+    mockTablesDB.createTransaction.mockResolvedValue({ $id: 'tx-123' });
+    mockTablesDB.createOperations.mockResolvedValue(undefined);
+    mockTablesDB.updateTransaction.mockResolvedValue(undefined);
   });
 
   describe('Authentication', () => {
@@ -104,46 +108,65 @@ describe('/api/custom-fields/reorder - Custom Fields Reorder API', () => {
     });
   });
 
-  describe('PUT /api/custom-fields/reorder', () => {
-    it('should reorder custom fields successfully', async () => {
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
-        total: 1,
-      });
-
+  describe('PUT /api/custom-fields/reorder - Transaction-Based', () => {
+    it('should reorder custom fields atomically using transactions', async () => {
+      // Mock role first for permission check
       mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
-
-      mockDatabases.updateDocument
-        .mockResolvedValueOnce({ $id: 'field-1', order: 1 })
-        .mockResolvedValueOnce({ $id: 'field-2', order: 2 })
-        .mockResolvedValueOnce({ $id: 'field-3', order: 3 });
-
-      mockDatabases.createDocument.mockResolvedValueOnce({ $id: 'log-123' });
+      
+      // Mock field existence checks
+      mockDatabases.getDocument
+        .mockResolvedValueOnce({ $id: 'field-1', order: 5 })
+        .mockResolvedValueOnce({ $id: 'field-2', order: 6 })
+        .mockResolvedValueOnce({ $id: 'field-3', order: 7 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.updateDocument).toHaveBeenCalledTimes(3);
-      expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID,
-        'field-1',
-        { order: 1 }
-      );
-      expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID,
-        'field-2',
-        { order: 2 }
-      );
-      expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID,
-        'field-3',
-        { order: 3 }
-      );
+      // Verify transaction flow
+      expect(mockTablesDB.createTransaction).toHaveBeenCalledTimes(1);
+      expect(mockTablesDB.createOperations).toHaveBeenCalledTimes(1);
+      expect(mockTablesDB.updateTransaction).toHaveBeenCalledWith({
+        transactionId: 'tx-123',
+        commit: true
+      });
+
+      // Verify operations include all updates + audit log
+      const operations = mockTablesDB.createOperations.mock.calls[0][0].operations;
+      expect(operations).toHaveLength(4); // 3 updates + 1 audit log
+      
+      // Verify update operations
+      expect(operations[0]).toMatchObject({
+        action: 'update',
+        tableId: process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID,
+        rowId: 'field-1',
+        data: { order: 1 }
+      });
+      expect(operations[1]).toMatchObject({
+        action: 'update',
+        rowId: 'field-2',
+        data: { order: 2 }
+      });
+      expect(operations[2]).toMatchObject({
+        action: 'update',
+        rowId: 'field-3',
+        data: { order: 3 }
+      });
+
+      // Verify audit log operation
+      expect(operations[3]).toMatchObject({
+        action: 'create',
+        tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+        data: expect.objectContaining({
+          userId: mockAuthUser.$id,
+          action: 'update'
+        })
+      });
 
       expect(statusMock).toHaveBeenCalledWith(200);
-      expect(jsonMock).toHaveBeenCalledWith({ success: true });
+      expect(jsonMock).toHaveBeenCalledWith({
+        success: true,
+        message: 'Custom fields reordered successfully',
+        fieldCount: 3
+      });
     });
 
     it('should return 403 if user does not have update permission', async () => {
@@ -190,11 +213,7 @@ describe('/api/custom-fields/reorder - Custom Fields Reorder API', () => {
     it('should return 400 if fieldOrders is missing', async () => {
       mockReq.body = {};
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
-        total: 1,
-      });
-
+      // Need to mock role for permission check
       mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
@@ -208,11 +227,7 @@ describe('/api/custom-fields/reorder - Custom Fields Reorder API', () => {
         fieldOrders: 'not-an-array',
       };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
-        total: 1,
-      });
-
+      // Need to mock role for permission check
       mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
@@ -221,172 +236,187 @@ describe('/api/custom-fields/reorder - Custom Fields Reorder API', () => {
       expect(jsonMock).toHaveBeenCalledWith({ error: 'Invalid field orders data' });
     });
 
-    it('should handle partial success with some failures', async () => {
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
-        total: 1,
-      });
-
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
-
-      mockDatabases.updateDocument
-        .mockResolvedValueOnce({ $id: 'field-1', order: 1 })
-        .mockRejectedValueOnce(new Error('Update failed'))
-        .mockResolvedValueOnce({ $id: 'field-3', order: 3 });
-
-      mockDatabases.createDocument.mockResolvedValueOnce({ $id: 'log-123' });
-
-      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
-
-      expect(statusMock).toHaveBeenCalledWith(207);
-      expect(jsonMock).toHaveBeenCalledWith({
-        success: true,
-        partialSuccess: true,
-        updated: ['field-1', 'field-3'],
-        errors: [
-          {
-            id: 'field-2',
-            error: 'Update failed',
-          },
-        ],
-      });
-    });
-
-    it('should return 500 if all updates fail', async () => {
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
-        total: 1,
-      });
-
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
-
-      mockDatabases.updateDocument
-        .mockRejectedValueOnce(new Error('Update failed 1'))
-        .mockRejectedValueOnce(new Error('Update failed 2'))
-        .mockRejectedValueOnce(new Error('Update failed 3'));
-
-      mockDatabases.createDocument.mockResolvedValueOnce({ $id: 'log-123' });
-
-      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
-
-      expect(statusMock).toHaveBeenCalledWith(500);
-      expect(jsonMock).toHaveBeenCalledWith({
-        success: false,
-        error: 'Failed to update any fields',
-        errors: [
-          { id: 'field-1', error: 'Update failed 1' },
-          { id: 'field-2', error: 'Update failed 2' },
-          { id: 'field-3', error: 'Update failed 3' },
-        ],
-      });
-    });
-
-    it('should create log entry for reorder action', async () => {
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
-        total: 1,
-      });
-
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
-
-      mockDatabases.updateDocument
-        .mockResolvedValueOnce({ $id: 'field-1', order: 1 })
-        .mockResolvedValueOnce({ $id: 'field-2', order: 2 })
-        .mockResolvedValueOnce({ $id: 'field-3', order: 3 });
-
-      mockDatabases.createDocument.mockResolvedValueOnce({ $id: 'log-123' });
-
-      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
-
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
-        expect.any(String),
-        expect.objectContaining({
-          userId: mockAuthUser.$id,
-          action: 'update',
-          details: expect.stringContaining('custom_fields_reorder'),
-        })
-      );
-    });
-
-    it('should log correct counts in log entry', async () => {
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
-        total: 1,
-      });
-
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
-
-      mockDatabases.updateDocument
-        .mockResolvedValueOnce({ $id: 'field-1', order: 1 })
-        .mockRejectedValueOnce(new Error('Update failed'))
-        .mockResolvedValueOnce({ $id: 'field-3', order: 3 });
-
-      mockDatabases.createDocument.mockResolvedValueOnce({ $id: 'log-123' });
-
-      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
-
-      const logCall = mockDatabases.createDocument.mock.calls[0];
-      const logDetails = JSON.parse(logCall[3].details);
-
-      expect(logDetails).toMatchObject({
-        type: 'custom_fields_reorder',
-        fieldCount: 3,
-        successCount: 2,
-        errorCount: 1,
-      });
-    });
-
-    it('should handle empty fieldOrders array', async () => {
+    it('should return 400 if fieldOrders array is empty', async () => {
       mockReq.body = {
         fieldOrders: [],
       };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
-        total: 1,
-      });
+      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
-      mockDatabases.createDocument.mockResolvedValueOnce({ $id: 'log-123' });
+      expect(statusMock).toHaveBeenCalledWith(400);
+      expect(jsonMock).toHaveBeenCalledWith({ error: 'Field orders array cannot be empty' });
+    });
+
+    it('should return 400 if field order entry has invalid id', async () => {
+      mockReq.body = {
+        fieldOrders: [
+          { order: 1 }, // missing id
+        ],
+      };
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.updateDocument).not.toHaveBeenCalled();
-      expect(statusMock).toHaveBeenCalledWith(200);
-      expect(jsonMock).toHaveBeenCalledWith({ success: true });
+      expect(statusMock).toHaveBeenCalledWith(400);
+      expect(jsonMock).toHaveBeenCalledWith({
+        error: 'Invalid field order entry',
+        details: 'Each entry must have a valid id string'
+      });
     });
 
-    it('should handle single field reorder', async () => {
+    it('should return 400 if field order entry has invalid order', async () => {
+      mockReq.body = {
+        fieldOrders: [
+          { id: 'field-1', order: 'not-a-number' },
+        ],
+      };
+
+      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+
+      expect(statusMock).toHaveBeenCalledWith(400);
+      expect(jsonMock).toHaveBeenCalledWith({
+        error: 'Invalid field order entry',
+        details: 'Each entry must have a valid order number'
+      });
+    });
+
+    it('should return 404 if a field does not exist', async () => {
+      // Mock role first for permission check
+      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      
+      // Then mock field existence checks - first two exist, third doesn't
+      mockDatabases.getDocument
+        .mockResolvedValueOnce({ $id: 'field-1', order: 5 })
+        .mockResolvedValueOnce({ $id: 'field-2', order: 6 })
+        .mockRejectedValueOnce({ code: 404, message: 'Document not found' });
+
+      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+
+      expect(statusMock).toHaveBeenCalledWith(404);
+      expect(jsonMock).toHaveBeenCalledWith({
+        error: 'Custom field not found',
+        fieldId: 'field-3'
+      });
+
+      // Transaction should not be started
+      expect(mockTablesDB.createTransaction).not.toHaveBeenCalled();
+    });
+
+    it('should rollback transaction on failure', async () => {
+      // Mock role first
+      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      
+      // Mock field existence checks
+      mockDatabases.getDocument
+        .mockResolvedValueOnce({ $id: 'field-1', order: 5 })
+        .mockResolvedValueOnce({ $id: 'field-2', order: 6 })
+        .mockResolvedValueOnce({ $id: 'field-3', order: 7 });
+
+      // Mock transaction failure
+      mockTablesDB.createOperations.mockRejectedValueOnce(new Error('Transaction failed'));
+
+      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+
+      // Verify rollback was attempted
+      expect(mockTablesDB.updateTransaction).toHaveBeenCalledWith({
+        transactionId: 'tx-123',
+        rollback: true
+      });
+
+      expect(statusMock).toHaveBeenCalledWith(500);
+    });
+
+    it('should retry on conflict errors', async () => {
+      // Mock role first
+      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      
+      // Mock field existence checks
+      mockDatabases.getDocument
+        .mockResolvedValueOnce({ $id: 'field-1', order: 5 })
+        .mockResolvedValueOnce({ $id: 'field-2', order: 6 })
+        .mockResolvedValueOnce({ $id: 'field-3', order: 7 });
+
+      // First attempt fails with conflict, second succeeds
+      mockTablesDB.createTransaction
+        .mockResolvedValueOnce({ $id: 'tx-123' })
+        .mockResolvedValueOnce({ $id: 'tx-456' });
+      
+      const conflictError = new Error('Conflict');
+      (conflictError as any).code = 409;
+      
+      mockTablesDB.createOperations
+        .mockRejectedValueOnce(conflictError)
+        .mockResolvedValueOnce(undefined);
+
+      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+
+      // Should have retried
+      expect(mockTablesDB.createTransaction).toHaveBeenCalledTimes(2);
+      expect(statusMock).toHaveBeenCalledWith(200);
+    });
+
+    it('should include audit log in transaction', async () => {
+      // Mock role first
+      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      
+      // Mock field existence checks
+      mockDatabases.getDocument
+        .mockResolvedValueOnce({ $id: 'field-1', order: 5 })
+        .mockResolvedValueOnce({ $id: 'field-2', order: 6 })
+        .mockResolvedValueOnce({ $id: 'field-3', order: 7 });
+
+      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+
+      const operations = mockTablesDB.createOperations.mock.calls[0][0].operations;
+      const auditLogOp = operations[operations.length - 1];
+
+      expect(auditLogOp).toMatchObject({
+        action: 'create',
+        tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+      });
+
+      const logDetails = JSON.parse(auditLogOp.data.details);
+      expect(logDetails).toMatchObject({
+        type: 'custom_fields_reorder',
+        fieldCount: 3,
+        fieldOrders: [
+          { id: 'field-1', order: 1 },
+          { id: 'field-2', order: 2 },
+          { id: 'field-3', order: 3 },
+        ]
+      });
+    });
+
+    it('should handle single field reorder atomically', async () => {
       mockReq.body = {
         fieldOrders: [{ id: 'field-1', order: 5 }],
       };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
-        total: 1,
-      });
-
+      // Mock role first
       mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
-      mockDatabases.updateDocument.mockResolvedValueOnce({ $id: 'field-1', order: 5 });
-      mockDatabases.createDocument.mockResolvedValueOnce({ $id: 'log-123' });
+      
+      // Mock field existence check
+      mockDatabases.getDocument.mockResolvedValueOnce({ $id: 'field-1', order: 1 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.updateDocument).toHaveBeenCalledTimes(1);
-      expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID,
-        'field-1',
-        { order: 5 }
-      );
+      const operations = mockTablesDB.createOperations.mock.calls[0][0].operations;
+      expect(operations).toHaveLength(2); // 1 update + 1 audit log
+
+      expect(operations[0]).toMatchObject({
+        action: 'update',
+        rowId: 'field-1',
+        data: { order: 5 }
+      });
 
       expect(statusMock).toHaveBeenCalledWith(200);
-      expect(jsonMock).toHaveBeenCalledWith({ success: true });
+      expect(jsonMock).toHaveBeenCalledWith({
+        success: true,
+        message: 'Custom fields reordered successfully',
+        fieldCount: 1
+      });
     });
 
-    it('should handle large batch of reorders', async () => {
+    it('should handle large batch of reorders atomically', async () => {
       const largeFieldOrders = Array.from({ length: 20 }, (_, i) => ({
         id: `field-${i + 1}`,
         order: i + 1,
@@ -396,28 +426,28 @@ describe('/api/custom-fields/reorder - Custom Fields Reorder API', () => {
         fieldOrders: largeFieldOrders,
       };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
-        total: 1,
-      });
-
+      // Mock role first
       mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
-
-      // Mock all updates to succeed
+      
+      // Mock all field existence checks
       for (let i = 0; i < 20; i++) {
-        mockDatabases.updateDocument.mockResolvedValueOnce({
+        mockDatabases.getDocument.mockResolvedValueOnce({
           $id: `field-${i + 1}`,
-          order: i + 1,
+          order: i + 10,
         });
       }
 
-      mockDatabases.createDocument.mockResolvedValueOnce({ $id: 'log-123' });
-
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.updateDocument).toHaveBeenCalledTimes(20);
+      const operations = mockTablesDB.createOperations.mock.calls[0][0].operations;
+      expect(operations).toHaveLength(21); // 20 updates + 1 audit log
+
       expect(statusMock).toHaveBeenCalledWith(200);
-      expect(jsonMock).toHaveBeenCalledWith({ success: true });
+      expect(jsonMock).toHaveBeenCalledWith({
+        success: true,
+        message: 'Custom fields reordered successfully',
+        fieldCount: 20
+      });
     });
   });
 
@@ -494,35 +524,36 @@ describe('/api/custom-fields/reorder - Custom Fields Reorder API', () => {
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       expect(statusMock).toHaveBeenCalledWith(404);
-      expect(jsonMock).toHaveBeenCalledWith({ error: 'Resource not found' });
+      expect(jsonMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: expect.stringContaining('Not found'),
+          code: 404
+        })
+      );
     });
 
-    it('should return 500 if logging fails', async () => {
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
-        total: 1,
-      });
-
+    it('should rollback entire transaction if any operation fails', async () => {
+      // Mock role first
       mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      
+      // Mock field existence checks
+      mockDatabases.getDocument
+        .mockResolvedValueOnce({ $id: 'field-1', order: 5 })
+        .mockResolvedValueOnce({ $id: 'field-2', order: 6 })
+        .mockResolvedValueOnce({ $id: 'field-3', order: 7 });
 
-      mockDatabases.updateDocument
-        .mockResolvedValueOnce({ $id: 'field-1', order: 1 })
-        .mockResolvedValueOnce({ $id: 'field-2', order: 2 })
-        .mockResolvedValueOnce({ $id: 'field-3', order: 3 });
-
-      mockDatabases.createDocument.mockRejectedValueOnce(new Error('Logging failed'));
+      // Mock transaction commit failure
+      mockTablesDB.updateTransaction.mockRejectedValueOnce(new Error('Commit failed'));
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      // Logging failure causes the whole operation to fail
+      // Verify rollback was attempted
+      expect(mockTablesDB.updateTransaction).toHaveBeenCalledWith({
+        transactionId: 'tx-123',
+        rollback: true
+      });
+
       expect(statusMock).toHaveBeenCalledWith(500);
-      expect(jsonMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: expect.stringContaining('error'),
-          code: 500,
-          type: 'internal_error',
-        })
-      );
     });
   });
 });

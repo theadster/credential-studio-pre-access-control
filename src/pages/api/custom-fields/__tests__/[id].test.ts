@@ -1,13 +1,14 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
 import handler from '../[id]';
-import { mockAccount, mockDatabases, resetAllMocks } from '@/test/mocks/appwrite';
+import { mockAccount, mockDatabases, mockTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn((req: NextApiRequest) => ({
     account: mockAccount,
     databases: mockDatabases,
+    tablesDB: mockTablesDB,
   })),
 }));
 
@@ -662,12 +663,17 @@ describe('/api/custom-fields/[id] - Custom Field Detail API', () => {
     });
   });
 
-  describe('DELETE /api/custom-fields/[id]', () => {
+  describe('DELETE /api/custom-fields/[id] - Transaction-Based', () => {
     beforeEach(() => {
       mockReq.method = 'DELETE';
+      
+      // Mock transaction flow
+      mockTablesDB.createTransaction.mockResolvedValue({ $id: 'tx-123' });
+      mockTablesDB.createOperations.mockResolvedValue(undefined);
+      mockTablesDB.updateTransaction.mockResolvedValue(undefined);
     });
 
-    it('should delete custom field successfully', async () => {
+    it('should soft delete custom field successfully using transaction', async () => {
       mockDatabases.listDocuments.mockResolvedValueOnce({
         documents: [mockUserProfile],
         total: 1,
@@ -677,22 +683,50 @@ describe('/api/custom-fields/[id] - Custom Field Detail API', () => {
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockCustomField);
 
-      mockDatabases.deleteDocument.mockResolvedValueOnce(undefined);
-      mockDatabases.createDocument.mockResolvedValueOnce({ $id: 'log-123' });
-
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.deleteDocument).toHaveBeenCalledWith(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID,
-        'field-123'
-      );
+      // Verify transaction was created
+      expect(mockTablesDB.createTransaction).toHaveBeenCalled();
+      
+      // Verify operations were created (soft delete + audit log)
+      expect(mockTablesDB.createOperations).toHaveBeenCalledWith({
+        transactionId: 'tx-123',
+        operations: expect.arrayContaining([
+          expect.objectContaining({
+            action: 'update',
+            tableId: process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID,
+            rowId: 'field-123',
+            data: expect.objectContaining({
+              deletedAt: expect.any(String),
+              version: 1,
+            }),
+          }),
+          expect.objectContaining({
+            action: 'create',
+            tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+            data: expect.objectContaining({
+              userId: mockAuthUser.$id,
+              action: 'delete',
+            }),
+          }),
+        ]),
+      });
+
+      // Verify transaction was committed
+      expect(mockTablesDB.updateTransaction).toHaveBeenCalledWith({
+        transactionId: 'tx-123',
+        commit: true,
+      });
 
       expect(statusMock).toHaveBeenCalledWith(200);
-      expect(jsonMock).toHaveBeenCalledWith({
-        success: true,
-        message: 'Custom field deleted successfully',
-      });
+      expect(jsonMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          message: 'Custom field deleted successfully',
+          deletedAt: expect.any(String),
+          note: expect.stringContaining('soft-deleted'),
+        })
+      );
     });
 
     it('should return 403 if user does not have delete permission', async () => {
@@ -716,6 +750,9 @@ describe('/api/custom-fields/[id] - Custom Field Detail API', () => {
       expect(jsonMock).toHaveBeenCalledWith({
         error: 'Insufficient permissions to delete custom fields',
       });
+      
+      // Verify no transaction was created
+      expect(mockTablesDB.createTransaction).not.toHaveBeenCalled();
     });
 
     it('should return 404 if user profile not found', async () => {
@@ -734,6 +771,9 @@ describe('/api/custom-fields/[id] - Custom Field Detail API', () => {
           type: 'profile_not_found',
         })
       );
+      
+      // Verify no transaction was created
+      expect(mockTablesDB.createTransaction).not.toHaveBeenCalled();
     });
 
     it('should return 404 if custom field not found', async () => {
@@ -750,9 +790,39 @@ describe('/api/custom-fields/[id] - Custom Field Detail API', () => {
 
       expect(statusMock).toHaveBeenCalledWith(404);
       expect(jsonMock).toHaveBeenCalledWith({ error: 'Custom field not found' });
+      
+      // Verify no transaction was created
+      expect(mockTablesDB.createTransaction).not.toHaveBeenCalled();
     });
 
-    it('should create log entry for custom field deletion', async () => {
+    it('should return 410 if custom field is already soft-deleted', async () => {
+      const deletedField = {
+        ...mockCustomField,
+        deletedAt: '2024-01-15T00:00:00.000Z',
+      };
+
+      mockDatabases.listDocuments.mockResolvedValueOnce({
+        documents: [mockUserProfile],
+        total: 1,
+      });
+
+      mockDatabases.getDocument
+        .mockResolvedValueOnce(mockAdminRole)
+        .mockResolvedValueOnce(deletedField);
+
+      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+
+      expect(statusMock).toHaveBeenCalledWith(410);
+      expect(jsonMock).toHaveBeenCalledWith({
+        error: 'Custom field already deleted',
+        deletedAt: '2024-01-15T00:00:00.000Z',
+      });
+      
+      // Verify no transaction was created
+      expect(mockTablesDB.createTransaction).not.toHaveBeenCalled();
+    });
+
+    it('should rollback transaction on failure', async () => {
       mockDatabases.listDocuments.mockResolvedValueOnce({
         documents: [mockUserProfile],
         total: 1,
@@ -762,21 +832,123 @@ describe('/api/custom-fields/[id] - Custom Field Detail API', () => {
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockCustomField);
 
-      mockDatabases.deleteDocument.mockResolvedValueOnce(undefined);
-      mockDatabases.createDocument.mockResolvedValueOnce({ $id: 'log-123' });
+      // Simulate transaction failure
+      const transactionError = new Error('Transaction failed');
+      (transactionError as any).code = 500;
+      mockTablesDB.createOperations.mockRejectedValueOnce(transactionError);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
-        expect.any(String),
-        expect.objectContaining({
-          userId: mockAuthUser.$id,
-          action: 'delete',
-          details: expect.stringContaining('custom_field'),
-        })
-      );
+      // Verify transaction was created
+      expect(mockTablesDB.createTransaction).toHaveBeenCalled();
+      
+      // Verify rollback was attempted
+      expect(mockTablesDB.updateTransaction).toHaveBeenCalledWith({
+        transactionId: 'tx-123',
+        rollback: true,
+      });
+
+      expect(statusMock).toHaveBeenCalledWith(500);
+    });
+
+    it('should retry on conflict error', async () => {
+      mockDatabases.listDocuments.mockResolvedValueOnce({
+        documents: [mockUserProfile],
+        total: 1,
+      });
+
+      mockDatabases.getDocument
+        .mockResolvedValueOnce(mockAdminRole)
+        .mockResolvedValueOnce(mockCustomField);
+
+      // First attempt fails with conflict
+      const conflictError = new Error('Conflict');
+      (conflictError as any).code = 409;
+      mockTablesDB.createOperations
+        .mockRejectedValueOnce(conflictError)
+        .mockResolvedValueOnce(undefined);
+
+      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+
+      // Verify transaction was created twice (original + retry)
+      expect(mockTablesDB.createTransaction).toHaveBeenCalledTimes(2);
+      
+      // Verify rollback was called for failed attempt
+      expect(mockTablesDB.updateTransaction).toHaveBeenCalledWith({
+        transactionId: 'tx-123',
+        rollback: true,
+      });
+      
+      // Verify commit was called for successful retry
+      expect(mockTablesDB.updateTransaction).toHaveBeenCalledWith({
+        transactionId: 'tx-123',
+        commit: true,
+      });
+
+      expect(statusMock).toHaveBeenCalledWith(200);
+    });
+
+    it('should include audit log in transaction when logging is enabled', async () => {
+      mockDatabases.listDocuments.mockResolvedValueOnce({
+        documents: [mockUserProfile],
+        total: 1,
+      });
+
+      mockDatabases.getDocument
+        .mockResolvedValueOnce(mockAdminRole)
+        .mockResolvedValueOnce(mockCustomField);
+
+      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+
+      // Verify operations include both soft delete and audit log
+      expect(mockTablesDB.createOperations).toHaveBeenCalledWith({
+        transactionId: 'tx-123',
+        operations: expect.arrayContaining([
+          expect.objectContaining({
+            action: 'update',
+            tableId: process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID,
+          }),
+          expect.objectContaining({
+            action: 'create',
+            tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+            data: expect.objectContaining({
+              action: 'delete',
+              details: expect.stringContaining('soft_delete'),
+            }),
+          }),
+        ]),
+      });
+    });
+
+    it('should increment version number on soft delete', async () => {
+      const fieldWithVersion = {
+        ...mockCustomField,
+        version: 5,
+      };
+
+      mockDatabases.listDocuments.mockResolvedValueOnce({
+        documents: [mockUserProfile],
+        total: 1,
+      });
+
+      mockDatabases.getDocument
+        .mockResolvedValueOnce(mockAdminRole)
+        .mockResolvedValueOnce(fieldWithVersion);
+
+      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+
+      // Verify version was incremented
+      expect(mockTablesDB.createOperations).toHaveBeenCalledWith({
+        transactionId: 'tx-123',
+        operations: expect.arrayContaining([
+          expect.objectContaining({
+            action: 'update',
+            data: expect.objectContaining({
+              version: 6,
+            }),
+          }),
+        ]),
+      });
     });
   });
 

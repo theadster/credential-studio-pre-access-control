@@ -1,28 +1,33 @@
 import { NextApiResponse } from 'next';
 import { createSessionClient } from '@/lib/appwrite';
-import { Query, ID } from 'appwrite';
+import { Query } from 'appwrite';
 import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
+import { bulkEditWithFallback } from '@/lib/bulkOperations';
+import { handleTransactionError } from '@/lib/transactions';
 
 export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['POST']);
-    return res.status(405).end(`Method ${req.method} Not Allowed`);
+    res.status(405).end(`Method ${req.method} Not Allowed`);
+    return;
   }
 
   try {
     // User and userProfile are already attached by middleware
     const { user, userProfile } = req;
-    const { databases } = createSessionClient(req);
+    const { databases, tablesDB } = createSessionClient(req);
 
     // Validate request body
     const { attendeeIds, changes } = req.body;
 
     if (!attendeeIds || !Array.isArray(attendeeIds) || attendeeIds.length === 0) {
-      return res.status(400).json({ error: 'Invalid attendeeIds' });
+      res.status(400).json({ error: 'Invalid attendeeIds' });
+      return;
     }
 
     if (!changes || typeof changes !== 'object') {
-      return res.status(400).json({ error: 'Invalid changes object' });
+      res.status(400).json({ error: 'Invalid changes object' });
+      return;
     }
 
     const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
@@ -33,7 +38,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     // Check permissions
     const permissions = userProfile.role ? userProfile.role.permissions : {};
     if (!permissions?.attendees?.bulkEdit) {
-      return res.status(403).json({ error: 'Insufficient permissions to bulk edit attendees' });
+      res.status(403).json({ error: 'Insufficient permissions to bulk edit attendees' });
+      return;
     }
 
     // Get custom fields
@@ -44,10 +50,10 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     );
     const customFields = customFieldsDocs.documents;
 
-    // Process bulk updates
-    let updatedCount = 0;
-    const errors: Array<{ id: string; error: string }> = [];
+    // Prepare updates array for transaction
+    const updates: Array<{ rowId: string; data: any }> = [];
 
+    // Process each attendee to determine what needs to be updated
     for (const attendeeId of attendeeIds) {
       try {
         // Get current attendee
@@ -104,7 +110,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           }
         }
 
-        // Update attendee if there are changes
+        // Add to updates array if there are changes
         if (hasChanges) {
           // Convert map back to array format
           const updatedCustomFieldValues = Array.from(customFieldMap.entries()).map(([customFieldId, value]) => ({
@@ -112,19 +118,32 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             value
           }));
 
-          await databases.updateDocument(
-            dbId,
-            attendeesCollectionId,
-            attendeeId,
-            {
+          updates.push({
+            rowId: attendeeId,
+            data: {
               customFieldValues: JSON.stringify(updatedCustomFieldValues)
             }
-          );
-          updatedCount++;
+          });
         }
       } catch (error: any) {
-        errors.push({ id: attendeeId, error: error.message || 'Failed to update' });
+        console.error(`Failed to prepare update for attendee ${attendeeId}:`, error);
+        // Validation errors should be caught before transaction
+        res.status(400).json({
+          error: 'Failed to prepare updates',
+          details: error.message
+        });
+        return;
       }
+    }
+
+    // If no changes, return early
+    if (updates.length === 0) {
+      res.status(200).json({
+        message: 'No changes to apply',
+        updatedCount: 0,
+        usedTransactions: false
+      });
+      return;
     }
 
     // Get field names for logging
@@ -135,46 +154,38 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         return field?.fieldName || fieldId;
       });
 
-    // Log the action with detailed information
-    await databases.createDocument(
-      dbId,
-      logsCollectionId,
-      ID.unique(),
-      {
+    // Execute bulk edit with transaction and fallback support
+    const result = await bulkEditWithFallback(tablesDB, databases, {
+      databaseId: dbId,
+      tableId: attendeesCollectionId,
+      updates,
+      auditLog: {
+        tableId: logsCollectionId,
         userId: user.$id,
         action: 'bulk_update',
-        details: JSON.stringify({
+        details: {
           type: 'bulk_edit',
           target: 'Attendees',
-          description: `Bulk edited ${updatedCount} of ${attendeeIds.length} attendee${attendeeIds.length !== 1 ? 's' : ''}`,
+          description: `Bulk edited ${updates.length} of ${attendeeIds.length} attendee${attendeeIds.length !== 1 ? 's' : ''}`,
           totalRequested: attendeeIds.length,
-          successCount: updatedCount,
-          errorCount: errors.length,
+          updatedCount: updates.length,
           fieldsChanged: changedFieldNames,
           summary: `Updated fields: ${changedFieldNames.join(', ')}`
-        })
+        }
       }
-    );
+    });
 
-    return res.status(200).json({
+    res.status(200).json({
       message: 'Attendees updated successfully',
-      updatedCount,
-      errors
+      updatedCount: result.updatedCount,
+      usedTransactions: result.usedTransactions,
+      batchCount: result.batchCount
     });
 
   } catch (error: any) {
     console.error('Bulk edit API error:', error);
 
-    // Handle Appwrite-specific errors
-    if (error.code === 401) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    } else if (error.code === 404) {
-      return res.status(404).json({ error: 'Resource not found' });
-    }
-
-    return res.status(500).json({
-      error: 'Internal server error',
-      details: error.message || 'Unknown error'
-    });
+    // Use centralized transaction error handling
+    handleTransactionError(error, res);
   }
 });

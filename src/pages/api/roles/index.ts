@@ -124,57 +124,77 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           return res.status(400).json({ error: 'Role name already exists' });
         }
 
-        // Create new role
-        const newRole = await databases.createDocument(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
-          ID.unique(),
-          {
-            name,
-            description: description || '',
-            permissions: JSON.stringify(permissions)
-          }
-        );
-
-        // Add user count (0 for new role) and normalize field names
-        const newRoleWithCount = {
-          id: newRole.$id,
-          name: newRole.name,
-          description: newRole.description,
-          createdAt: newRole.$createdAt,
-          permissions: typeof newRole.permissions === 'string' 
-            ? JSON.parse(newRole.permissions) 
-            : newRole.permissions,
-          _count: {
-            users: 0
-          }
-        };
-
-        // Log the create action
+        // Use transactions for atomic role creation with audit log
+        const { tablesDB } = createSessionClient(req);
+        const { executeTransactionWithRetry, handleTransactionError } = await import('@/lib/transactions');
+        const { createRoleLogDetails } = await import('@/lib/logFormatting');
+        
+        const roleId = ID.unique();
+        const logId = ID.unique();
+        
         try {
-          const { createRoleLogDetails } = await import('@/lib/logFormatting');
-          await databases.createDocument(
-            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-            process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
-            ID.unique(),
+          // Create transaction operations for role + audit log
+          const operations = [
             {
-              userId: user.$id,
-              action: 'create',
-              details: JSON.stringify(createRoleLogDetails('create', {
-                name: newRole.name,
-                id: newRole.$id
-              }, {
-                description: newRole.description,
-                permissions: Object.keys(permissions)
-              }))
+              action: 'create' as const,
+              databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+              tableId: process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+              rowId: roleId,
+              data: {
+                name,
+                description: description || '',
+                permissions: JSON.stringify(permissions)
+              }
+            },
+            {
+              action: 'create' as const,
+              databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+              tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+              rowId: logId,
+              data: {
+                userId: user.$id,
+                action: 'create',
+                details: JSON.stringify(createRoleLogDetails('create', {
+                  name,
+                  id: roleId
+                }, {
+                  description: description || '',
+                  permissions: Object.keys(permissions)
+                }))
+              }
             }
-          );
-        } catch (logError) {
-          console.error('Error creating log:', logError);
-          // Continue even if logging fails
-        }
+          ];
 
-        return res.status(201).json(newRoleWithCount);
+          // Execute transaction with retry logic
+          await executeTransactionWithRetry(tablesDB, operations);
+
+          // Fetch the created role to return to client
+          const newRole = await databases.getDocument(
+            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+            roleId
+          );
+
+          // Add user count (0 for new role) and normalize field names
+          const newRoleWithCount = {
+            id: newRole.$id,
+            name: newRole.name,
+            description: newRole.description,
+            createdAt: newRole.$createdAt,
+            permissions: typeof newRole.permissions === 'string' 
+              ? JSON.parse(newRole.permissions) 
+              : newRole.permissions,
+            _count: {
+              users: 0
+            }
+          };
+
+          console.log('[Role Create] Successfully created role with transaction:', roleId);
+          return res.status(201).json(newRoleWithCount);
+        } catch (error: any) {
+          console.error('[Role Create] Transaction failed:', error);
+          return handleTransactionError(error, res);
+        }
 
       default:
         res.setHeader('Allow', ['GET', 'POST']);
