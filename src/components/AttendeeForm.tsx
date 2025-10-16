@@ -83,7 +83,7 @@ declare global {
   }
 }
 
-export default function AttendeeForm({
+const AttendeeForm = React.memo(function AttendeeForm({
   isOpen,
   onClose,
   onSave,
@@ -846,4 +846,6 @@ export default function AttendeeForm({
       </DialogContent>
     </Dialog>
   );
-}
+});
+
+export default AttendeeForm;

@@ -754,33 +754,37 @@ export default function Dashboard() {
   }, []);
 
   // Appwrite real-time subscriptions for attendees
+  // PERFORMANCE OPTIMIZATION: Reduced delay for faster updates
   useRealtimeSubscription({
     channels: [`databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID}.documents`],
     callback: useCallback((response: any) => {
       console.log('Attendee change received!', response);
-      setTimeout(() => refreshAttendees(), 2000);
+      setTimeout(() => refreshAttendees(), 500);
     }, [refreshAttendees])
   });
 
   // Appwrite real-time subscriptions for users
+  // PERFORMANCE OPTIMIZATION: Reduced delay for faster updates
   useRealtimeSubscription({
     channels: [`databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID}.documents`],
     callback: useCallback((response: any) => {
       console.log('Users change received!', response);
-      setTimeout(() => refreshUsers(), 1500);
+      setTimeout(() => refreshUsers(), 500);
     }, [refreshUsers])
   });
 
   // Appwrite real-time subscriptions for roles
+  // PERFORMANCE OPTIMIZATION: Reduced delay for faster updates
   useRealtimeSubscription({
     channels: [`databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID}.documents`],
     callback: useCallback((response: any) => {
       console.log('Roles change received!', response);
-      setTimeout(() => refreshRoles(), 1500);
+      setTimeout(() => refreshRoles(), 500);
     }, [refreshRoles])
   });
 
   // Appwrite real-time subscriptions for event settings and custom fields
+  // PERFORMANCE OPTIMIZATION: Reduced delay for faster updates
   useRealtimeSubscription({
     channels: [
       `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID}.documents`,
@@ -788,7 +792,7 @@ export default function Dashboard() {
     ],
     callback: useCallback((response: any) => {
       console.log('Event settings or custom fields change received!', response);
-      setTimeout(() => refreshEventSettings(), 1000);
+      setTimeout(() => refreshEventSettings(), 500);
     }, [refreshEventSettings])
   });
 
@@ -796,6 +800,7 @@ export default function Dashboard() {
   const [pauseLogsRealtime, setPauseLogsRealtime] = useState(false);
 
   // Appwrite real-time subscriptions for logs (with pause capability during bulk operations)
+  // PERFORMANCE OPTIMIZATION: Reduced delay for faster updates
   useRealtimeSubscription({
     channels: [`databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID}.documents`],
     callback: useCallback((response: any) => {
@@ -805,7 +810,7 @@ export default function Dashboard() {
         return;
       }
       console.log('Logs change received!', response);
-      setTimeout(() => loadLogs(), 2000);
+      setTimeout(() => loadLogs(), 1000);
     }, [loadLogs, pauseLogsRealtime])
   });
 
@@ -3370,25 +3375,31 @@ export default function Dashboard() {
                               </TableCell>
                               <TableCell className="align-top pt-4">
                                 <button
-                                  onClick={async () => {
+                                  onClick={() => {
                                     if (hasPermission(currentUser?.role, 'attendees', 'update')) {
-                                      await refreshEventSettings();
-                                      // Fetch full attendee data including hidden fields
-                                      try {
-                                        const response = await fetch(`/api/attendees/${attendee.id}`);
-                                        if (response.ok) {
-                                          const fullAttendee = await response.json();
-                                          setEditingAttendee(fullAttendee);
-                                        } else {
-                                          // Fallback to list data if fetch fails
-                                          setEditingAttendee(attendee);
-                                        }
-                                      } catch (error) {
-                                        console.error('Error fetching full attendee:', error);
-                                        // Fallback to list data if fetch fails
-                                        setEditingAttendee(attendee);
-                                      }
+                                      // PERFORMANCE OPTIMIZATION: Open dialog immediately with list data
+                                      // This provides instant feedback to the user
+                                      setEditingAttendee(attendee);
                                       setShowAttendeeForm(true);
+
+                                      // Fetch full attendee data in background (for hidden fields)
+                                      // This happens after the dialog is already open
+                                      fetch(`/api/attendees/${attendee.id}`)
+                                        .then(response => {
+                                          if (response.ok) {
+                                            return response.json();
+                                          }
+                                          return null;
+                                        })
+                                        .then(fullAttendee => {
+                                          if (fullAttendee) {
+                                            setEditingAttendee(fullAttendee);
+                                          }
+                                        })
+                                        .catch(error => {
+                                          console.error('Error fetching full attendee:', error);
+                                          // Already using list data, so no action needed
+                                        });
                                     }
                                   }}
                                   className="text-left group w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded"
