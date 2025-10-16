@@ -16,6 +16,7 @@ docs/
 ## Quick Links
 
 ### Recent Enhancements
+- [**Custom Field Columns Configuration**](./enhancements/CUSTOM_FIELD_COLUMNS_SETTING.md) - ✅ Configure custom field column layout (3-10 columns) for different screen resolutions
 - [**Attendees Pagination Improvement**](./enhancements/ATTENDEES_PAGINATION_IMPROVEMENT.md) - ✅ Show first/last page with ellipsis for better navigation
 - [**Bulk Import API Key Enhancement**](./enhancements/BULK_IMPORT_API_KEY_ENHANCEMENT.md) - Use API key for bulk imports to prevent rate limiting
 - [**Bulk Delete Log Size Fix**](./fixes/BULK_DELETE_LOG_SIZE_FIX.md) - Use API key for bulk deletes and handle large log entries
@@ -102,6 +103,9 @@ docs/
 - [**SweetAlert Best Practices Guide**](./guides/SWEETALERT_BEST_PRACTICES_GUIDE.md) - Best practices for notifications and user experience
 
 #### Other Guides
+- [**Custom Field Columns Quick Reference**](./guides/CUSTOM_FIELD_COLUMNS_QUICK_REFERENCE.md) - ⚡ Quick reference for custom field column configuration
+- [**Custom Field Columns Visual Guide**](./guides/CUSTOM_FIELD_COLUMNS_VISUAL_GUIDE.md) - 📊 Visual examples and decision tree for choosing column count
+- [**Custom Field Columns Configuration**](./guides/CUSTOM_FIELD_COLUMNS_CONFIGURATION.md) - Configure custom field column layout for different screen resolutions
 - [**Password Reset Admin Guide**](./guides/PASSWORD_RESET_ADMIN_GUIDE.md) - Complete guide for administrators to help users reset passwords
 - [**Email Verification Testing Guide**](./guides/EMAIL_VERIFICATION_TESTING_GUIDE.md) - Complete testing guide for email verification flow
 - [**Custom Fields API Guide**](./guides/CUSTOM_FIELDS_API_GUIDE.md) - Complete API reference with examples for optimistic locking and soft delete
