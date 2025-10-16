@@ -226,6 +226,7 @@ async function createEventSettingsCollection(databaseId: string) {
     await databases.createStringAttribute(databaseId, COLLECTIONS.EVENT_SETTINGS, 'switchboardApiKey', 500, false);
     await databases.createStringAttribute(databaseId, COLLECTIONS.EVENT_SETTINGS, 'switchboardTemplateId', 255, false);
     await databases.createStringAttribute(databaseId, COLLECTIONS.EVENT_SETTINGS, 'switchboardFieldMappings', 10000, false);
+    await databases.createIntegerAttribute(databaseId, COLLECTIONS.EVENT_SETTINGS, 'customFieldColumns', false, 0, 10, 7);
 
     console.log('✓ Event settings collection created');
   } catch (error: any) {

@@ -248,7 +248,19 @@ export default function LogsExportDialog({
       <DialogTrigger asChild>
         {children}
       </DialogTrigger>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+      <DialogContent 
+        className="max-w-5xl max-h-[90vh] overflow-y-auto"
+        onWheel={(e) => {
+          // Prevent scroll chaining to the page behind the dialog
+          const target = e.currentTarget;
+          const isAtTop = target.scrollTop === 0;
+          const isAtBottom = target.scrollTop + target.clientHeight >= target.scrollHeight;
+          
+          if ((isAtTop && e.deltaY < 0) || (isAtBottom && e.deltaY > 0)) {
+            e.preventDefault();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileSpreadsheet className="h-5 w-5" />

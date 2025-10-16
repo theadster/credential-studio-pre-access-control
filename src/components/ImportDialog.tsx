@@ -118,7 +118,19 @@ export default function ImportDialog({ children, onImportSuccess, customFields }
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+      <DialogContent 
+        className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto"
+        onWheel={(e) => {
+          // Prevent scroll chaining to the page behind the dialog
+          const target = e.currentTarget;
+          const isAtTop = target.scrollTop === 0;
+          const isAtBottom = target.scrollTop + target.clientHeight >= target.scrollHeight;
+          
+          if ((isAtTop && e.deltaY < 0) || (isAtBottom && e.deltaY > 0)) {
+            e.preventDefault();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Import Attendees</DialogTitle>
           <DialogDescription>

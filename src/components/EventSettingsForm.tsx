@@ -85,6 +85,7 @@ interface EventSettings {
   forceLastNameUppercase?: boolean;
   attendeeSortField?: string;
   attendeeSortDirection?: string;
+  customFieldColumns?: number;
   cloudinaryEnabled?: boolean;
   cloudinaryCloudName?: string;
   /**
@@ -565,7 +566,19 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent 
+        className="max-w-4xl max-h-[90vh] overflow-y-auto"
+        onWheel={(e) => {
+          // Prevent scroll chaining to the page behind the dialog
+          const target = e.currentTarget;
+          const isAtTop = target.scrollTop === 0;
+          const isAtBottom = target.scrollTop + target.clientHeight >= target.scrollHeight;
+          
+          if ((isAtTop && e.deltaY < 0) || (isAtBottom && e.deltaY > 0)) {
+            e.preventDefault();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle>
             {eventSettings ? "Edit Event Settings" : "Create Event Settings"}
@@ -708,7 +721,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
               <Card>
                 <CardHeader>
                   <CardTitle>Attendee List Settings</CardTitle>
-                  <CardDescription>Configure default sorting for the attendee list</CardDescription>
+                  <CardDescription>Configure default sorting and display options for the attendee list</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -737,6 +750,31 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
                         </SelectContent>
                       </Select>
                     </div>
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="customFieldColumns">Custom Field Columns (Desktop)</Label>
+                    <Select 
+                      value={String(formData.customFieldColumns || 7)} 
+                      onValueChange={(value) => handleInputChange("customFieldColumns", parseInt(value))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="3">3 Columns</SelectItem>
+                        <SelectItem value="4">4 Columns</SelectItem>
+                        <SelectItem value="5">5 Columns</SelectItem>
+                        <SelectItem value="6">6 Columns</SelectItem>
+                        <SelectItem value="7">7 Columns (Default)</SelectItem>
+                        <SelectItem value="8">8 Columns</SelectItem>
+                        <SelectItem value="9">9 Columns</SelectItem>
+                        <SelectItem value="10">10 Columns</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Number of custom field columns to display before wrapping to the next line on large screens. Adjust based on your screen resolution.
+                    </p>
                   </div>
                 </CardContent>
               </Card>
@@ -2120,12 +2158,12 @@ function FieldMappingForm({ isOpen, customFields, editingMapping, onSave, onCanc
       return;
     }
 
-    // Clean up value mapping - remove empty values
+    // Keep ALL value mappings, including empty ones
+    // This prevents data loss when users are still filling in mappings
     const cleanedValueMapping: { [key: string]: string } = {};
     Object.entries(valueMapping).forEach(([key, value]) => {
-      if (value.trim()) {
-        cleanedValueMapping[key] = value.trim();
-      }
+      // Trim the value but keep it even if empty
+      cleanedValueMapping[key] = value.trim();
     });
 
     const mapping: FieldMapping = {

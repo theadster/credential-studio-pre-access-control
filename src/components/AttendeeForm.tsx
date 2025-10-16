@@ -9,7 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { useSweetAlert } from '@/hooks/useSweetAlert';
-import { Camera, X, Save, Loader2, User, Users, Hash, FileText, Link, ToggleLeft, Calendar, Mail, ChevronDown, Type, Hash as NumberIcon } from 'lucide-react';
+import { Camera, X, Save, Loader2, User, Users, Hash, FileText, Link, ToggleLeft, Calendar, Mail, ChevronDown, Type, Hash as NumberIcon, Printer } from 'lucide-react';
 
 interface CustomFieldOptions {
   uppercase?: boolean;
@@ -61,6 +61,7 @@ interface AttendeeFormProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (attendee: Attendee) => void;
+  onSaveAndGenerate?: (attendee: Attendee) => void;
   attendee?: Attendee;
   customFields: CustomField[];
   eventSettings?: EventSettings;
@@ -86,12 +87,14 @@ export default function AttendeeForm({
   isOpen,
   onClose,
   onSave,
+  onSaveAndGenerate,
   attendee,
   customFields,
   eventSettings
 }: AttendeeFormProps) {
   const { success, error } = useSweetAlert();
   const [loading, setLoading] = useState(false);
+  const [loadingAndGenerate, setLoadingAndGenerate] = useState(false);
   const [isCloudinaryOpen, setIsCloudinaryOpen] = useState(false);
   const cloudinaryRef = useRef<CloudinaryInstance | null>(null);
   const widgetRef = useRef<CloudinaryWidget | null>(null);
@@ -103,6 +106,30 @@ export default function AttendeeForm({
     photoUrl: '',
     customFieldValues: {} as Record<string, string>
   });
+
+  // Prevent body scroll when dialog is open
+  useEffect(() => {
+    if (isOpen) {
+      // Store original styles
+      const originalOverflow = document.body.style.overflow;
+      const originalPaddingRight = document.body.style.paddingRight;
+      
+      // Calculate scrollbar width to prevent layout shift
+      const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+      
+      // Prevent body scroll and compensate for scrollbar
+      document.body.style.overflow = 'hidden';
+      if (scrollbarWidth > 0) {
+        document.body.style.paddingRight = `${scrollbarWidth}px`;
+      }
+      
+      // Restore on cleanup
+      return () => {
+        document.body.style.overflow = originalOverflow;
+        document.body.style.paddingRight = originalPaddingRight;
+      };
+    }
+  }, [isOpen]);
 
   // Initialize Cloudinary widget
   useEffect(() => {
@@ -325,60 +352,88 @@ export default function AttendeeForm({
     }
   };
 
+  const validateForm = () => {
+    // Validate required fields
+    if (!formData.firstName || !formData.lastName || !formData.barcodeNumber) {
+      error("Validation Error", "Please fill in all required fields.");
+      return false;
+    }
+
+    // Validate required custom fields
+    for (const field of customFields) {
+      if (field.required && !formData.customFieldValues[field.id]) {
+        error("Validation Error", `${field.fieldName} is required.`);
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  const prepareAttendeeData = () => {
+    // Prepare custom field values for API
+    const customFieldValues = Object.entries(formData.customFieldValues)
+      .map(([customFieldId, value]) => ({
+        customFieldId,
+        value: value || ''
+      }));
+
+    return {
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      barcodeNumber: formData.barcodeNumber,
+      notes: formData.notes || '',
+      photoUrl: formData.photoUrl || null,
+      customFieldValues
+    };
+  };
+
+  const resetForm = () => {
+    setFormData({
+      firstName: '',
+      lastName: '',
+      barcodeNumber: '',
+      notes: '',
+      photoUrl: '',
+      customFieldValues: {}
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      // Validate required fields
-      if (!formData.firstName || !formData.lastName || !formData.barcodeNumber) {
-        error("Validation Error", "Please fill in all required fields.");
-        return;
-      }
+      if (!validateForm()) return;
 
-      // Validate required custom fields
-      for (const field of customFields) {
-        if (field.required && !formData.customFieldValues[field.id]) {
-          error("Validation Error", `${field.fieldName} is required.`);
-          return;
-        }
-      }
-
-      // Prepare custom field values for API
-      // Send all custom field values from formData
-      // The API will merge these with existing values to preserve any fields not in the form
-      const customFieldValues = Object.entries(formData.customFieldValues)
-        .map(([customFieldId, value]) => ({
-          customFieldId,
-          value: value || ''
-        }));
-
-      const attendeeData = {
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        barcodeNumber: formData.barcodeNumber,
-        notes: formData.notes || '',
-        photoUrl: formData.photoUrl || null,
-        customFieldValues
-      };
-
+      const attendeeData = prepareAttendeeData();
       onSave(attendeeData);
       onClose();
-
-      // Reset form
-      setFormData({
-        firstName: '',
-        lastName: '',
-        barcodeNumber: '',
-        notes: '',
-        photoUrl: '',
-        customFieldValues: {}
-      });
-
+      resetForm();
     } catch (error) {
       console.error('Form submission error:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSaveAndGenerate = async () => {
+    setLoadingAndGenerate(true);
+
+    try {
+      if (!validateForm()) return;
+
+      const attendeeData = prepareAttendeeData();
+      
+      if (onSaveAndGenerate) {
+        onSaveAndGenerate(attendeeData);
+        onClose();
+        resetForm();
+      }
+    } catch (error) {
+      console.error('Form submission error:', error);
+    } finally {
+      setLoadingAndGenerate(false);
     }
   };
 
@@ -760,11 +815,24 @@ export default function AttendeeForm({
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" disabled={loading || loadingAndGenerate}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               <Save className="mr-2 h-4 w-4" />
               {attendee ? 'Update' : 'Create'} Attendee
             </Button>
+            {attendee && onSaveAndGenerate && (
+              <Button 
+                type="button" 
+                onClick={handleSaveAndGenerate} 
+                disabled={loading || loadingAndGenerate}
+                className="bg-purple-600 hover:bg-purple-700"
+              >
+                {loadingAndGenerate && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                <Save className="mr-2 h-4 w-4" />
+                <Printer className="mr-2 h-4 w-4" />
+                Update & Generate Credential
+              </Button>
+            )}
           </div>
         </form>
       </DialogContent>

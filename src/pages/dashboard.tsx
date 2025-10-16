@@ -44,7 +44,8 @@ import {
   FileUp,
   UsersRound,
   CheckCircle,
-  Circle
+  Circle,
+  X
 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -128,6 +129,7 @@ interface EventSettings {
   barcodeUnique: boolean;
   attendeeSortField?: string;
   attendeeSortDirection?: string;
+  customFieldColumns?: number;
   bannerImageUrl: string | null;
   oneSimpleApiEnabled?: boolean;
   oneSimpleApiUrl?: string;
@@ -324,7 +326,8 @@ export default function Dashboard() {
   /**
    * PERFORMANCE OPTIMIZATION: Grid Column Calculation
    * 
-   * Memoized helper function to determine grid columns based on field count.
+   * Memoized helper function to determine grid columns based on field count
+   * and the configured maximum columns from event settings.
    * Uses useCallback to prevent unnecessary re-creation on every render.
    * 
    * The Name column is now wider (w-auto) allowing custom fields to utilize more horizontal space.
@@ -334,8 +337,11 @@ export default function Dashboard() {
    * - 1 field: Single column (grid-cols-1)
    * - 2-3 fields: 2 columns on tablet, 3 columns on desktop
    * - 4-6 fields: 3 columns on tablet, 5 columns on desktop
-   * - 7-9 fields: 4 columns on tablet, 6 columns on desktop
-   * - 10+ fields: 4 columns on tablet, 7 columns on desktop
+   * - 7-9 fields: 4 columns on tablet, 6 columns on desktop (or configured max)
+   * - 10+ fields: 4 columns on tablet, configurable max on desktop (default 7)
+   * 
+   * The maximum columns for large screens can be configured in Event Settings to accommodate
+   * different screen resolutions and user preferences (range: 3-10 columns).
    * 
    * Responsive breakpoints ensure mobile-first design with progressive enhancement.
    * 
@@ -343,12 +349,15 @@ export default function Dashboard() {
    * @returns Tailwind CSS grid column classes
    */
   const getGridColumns = useCallback((fieldCount: number): string => {
+    // Get configured max columns from event settings (default to 7 for backward compatibility)
+    const maxColumns = eventSettings?.customFieldColumns || 7;
+
     if (fieldCount === 1) return 'grid-cols-1';
     if (fieldCount >= 2 && fieldCount <= 3) return 'md:grid-cols-2 lg:grid-cols-3';
     if (fieldCount >= 4 && fieldCount <= 6) return 'md:grid-cols-3 lg:grid-cols-5';
-    if (fieldCount >= 7 && fieldCount <= 9) return 'md:grid-cols-4 lg:grid-cols-6';
-    return 'md:grid-cols-4 lg:grid-cols-7'; // 10 or more fields
-  }, []);
+    if (fieldCount >= 7 && fieldCount <= 9) return `md:grid-cols-4 lg:grid-cols-${Math.min(6, maxColumns)}`;
+    return `md:grid-cols-4 lg:grid-cols-${maxColumns}`; // 10 or more fields
+  }, [eventSettings?.customFieldColumns]);
 
   /**
    * PERFORMANCE OPTIMIZATION: Custom Fields Value Extraction
@@ -1141,6 +1150,58 @@ export default function Dashboard() {
         close();
         success("Success", "Attendee created successfully!");
       }
+
+      setEditingAttendee(null);
+    } catch (err: any) {
+      close();
+      error("Error", err.message);
+      throw err;
+    }
+  };
+
+  const handleSaveAndGenerateCredential = async (attendeeData: any) => {
+    // Show loading notification
+    showLoading({
+      title: "Updating & Generating Credential",
+      text: "Please wait..."
+    });
+
+    try {
+      // First, save the attendee
+      const url = editingAttendee
+        ? `/api/attendees/${editingAttendee.id}`
+        : '/api/attendees';
+
+      const method = editingAttendee ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(attendeeData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to save attendee');
+      }
+
+      const savedAttendee = await response.json();
+
+      // Update local state
+      if (editingAttendee) {
+        setAttendees(prev => prev.map(a => a.id === editingAttendee.id ? savedAttendee : a));
+      } else {
+        setAttendees(prev => [savedAttendee, ...prev]);
+      }
+
+      close();
+      success("Success", "Attendee updated successfully! Generating credential...");
+
+      // Then generate the credential
+      const attendeeId = savedAttendee.id;
+      await handleGenerateCredential(attendeeId);
 
       setEditingAttendee(null);
     } catch (err: any) {
@@ -2550,8 +2611,18 @@ export default function Dashboard() {
                           placeholder="Search attendees..."
                           value={searchTerm}
                           onChange={(e) => setSearchTerm(e.target.value)}
-                          className="pl-10 bg-background"
+                          className="pl-10 pr-10 bg-background"
                         />
+                        {searchTerm && (
+                          <button
+                            type="button"
+                            onClick={() => setSearchTerm('')}
+                            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded"
+                            aria-label="Clear search"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        )}
                       </div>
                       <Select value={photoFilter} onValueChange={(value) => setPhotoFilter(value as 'all' | 'with' | 'without')}>
                         <SelectTrigger className="w-48 bg-background">
@@ -3503,23 +3574,23 @@ export default function Dashboard() {
                                       return (
                                         <div className={`grid grid-cols-1 ${gridCols} gap-x-6 gap-y-2`}>
                                           {customFieldsWithValues.map((field, index: number) => (
-                                            <div key={index} className="flex flex-col space-y-0.5">
+                                            <div key={index} className="flex flex-col space-y-0.5 min-w-0">
                                               <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide" id={`field-label-${attendee.id}-${index}`}>
                                                 {field.fieldName}
                                               </span>
-                                              <span className="text-sm font-medium text-foreground" aria-labelledby={`field-label-${attendee.id}-${index}`}>
+                                              <div className="text-sm font-medium text-foreground min-w-0" aria-labelledby={`field-label-${attendee.id}-${index}`}>
                                                 {field.fieldType === 'url' ? (
                                                   <a
                                                     href={field.value || ''}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
-                                                    className="text-primary hover:text-primary/80 underline inline-flex items-center gap-1 truncate focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded"
+                                                    className="text-primary hover:text-primary/80 underline inline-flex items-center gap-1 max-w-full focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded"
                                                     onClick={(e) => e.stopPropagation()}
                                                     title={field.value || ''}
                                                     aria-label={`${field.fieldName}: ${field.value}, opens in new tab`}
                                                   >
                                                     <Link className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
-                                                    <span className="truncate">{field.value}</span>
+                                                    <span className="truncate block min-w-0">{field.value}</span>
                                                   </a>
                                                 ) : field.fieldType === 'boolean' ? (
                                                   <Badge
@@ -3533,11 +3604,11 @@ export default function Dashboard() {
                                                     {field.value}
                                                   </Badge>
                                                 ) : (
-                                                  <span className="truncate" title={field.value || ''}>
+                                                  <span className="truncate block" title={field.value || ''}>
                                                     {field.value}
                                                   </span>
                                                 )}
-                                              </span>
+                                              </div>
                                             </div>
                                           ))}
                                         </div>
@@ -4655,6 +4726,7 @@ export default function Dashboard() {
           setEditingAttendee(null);
         }}
         onSave={handleSaveAttendee}
+        onSaveAndGenerate={handleSaveAndGenerateCredential}
         attendee={editingAttendee || undefined}
         customFields={eventSettings?.customFields || []}
         eventSettings={eventSettings || undefined}

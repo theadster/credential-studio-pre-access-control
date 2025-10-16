@@ -404,6 +404,13 @@ async function handleEventSettingsUpdateWithTransactions(
   const integrationFields = extractIntegrationFields(updatedUpdateData);
   let integrationWarnings: any[] = [];
 
+  // DEBUG: Log what's being sent for Switchboard
+  console.log('[Event Settings] Integration fields extracted:', {
+    switchboard: integrationFields.switchboard,
+    switchboardFieldMappings: updatedUpdateData.switchboardFieldMappings,
+    originalFieldMappings: updateData.switchboardFieldMappings
+  });
+
   const integrationUpdates = [];
 
   if (Object.keys(integrationFields.cloudinary).length > 0) {
@@ -427,6 +434,7 @@ async function handleEventSettingsUpdateWithTransactions(
   }
 
   if (Object.keys(integrationFields.switchboard).length > 0) {
+    console.log('[Event Settings] Updating Switchboard integration with:', integrationFields.switchboard);
     integrationUpdates.push(
       updateSwitchboardIntegration(
         databases,
@@ -943,6 +951,7 @@ function detectChanges(updateData: any, currentSettings: any): string[] {
  * Returns only core event settings fields
  */
 function getCoreEventSettingsFields(updateData: any) {
+  // First, exclude known integration and special fields
   const {
     // Exclude all Cloudinary integration fields
     cloudinaryEnabled, cloudinaryCloudName, cloudinaryApiKey, cloudinaryApiSecret,
@@ -959,9 +968,17 @@ function getCoreEventSettingsFields(updateData: any) {
     customFields,
     // Exclude cache metadata fields
     timestamp,
-    // Keep all remaining core fields
-    ...coreFields
+    // Keep all remaining fields for now
+    ...remainingFields
   } = updateData;
+
+  // Filter out ALL Appwrite internal fields (anything starting with $)
+  const coreFields: any = {};
+  for (const [key, value] of Object.entries(remainingFields)) {
+    if (!key.startsWith('$')) {
+      coreFields[key] = value;
+    }
+  }
 
   return coreFields;
 }
@@ -1545,6 +1562,17 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
   // PUT request - Update event settings
   const updateData = req.body;
   const { customFields, ...eventSettingsData } = updateData;
+
+  // DEBUG: Log incoming switchboard field mappings
+  console.log('[Event Settings PUT] Request body analysis:', {
+    hasSwitchboardFieldMappings: 'switchboardFieldMappings' in updateData,
+    switchboardFieldMappingsType: typeof updateData.switchboardFieldMappings,
+    switchboardFieldMappingsIsArray: Array.isArray(updateData.switchboardFieldMappings),
+    switchboardFieldMappingsLength: Array.isArray(updateData.switchboardFieldMappings) 
+      ? updateData.switchboardFieldMappings.length 
+      : 'N/A',
+    switchboardFieldMappingsValue: updateData.switchboardFieldMappings
+  });
 
   // Invalidate cache immediately to prevent serving stale data during update
   // This ensures concurrent GET requests won't receive outdated cached data
