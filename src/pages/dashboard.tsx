@@ -352,11 +352,29 @@ export default function Dashboard() {
     // Get configured max columns from event settings (default to 7 for backward compatibility)
     const maxColumns = eventSettings?.customFieldColumns || 7;
 
+    // Mapping for lg:grid-cols-* classes (Tailwind JIT-safe)
+    const lgGridColsMap: Record<number, string> = {
+      3: 'lg:grid-cols-3',
+      4: 'lg:grid-cols-4',
+      5: 'lg:grid-cols-5',
+      6: 'lg:grid-cols-6',
+      7: 'lg:grid-cols-7',
+      8: 'lg:grid-cols-8',
+      9: 'lg:grid-cols-9',
+      10: 'lg:grid-cols-10',
+    };
+
     if (fieldCount === 1) return 'grid-cols-1';
     if (fieldCount >= 2 && fieldCount <= 3) return 'md:grid-cols-2 lg:grid-cols-3';
     if (fieldCount >= 4 && fieldCount <= 6) return 'md:grid-cols-3 lg:grid-cols-5';
-    if (fieldCount >= 7 && fieldCount <= 9) return `md:grid-cols-4 lg:grid-cols-${Math.min(6, maxColumns)}`;
-    return `md:grid-cols-4 lg:grid-cols-${maxColumns}`; // 10 or more fields
+    if (fieldCount >= 7 && fieldCount <= 9) {
+      const cols = Math.min(6, maxColumns);
+      const clampedCols = Math.max(3, Math.min(10, cols));
+      return `md:grid-cols-4 ${lgGridColsMap[clampedCols] || 'lg:grid-cols-6'}`;
+    }
+    // 10 or more fields
+    const clampedMaxCols = Math.max(3, Math.min(10, maxColumns));
+    return `md:grid-cols-4 ${lgGridColsMap[clampedMaxCols] || 'lg:grid-cols-7'}`;
   }, [eventSettings?.customFieldColumns]);
 
   /**

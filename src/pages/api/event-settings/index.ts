@@ -13,10 +13,10 @@ import {
 import { PerformanceTracker } from '@/lib/performance';
 import { eventSettingsCache } from '@/lib/cache';
 import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
-import { 
-  executeTransactionWithRetry, 
+import {
+  executeTransactionWithRetry,
   TransactionOperation,
-  handleTransactionError 
+  handleTransactionError
 } from '@/lib/transactions';
 
 /**
@@ -393,23 +393,31 @@ async function handleEventSettingsUpdateWithTransactions(
     authUser.$id
   );
 
-  console.log(`[Event Settings Transaction] Executing ${operations.length} operations atomically`);
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`[Event Settings Transaction] Executing ${operations.length} operations atomically`);
+  }
 
   // Execute transaction with retry logic
   await executeTransactionWithRetry(tablesDB, operations);
 
-  console.log('[Event Settings Transaction] Successfully committed all operations');
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[Event Settings Transaction] Successfully committed all operations');
+  }
 
-  // Handle integration updates separately (not in transaction due to optimistic locking)
-  const integrationFields = extractIntegrationFields(updatedUpdateData);
-  let integrationWarnings: any[] = [];
-
-  // DEBUG: Log what's being sent for Switchboard
-  console.log('[Event Settings] Integration fields extracted:', {
-    switchboard: integrationFields.switchboard,
-    switchboardFieldMappings: updatedUpdateData.switchboardFieldMappings,
-    originalFieldMappings: updateData.switchboardFieldMappings
-  });
+  // Only log if debugging is enabled
+  if (await shouldLog('debug')) {
+    console.log('[Event Settings] Integration fields extracted:', {
+      switchboard: integrationFields.switchboard,
+      switchboardFieldMappings: updatedUpdateData.switchboardFieldMappings,
+      originalFieldMappings: updateData.switchboardFieldMappings
+    });
+  }
+    console.log('[Event Settings] Integration fields extracted:', {
+      switchboard: integrationFields.switchboard,
+      switchboardFieldMappings: updatedUpdateData.switchboardFieldMappings,
+      originalFieldMappings: updateData.switchboardFieldMappings
+    });
+  }
 
   const integrationUpdates = [];
 
@@ -423,7 +431,9 @@ async function handleEventSettingsUpdateWithTransactions(
         if (error instanceof IntegrationConflictError) {
           throw error;
         }
-        console.error('Failed to update Cloudinary integration:', error);
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Failed to update Cloudinary integration:', error);
+        }
         return {
           error: 'cloudinary',
           message: error instanceof Error ? error.message : 'Unknown error',
@@ -434,7 +444,9 @@ async function handleEventSettingsUpdateWithTransactions(
   }
 
   if (Object.keys(integrationFields.switchboard).length > 0) {
-    console.log('[Event Settings] Updating Switchboard integration with:', integrationFields.switchboard);
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[Event Settings] Updating Switchboard integration with:', integrationFields.switchboard);
+    }
     integrationUpdates.push(
       updateSwitchboardIntegration(
         databases,
@@ -444,7 +456,9 @@ async function handleEventSettingsUpdateWithTransactions(
         if (error instanceof IntegrationConflictError) {
           throw error;
         }
-        console.error('Failed to update Switchboard integration:', error);
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Failed to update Switchboard integration:', error);
+        }
         return {
           error: 'switchboard',
           message: error instanceof Error ? error.message : 'Unknown error',
@@ -464,7 +478,9 @@ async function handleEventSettingsUpdateWithTransactions(
         if (error instanceof IntegrationConflictError) {
           throw error;
         }
-        console.error('Failed to update OneSimpleAPI integration:', error);
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Failed to update OneSimpleAPI integration:', error);
+        }
         return {
           error: 'onesimpleapi',
           message: error instanceof Error ? error.message : 'Unknown error',
@@ -805,7 +821,7 @@ async function buildEventSettingsTransactionOperations(
   // 5. Update core event settings
   const coreFields = getCoreEventSettingsFields(updatedUpdateData);
   const updatePayload: any = { ...coreFields };
-  
+
   if (updatedUpdateData.eventDate) {
     updatePayload.eventDate = parseEventDate(updatedUpdateData.eventDate);
   }
@@ -1061,7 +1077,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                       Query.limit(5)
                     ]
                   );
-                  
+
                   // Check if there's already a recent event settings view log
                   const hasDuplicate = recentLogs.documents.some(log => {
                     try {
@@ -1071,7 +1087,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                       return false;
                     }
                   });
-                  
+
                   if (!hasDuplicate) {
                     await sessionDatabases.createDocument(
                       dbId,
@@ -1080,7 +1096,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                       {
                         userId: user.$id,
                         action: 'view',
-                        details: JSON.stringify({ 
+                        details: JSON.stringify({
                           type: 'system',
                           target: 'Event Settings',
                           description: 'Viewed event configuration'
@@ -1339,7 +1355,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                     Query.limit(5)
                   ]
                 );
-                
+
                 // Check if there's already a recent event settings view log
                 const hasDuplicate = recentLogs.documents.some(log => {
                   try {
@@ -1349,7 +1365,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                     return false;
                   }
                 });
-                
+
                 if (!hasDuplicate) {
                   await sessionDatabases.createDocument(
                     dbId,
@@ -1358,7 +1374,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                     {
                       userId: user.$id,
                       action: 'view',
-                      details: JSON.stringify({ 
+                      details: JSON.stringify({
                         type: 'system',
                         target: 'Event Settings',
                         description: 'Viewed event configuration'
@@ -1563,16 +1579,18 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
   const updateData = req.body;
   const { customFields, ...eventSettingsData } = updateData;
 
-  // DEBUG: Log incoming switchboard field mappings
-  console.log('[Event Settings PUT] Request body analysis:', {
-    hasSwitchboardFieldMappings: 'switchboardFieldMappings' in updateData,
-    switchboardFieldMappingsType: typeof updateData.switchboardFieldMappings,
-    switchboardFieldMappingsIsArray: Array.isArray(updateData.switchboardFieldMappings),
-    switchboardFieldMappingsLength: Array.isArray(updateData.switchboardFieldMappings) 
-      ? updateData.switchboardFieldMappings.length 
-      : 'N/A',
-    switchboardFieldMappingsValue: updateData.switchboardFieldMappings
-  });
+  // DEBUG: Log incoming switchboard field mappings (development only)
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[Event Settings PUT] Request body analysis:', {
+      hasSwitchboardFieldMappings: 'switchboardFieldMappings' in updateData,
+      switchboardFieldMappingsType: typeof updateData.switchboardFieldMappings,
+      switchboardFieldMappingsIsArray: Array.isArray(updateData.switchboardFieldMappings),
+      switchboardFieldMappingsLength: Array.isArray(updateData.switchboardFieldMappings)
+        ? updateData.switchboardFieldMappings.length
+        : 'N/A',
+      switchboardFieldMappingsValue: updateData.switchboardFieldMappings
+    });
+  }
 
   // Invalidate cache immediately to prevent serving stale data during update
   // This ensures concurrent GET requests won't receive outdated cached data
@@ -1600,24 +1618,24 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
   // Use transaction-based update
   try {
     return await handleEventSettingsUpdateWithTransactions(
-        req,
-        res,
-        databases,
-        dbId,
-        customFieldsCollectionId,
-        eventSettingsCollectionId,
-        logsCollectionId,
-        currentSettings,
-        updateData,
-        customFields,
-        authUser,
-        putPerfTracker
-      );
-    } catch (error: any) {
-      // Transaction failed, return error
-      console.error('[Event Settings] Transaction failed:', error);
-      return handleTransactionError(error, res);
-    }
+      req,
+      res,
+      databases,
+      dbId,
+      customFieldsCollectionId,
+      eventSettingsCollectionId,
+      logsCollectionId,
+      currentSettings,
+      updateData,
+      customFields,
+      authUser,
+      putPerfTracker
+    );
+  } catch (error: any) {
+    // Transaction failed, return error
+    console.error('[Event Settings] Transaction failed:', error);
+    return handleTransactionError(error, res);
+  }
   const currentCustomFieldsResult = await putPerfTracker.trackQuery(
     'fetchCurrentCustomFields',
     () => databases.listDocuments(

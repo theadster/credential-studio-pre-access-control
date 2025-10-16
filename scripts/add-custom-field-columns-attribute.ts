@@ -53,14 +53,14 @@ async function main() {
     const collectionId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID!;
 
     console.log('Adding customFieldColumns attribute...');
-    
+
     try {
       await databases.createIntegerAttribute(
         databaseId,
         collectionId,
         'customFieldColumns',
         false, // not required
-        0,     // min value
+        3,     // min value
         10,    // max value
         7      // default value (maintains current behavior)
       );
@@ -68,7 +68,7 @@ async function main() {
       console.log('  - Type: Integer');
       console.log('  - Required: No');
       console.log('  - Default: 7 (current behavior)');
-      console.log('  - Range: 0-10');
+      console.log('  - Range: 3-10');
     } catch (error: any) {
       if (error.code === 409) {
         console.log('✓ customFieldColumns attribute already exists');

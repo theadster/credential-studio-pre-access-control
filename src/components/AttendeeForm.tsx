@@ -113,16 +113,16 @@ export default function AttendeeForm({
       // Store original styles
       const originalOverflow = document.body.style.overflow;
       const originalPaddingRight = document.body.style.paddingRight;
-      
+
       // Calculate scrollbar width to prevent layout shift
       const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
-      
+
       // Prevent body scroll and compensate for scrollbar
       document.body.style.overflow = 'hidden';
       if (scrollbarWidth > 0) {
         document.body.style.paddingRight = `${scrollbarWidth}px`;
       }
-      
+
       // Restore on cleanup
       return () => {
         document.body.style.overflow = originalOverflow;
@@ -225,7 +225,7 @@ export default function AttendeeForm({
 
       // Initialize custom field values from attendee data
       const initialCustomFieldValues: Record<string, string> = {};
-      
+
       // Load actual values from attendee
       if (Array.isArray(attendee.customFieldValues)) {
         attendee.customFieldValues.forEach((cfv: CustomFieldValue) => {
@@ -234,7 +234,7 @@ export default function AttendeeForm({
           }
         });
       }
-      
+
       // Set defaults ONLY for fields that don't have values yet
       customFields.forEach(field => {
         if (field.fieldType === 'boolean' && !initialCustomFieldValues[field.id]) {
@@ -242,7 +242,7 @@ export default function AttendeeForm({
           initialCustomFieldValues[field.id] = 'no';
         }
       });
-      
+
       setFormData({
         firstName: attendee.firstName || '',
         lastName: attendee.lastName || '',
@@ -404,14 +404,18 @@ export default function AttendeeForm({
     setLoading(true);
 
     try {
-      if (!validateForm()) return;
+      if (!validateForm()) {
+        setLoading(false);
+        return;
+      }
 
       const attendeeData = prepareAttendeeData();
       onSave(attendeeData);
       onClose();
       resetForm();
-    } catch (error) {
-      console.error('Form submission error:', error);
+    } catch (err) {
+      console.error('Form submission error:', err);
+      error('Failed to submit attendee', err instanceof Error ? err.message : 'An unexpected error occurred');
     } finally {
       setLoading(false);
     }
@@ -421,17 +425,21 @@ export default function AttendeeForm({
     setLoadingAndGenerate(true);
 
     try {
-      if (!validateForm()) return;
+      if (!validateForm()) {
+        setLoadingAndGenerate(false);
+        return;
+      }
 
       const attendeeData = prepareAttendeeData();
-      
+
       if (onSaveAndGenerate) {
         onSaveAndGenerate(attendeeData);
         onClose();
         resetForm();
       }
-    } catch (error) {
-      console.error('Form submission error:', error);
+    } catch (err) {
+      console.error('Form submission error:', err);
+      error('Failed to submit attendee', err instanceof Error ? err.message : 'An unexpected error occurred');
     } finally {
       setLoadingAndGenerate(false);
     }
@@ -726,53 +734,53 @@ export default function AttendeeForm({
                           required
                         />
                       </div>
-                      
+
                       {/* Notes and Barcode - Side by Side */}
                       {/* Notes Field - Left Column */}
-                          <div className="space-y-2">
-                            <Label htmlFor="notes" className="flex items-center gap-2">
-                              <FileText className="h-4 w-4 text-muted-foreground" />
-                              Notes
-                            </Label>
-                            <Textarea
-                              id="notes"
-                              value={formData.notes || ''}
-                              onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-                              placeholder="Add any additional notes about this attendee..."
-                              rows={2}
-                              className="resize-y"
-                              maxLength={2000}
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              {formData.notes?.length || 0} / 2000 characters
-                            </p>
-                          </div>
-                          
-                          {/* Barcode Field - Right Column */}
-                          <div className="space-y-2">
-                            <Label htmlFor="barcodeNumber" className="flex items-center gap-2">
-                              <Hash className="h-4 w-4 text-muted-foreground" />
-                              Barcode Number *
-                            </Label>
-                            <div className="flex space-x-2">
-                              <Input
-                                id="barcodeNumber"
-                                value={formData.barcodeNumber}
-                                onChange={(e) => setFormData(prev => ({ ...prev, barcodeNumber: e.target.value }))}
-                                required
-                                className="flex-1"
-                              />
-                              {!attendee && (
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  onClick={generateBarcode}
-                                >
-                                  Generate
-                                </Button>
-                              )}
-                            </div>
-                          </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="notes" className="flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-muted-foreground" />
+                          Notes
+                        </Label>
+                        <Textarea
+                          id="notes"
+                          value={formData.notes || ''}
+                          onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+                          placeholder="Add any additional notes about this attendee..."
+                          rows={2}
+                          className="resize-y"
+                          maxLength={2000}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          {formData.notes?.length || 0} / 2000 characters
+                        </p>
+                      </div>
+
+                      {/* Barcode Field - Right Column */}
+                      <div className="space-y-2">
+                        <Label htmlFor="barcodeNumber" className="flex items-center gap-2">
+                          <Hash className="h-4 w-4 text-muted-foreground" />
+                          Barcode Number *
+                        </Label>
+                        <div className="flex space-x-2">
+                          <Input
+                            id="barcodeNumber"
+                            value={formData.barcodeNumber}
+                            onChange={(e) => setFormData(prev => ({ ...prev, barcodeNumber: e.target.value }))}
+                            required
+                            className="flex-1"
+                          />
+                          {!attendee && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={generateBarcode}
+                            >
+                              Generate
+                            </Button>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -821,9 +829,9 @@ export default function AttendeeForm({
               {attendee ? 'Update' : 'Create'} Attendee
             </Button>
             {attendee && onSaveAndGenerate && (
-              <Button 
-                type="button" 
-                onClick={handleSaveAndGenerate} 
+              <Button
+                type="button"
+                onClick={handleSaveAndGenerate}
                 disabled={loading || loadingAndGenerate}
                 className="bg-purple-600 hover:bg-purple-700"
               >

@@ -70,26 +70,6 @@ export default function UserForm({ isOpen, onClose, onSave, user, roles, mode = 
     addToTeam: false
   });
 
-  // Prevent body scroll when dialog is open
-  useEffect(() => {
-    if (isOpen) {
-      const originalOverflow = document.body.style.overflow;
-      const originalPaddingRight = document.body.style.paddingRight;
-      
-      const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
-      
-      document.body.style.overflow = 'hidden';
-      if (scrollbarWidth > 0) {
-        document.body.style.paddingRight = `${scrollbarWidth}px`;
-      }
-      
-      return () => {
-        document.body.style.overflow = originalOverflow;
-        document.body.style.paddingRight = originalPaddingRight;
-      };
-    }
-  }, [isOpen]);
-
   useEffect(() => {
     if (user) {
       setFormData({
@@ -294,7 +274,19 @@ export default function UserForm({ isOpen, onClose, onSave, user, roles, mode = 
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent
+        className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto"
+        onWheel={(e) => {
+          // Prevent scroll chaining to the page behind the dialog
+          const target = e.currentTarget;
+          const isAtTop = target.scrollTop === 0;
+          const isAtBottom = target.scrollTop + target.clientHeight >= target.scrollHeight;
+
+          if ((isAtTop && e.deltaY < 0) || (isAtBottom && e.deltaY > 0)) {
+            e.preventDefault();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {mode === 'link' ? (
