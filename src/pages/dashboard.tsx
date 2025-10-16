@@ -3392,8 +3392,14 @@ export default function Dashboard() {
                                           return null;
                                         })
                                         .then(fullAttendee => {
+-                                          if (fullAttendee) {
+-                                            setEditingAttendee(fullAttendee);
                                           if (fullAttendee) {
-                                            setEditingAttendee(fullAttendee);
+                                            setEditingAttendee(prev =>
+                                              prev?.id === attendee.id
+                                                ? fullAttendee
+                                                : prev
+                                            );
                                           }
                                         })
                                         .catch(error => {
