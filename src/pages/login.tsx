@@ -1,7 +1,7 @@
 import { useFormik } from 'formik';
 import React, { useContext, useState, useEffect } from 'react';
 import * as Yup from 'yup';
-import { useRouter } from 'next/navigation';
+import { useRouter } from 'next/router';
 import { AuthContext } from '@/contexts/AuthContext';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import Logo from '@/components/Logo';
@@ -24,23 +24,26 @@ const LoginPage = () => {
   const [signInBannerUrl, setSignInBannerUrl] = useState<string | null>(null);
   const { toast } = useSweetAlert();
 
+  // Extract pathname for stable dependency
+  const pathname = router.pathname;
+
   // Reset loading state when component mounts or route changes
   // This ensures clean state after unauthorized access redirect
   useEffect(() => {
     console.log('[Login] Component mounted/route changed, resetting state', {
       timestamp: new Date().toISOString(),
-      pathname: router.pathname,
+      pathname,
     });
-    
+
     setIsLoading(false);
     setShowPw(false);
-    
+
     return () => {
       console.log('[Login] Component unmounting, cleaning up', {
         timestamp: new Date().toISOString(),
       });
     };
-  }, [router.pathname]);
+  }, [pathname]);
 
   // Fetch event settings to get the sign-in banner URL
   useEffect(() => {
@@ -93,15 +96,16 @@ const LoginPage = () => {
     },
     validationSchema,
     onSubmit: handleLogin,
-    // Enable reinitialization to reset form when navigating back to login
-    enableReinitialize: true,
   });
+
+  // Destructure resetForm for stable reference in useEffect
+  const { resetForm } = formik;
 
   // Reset form when component mounts or route changes
   // This ensures clean form state after unauthorized access redirect
   useEffect(() => {
-    formik.resetForm();
-  }, [router.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+    resetForm();
+  }, [pathname, resetForm]);
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Enter') {
@@ -122,7 +126,7 @@ const LoginPage = () => {
             />
           </div>
         )}
-        
+
         <div className="w-full flex justify-center cursor-pointer" onClick={() => router.push("/")}>
           <Logo />
         </div>

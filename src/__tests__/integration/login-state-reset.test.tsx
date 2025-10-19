@@ -12,13 +12,12 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from 'next/router';
 import LoginPage from '@/pages/login';
 import { AuthContext } from '@/contexts/AuthContext';
-import React from 'react';
 
-// Mock next/navigation
-vi.mock('next/navigation', () => ({
+// Mock next/router (Pages Router)
+vi.mock('next/router', () => ({
   useRouter: vi.fn(),
 }));
 
@@ -92,7 +91,7 @@ describe('Login Page State Reset', () => {
 
     // Simulate navigation back to login page (e.g., after unauthorized access)
     mockRouter.pathname = '/login';
-    
+
     rerender(
       <AuthContext.Provider value={mockAuthContext}>
         <LoginPage />
@@ -321,7 +320,7 @@ describe('Login Page State Reset', () => {
     const eyeButton = toggleButtons.find(btn => btn.className.includes('absolute'));
     if (eyeButton) {
       fireEvent.click(eyeButton);
-      
+
       // Password should now be visible
       await waitFor(() => {
         const input = screen.getByPlaceholderText(/enter your password/i);

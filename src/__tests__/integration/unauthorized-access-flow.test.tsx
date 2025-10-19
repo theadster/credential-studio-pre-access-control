@@ -16,7 +16,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { mockAccount, mockDatabases, resetAllMocks } from '@/test/mocks/appwrite';
-import { isUnauthorizedTeamError } from '@/lib/apiErrorHandler';
+import { isUnauthorizedTeamError, isTokenExpiredError } from '@/lib/apiErrorHandler';
 
 // Mock TokenRefreshManager
 const mockTokenRefreshManager = {
@@ -259,7 +259,7 @@ describe('Unauthorized Access Flow', () => {
   });
 
   describe('Task 4.2: Session Cleanup and Redirect', () => {
-    it('should clear session after alert dismissal', async () => {
+    it('should clear session after alert dismissal and perform atomic cleanup', async () => {
       mockAccount.get.mockResolvedValue(mockUser);
       mockAccount.createEmailPasswordSession.mockResolvedValueOnce(mockSession);
       mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
@@ -282,14 +282,59 @@ describe('Unauthorized Access Flow', () => {
         }
       });
 
-      // Verify session cleanup
+      // Verify all cleanup functions were called atomically
       await waitFor(() => {
         expect(mockTokenRefreshManager.stop).toHaveBeenCalled();
         expect(mockTokenRefreshManager.clearUserContext).toHaveBeenCalled();
         expect(mockAccount.deleteSession).toHaveBeenCalledWith('current');
       });
 
-      // Verify state is cleared
+      // Verify cleanup happens atomically:
+      // 1. Token refresh is stopped first (prevents new refresh attempts)
+      // 2. User context is cleared (removes user data from token manager)
+      // 3. Server-side session is deleted (best-effort cleanup)
+      // Note: The implementation calls these synchronously in cleanupUnauthorizedSession()
+      // We verify they were all called; the implementation guarantees the order
+
+      // Verify state is cleared (local state cleanup always happens)
+      expect(result.current.user).toBeNull();
+      expect(result.current.userProfile).toBeNull();
+    });
+
+    it('should handle session deletion failure gracefully', async () => {
+      mockAccount.get.mockResolvedValue(mockUser);
+      mockAccount.createEmailPasswordSession.mockResolvedValueOnce(mockSession);
+      mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
+      mockDatabases.listDocuments.mockRejectedValueOnce(unauthorizedError);
+
+      // Simulate server-side session deletion failure
+      mockAccount.deleteSession.mockRejectedValue(new Error('Session deletion failed'));
+
+      const { result } = renderHook(() => useAuth(), {
+        wrapper: AuthProvider,
+      });
+
+      await waitFor(() => {
+        expect(result.current.initializing).toBe(false);
+      });
+
+      await act(async () => {
+        try {
+          await result.current.signIn('unauthorized@example.com', 'password123');
+        } catch (error) {
+          // Expected
+        }
+      });
+
+      // Verify cleanup was attempted
+      await waitFor(() => {
+        expect(mockTokenRefreshManager.stop).toHaveBeenCalled();
+        expect(mockTokenRefreshManager.clearUserContext).toHaveBeenCalled();
+        expect(mockAccount.deleteSession).toHaveBeenCalledWith('current');
+      });
+
+      // Even if server-side deletion fails, local state should still be cleared
+      // This prevents the user from being stuck in a bad state
       expect(result.current.user).toBeNull();
       expect(result.current.userProfile).toBeNull();
     });
@@ -534,7 +579,7 @@ describe('Unauthorized Access Flow', () => {
       expect(mockShowAlert).not.toHaveBeenCalled();
     });
 
-    it('should navigate to dashboard for authorized users', async () => {
+    it('should not redirect to login for authorized users', async () => {
       const mockUserProfile = {
         $id: 'profile-123',
         userId: 'user-123',
@@ -567,10 +612,15 @@ describe('Unauthorized Access Flow', () => {
         await result.current.signIn('authorized@example.com', 'password123');
       });
 
-      // Verify redirect to dashboard (not login)
+      // Verify login succeeds and user state is set
       await waitFor(() => {
-        expect(mockRouterPush).not.toHaveBeenCalledWith('/login');
+        expect(result.current.user).toBeTruthy();
+        expect(result.current.userProfile).toBeTruthy();
       });
+
+      // Verify NO redirect to login (AuthContext doesn't redirect on success)
+      // The caller (e.g., login.tsx) is responsible for navigating to dashboard
+      expect(mockRouterPush).not.toHaveBeenCalledWith('/login');
     });
   });
 
@@ -686,6 +736,42 @@ describe('Unauthorized Access Flow', () => {
 
       // Network error
       expect(isUnauthorizedTeamError(new Error('Network error'))).toBe(false);
+    });
+
+    it('should not misclassify team authorization errors as token expiration errors', () => {
+      // Team authorization error should NOT be treated as token error
+      const teamError = {
+        type: 'user_unauthorized',
+        code: 401,
+        message: 'The current user is not authorized to perform the requested action',
+      };
+      expect(isUnauthorizedTeamError(teamError)).toBe(true);
+      expect(isTokenExpiredError(teamError)).toBe(false);
+
+      // JWT invalid error should be treated as token error
+      const jwtError = {
+        type: 'user_jwt_invalid',
+        code: 401,
+        message: 'Invalid JWT token',
+      };
+      expect(isUnauthorizedTeamError(jwtError)).toBe(false);
+      expect(isTokenExpiredError(jwtError)).toBe(true);
+
+      // Generic 401 with token keywords should be treated as token error
+      const tokenError = {
+        code: 401,
+        message: 'Session expired',
+      };
+      expect(isUnauthorizedTeamError(tokenError)).toBe(false);
+      expect(isTokenExpiredError(tokenError)).toBe(true);
+
+      // Generic 401 without token keywords should NOT be treated as token error
+      const genericError = {
+        code: 401,
+        message: 'Unauthorized',
+      };
+      expect(isUnauthorizedTeamError(genericError)).toBe(false);
+      expect(isTokenExpiredError(genericError)).toBe(false);
     });
   });
 
@@ -813,6 +899,77 @@ describe('Unauthorized Access Flow', () => {
       await waitFor(() => {
         expect(mockShowAlert).toHaveBeenCalledTimes(1);
       });
+    });
+
+    it('should show alert for each separate login attempt (Requirement 5.4)', async () => {
+      // Mock fetch for logging (both attempts)
+      (global.fetch as any).mockResolvedValue({ ok: true });
+
+      // Setup mocks for FIRST login attempt
+      mockAccount.createEmailPasswordSession.mockResolvedValueOnce(mockSession);
+      mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
+      mockAccount.get.mockResolvedValueOnce(mockUser);
+      mockDatabases.listDocuments.mockRejectedValueOnce(unauthorizedError);
+      mockAccount.deleteSession.mockResolvedValueOnce({});
+
+      // Setup mocks for SECOND login attempt
+      mockAccount.createEmailPasswordSession.mockResolvedValueOnce(mockSession);
+      mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
+      mockAccount.get.mockResolvedValueOnce(mockUser);
+      mockDatabases.listDocuments.mockRejectedValueOnce(unauthorizedError);
+      mockAccount.deleteSession.mockResolvedValueOnce({});
+
+      const { result } = renderHook(() => useAuth(), {
+        wrapper: AuthProvider,
+      });
+
+      await waitFor(() => {
+        expect(result.current.initializing).toBe(false);
+      });
+
+      // Record initial call count
+      const initialAlertCallCount = mockShowAlert.mock.calls.length;
+      const initialDeleteSessionCallCount = mockAccount.deleteSession.mock.calls.length;
+
+      // FIRST login attempt
+      await act(async () => {
+        try {
+          await result.current.signIn('unauthorized@example.com', 'password123');
+        } catch (error) {
+          // Expected - unauthorized error
+        }
+      });
+
+      // Verify alert was shown once after first attempt
+      await waitFor(() => {
+        expect(mockShowAlert).toHaveBeenCalledTimes(initialAlertCallCount + 1);
+      });
+
+      // Verify session cleanup was called for first attempt
+      expect(mockAccount.deleteSession).toHaveBeenCalledTimes(initialDeleteSessionCallCount + 1);
+      expect(mockAccount.deleteSession).toHaveBeenCalledWith('current');
+
+      // SECOND login attempt (user retries)
+      await act(async () => {
+        try {
+          await result.current.signIn('unauthorized@example.com', 'password123');
+        } catch (error) {
+          // Expected - unauthorized error again
+        }
+      });
+
+      // Verify alert was shown again (at least twice total from start) for second attempt
+      await waitFor(() => {
+        const currentCallCount = mockShowAlert.mock.calls.length;
+        expect(currentCallCount).toBeGreaterThanOrEqual(initialAlertCallCount + 2);
+      });
+
+      // Verify session cleanup was called for second attempt (at least twice total from start)
+      expect(mockAccount.deleteSession.mock.calls.length).toBeGreaterThanOrEqual(initialDeleteSessionCallCount + 2);
+
+      // Verify state remains cleared after both attempts
+      expect(result.current.user).toBeNull();
+      expect(result.current.userProfile).toBeNull();
     });
   });
 });

@@ -51,20 +51,49 @@ export function isUnauthorizedTeamError(error: any): boolean {
 /**
  * Check if an error is related to JWT token expiration or invalidity
  * 
+ * This is distinct from team authorization errors - a user can have a valid
+ * token but lack team membership to access the event's database.
+ * 
  * @param error - The error object to check
  * @returns true if the error is token-related
  */
 export function isTokenExpiredError(error: any): boolean {
   if (!error) return false;
 
-  // Check Appwrite-specific error types
-  if (error.type === 'user_jwt_invalid' || error.type === 'user_unauthorized') {
+  // First, exclude team authorization errors (user authenticated but not authorized)
+  if (isUnauthorizedTeamError(error)) {
+    return false;
+  }
+
+  // Check Appwrite-specific error types for token issues
+  if (error.type === 'user_jwt_invalid') {
     return true;
   }
 
-  // Check error code
-  if (error.code === 401) {
+  // user_unauthorized could be token OR team access - check message
+  if (error.type === 'user_unauthorized') {
+    const message = error.message?.toLowerCase() || '';
+    // If it's team access specific, don't treat as token error
+    // (already handled by isUnauthorizedTeamError check above, but being explicit)
+    if (message.includes('not authorized to perform the requested action')) {
+      return false;
+    }
     return true;
+  }
+
+  // Check error code (but be careful - 401 can mean many things)
+  if (error.code === 401) {
+    // Only treat as token error if it has token-related keywords
+    const message = error.message?.toLowerCase() || '';
+    const tokenKeywords = [
+      'jwt',
+      'token',
+      'expired',
+      'invalid token',
+      'authentication failed',
+      'session expired'
+    ];
+    return tokenKeywords.some(keyword => message.includes(keyword));
   }
 
   // Check error message for JWT-related keywords
@@ -74,7 +103,6 @@ export function isTokenExpiredError(error: any): boolean {
     'token',
     'expired',
     'invalid token',
-    'unauthorized',
     'authentication failed',
     'session expired'
   ];

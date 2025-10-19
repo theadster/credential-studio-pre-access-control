@@ -7,6 +7,7 @@ import { TokenRefreshManager } from '@/lib/tokenRefresh';
 import { createTabCoordinator, TabCoordinator } from '@/lib/tabCoordinator';
 import { validateEmail } from '@/lib/validation';
 import { isUnauthorizedTeamError } from '@/lib/apiErrorHandler';
+import { escapeHtml } from '@/lib/utils';
 
 interface UserProfile {
   $id: string;
@@ -84,7 +85,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           // Don't show session expired message if we're already on the login page
           // This prevents false "session expired" messages during failed login attempts
           const isOnLoginPage = router.pathname === '/login' || router.pathname === '/signup' || router.pathname === '/forgot-password';
-          
+
           if (isOnLoginPage) {
             console.log('[AuthContext] Session expired but already on auth page, skipping notification');
             return;
@@ -233,7 +234,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         });
         throw error; // Re-throw to be caught by signIn's error handler
       }
-      
+
       console.error('[AuthContext] Error fetching user profile:', {
         userId,
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -431,11 +432,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
    * @param userEmail - The authenticated user's email address
    */
   const showUnauthorizedTeamAlert = async (userEmail: string): Promise<void> => {
+    // Escape HTML special characters to prevent XSS attacks
+    const safeEmail = escapeHtml(userEmail);
+
     await showAlert({
       title: 'Access Not Granted',
       html: `
         <div style="text-align: left;">
-          <p><strong>You are signed in as:</strong> ${userEmail}</p>
+          <p><strong>You are signed in as:</strong> ${safeEmail}</p>
           <br/>
           <p>However, your account does not have access to this event's database.</p>
           <br/>
@@ -657,7 +661,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Ensure user profile exists and fetch it
       try {
         await createUserProfile(currentUser.$id, currentUser.email, currentUser.name);
-        
+
         // Fetch user profile
         const profile = await fetchUserProfile(currentUser.$id);
         setUserProfile(profile);
@@ -716,7 +720,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
           // Redirect to login
           router.push('/login');
-          return; // Exit early, don't throw
+
+          // Throw error to prevent caller from continuing with their own navigation
+          // Preserve the original error context for upstream handling
+          const unauthorizedError = new Error('User not authorized for this event');
+          (unauthorizedError as any).type = 'user_unauthorized';
+          (unauthorizedError as any).code = 401;
+          (unauthorizedError as any).originalError = profileError;
+          throw unauthorizedError;
         }
 
         // For other errors, log and continue with degraded state
@@ -809,7 +820,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         icon: 'error',
         confirmButtonText: 'OK'
       });
-      
+
       // Don't throw the error - we've already shown it to the user via SweetAlert
       // Throwing would cause the ugly Next.js error overlay to appear
     }

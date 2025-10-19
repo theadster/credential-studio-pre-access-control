@@ -1,7 +1,7 @@
 import { useFormik } from 'formik';
 import React, { useContext, useState, useEffect } from 'react';
 import * as Yup from 'yup';
-import { useRouter } from 'next/navigation';
+import { useRouter } from 'next/router';
 import { AuthContext } from '@/contexts/AuthContext';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import GoogleButton from '@/components/GoogleButton';

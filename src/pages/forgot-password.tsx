@@ -1,5 +1,5 @@
 import React, { useState, useContext } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from 'next/router';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import { AuthContext } from '@/contexts/AuthContext';

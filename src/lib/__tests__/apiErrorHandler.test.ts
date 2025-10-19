@@ -108,6 +108,21 @@ describe('apiErrorHandler', () => {
 
       expect(isUnauthorizedTeamError(error)).toBe(false);
     });
+
+    it('should be mutually exclusive with isTokenExpiredError for team errors', () => {
+      // Team authorization error should be identified as team error, NOT token error
+      const teamError = {
+        type: 'user_unauthorized',
+        code: 401,
+        message: 'The current user is not authorized to perform the requested action',
+      };
+
+      // Assert team error is correctly identified
+      expect(isUnauthorizedTeamError(teamError)).toBe(true);
+
+      // Assert team error is NOT misclassified as token error
+      expect(isTokenExpiredError(teamError)).toBe(false);
+    });
   });
 
   describe('isTokenExpiredError', () => {
@@ -129,13 +144,23 @@ describe('apiErrorHandler', () => {
       expect(isTokenExpiredError(error)).toBe(true);
     });
 
-    it('should detect 401 status code', () => {
+    it('should detect 401 status code with token keywords', () => {
+      const error = {
+        code: 401,
+        message: 'Token expired',
+      };
+
+      expect(isTokenExpiredError(error)).toBe(true);
+    });
+
+    it('should NOT detect generic 401 without token keywords', () => {
       const error = {
         code: 401,
         message: 'Unauthorized',
       };
 
-      expect(isTokenExpiredError(error)).toBe(true);
+      // Generic 401 without token keywords should not be treated as token error
+      expect(isTokenExpiredError(error)).toBe(false);
     });
 
     it('should detect JWT keyword in message', () => {
@@ -170,12 +195,13 @@ describe('apiErrorHandler', () => {
       expect(isTokenExpiredError(error)).toBe(true);
     });
 
-    it('should detect unauthorized keyword in message', () => {
+    it('should NOT detect generic unauthorized without token context', () => {
       const error = {
         message: 'Unauthorized access',
       };
 
-      expect(isTokenExpiredError(error)).toBe(true);
+      // Generic "unauthorized" without token keywords should not be treated as token error
+      expect(isTokenExpiredError(error)).toBe(false);
     });
 
     it('should detect authentication failed in message', () => {
@@ -287,15 +313,16 @@ describe('apiErrorHandler', () => {
       expect(result.tokenExpired).toBe(true);
     });
 
-    it('should use default message for token errors without message', () => {
+    it('should NOT treat generic 401 without message as token error', () => {
       const error = {
         code: 401,
       };
 
       const result = formatErrorResponse(error);
 
-      expect(result.message).toBe('Your session has expired. Please log in again.');
-      expect(result.tokenExpired).toBe(true);
+      // Generic 401 without token keywords should not be treated as token error
+      expect(result.message).toBe('An unexpected error occurred');
+      expect(result.tokenExpired).toBeUndefined();
     });
 
     it('should include details when includeDetails is true', () => {
