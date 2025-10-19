@@ -22,6 +22,33 @@ export interface ErrorHandlerOptions {
 }
 
 /**
+ * Check if an error is related to team membership/authorization
+ * (user is authenticated but not authorized for this event)
+ * 
+ * This is distinct from token expiration - the user has a valid session
+ * but lacks team membership to access the event's database.
+ * 
+ * @param error - The error object to check
+ * @returns true if the error indicates missing team membership
+ */
+export function isUnauthorizedTeamError(error: any): boolean {
+  if (!error) return false;
+
+  // Primary check: Appwrite error type for authorization failure
+  if (error.type === 'user_unauthorized' && error.code === 401) {
+    return true;
+  }
+
+  // Secondary check: Error message indicating authorization failure
+  const message = error.message?.toLowerCase() || '';
+  if (message.includes('not authorized to perform the requested action')) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Check if an error is related to JWT token expiration or invalidity
  * 
  * @param error - The error object to check

@@ -6,6 +6,7 @@ import { useRouter } from 'next/router';
 import { TokenRefreshManager } from '@/lib/tokenRefresh';
 import { createTabCoordinator, TabCoordinator } from '@/lib/tabCoordinator';
 import { validateEmail } from '@/lib/validation';
+import { isUnauthorizedTeamError } from '@/lib/apiErrorHandler';
 
 interface UserProfile {
   $id: string;
@@ -223,6 +224,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.warn('[AuthContext] No user profile found for userId', { userId });
       return null;
     } catch (error) {
+      // Re-throw unauthorized errors so they can be handled by signIn
+      if (isUnauthorizedTeamError(error)) {
+        console.error('[AuthContext] Unauthorized team access during profile fetch:', {
+          userId,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          errorType: (error as any)?.type,
+        });
+        throw error; // Re-throw to be caught by signIn's error handler
+      }
+      
       console.error('[AuthContext] Error fetching user profile:', {
         userId,
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -415,6 +426,63 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  /**
+   * Show alert for users who are authenticated but not authorized
+   * @param userEmail - The authenticated user's email address
+   */
+  const showUnauthorizedTeamAlert = async (userEmail: string): Promise<void> => {
+    await showAlert({
+      title: 'Access Not Granted',
+      html: `
+        <div style="text-align: left;">
+          <p><strong>You are signed in as:</strong> ${userEmail}</p>
+          <br/>
+          <p>However, your account does not have access to this event's database.</p>
+          <br/>
+          <p><strong>To gain access:</strong></p>
+          <ul style="margin-left: 20px;">
+            <li>Contact the event manager or administrator</li>
+            <li>Request to be added to the event team</li>
+            <li>Once added, you'll be able to log in successfully</li>
+          </ul>
+          <br/>
+          <p><em>When you click OK, you'll be returned to the login page.</em></p>
+        </div>
+      `,
+      icon: 'info',
+      confirmButtonText: 'OK, I Understand'
+    });
+  };
+
+  /**
+   * Clean up session for unauthorized user
+   * Ensures no stale session data remains
+   */
+  const cleanupUnauthorizedSession = async (): Promise<void> => {
+    // Stop token refresh (always do this first)
+    tokenRefreshManager.stop();
+    tokenRefreshManager.clearUserContext();
+
+    // Try to delete Appwrite session (best-effort)
+    try {
+      await account.deleteSession('current');
+    } catch (error) {
+      // Log but don't throw - session deletion is best-effort
+      console.error('[AuthContext] Error deleting session during cleanup:', error);
+    }
+
+    // Clear session cookie (always do this)
+    document.cookie = 'appwrite-session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+
+    // Clear state (always do this)
+    setUser(null);
+    setUserProfile(null);
+
+    console.log('[AuthContext] Unauthorized session cleaned up', {
+      timestamp: new Date().toISOString(),
+    });
+  };
+
   const createUserProfile = async (userId: string, email: string, name?: string) => {
     try {
       console.log('[AuthContext] Checking for existing user profile', {
@@ -586,46 +654,79 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         sessionId: session.$id,
       });
 
-      // Ensure user profile exists
+      // Ensure user profile exists and fetch it
       try {
         await createUserProfile(currentUser.$id, currentUser.email, currentUser.name);
+        
+        // Fetch user profile
+        const profile = await fetchUserProfile(currentUser.$id);
+        setUserProfile(profile);
+
+        console.log('[AuthContext] User profile fetched after login', {
+          timestamp: new Date().toISOString(),
+          userId: currentUser.$id,
+          profileFound: !!profile,
+          profileId: profile?.$id,
+          roleId: profile?.roleId,
+          hasRole: !!profile?.roleId,
+          email: profile?.email,
+        });
+
+        if (!profile) {
+          console.error('[AuthContext] ⚠️ User profile not found after login!', {
+            timestamp: new Date().toISOString(),
+            userId: currentUser.$id,
+            email: currentUser.email,
+          });
+        } else if (!profile.roleId) {
+          console.error('[AuthContext] ⚠️ User profile exists but has no role assigned!', {
+            timestamp: new Date().toISOString(),
+            userId: currentUser.$id,
+            profileId: profile.$id,
+            email: profile.email,
+          });
+        }
       } catch (profileError: any) {
-        console.error('[AuthContext] Profile creation failed, but continuing with login', {
+        // Check if this is a team membership issue
+        if (isUnauthorizedTeamError(profileError)) {
+          console.warn('[AuthContext] Unauthorized team access detected', {
+            timestamp: new Date().toISOString(),
+            userId: currentUser.$id,
+            email: currentUser.email,
+            errorType: 'user_unauthorized',
+            message: 'User authenticated but not authorized for this event',
+          });
+
+          // Log unauthorized access attempt
+          try {
+            await logAuthEvent('auth_unauthorized_access', currentUser.$id, {
+              email: currentUser.email,
+              errorType: 'user_unauthorized',
+              timestamp: new Date().toISOString(),
+            });
+          } catch (logError) {
+            console.error('[AuthContext] Failed to log unauthorized access:', logError);
+          }
+
+          // Show specialized alert for team access
+          await showUnauthorizedTeamAlert(currentUser.email);
+
+          // Clean up session
+          await cleanupUnauthorizedSession();
+
+          // Redirect to login
+          router.push('/login');
+          return; // Exit early, don't throw
+        }
+
+        // For other errors, log and continue with degraded state
+        console.error('[AuthContext] Profile creation/fetch failed, but continuing with login', {
           timestamp: new Date().toISOString(),
           userId: currentUser.$id,
           error: profileError.message || 'Unknown error',
         });
         // Continue with login even if profile creation fails
         // The user can still access the app, but some features may not work
-      }
-
-      // Fetch user profile
-      const profile = await fetchUserProfile(currentUser.$id);
-      setUserProfile(profile);
-
-      console.log('[AuthContext] User profile fetched after login', {
-        timestamp: new Date().toISOString(),
-        userId: currentUser.$id,
-        profileFound: !!profile,
-        profileId: profile?.$id,
-        roleId: profile?.roleId,
-        hasRole: !!profile?.roleId,
-        email: profile?.email,
-      });
-
-      if (!profile) {
-        console.error('[AuthContext] ⚠️ User profile not found after login!', {
-          timestamp: new Date().toISOString(),
-          userId: currentUser.$id,
-          email: currentUser.email,
-        });
-      } else if (!profile.roleId) {
-        console.error('[AuthContext] ⚠️ User profile exists but has no role assigned!', {
-          timestamp: new Date().toISOString(),
-          userId: currentUser.$id,
-          profileId: profile.$id,
-          email: profile.email,
-        });
       }
 
       // Set user context for token refresh logging

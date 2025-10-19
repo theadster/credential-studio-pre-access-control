@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
+  isUnauthorizedTeamError,
   isTokenExpiredError,
   formatErrorResponse,
   handleApiError,
@@ -23,6 +24,90 @@ describe('apiErrorHandler', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  describe('isUnauthorizedTeamError', () => {
+    it('should detect user_unauthorized error with 401 code', () => {
+      const error = {
+        type: 'user_unauthorized',
+        code: 401,
+        message: 'The current user is not authorized to perform the requested action',
+      };
+
+      expect(isUnauthorizedTeamError(error)).toBe(true);
+    });
+
+    it('should detect error message containing authorization failure', () => {
+      const error = {
+        code: 401,
+        message: 'User is not authorized to perform the requested action',
+      };
+
+      expect(isUnauthorizedTeamError(error)).toBe(true);
+    });
+
+    it('should be case-insensitive for message check', () => {
+      const error = {
+        message: 'NOT AUTHORIZED TO PERFORM THE REQUESTED ACTION',
+      };
+
+      expect(isUnauthorizedTeamError(error)).toBe(true);
+    });
+
+    it('should return false for user_unauthorized without 401 code', () => {
+      const error = {
+        type: 'user_unauthorized',
+        code: 403,
+        message: 'Forbidden',
+      };
+
+      expect(isUnauthorizedTeamError(error)).toBe(false);
+    });
+
+    it('should return false for 401 code without user_unauthorized type', () => {
+      const error = {
+        type: 'user_jwt_invalid',
+        code: 401,
+        message: 'JWT token is invalid',
+      };
+
+      expect(isUnauthorizedTeamError(error)).toBe(false);
+    });
+
+    it('should return false for other error types', () => {
+      const error = {
+        type: 'database_error',
+        code: 500,
+        message: 'Database connection failed',
+      };
+
+      expect(isUnauthorizedTeamError(error)).toBe(false);
+    });
+
+    it('should return false for null error', () => {
+      expect(isUnauthorizedTeamError(null)).toBe(false);
+    });
+
+    it('should return false for undefined error', () => {
+      expect(isUnauthorizedTeamError(undefined)).toBe(false);
+    });
+
+    it('should return false for error without message or type', () => {
+      const error = {
+        code: 401,
+      };
+
+      expect(isUnauthorizedTeamError(error)).toBe(false);
+    });
+
+    it('should return false for generic unauthorized messages', () => {
+      const error = {
+        code: 401,
+        message: 'Unauthorized access',
+      };
+
+      expect(isUnauthorizedTeamError(error)).toBe(false);
+    });
   });
 
   describe('isTokenExpiredError', () => {

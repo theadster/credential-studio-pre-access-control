@@ -24,6 +24,24 @@ const LoginPage = () => {
   const [signInBannerUrl, setSignInBannerUrl] = useState<string | null>(null);
   const { toast } = useSweetAlert();
 
+  // Reset loading state when component mounts or route changes
+  // This ensures clean state after unauthorized access redirect
+  useEffect(() => {
+    console.log('[Login] Component mounted/route changed, resetting state', {
+      timestamp: new Date().toISOString(),
+      pathname: router.pathname,
+    });
+    
+    setIsLoading(false);
+    setShowPw(false);
+    
+    return () => {
+      console.log('[Login] Component unmounting, cleaning up', {
+        timestamp: new Date().toISOString(),
+      });
+    };
+  }, [router.pathname]);
+
   // Fetch event settings to get the sign-in banner URL
   useEffect(() => {
     const fetchEventSettings = async () => {
@@ -75,7 +93,15 @@ const LoginPage = () => {
     },
     validationSchema,
     onSubmit: handleLogin,
+    // Enable reinitialization to reset form when navigating back to login
+    enableReinitialize: true,
   });
+
+  // Reset form when component mounts or route changes
+  // This ensures clean form state after unauthorized access redirect
+  useEffect(() => {
+    formik.resetForm();
+  }, [router.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Enter') {
