@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse, NextApiHandler } from 'next';
 import { Models, Query } from 'node-appwrite';
-import { createSessionClient } from '@/lib/appwrite';
+import { createSessionClient, createAdminClient } from '@/lib/appwrite';
 import { handleApiError } from '@/lib/apiErrorHandler';
 
 /**
@@ -192,7 +192,9 @@ export function withAuth(handler: AuthenticatedApiHandler): NextApiHandler {
       let role = null;
       if (userProfileDoc.roleId) {
         try {
-          const roleDoc = await databases.getDocument(
+          // Use admin client to fetch role (user may not have permission to read roles yet)
+          const { databases: adminDatabases } = createAdminClient();
+          const roleDoc = await adminDatabases.getDocument(
             envVars.databaseId,
             envVars.rolesCollectionId,
             userProfileDoc.roleId

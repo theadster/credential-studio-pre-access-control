@@ -61,4 +61,4 @@ npm run vercel-build # Vercel deployment build
 ## Build Configuration
 - TypeScript build errors are ignored in production (`ignoreBuildErrors: true`)
 - Webpack optimization disabled in preview environments
-- Image domains configured for assets.co.dev and images.unsplash.com
+- Image domains configured for images.unsplash.com

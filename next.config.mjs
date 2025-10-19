@@ -5,7 +5,7 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   images: {
-    domains: ["assets.co.dev", "images.unsplash.com"],
+    domains: ["images.unsplash.com"],
   },
   webpack: (config, context) => {
     // Disable minification in development to work around webpack error

@@ -54,7 +54,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [initializing, setInitializing] = useState(true);
   const { account, databases } = createBrowserClient();
-  const { toast } = useSweetAlert();
+  const { toast, alert: showAlert } = useSweetAlert();
 
   // Initialize TokenRefreshManager and TabCoordinator
   const [tokenRefreshManager] = useState(() => new TokenRefreshManager());
@@ -80,6 +80,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         );
 
         if (isSessionExpired) {
+          // Don't show session expired message if we're already on the login page
+          // This prevents false "session expired" messages during failed login attempts
+          const isOnLoginPage = router.pathname === '/login' || router.pathname === '/signup' || router.pathname === '/forgot-password';
+          
+          if (isOnLoginPage) {
+            console.log('[AuthContext] Session expired but already on auth page, skipping notification');
+            return;
+          }
+
           // Session is truly expired - force logout
           console.error('[AuthContext] Session expired, forcing logout', {
             timestamp: new Date().toISOString(),
@@ -692,12 +701,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         errorMessage = "You've made too many login attempts. Please wait 5-10 minutes before trying again.";
       }
 
-      toast({
-        variant: "destructive",
+      // Use SweetAlert alert modal that requires user interaction (no auto-dismiss)
+      await showAlert({
         title: errorTitle,
-        description: errorMessage,
+        text: errorMessage,
+        icon: 'error',
+        confirmButtonText: 'OK'
       });
-      throw error;
+      
+      // Don't throw the error - we've already shown it to the user via SweetAlert
+      // Throwing would cause the ugly Next.js error overlay to appear
     }
   };
 

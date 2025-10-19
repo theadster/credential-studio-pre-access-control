@@ -516,9 +516,14 @@ export default function Dashboard() {
         const response = await fetch('/api/profile');
         if (response.ok) {
           const currentUserData = await response.json();
-          console.log('Current user data:', currentUserData);
-          console.log('Role:', currentUserData.role);
-          console.log('Permissions:', currentUserData.role?.permissions);
+          
+          // Debug logging (only in development)
+          if (process.env.NODE_ENV === 'development') {
+            console.log('Current user data:', currentUserData);
+            console.log('Role:', currentUserData.role);
+            console.log('Permissions:', currentUserData.role?.permissions);
+          }
+          
           setCurrentUser(currentUserData);
         } else {
           console.error('Failed to fetch user profile:', response.status);
@@ -538,6 +543,9 @@ export default function Dashboard() {
   // Load real data from APIs
   useEffect(() => {
     const loadData = async () => {
+      // Wait for currentUser to be loaded before fetching data
+      if (!currentUser) return;
+
       // Show loading notification
       showLoading({
         title: "Loading Dashboard",
@@ -545,45 +553,56 @@ export default function Dashboard() {
       });
 
       try {
-        // Load users
-        const usersResponse = await fetch('/api/users');
-        if (usersResponse.ok) {
-          const usersData = await usersResponse.json();
-          // API returns { users: [...], pagination: {...} }
-          setUsers(usersData.users || []);
-        } else {
-          setUsers([]);
+        // Only load data for tabs the user has access to
+        // Load users (only if user has permission)
+        if (canAccessTab(currentUser.role, 'users')) {
+          const usersResponse = await fetch('/api/users');
+          if (usersResponse.ok) {
+            const usersData = await usersResponse.json();
+            // API returns { users: [...], pagination: {...} }
+            setUsers(usersData.users || []);
+          } else {
+            setUsers([]);
+          }
         }
 
-        // Load roles
-        const rolesResponse = await fetch('/api/roles');
-        if (rolesResponse.ok) {
-          const rolesData = await rolesResponse.json();
-          setRoles(Array.isArray(rolesData) ? rolesData : []);
-        } else {
-          setRoles([]);
+        // Load roles (only if user has permission)
+        if (canAccessTab(currentUser.role, 'roles')) {
+          const rolesResponse = await fetch('/api/roles');
+          if (rolesResponse.ok) {
+            const rolesData = await rolesResponse.json();
+            setRoles(Array.isArray(rolesData) ? rolesData : []);
+          } else {
+            setRoles([]);
+          }
         }
 
-        // Load attendees
-        const attendeesResponse = await fetch('/api/attendees');
-        if (attendeesResponse.ok) {
-          const attendeesData = await attendeesResponse.json();
-          setAttendees(Array.isArray(attendeesData) ? attendeesData : []);
-        } else {
-          setAttendees([]);
+        // Load attendees (only if user has permission)
+        if (canAccessTab(currentUser.role, 'attendees')) {
+          const attendeesResponse = await fetch('/api/attendees');
+          if (attendeesResponse.ok) {
+            const attendeesData = await attendeesResponse.json();
+            setAttendees(Array.isArray(attendeesData) ? attendeesData : []);
+          } else {
+            setAttendees([]);
+          }
         }
 
-        // Load event settings
-        const settingsResponse = await fetch('/api/event-settings');
-        if (settingsResponse.ok) {
-          const settingsData = await settingsResponse.json();
-          setEventSettings(settingsData);
-        } else {
-          setEventSettings(null);
+        // Load event settings (only if user has permission)
+        if (canAccessTab(currentUser.role, 'settings')) {
+          const settingsResponse = await fetch('/api/event-settings');
+          if (settingsResponse.ok) {
+            const settingsData = await settingsResponse.json();
+            setEventSettings(settingsData);
+          } else {
+            setEventSettings(null);
+          }
         }
 
-        // Load logs with pagination
-        await loadLogs();
+        // Load logs with pagination (only if user has permission)
+        if (canAccessTab(currentUser.role, 'logs')) {
+          await loadLogs();
+        }
 
         // Close loading and show success
         close();
@@ -731,7 +750,7 @@ export default function Dashboard() {
     };
 
     loadData();
-  }, []);
+  }, [currentUser]); // Re-run when currentUser changes
 
   // Real-time subscriptions with debouncing to prevent excessive API calls
   useEffect(() => {
@@ -3392,8 +3411,6 @@ export default function Dashboard() {
                                           return null;
                                         })
                                         .then(fullAttendee => {
--                                          if (fullAttendee) {
--                                            setEditingAttendee(fullAttendee);
                                           if (fullAttendee) {
                                             setEditingAttendee(prev =>
                                               prev?.id === attendee.id

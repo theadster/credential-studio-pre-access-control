@@ -38,15 +38,22 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     permissions: userProfile.role.permissions
   } : null;
 
-  console.log('Role from middleware:', role);
+  // Debug logging (only in development)
+  if (process.env.NODE_ENV === 'development') {
+    console.log('Role from middleware:', role);
+  }
 
   try {
     switch (req.method) {
       case 'GET':
         // Check read permission for users
-        console.log('Checking permission - role:', role, 'resource: users, action: read');
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Checking permission - role:', role, 'resource: users, action: read');
+        }
         const hasReadPermission = hasPermission(role, 'users', 'read');
-        console.log('Has read permission:', hasReadPermission);
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Has read permission:', hasReadPermission);
+        }
         if (!hasReadPermission) {
           return res.status(403).json({ error: 'Insufficient permissions to view users' });
         }

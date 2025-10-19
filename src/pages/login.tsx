@@ -50,9 +50,11 @@ const LoginPage = () => {
       await signIn(email, password);
       router.push('/dashboard');
     } catch (error: any) {
-      console.error('[Login] Login failed:', error);
-      // Error toast is already shown by AuthContext.signIn()
-      // No need to show another toast here to avoid duplication
+      // Error is already shown by AuthContext.signIn() via SweetAlert
+      // Catch silently to prevent Next.js error overlay
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[Login] Login failed:', error);
+      }
     } finally {
       setIsLoading(false);
     }

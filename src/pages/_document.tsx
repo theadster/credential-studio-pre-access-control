@@ -12,7 +12,6 @@ export default function Document() {
       </Head>
       <body>
         <Main />
-        <Script src="https://assets.co.dev/files/codevscript.js" strategy="afterInteractive" />
         <NextScript />
       </body>
     </Html>
