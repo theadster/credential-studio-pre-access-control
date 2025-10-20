@@ -167,7 +167,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             const parsed = typeof existingAttendee.customFieldValues === 'string'
               ? JSON.parse(existingAttendee.customFieldValues)
               : existingAttendee.customFieldValues;
-            
+
             // Convert to object format for easier comparison
             if (Array.isArray(parsed)) {
               // Convert array format to object format
@@ -203,16 +203,32 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
          */
         let printableFieldsMap = new Map<string, boolean>();
         try {
-          const customFieldsDocs = await databases.listDocuments(
-            dbId,
-            customFieldsCollectionId,
-            [Query.limit(100)]
-          );
-          
+          // Fetch all custom fields with pagination to avoid truncation
+          const allCustomFields: any[] = [];
+          let offset = 0;
+          const pageSize = 100;
+
+          while (true) {
+            const customFieldsDocs = await databases.listDocuments(
+              dbId,
+              customFieldsCollectionId,
+              [Query.limit(pageSize), Query.offset(offset)]
+            );
+
+            allCustomFields.push(...customFieldsDocs.documents);
+
+            // If we got fewer than pageSize results, we've reached the end
+            if (customFieldsDocs.documents.length < pageSize) {
+              break;
+            }
+
+            offset += pageSize;
+          }
+
           // Create a map of field ID to printable status
           // Only fields with printable=true are marked as printable
           printableFieldsMap = new Map(
-            customFieldsDocs.documents.map((cf: any) => [cf.$id, cf.printable === true])
+            allCustomFields.map((cf: any) => [cf.$id, cf.printable === true])
           );
         } catch (error) {
           console.error('Failed to fetch custom fields configuration:', error);
@@ -261,12 +277,12 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
               newCustomFieldValues[cfv.customFieldId] = cfv.value;
             }
           });
-          
+
           // Check if any PRINTABLE custom field value is different
           for (const [fieldId, newValue] of Object.entries(newCustomFieldValues)) {
             const oldValue = currentCustomFieldValues[fieldId];
             const isPrintable = printableFieldsMap.size === 0 || printableFieldsMap.get(fieldId) === true;
-            
+
             // If we couldn't fetch custom fields (map is empty), treat all as printable (safe fallback)
             // Otherwise, only check fields that are marked as printable
             if (isPrintable && String(oldValue || '') !== String(newValue || '')) {
@@ -274,12 +290,12 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
               break;
             }
           }
-          
+
           // Also check if any existing PRINTABLE custom field was removed
           if (!hasPrintableCustomFieldChanges) {
             for (const fieldId of Object.keys(currentCustomFieldValues)) {
               const isPrintable = printableFieldsMap.size === 0 || printableFieldsMap.get(fieldId) === true;
-              
+
               if (isPrintable && !(fieldId in newCustomFieldValues) && currentCustomFieldValues[fieldId]) {
                 hasPrintableCustomFieldChanges = true;
                 break;
@@ -287,7 +303,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             }
           }
         }
-        
+
         /**
          * Significant Change Detection
          * 
@@ -308,10 +324,10 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
          * If hasSignificantChanges is true, the lastSignificantUpdate timestamp will be
          * updated to the current time, marking the credential as OUTDATED.
          */
-        const hasSignificantChanges = 
-          (firstName && firstName !== existingAttendee.firstName) ||
-          (lastName && lastName !== existingAttendee.lastName) ||
-          (barcodeNumber && barcodeNumber !== existingAttendee.barcodeNumber) ||
+        const hasSignificantChanges =
+          (firstName !== undefined && firstName !== existingAttendee.firstName) ||
+          (lastName !== undefined && lastName !== existingAttendee.lastName) ||
+          (barcodeNumber !== undefined && barcodeNumber !== existingAttendee.barcodeNumber) ||
           (photoUrl !== undefined && photoUrl !== existingAttendee.photoUrl) ||
           hasPrintableCustomFieldChanges;
 
@@ -367,6 +383,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             updateData.lastSignificantUpdate = existingAttendee.$createdAt || new Date().toISOString();
           }
         }
+        // If no significant changes AND field exists: don't set it (leave unchanged)
         // If lastSignificantUpdate exists and no significant changes, don't update it (leave it as is)
 
         // Update custom field values if provided
@@ -378,12 +395,28 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             const customFieldIds = customFieldValues.map((cfv: any) => cfv.customFieldId).filter(Boolean);
 
             if (customFieldIds.length > 0) {
-              // Fetch custom fields to validate IDs
-              const customFieldsDocs = await databases.listDocuments(
-                dbId,
-                customFieldsCollectionId,
-                [Query.limit(100)]
-              );
+              // Fetch all custom fields to validate IDs with pagination
+              const allCustomFieldsForValidation: any[] = [];
+              let validationOffset = 0;
+              const validationPageSize = 100;
+
+              while (true) {
+                const customFieldsDocs = await databases.listDocuments(
+                  dbId,
+                  customFieldsCollectionId,
+                  [Query.limit(validationPageSize), Query.offset(validationOffset)]
+                );
+
+                allCustomFieldsForValidation.push(...customFieldsDocs.documents);
+
+                if (customFieldsDocs.documents.length < validationPageSize) {
+                  break;
+                }
+
+                validationOffset += validationPageSize;
+              }
+
+              const customFieldsDocs = { documents: allCustomFieldsForValidation };
 
               const existingCustomFieldIds = customFieldsDocs.documents.map(cf => cf.$id);
               const invalidCustomFieldIds = customFieldIds.filter(id => !existingCustomFieldIds.includes(id));
@@ -400,7 +433,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             // Merge new custom field values with existing ones
             // This preserves hidden field values that weren't sent in the update
             const customFieldValuesObj: { [key: string]: string } = { ...currentCustomFieldValues };
-            
+
             // Update only the fields that were sent
             customFieldValues.forEach((cfv: any) => {
               if (cfv.customFieldId) {
@@ -439,12 +472,28 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
         // Check for custom field changes with detailed before/after values
         if (customFieldValues && Array.isArray(customFieldValues)) {
-          // Get all custom fields to map IDs to names
-          const allCustomFieldsDocs = await databases.listDocuments(
-            dbId,
-            customFieldsCollectionId,
-            [Query.limit(100)]
-          );
+          // Get all custom fields to map IDs to names with pagination
+          const allCustomFieldsForMapping: any[] = [];
+          let mappingOffset = 0;
+          const mappingPageSize = 100;
+
+          while (true) {
+            const customFieldsDocs = await databases.listDocuments(
+              dbId,
+              customFieldsCollectionId,
+              [Query.limit(mappingPageSize), Query.offset(mappingOffset)]
+            );
+
+            allCustomFieldsForMapping.push(...customFieldsDocs.documents);
+
+            if (customFieldsDocs.documents.length < mappingPageSize) {
+              break;
+            }
+
+            mappingOffset += mappingPageSize;
+          }
+
+          const allCustomFieldsDocs = { documents: allCustomFieldsForMapping };
 
           const customFieldMap = new Map(
             allCustomFieldsDocs.documents.map(cf => [cf.$id, { name: cf.fieldName, type: cf.fieldType }])
@@ -456,11 +505,29 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
               return 'empty';
             }
             if (fieldType === 'boolean') {
-              // Handle both string and boolean values
-              if (typeof value === 'string') {
-                return value.toLowerCase() === 'yes' ? 'Yes' : 'No';
+              // Handle various boolean representations
+              if (typeof value === 'boolean') {
+                return value ? 'Yes' : 'No';
               }
-              return value ? 'Yes' : 'No';
+              if (typeof value === 'number') {
+                return value === 1 ? 'Yes' : 'No';
+              }
+              if (typeof value === 'string') {
+                const normalized = value.toString().trim().toLowerCase();
+                const truthyValues = ['true', '1', 'yes', 'y', 'on'];
+                const falsyValues = ['false', '0', 'no', 'n', 'off'];
+
+                if (truthyValues.includes(normalized)) {
+                  return 'Yes';
+                } else if (falsyValues.includes(normalized)) {
+                  return 'No';
+                } else {
+                  // Non-boolean string, wrap in quotes
+                  return `"${value}"`;
+                }
+              }
+              // Other types, wrap in quotes
+              return `"${value}"`;
             }
             return `"${value}"`;
           };
@@ -508,60 +575,60 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
         // Use transaction-based approach
         console.log('[Attendee Update] Using transaction-based approach');
-          
-          try {
-            const { tablesDB } = createSessionClient(req);
-            const { executeTransactionWithRetry, handleTransactionError } = await import('@/lib/transactions');
-            
-            // Build transaction operations
-            const operations: any[] = [
-              {
-                action: 'update',
-                databaseId: dbId,
-                tableId: attendeesCollectionId,
-                rowId: id,
-                data: updateData
-              }
-            ];
 
-            // Add audit log if enabled
-            if (await shouldLog('attendeeUpdate')) {
-              const { createAttendeeLogDetails } = await import('@/lib/logFormatting');
-              operations.push({
-                action: 'create',
-                databaseId: dbId,
-                tableId: logsCollectionId,
-                rowId: ID.unique(),
-                data: {
-                  userId: user.$id,
-                  attendeeId: id,
-                  action: 'update',
-                  details: JSON.stringify({
-                    ...createAttendeeLogDetails('update', {
-                      firstName: updateData.firstName,
-                      lastName: updateData.lastName,
-                      barcodeNumber: updateData.barcodeNumber
-                    }, {
-                      changes: changeDetails
-                    }),
-                    timestamp: new Date().toISOString()
-                  })
-                }
-              });
+        try {
+          const { tablesDB } = createSessionClient(req);
+          const { executeTransactionWithRetry, handleTransactionError } = await import('@/lib/transactions');
+
+          // Build transaction operations
+          const operations: any[] = [
+            {
+              action: 'update',
+              databaseId: dbId,
+              tableId: attendeesCollectionId,
+              rowId: id,
+              data: updateData
             }
+          ];
 
-            // Execute transaction with retry logic
-            await executeTransactionWithRetry(tablesDB, operations);
-
-            // Fetch the updated attendee to return to client
-            finalAttendee = await databases.getDocument(dbId, attendeesCollectionId, id);
-            
-            console.log('[Attendee Update] Transaction completed successfully');
-          } catch (error: any) {
-            console.error('[Attendee Update] Transaction failed:', error);
-            const { handleTransactionError } = await import('@/lib/transactions');
-            return handleTransactionError(error, res);
+          // Add audit log if enabled
+          if (await shouldLog('attendeeUpdate')) {
+            const { createAttendeeLogDetails } = await import('@/lib/logFormatting');
+            operations.push({
+              action: 'create',
+              databaseId: dbId,
+              tableId: logsCollectionId,
+              rowId: ID.unique(),
+              data: {
+                userId: user.$id,
+                attendeeId: id,
+                action: 'update',
+                details: JSON.stringify({
+                  ...createAttendeeLogDetails('update', {
+                    firstName: updateData.firstName,
+                    lastName: updateData.lastName,
+                    barcodeNumber: updateData.barcodeNumber
+                  }, {
+                    changes: changeDetails
+                  }),
+                  timestamp: new Date().toISOString()
+                })
+              }
+            });
           }
+
+          // Execute transaction with retry logic
+          await executeTransactionWithRetry(tablesDB, operations);
+
+          // Fetch the updated attendee to return to client
+          finalAttendee = await databases.getDocument(dbId, attendeesCollectionId, id);
+
+          console.log('[Attendee Update] Transaction completed successfully');
+        } catch (error: any) {
+          console.error('[Attendee Update] Transaction failed:', error);
+          const { handleTransactionError } = await import('@/lib/transactions');
+          return handleTransactionError(error, res);
+        }
 
         // Parse and return the updated attendee with proper structure
         const customFieldValuesArray = parseCustomFieldValues(finalAttendee.customFieldValues);
@@ -598,53 +665,53 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
         // Use transaction-based approach
         console.log('[Attendee Delete] Using transaction-based approach');
-          
-          try {
-            const { tablesDB } = createSessionClient(req);
-            const { executeTransactionWithRetry, handleTransactionError } = await import('@/lib/transactions');
-            
-            // Build transaction operations
-            const deleteOperations: any[] = [
-              {
-                action: 'delete',
-                databaseId: dbId,
-                tableId: attendeesCollectionId,
-                rowId: id
-              }
-            ];
 
-            // Add audit log if enabled
-            if (await shouldLog('attendeeDelete')) {
-              const { createAttendeeLogDetails } = await import('@/lib/logFormatting');
-              deleteOperations.push({
-                action: 'create',
-                databaseId: dbId,
-                tableId: logsCollectionId,
-                rowId: ID.unique(),
-                data: {
-                  userId: user.$id,
-                  action: 'delete',
-                  details: JSON.stringify({
-                    ...createAttendeeLogDetails('delete', {
-                      firstName: attendeeToDelete.firstName,
-                      lastName: attendeeToDelete.lastName,
-                      barcodeNumber: attendeeToDelete.barcodeNumber
-                    }),
-                    timestamp: new Date().toISOString()
-                  })
-                }
-              });
+        try {
+          const { tablesDB } = createSessionClient(req);
+          const { executeTransactionWithRetry, handleTransactionError } = await import('@/lib/transactions');
+
+          // Build transaction operations
+          const deleteOperations: any[] = [
+            {
+              action: 'delete',
+              databaseId: dbId,
+              tableId: attendeesCollectionId,
+              rowId: id
             }
+          ];
 
-            // Execute transaction with retry logic
-            await executeTransactionWithRetry(tablesDB, deleteOperations);
-            
-            console.log('[Attendee Delete] Transaction completed successfully');
-          } catch (error: any) {
-            console.error('[Attendee Delete] Transaction failed:', error);
-            const { handleTransactionError } = await import('@/lib/transactions');
-            return handleTransactionError(error, res);
+          // Add audit log if enabled
+          if (await shouldLog('attendeeDelete')) {
+            const { createAttendeeLogDetails } = await import('@/lib/logFormatting');
+            deleteOperations.push({
+              action: 'create',
+              databaseId: dbId,
+              tableId: logsCollectionId,
+              rowId: ID.unique(),
+              data: {
+                userId: user.$id,
+                action: 'delete',
+                details: JSON.stringify({
+                  ...createAttendeeLogDetails('delete', {
+                    firstName: attendeeToDelete.firstName,
+                    lastName: attendeeToDelete.lastName,
+                    barcodeNumber: attendeeToDelete.barcodeNumber
+                  }),
+                  timestamp: new Date().toISOString()
+                })
+              }
+            });
           }
+
+          // Execute transaction with retry logic
+          await executeTransactionWithRetry(tablesDB, deleteOperations);
+
+          console.log('[Attendee Delete] Transaction completed successfully');
+        } catch (error: any) {
+          console.error('[Attendee Delete] Transaction failed:', error);
+          const { handleTransactionError } = await import('@/lib/transactions');
+          return handleTransactionError(error, res);
+        }
 
         return res.status(200).json({ message: 'Attendee deleted successfully' });
 

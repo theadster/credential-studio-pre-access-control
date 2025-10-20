@@ -213,13 +213,13 @@ describe('Printable Field Integration Tests', () => {
 
       expect(updateOp).toBeDefined();
       
-      // Verify: lastSignificantUpdate was NOT updated (or is the same)
-      if (updateOp.data.lastSignificantUpdate) {
-        expect(updateOp.data.lastSignificantUpdate).toBe('2024-01-01T00:00:00.000Z');
-      }
+      // Verify: lastSignificantUpdate was NOT updated (field omitted from update data)
+      // According to implementation: "Do NOT initialize lastSignificantUpdate for non-printable changes"
+      expect(updateOp.data.lastSignificantUpdate).toBeUndefined();
 
       // Verify: Credential remains CURRENT (lastSignificantUpdate < credentialGeneratedAt)
-      const finalLastUpdate = updateOp.data.lastSignificantUpdate || existingAttendee.lastSignificantUpdate;
+      // Since lastSignificantUpdate was not updated, use the original value
+      const finalLastUpdate = existingAttendee.lastSignificantUpdate;
       expect(new Date(finalLastUpdate).getTime())
         .toBeLessThan(new Date(existingAttendee.credentialGeneratedAt).getTime());
 

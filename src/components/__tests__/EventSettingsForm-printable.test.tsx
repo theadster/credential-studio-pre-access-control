@@ -70,7 +70,7 @@ describe('EventSettingsForm - Printable Field Functionality', () => {
   describe('Requirement 1.1 & 6.1: Printable toggle in custom field form', () => {
     it('should display printable toggle with correct label and icon', async () => {
       const user = userEvent.setup();
-      
+
       render(
         <EventSettingsForm
           isOpen={true}
@@ -105,14 +105,14 @@ describe('EventSettingsForm - Printable Field Functionality', () => {
       // Check that the Printer icon is present
       const printableSection = printableLabel.closest('div');
       expect(printableSection).toBeInTheDocument();
-      
+
       // Check for the help text
       expect(screen.getByText(/mark this field as printable if it appears on the credential/i)).toBeInTheDocument();
     });
 
     it('should have printable toggle positioned after "Show on Main Page" toggle', async () => {
       const user = userEvent.setup();
-      
+
       render(
         <EventSettingsForm
           isOpen={true}
@@ -149,10 +149,10 @@ describe('EventSettingsForm - Printable Field Functionality', () => {
 
       // Verify printable comes after showOnMainPage in the DOM
       const allToggles = screen.getAllByRole('switch');
-      const showOnMainPageSwitch = allToggles.find(toggle => 
+      const showOnMainPageSwitch = allToggles.find(toggle =>
         toggle.id === 'showOnMainPage'
       );
-      const printableSwitch = allToggles.find(toggle => 
+      const printableSwitch = allToggles.find(toggle =>
         toggle.id === 'printable'
       );
 
@@ -164,7 +164,7 @@ describe('EventSettingsForm - Printable Field Functionality', () => {
   describe('Requirement 6.2: Help text explanation', () => {
     it('should display help text explaining printable field purpose', async () => {
       const user = userEvent.setup();
-      
+
       render(
         <EventSettingsForm
           isOpen={true}
@@ -192,7 +192,7 @@ describe('EventSettingsForm - Printable Field Functionality', () => {
       const helpText = screen.getByText(/mark this field as printable if it appears on the credential/i);
       expect(helpText).toBeInTheDocument();
       expect(helpText).toHaveClass('text-xs', 'text-muted-foreground');
-      
+
       // Verify it mentions credential status
       expect(screen.getByText(/changes to printable fields will mark credentials as outdated and require reprinting/i)).toBeInTheDocument();
     });
@@ -201,7 +201,7 @@ describe('EventSettingsForm - Printable Field Functionality', () => {
   describe('Requirement 1.1: Toggle functionality', () => {
     it('should toggle printable flag when switch is clicked', async () => {
       const user = userEvent.setup();
-      
+
       render(
         <EventSettingsForm
           isOpen={true}
@@ -226,35 +226,39 @@ describe('EventSettingsForm - Printable Field Functionality', () => {
       });
 
       // Find the printable switch
-      const printableSwitch = screen.getAllByRole('switch').find(toggle => 
+      const printableSwitch = screen.getAllByRole('switch').find(toggle =>
         toggle.id === 'printable'
       );
-      
+
       expect(printableSwitch).toBeInTheDocument();
-      
+      expect(printableSwitch).not.toBeNull();
+
+      // Type assertion after null check
+      const printableSwitchElement = printableSwitch as HTMLElement;
+
       // Initially should be unchecked (default false)
-      expect(printableSwitch).not.toBeChecked();
+      expect(printableSwitchElement).not.toBeChecked();
 
       // Click to enable
-      await user.click(printableSwitch!);
-      
+      await user.click(printableSwitchElement);
+
       // Should now be checked
       await waitFor(() => {
-        expect(printableSwitch).toBeChecked();
+        expect(printableSwitchElement).toBeChecked();
       });
 
       // Click again to disable
-      await user.click(printableSwitch!);
-      
+      await user.click(printableSwitchElement);
+
       // Should be unchecked again
       await waitFor(() => {
-        expect(printableSwitch).not.toBeChecked();
+        expect(printableSwitchElement).not.toBeChecked();
       });
     });
 
     it('should default to false for new fields', async () => {
       const user = userEvent.setup();
-      
+
       render(
         <EventSettingsForm
           isOpen={true}
@@ -279,10 +283,10 @@ describe('EventSettingsForm - Printable Field Functionality', () => {
       });
 
       // Find the printable switch
-      const printableSwitch = screen.getAllByRole('switch').find(toggle => 
+      const printableSwitch = screen.getAllByRole('switch').find(toggle =>
         toggle.id === 'printable'
       );
-      
+
       // Should default to unchecked (false)
       expect(printableSwitch).not.toBeChecked();
     });
@@ -291,7 +295,7 @@ describe('EventSettingsForm - Printable Field Functionality', () => {
   describe('Requirement 1.3 & 6.3: Printable badge display', () => {
     it('should display printable badge for printable fields in the field list', async () => {
       const user = userEvent.setup();
-      
+
       render(
         <EventSettingsForm
           isOpen={true}
@@ -312,21 +316,25 @@ describe('EventSettingsForm - Printable Field Functionality', () => {
         // The Company field should have a Printable badge
         const printableBadges = screen.getAllByText('Printable');
         expect(printableBadges.length).toBeGreaterThan(0);
-        
+
         // Find the Company field row
         const companyField = screen.getByText('Company');
         const companyRow = companyField.closest('.flex');
-        
+
         // Check that the Printable badge is in the same row
         expect(companyRow).toBeInTheDocument();
-        const badgeInRow = within(companyRow!).queryByText('Printable');
+        expect(companyRow).not.toBeNull();
+
+        // Type assertion after null check
+        const companyRowElement = companyRow as HTMLElement;
+        const badgeInRow = within(companyRowElement).queryByText('Printable');
         expect(badgeInRow).toBeInTheDocument();
       });
     });
 
     it('should NOT display printable badge for non-printable fields', async () => {
       const user = userEvent.setup();
-      
+
       render(
         <EventSettingsForm
           isOpen={true}
@@ -347,45 +355,23 @@ describe('EventSettingsForm - Printable Field Functionality', () => {
         // Find the Internal Notes field row
         const internalNotesField = screen.getByText('Internal Notes');
         const internalNotesRow = internalNotesField.closest('.flex');
-        
+
         // Check that the Printable badge is NOT in this row
         expect(internalNotesRow).toBeInTheDocument();
-        const badgeInRow = within(internalNotesRow!).queryByText('Printable');
+        expect(internalNotesRow).not.toBeNull();
+
+        // Type assertion after null check
+        const internalNotesRowElement = internalNotesRow as HTMLElement;
+        const badgeInRow = within(internalNotesRowElement).queryByText('Printable');
         expect(badgeInRow).not.toBeInTheDocument();
       });
     });
 
-    it('should have tooltip content defined for printable badge', async () => {
-      const user = userEvent.setup();
-      
-      render(
-        <EventSettingsForm
-          isOpen={true}
-          onClose={vi.fn()}
-          onSave={vi.fn()}
-          eventSettings={mockEventSettings}
-        />
-      );
 
-      await waitFor(() => {
-        expect(screen.getByText('Edit Event Settings')).toBeInTheDocument();
-      });
-
-      const customFieldsTab = screen.getByRole('tab', { name: /custom fields/i });
-      await user.click(customFieldsTab);
-
-      await waitFor(() => {
-        const printableBadges = screen.getAllByText('Printable');
-        expect(printableBadges.length).toBeGreaterThan(0);
-        
-        // Verify the badge exists (tooltip functionality is tested in the component itself)
-        expect(printableBadges[0]).toBeInTheDocument();
-      });
-    });
 
     it('should display printer icon in printable badge', async () => {
       const user = userEvent.setup();
-      
+
       render(
         <EventSettingsForm
           isOpen={true}
@@ -405,11 +391,11 @@ describe('EventSettingsForm - Printable Field Functionality', () => {
       await waitFor(() => {
         const printableBadges = screen.getAllByText('Printable');
         expect(printableBadges.length).toBeGreaterThan(0);
-        
+
         // Check that the badge has the printer icon class
         const badge = printableBadges[0].closest('.text-xs');
         expect(badge).toBeInTheDocument();
-        
+
         // The badge should contain an svg (Printer icon)
         const svg = badge?.querySelector('svg');
         expect(svg).toBeInTheDocument();
@@ -420,7 +406,7 @@ describe('EventSettingsForm - Printable Field Functionality', () => {
   describe('Requirement 1.2 & 1.4: Editing existing fields', () => {
     it('should display printable fields with correct badge in field list', async () => {
       const user = userEvent.setup();
-      
+
       render(
         <EventSettingsForm
           isOpen={true}
@@ -442,14 +428,18 @@ describe('EventSettingsForm - Printable Field Functionality', () => {
         expect(screen.getByText('Company')).toBeInTheDocument();
         const companyField = screen.getByText('Company');
         const companyRow = companyField.closest('.flex');
-        const printableBadge = within(companyRow!).queryByText('Printable');
+        expect(companyRow).not.toBeNull();
+
+        // Type assertion after null check
+        const companyRowElement = companyRow as HTMLElement;
+        const printableBadge = within(companyRowElement).queryByText('Printable');
         expect(printableBadge).toBeInTheDocument();
       });
     });
 
     it('should display non-printable fields without printable badge in field list', async () => {
       const user = userEvent.setup();
-      
+
       render(
         <EventSettingsForm
           isOpen={true}
@@ -471,7 +461,11 @@ describe('EventSettingsForm - Printable Field Functionality', () => {
         expect(screen.getByText('Internal Notes')).toBeInTheDocument();
         const internalNotesField = screen.getByText('Internal Notes');
         const internalNotesRow = internalNotesField.closest('.flex');
-        const printableBadge = within(internalNotesRow!).queryByText('Printable');
+        expect(internalNotesRow).not.toBeNull();
+
+        // Type assertion after null check
+        const internalNotesRowElement = internalNotesRow as HTMLElement;
+        const printableBadge = within(internalNotesRowElement).queryByText('Printable');
         expect(printableBadge).not.toBeInTheDocument();
       });
     });
@@ -481,7 +475,7 @@ describe('EventSettingsForm - Printable Field Functionality', () => {
     it('should include printable value when saving a new field', async () => {
       const user = userEvent.setup();
       const onSave = vi.fn();
-      
+
       render(
         <EventSettingsForm
           isOpen={true}
@@ -510,10 +504,15 @@ describe('EventSettingsForm - Printable Field Functionality', () => {
       await user.type(fieldNameInput, 'Badge Title');
 
       // Enable printable
-      const printableSwitch = screen.getAllByRole('switch').find(toggle => 
+      const printableSwitch = screen.getAllByRole('switch').find(toggle =>
         toggle.id === 'printable'
       );
-      await user.click(printableSwitch!);
+      expect(printableSwitch).toBeInTheDocument();
+      expect(printableSwitch).not.toBeNull();
+
+      // Type assertion after null check
+      const printableSwitchElement = printableSwitch as HTMLElement;
+      await user.click(printableSwitchElement);
 
       // Save the field
       const saveButton = screen.getByRole('button', { name: /add field/i });
@@ -523,11 +522,15 @@ describe('EventSettingsForm - Printable Field Functionality', () => {
       await waitFor(() => {
         // Check that the new field appears in the list
         expect(screen.getByText('Badge Title')).toBeInTheDocument();
-        
+
         // Check that it has the Printable badge
         const badgeTitleField = screen.getByText('Badge Title');
         const badgeTitleRow = badgeTitleField.closest('.flex');
-        const printableBadge = within(badgeTitleRow!).queryByText('Printable');
+        expect(badgeTitleRow).not.toBeNull();
+
+        // Type assertion after null check
+        const badgeTitleRowElement = badgeTitleRow as HTMLElement;
+        const printableBadge = within(badgeTitleRowElement).queryByText('Printable');
         expect(printableBadge).toBeInTheDocument();
       });
     });

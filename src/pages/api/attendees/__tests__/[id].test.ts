@@ -1,13 +1,20 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
 import handler from '../[id]';
-import { mockAccount, mockDatabases, resetAllMocks } from '@/test/mocks/appwrite';
+import { mockAccount, mockDatabases, mockTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
+
+// Extend NextApiRequest to include authentication properties
+interface AuthenticatedRequest extends NextApiRequest {
+  user?: any;
+  userProfile?: any;
+}
 
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn((req: NextApiRequest) => ({
     account: mockAccount,
     databases: mockDatabases,
+    tablesDB: mockTablesDB,
   })),
 }));
 
@@ -20,8 +27,53 @@ vi.mock('@/lib/apiMiddleware', () => ({
   AuthenticatedRequest: {} as any,
 }));
 
+// Mock log settings
+vi.mock('@/lib/logSettings', () => ({
+  shouldLog: vi.fn(() => Promise.resolve(true)),
+}));
+
+// Mock log formatting
+vi.mock('@/lib/logFormatting', () => ({
+  createAttendeeLogDetails: vi.fn((action: string, attendeeData: any, extra?: any) => ({
+    type: `attendee_${action}`,
+    attendeeId: attendeeData.id || 'attendee-123',
+    firstName: attendeeData.firstName,
+    lastName: attendeeData.lastName,
+    barcodeNumber: attendeeData.barcodeNumber,
+    ...extra
+  })),
+}));
+
+// Mock transactions module to forward to mockTablesDB
+const mockExecuteTransactionWithRetry = vi.fn(async (tablesDB: any, operations: any[]) => {
+  const transaction = await tablesDB.createTransaction();
+  await tablesDB.createOperations({
+    transactionId: transaction.$id,
+    operations,
+  });
+  await tablesDB.updateTransaction({
+    transactionId: transaction.$id,
+    commit: true,
+  });
+
+  return {
+    success: true,
+    transactionId: transaction.$id,
+    operationsCount: operations.length,
+  };
+});
+
+const mockHandleTransactionError = vi.fn((error: any, res: any) => {
+  res.status(500).json({ error: 'Transaction failed' });
+});
+
+vi.mock('@/lib/transactions', () => ({
+  executeTransactionWithRetry: mockExecuteTransactionWithRetry,
+  handleTransactionError: mockHandleTransactionError,
+}));
+
 describe('/api/attendees/[id] - Attendee Detail API', () => {
-  let mockReq: Partial<NextApiRequest>;
+  let mockReq: Partial<AuthenticatedRequest>;
   let mockRes: Partial<NextApiResponse>;
   let jsonMock: ReturnType<typeof vi.fn>;
   let statusMock: ReturnType<typeof vi.fn>;
@@ -77,10 +129,15 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
 
   beforeEach(() => {
     resetAllMocks();
-    
+
     jsonMock = vi.fn();
     statusMock = vi.fn(() => ({ json: jsonMock }));
-    
+
+    // Configure transaction mocks
+    mockTablesDB.createTransaction.mockResolvedValue({ $id: 'transaction-123' });
+    mockTablesDB.createOperations.mockResolvedValue(undefined);
+    mockTablesDB.updateTransaction.mockResolvedValue(undefined);
+
     mockReq = {
       method: 'GET',
       cookies: { 'appwrite-session': 'test-session' },
@@ -98,7 +155,7 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
         },
       },
     } as any;
-    
+
     mockRes = {
       status: statusMock as any,
       setHeader: vi.fn(),
@@ -123,7 +180,7 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
     it('should return 400 if attendee ID is missing', async () => {
       mockReq.query = {};
 
-      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+      await handler(mockReq as AuthenticatedRequest, mockRes as NextApiResponse);
 
       expect(statusMock).toHaveBeenCalledWith(400);
       expect(jsonMock).toHaveBeenCalledWith({ error: 'Invalid attendee ID' });
@@ -132,7 +189,7 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
     it('should return 400 if attendee ID is not a string', async () => {
       mockReq.query = { id: ['array', 'value'] };
 
-      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+      await handler(mockReq as AuthenticatedRequest, mockRes as NextApiResponse);
 
       expect(statusMock).toHaveBeenCalledWith(400);
       expect(jsonMock).toHaveBeenCalledWith({ error: 'Invalid attendee ID' });
@@ -143,7 +200,7 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
     it('should return attendee details for authorized user', async () => {
       mockDatabases.getDocument.mockResolvedValueOnce(mockAttendee);
 
-      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+      await handler(mockReq as AuthenticatedRequest, mockRes as NextApiResponse);
 
       expect(statusMock).toHaveBeenCalledWith(200);
       expect(jsonMock).toHaveBeenCalledWith(mockAttendee);
@@ -166,7 +223,7 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
         },
       };
 
-      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+      await handler(mockReq as AuthenticatedRequest, mockRes as NextApiResponse);
 
       expect(statusMock).toHaveBeenCalledWith(403);
       expect(jsonMock).toHaveBeenCalledWith({
@@ -180,7 +237,7 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
 
       mockDatabases.getDocument.mockRejectedValueOnce(error);
 
-      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+      await handler(mockReq as AuthenticatedRequest, mockRes as NextApiResponse);
 
       expect(statusMock).toHaveBeenCalledWith(404);
     });
@@ -188,7 +245,7 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
     it('should create log entry for viewing attendee', async () => {
       mockDatabases.getDocument.mockResolvedValueOnce(mockAttendee);
 
-      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+      await handler(mockReq as AuthenticatedRequest, mockRes as NextApiResponse);
 
       expect(mockDatabases.createDocument).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
@@ -239,7 +296,7 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
 
       mockDatabases.updateDocument.mockResolvedValue(updatedAttendee);
 
-      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+      await handler(mockReq as AuthenticatedRequest, mockRes as NextApiResponse);
 
       expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
@@ -269,7 +326,7 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
         },
       };
 
-      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+      await handler(mockReq as AuthenticatedRequest, mockRes as NextApiResponse);
 
       expect(statusMock).toHaveBeenCalledWith(403);
       expect(jsonMock).toHaveBeenCalledWith({
@@ -283,7 +340,7 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
 
       mockDatabases.getDocument.mockRejectedValueOnce(error);
 
-      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+      await handler(mockReq as AuthenticatedRequest, mockRes as NextApiResponse);
 
       expect(statusMock).toHaveBeenCalledWith(404);
     });
@@ -296,7 +353,7 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
 
       mockDatabases.getDocument.mockResolvedValueOnce(mockAttendee);
 
-      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+      await handler(mockReq as AuthenticatedRequest, mockRes as NextApiResponse);
 
       expect(statusMock).toHaveBeenCalledWith(400);
       expect(jsonMock).toHaveBeenCalledWith({ error: 'Barcode number already exists' });
@@ -320,7 +377,7 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
 
       mockDatabases.updateDocument.mockResolvedValue(updatedAttendee);
 
-      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+      await handler(mockReq as AuthenticatedRequest, mockRes as NextApiResponse);
 
       expect(statusMock).toHaveBeenCalledWith(200);
     });
@@ -336,7 +393,7 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
 
       mockDatabases.getDocument.mockResolvedValueOnce(mockAttendee);
 
-      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+      await handler(mockReq as AuthenticatedRequest, mockRes as NextApiResponse);
 
       expect(statusMock).toHaveBeenCalledWith(400);
       expect(jsonMock).toHaveBeenCalledWith(
@@ -363,7 +420,7 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
 
       mockDatabases.updateDocument.mockResolvedValue(updatedAttendee);
 
-      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+      await handler(mockReq as AuthenticatedRequest, mockRes as NextApiResponse);
 
       expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
@@ -394,7 +451,7 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
 
       mockDatabases.updateDocument.mockResolvedValue(updatedAttendee);
 
-      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+      await handler(mockReq as AuthenticatedRequest, mockRes as NextApiResponse);
 
       expect(mockDatabases.createDocument).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
@@ -419,7 +476,7 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
       mockDatabases.getDocument.mockResolvedValueOnce(mockAttendee);
       mockDatabases.deleteDocument.mockResolvedValue({ success: true });
 
-      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+      await handler(mockReq as AuthenticatedRequest, mockRes as NextApiResponse);
 
       expect(mockDatabases.deleteDocument).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
@@ -442,7 +499,7 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
         },
       };
 
-      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+      await handler(mockReq as AuthenticatedRequest, mockRes as NextApiResponse);
 
       expect(statusMock).toHaveBeenCalledWith(403);
       expect(jsonMock).toHaveBeenCalledWith({
@@ -456,7 +513,7 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
 
       mockDatabases.getDocument.mockRejectedValueOnce(error);
 
-      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+      await handler(mockReq as AuthenticatedRequest, mockRes as NextApiResponse);
 
       expect(statusMock).toHaveBeenCalledWith(404);
     });
@@ -465,7 +522,7 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
       mockDatabases.getDocument.mockResolvedValueOnce(mockAttendee);
       mockDatabases.deleteDocument.mockResolvedValue({ success: true });
 
-      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+      await handler(mockReq as AuthenticatedRequest, mockRes as NextApiResponse);
 
       expect(mockDatabases.createDocument).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
@@ -484,7 +541,7 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
     it('should return 405 for unsupported methods', async () => {
       mockReq.method = 'PATCH';
 
-      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+      await handler(mockReq as AuthenticatedRequest, mockRes as NextApiResponse);
 
       expect(statusMock).toHaveBeenCalledWith(405);
       expect(jsonMock).toHaveBeenCalledWith({ error: 'Method PATCH not allowed' });
@@ -525,35 +582,45 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
         ],
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [], total: 0 }) // Check barcode uniqueness
-        .mockResolvedValueOnce({ documents: mockCustomFields, total: 2 }); // Custom fields
-
-      mockDatabases.getDocument
-        .mockResolvedValueOnce(existingAttendee) // Existing attendee
-        .mockResolvedValueOnce(existingAttendee); // Final attendee after update
-
-      mockDatabases.updateDocument.mockResolvedValue({
-        ...existingAttendee,
-        customFieldValues: JSON.stringify({ 'field-1': 'new@email.com', 'field-2': 'old notes' }),
-        lastSignificantUpdate: '2024-01-06T00:00:00.000Z',
+      // Mock listDocuments to handle different collection calls properly
+      mockDatabases.listDocuments.mockImplementation((dbId: string, collectionId: string, queries?: any[]) => {
+        // Check if this is a barcode uniqueness check (has Query.equal for barcodeNumber)
+        if (queries && queries.some((q: any) => q.toString().includes('barcodeNumber'))) {
+          return Promise.resolve({ documents: [], total: 0 });
+        }
+        // Check if this is a custom fields collection call
+        if (collectionId === process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID) {
+          return Promise.resolve({ documents: mockCustomFields, total: mockCustomFields.length });
+        }
+        // Default fallback
+        return Promise.resolve({ documents: [], total: 0 });
       });
 
-      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+      mockDatabases.getDocument.mockResolvedValue(existingAttendee);
 
-      expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID,
-        'attendee-123',
-        expect.objectContaining({
-          lastSignificantUpdate: expect.any(String),
-        })
-      );
+      await handler(mockReq as AuthenticatedRequest, mockRes as NextApiResponse);
 
-      // Verify lastSignificantUpdate was updated (should be different from original)
-      const updateCall = mockDatabases.updateDocument.mock.calls[0];
-      const updatedData = updateCall[3];
-      expect(updatedData.lastSignificantUpdate).not.toBe('2024-01-01T00:00:00.000Z');
+      // Verify transaction operations were created
+      expect(mockTablesDB.createOperations).toHaveBeenCalled();
+      const operationsCall = mockTablesDB.createOperations.mock.calls[0];
+      const operations = operationsCall[0].operations;
+
+      // Should have 2 operations: attendee update + audit log
+      expect(operations).toHaveLength(2);
+
+      // Check attendee update operation
+      const updateOp = operations.find((op: any) => op.action === 'update');
+      expect(updateOp).toBeDefined();
+      expect(updateOp.rowId).toBe('attendee-123');
+      expect(updateOp.data).toEqual(expect.objectContaining({
+        customFieldValues: JSON.stringify({ 'field-1': 'new@email.com', 'field-2': 'old notes' }),
+        lastSignificantUpdate: expect.any(String),
+      }));
+
+      // Check audit log operation
+      const logOp = operations.find((op: any) => op.action === 'create');
+      expect(logOp).toBeDefined();
+      expect(logOp.tableId).toBe(process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID);
     });
 
     it('should NOT update lastSignificantUpdate when only non-printable field changes', async () => {
@@ -585,31 +652,47 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
         ],
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [], total: 0 }) // Check barcode uniqueness
-        .mockResolvedValueOnce({ documents: mockCustomFields, total: 2 }); // Custom fields
-
-      mockDatabases.getDocument
-        .mockResolvedValueOnce(existingAttendee) // Existing attendee
-        .mockResolvedValueOnce(existingAttendee); // Final attendee after update
-
-      mockDatabases.updateDocument.mockResolvedValue({
-        ...existingAttendee,
-        customFieldValues: JSON.stringify({ 'field-1': 'email@test.com', 'field-2': 'new notes' }),
+      // Mock listDocuments to handle different collection calls properly
+      mockDatabases.listDocuments.mockImplementation((dbId: string, collectionId: string, queries?: any[]) => {
+        // Check if this is a barcode uniqueness check (has Query.equal for barcodeNumber)
+        if (queries && queries.some((q: any) => q.toString().includes('barcodeNumber'))) {
+          return Promise.resolve({ documents: [], total: 0 });
+        }
+        // Check if this is a custom fields collection call
+        if (collectionId === process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID) {
+          return Promise.resolve({ documents: mockCustomFields, total: mockCustomFields.length });
+        }
+        // Default fallback
+        return Promise.resolve({ documents: [], total: 0 });
       });
 
-      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+      mockDatabases.getDocument.mockResolvedValue(existingAttendee);
 
-      expect(mockDatabases.updateDocument).toHaveBeenCalled();
-      
-      // Verify lastSignificantUpdate was NOT updated (should be same as original or not present)
-      const updateCall = mockDatabases.updateDocument.mock.calls[0];
-      const updatedData = updateCall[3];
-      
-      // Either lastSignificantUpdate is not in the update, or it's the same as before
-      if (updatedData.lastSignificantUpdate) {
-        expect(updatedData.lastSignificantUpdate).toBe('2024-01-01T00:00:00.000Z');
-      }
+      await handler(mockReq as AuthenticatedRequest, mockRes as NextApiResponse);
+
+      // Verify transaction operations were created
+      expect(mockTablesDB.createOperations).toHaveBeenCalled();
+      const operationsCall = mockTablesDB.createOperations.mock.calls[0];
+      const operations = operationsCall[0].operations;
+
+      // Should have 2 operations: attendee update + audit log
+      expect(operations).toHaveLength(2);
+
+      // Check attendee update operation
+      const updateOp = operations.find((op: any) => op.action === 'update');
+      expect(updateOp).toBeDefined();
+      expect(updateOp.rowId).toBe('attendee-123');
+      expect(updateOp.data).toEqual(expect.objectContaining({
+        customFieldValues: JSON.stringify({ 'field-1': 'email@test.com', 'field-2': 'new notes' }),
+      }));
+
+      // Verify lastSignificantUpdate was NOT included in the update
+      expect(updateOp.data.lastSignificantUpdate).toBeUndefined();
+
+      // Check audit log operation
+      const logOp = operations.find((op: any) => op.action === 'create');
+      expect(logOp).toBeDefined();
+      expect(logOp.tableId).toBe(process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID);
     });
 
     it('should update lastSignificantUpdate when both printable and non-printable fields change', async () => {
@@ -641,35 +724,45 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
         ],
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [], total: 0 }) // Check barcode uniqueness
-        .mockResolvedValueOnce({ documents: mockCustomFields, total: 2 }); // Custom fields
-
-      mockDatabases.getDocument
-        .mockResolvedValueOnce(existingAttendee) // Existing attendee
-        .mockResolvedValueOnce(existingAttendee); // Final attendee after update
-
-      mockDatabases.updateDocument.mockResolvedValue({
-        ...existingAttendee,
-        customFieldValues: JSON.stringify({ 'field-1': 'new@email.com', 'field-2': 'new notes' }),
-        lastSignificantUpdate: '2024-01-06T00:00:00.000Z',
+      // Mock listDocuments to handle different collection calls properly
+      mockDatabases.listDocuments.mockImplementation((dbId: string, collectionId: string, queries?: any[]) => {
+        // Check if this is a barcode uniqueness check (has Query.equal for barcodeNumber)
+        if (queries && queries.some((q: any) => q.toString().includes('barcodeNumber'))) {
+          return Promise.resolve({ documents: [], total: 0 });
+        }
+        // Check if this is a custom fields collection call
+        if (collectionId === process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID) {
+          return Promise.resolve({ documents: mockCustomFields, total: mockCustomFields.length });
+        }
+        // Default fallback
+        return Promise.resolve({ documents: [], total: 0 });
       });
 
-      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+      mockDatabases.getDocument.mockResolvedValue(existingAttendee);
 
-      expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID,
-        'attendee-123',
-        expect.objectContaining({
-          lastSignificantUpdate: expect.any(String),
-        })
-      );
+      await handler(mockReq as AuthenticatedRequest, mockRes as NextApiResponse);
 
-      // Verify lastSignificantUpdate was updated
-      const updateCall = mockDatabases.updateDocument.mock.calls[0];
-      const updatedData = updateCall[3];
-      expect(updatedData.lastSignificantUpdate).not.toBe('2024-01-01T00:00:00.000Z');
+      // Verify transaction operations were created
+      expect(mockTablesDB.createOperations).toHaveBeenCalled();
+      const operationsCall = mockTablesDB.createOperations.mock.calls[0];
+      const operations = operationsCall[0].operations;
+
+      // Should have 2 operations: attendee update + audit log
+      expect(operations).toHaveLength(2);
+
+      // Check attendee update operation
+      const updateOp = operations.find((op: any) => op.action === 'update');
+      expect(updateOp).toBeDefined();
+      expect(updateOp.rowId).toBe('attendee-123');
+      expect(updateOp.data).toEqual(expect.objectContaining({
+        customFieldValues: JSON.stringify({ 'field-1': 'new@email.com', 'field-2': 'new notes' }),
+        lastSignificantUpdate: expect.any(String),
+      }));
+
+      // Check audit log operation
+      const logOp = operations.find((op: any) => op.action === 'create');
+      expect(logOp).toBeDefined();
+      expect(logOp.tableId).toBe(process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID);
     });
 
     it('should treat missing printable flag as non-printable (default to false)', async () => {
@@ -701,30 +794,47 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
         ],
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [], total: 0 }) // Check barcode uniqueness
-        .mockResolvedValueOnce({ documents: mockCustomFields, total: 2 }); // Custom fields
-
-      mockDatabases.getDocument
-        .mockResolvedValueOnce(existingAttendee) // Existing attendee
-        .mockResolvedValueOnce(existingAttendee); // Final attendee after update
-
-      mockDatabases.updateDocument.mockResolvedValue({
-        ...existingAttendee,
-        customFieldValues: JSON.stringify({ 'field-1': 'new@email.com', 'field-2': '789-012' }),
+      // Mock listDocuments to handle different collection calls properly
+      mockDatabases.listDocuments.mockImplementation((dbId: string, collectionId: string, queries?: any[]) => {
+        // Check if this is a barcode uniqueness check (has Query.equal for barcodeNumber)
+        if (queries && queries.some((q: any) => q.toString().includes('barcodeNumber'))) {
+          return Promise.resolve({ documents: [], total: 0 });
+        }
+        // Check if this is a custom fields collection call
+        if (collectionId === process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID) {
+          return Promise.resolve({ documents: mockCustomFields, total: mockCustomFields.length });
+        }
+        // Default fallback
+        return Promise.resolve({ documents: [], total: 0 });
       });
 
-      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+      mockDatabases.getDocument.mockResolvedValue(existingAttendee);
 
-      expect(mockDatabases.updateDocument).toHaveBeenCalled();
-      
-      // Verify lastSignificantUpdate was NOT updated (fields treated as non-printable)
-      const updateCall = mockDatabases.updateDocument.mock.calls[0];
-      const updatedData = updateCall[3];
-      
-      if (updatedData.lastSignificantUpdate) {
-        expect(updatedData.lastSignificantUpdate).toBe('2024-01-01T00:00:00.000Z');
-      }
+      await handler(mockReq as AuthenticatedRequest, mockRes as NextApiResponse);
+
+      // Verify transaction operations were created
+      expect(mockTablesDB.createOperations).toHaveBeenCalled();
+      const operationsCall = mockTablesDB.createOperations.mock.calls[0];
+      const operations = operationsCall[0].operations;
+
+      // Should have 2 operations: attendee update + audit log
+      expect(operations).toHaveLength(2);
+
+      // Check attendee update operation
+      const updateOp = operations.find((op: any) => op.action === 'update');
+      expect(updateOp).toBeDefined();
+      expect(updateOp.rowId).toBe('attendee-123');
+      expect(updateOp.data).toEqual(expect.objectContaining({
+        customFieldValues: JSON.stringify({ 'field-1': 'new@email.com', 'field-2': '789-012' }),
+      }));
+
+      // Verify lastSignificantUpdate was NOT included (fields treated as non-printable)
+      expect(updateOp.data.lastSignificantUpdate).toBeUndefined();
+
+      // Check audit log operation
+      const logOp = operations.find((op: any) => op.action === 'create');
+      expect(logOp).toBeDefined();
+      expect(logOp.tableId).toBe(process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID);
     });
 
     it('should handle custom fields fetch failure gracefully by treating all changes as significant', async () => {
@@ -740,36 +850,55 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
         ],
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [], total: 0 }) // Check barcode uniqueness
-        .mockRejectedValueOnce(new Error('Failed to fetch custom fields')); // Fetch failure
-
-      mockDatabases.getDocument
-        .mockResolvedValueOnce(existingAttendee) // Existing attendee
-        .mockResolvedValueOnce(existingAttendee); // Final attendee after update
-
-      mockDatabases.updateDocument.mockResolvedValue({
-        ...existingAttendee,
-        customFieldValues: JSON.stringify({ 'field-1': 'new@email.com' }),
-        lastSignificantUpdate: '2024-01-06T00:00:00.000Z',
+      // Mock listDocuments to simulate custom fields fetch failure
+      let customFieldsFetchCount = 0;
+      mockDatabases.listDocuments.mockImplementation((dbId: string, collectionId: string, queries?: any[]) => {
+        // Check if this is a barcode uniqueness check (has Query.equal for barcodeNumber)
+        if (queries && queries.some((q: any) => q.toString().includes('barcodeNumber'))) {
+          return Promise.resolve({ documents: [], total: 0 });
+        }
+        // Check if this is a custom fields collection call
+        if (collectionId === process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID) {
+          customFieldsFetchCount++;
+          // First custom fields call (for printable mapping) should fail
+          if (customFieldsFetchCount === 1) {
+            return Promise.reject(new Error('Failed to fetch custom fields'));
+          }
+          // Subsequent calls (validation, logging) should succeed
+          return Promise.resolve({
+            documents: [{ $id: 'field-1', fieldName: 'Test Field', fieldType: 'text' }],
+            total: 1
+          });
+        }
+        // Default fallback
+        return Promise.resolve({ documents: [], total: 0 });
       });
 
-      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+      mockDatabases.getDocument.mockResolvedValue(existingAttendee);
 
-      // Should still update successfully, treating all changes as significant (fallback behavior)
-      expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID,
-        'attendee-123',
-        expect.objectContaining({
-          lastSignificantUpdate: expect.any(String),
-        })
-      );
+      await handler(mockReq as AuthenticatedRequest, mockRes as NextApiResponse);
 
-      // Verify lastSignificantUpdate was updated (fallback to treating as significant)
-      const updateCall = mockDatabases.updateDocument.mock.calls[0];
-      const updatedData = updateCall[3];
-      expect(updatedData.lastSignificantUpdate).not.toBe('2024-01-01T00:00:00.000Z');
+      // Verify transaction operations were created
+      expect(mockTablesDB.createOperations).toHaveBeenCalled();
+      const operationsCall = mockTablesDB.createOperations.mock.calls[0];
+      const operations = operationsCall[0].operations;
+
+      // Should have 2 operations: attendee update + audit log
+      expect(operations).toHaveLength(2);
+
+      // Check attendee update operation
+      const updateOp = operations.find((op: any) => op.action === 'update');
+      expect(updateOp).toBeDefined();
+      expect(updateOp.rowId).toBe('attendee-123');
+      expect(updateOp.data).toEqual(expect.objectContaining({
+        customFieldValues: JSON.stringify({ 'field-1': 'new@email.com' }),
+        lastSignificantUpdate: expect.any(String),
+      }));
+
+      // Check audit log operation
+      const logOp = operations.find((op: any) => op.action === 'create');
+      expect(logOp).toBeDefined();
+      expect(logOp.tableId).toBe(process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID);
     });
 
     it('should update lastSignificantUpdate when standard fields change (firstName, lastName, etc.)', async () => {
@@ -784,32 +913,32 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
         firstName: 'Jane', // Changing standard field
       };
 
-      mockDatabases.getDocument
-        .mockResolvedValueOnce(existingAttendee) // Existing attendee
-        .mockResolvedValueOnce(existingAttendee); // Final attendee after update
+      mockDatabases.listDocuments.mockResolvedValue({ documents: [] }); // Barcode check
+      mockDatabases.getDocument.mockResolvedValue(existingAttendee);
 
-      mockDatabases.updateDocument.mockResolvedValue({
-        ...existingAttendee,
+      await handler(mockReq as AuthenticatedRequest, mockRes as NextApiResponse);
+
+      // Verify transaction operations were created
+      expect(mockTablesDB.createOperations).toHaveBeenCalled();
+      const operationsCall = mockTablesDB.createOperations.mock.calls[0];
+      const operations = operationsCall[0].operations;
+
+      // Should have 2 operations: attendee update + audit log
+      expect(operations).toHaveLength(2);
+
+      // Check attendee update operation
+      const updateOp = operations.find((op: any) => op.action === 'update');
+      expect(updateOp).toBeDefined();
+      expect(updateOp.rowId).toBe('attendee-123');
+      expect(updateOp.data).toEqual(expect.objectContaining({
         firstName: 'Jane',
-        lastSignificantUpdate: '2024-01-06T00:00:00.000Z',
-      });
+        lastSignificantUpdate: expect.any(String),
+      }));
 
-      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
-
-      expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID,
-        'attendee-123',
-        expect.objectContaining({
-          firstName: 'Jane',
-          lastSignificantUpdate: expect.any(String),
-        })
-      );
-
-      // Verify lastSignificantUpdate was updated
-      const updateCall = mockDatabases.updateDocument.mock.calls[0];
-      const updatedData = updateCall[3];
-      expect(updatedData.lastSignificantUpdate).not.toBe('2024-01-01T00:00:00.000Z');
+      // Check audit log operation
+      const logOp = operations.find((op: any) => op.action === 'create');
+      expect(logOp).toBeDefined();
+      expect(logOp.tableId).toBe(process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID);
     });
 
     it('should NOT update lastSignificantUpdate when only notes field changes', async () => {
@@ -823,26 +952,34 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
         notes: 'new notes', // Changing notes field only
       };
 
-      mockDatabases.getDocument
-        .mockResolvedValueOnce(existingAttendee) // Existing attendee
-        .mockResolvedValueOnce(existingAttendee); // Final attendee after update
+      mockDatabases.listDocuments.mockResolvedValue({ documents: [] }); // Barcode check
+      mockDatabases.getDocument.mockResolvedValue(existingAttendee);
 
-      mockDatabases.updateDocument.mockResolvedValue({
-        ...existingAttendee,
+      await handler(mockReq as AuthenticatedRequest, mockRes as NextApiResponse);
+
+      // Verify transaction operations were created
+      expect(mockTablesDB.createOperations).toHaveBeenCalled();
+      const operationsCall = mockTablesDB.createOperations.mock.calls[0];
+      const operations = operationsCall[0].operations;
+
+      // Should have 2 operations: attendee update + audit log
+      expect(operations).toHaveLength(2);
+
+      // Check attendee update operation
+      const updateOp = operations.find((op: any) => op.action === 'update');
+      expect(updateOp).toBeDefined();
+      expect(updateOp.rowId).toBe('attendee-123');
+      expect(updateOp.data).toEqual(expect.objectContaining({
         notes: 'new notes',
-      });
+      }));
 
-      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+      // Verify lastSignificantUpdate was NOT included in the update
+      expect(updateOp.data.lastSignificantUpdate).toBeUndefined();
 
-      expect(mockDatabases.updateDocument).toHaveBeenCalled();
-      
-      // Verify lastSignificantUpdate was NOT updated
-      const updateCall = mockDatabases.updateDocument.mock.calls[0];
-      const updatedData = updateCall[3];
-      
-      if (updatedData.lastSignificantUpdate) {
-        expect(updatedData.lastSignificantUpdate).toBe('2024-01-01T00:00:00.000Z');
-      }
+      // Check audit log operation
+      const logOp = operations.find((op: any) => op.action === 'create');
+      expect(logOp).toBeDefined();
+      expect(logOp.tableId).toBe(process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID);
     });
   });
 });

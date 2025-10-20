@@ -42,13 +42,29 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       return;
     }
 
-    // Get custom fields
-    const customFieldsDocs = await databases.listDocuments(
-      dbId,
-      customFieldsCollectionId,
-      [Query.limit(100)]
-    );
-    const customFields = customFieldsDocs.documents;
+    // Get all custom fields with pagination to avoid truncation
+    const allCustomFields: any[] = [];
+    let offset = 0;
+    const pageSize = 100;
+    
+    while (true) {
+      const customFieldsDocs = await databases.listDocuments(
+        dbId,
+        customFieldsCollectionId,
+        [Query.limit(pageSize), Query.offset(offset)]
+      );
+      
+      allCustomFields.push(...customFieldsDocs.documents);
+      
+      // If we got fewer than pageSize results, we've reached the end
+      if (customFieldsDocs.documents.length < pageSize) {
+        break;
+      }
+      
+      offset += pageSize;
+    }
+    
+    const customFields = allCustomFields;
 
     // Create a map of field ID to printable status (fetch once for entire bulk operation)
     const printableFieldsMap = new Map(
@@ -57,6 +73,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
     // Prepare updates array for transaction
     const updates: Array<{ rowId: string; data: any }> = [];
+
+    // Track failed attendee updates
+    const errors: Array<{ id: string; error: string }> = [];
 
     // Process each attendee to determine what needs to be updated
     for (const attendeeId of attendeeIds) {
@@ -87,7 +106,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
         let hasChanges = false;
         let hasPrintableCustomFieldChanges = false;
-        
+
         // Create a map for easier lookup and updates
         const customFieldMap = new Map(
           currentCustomFieldValues.map(cfv => [cfv.customFieldId, cfv.value])
@@ -114,7 +133,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           if (currentValue !== String(processedValue)) {
             customFieldMap.set(fieldId, String(processedValue));
             hasChanges = true;
-            
+
             // Check if this is a printable field
             const isPrintable = printableFieldsMap.get(fieldId) === true;
             if (isPrintable) {
@@ -135,17 +154,13 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             customFieldValues: JSON.stringify(updatedCustomFieldValues)
           };
 
-          // Update lastSignificantUpdate if printable fields changed
+          // Only update lastSignificantUpdate if printable fields actually changed
+          // This ensures credentials are only marked as outdated when necessary
           if (hasPrintableCustomFieldChanges) {
             updateData.lastSignificantUpdate = new Date().toISOString();
-          } else if (!attendee.lastSignificantUpdate) {
-            // Initialize lastSignificantUpdate if it doesn't exist
-            if (attendee.credentialGeneratedAt) {
-              updateData.lastSignificantUpdate = attendee.credentialGeneratedAt;
-            } else {
-              updateData.lastSignificantUpdate = attendee.$createdAt || new Date().toISOString();
-            }
           }
+          // Do NOT initialize lastSignificantUpdate for non-printable changes
+          // If the field doesn't exist, leave it undefined so credentialGeneratedAt remains authoritative
 
           updates.push({
             rowId: attendeeId,
@@ -154,6 +169,13 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         }
       } catch (error: any) {
         console.error(`Failed to prepare update for attendee ${attendeeId}:`, error);
+
+        // Record the failed attendee with error details
+        errors.push({
+          id: attendeeId,
+          error: error.message || 'Unknown error occurred during update preparation'
+        });
+
         // Continue processing other attendees instead of failing entire batch
         // This allows partial success in bulk operations
         continue;
@@ -162,10 +184,15 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
     // If no changes, return early
     if (updates.length === 0) {
-      res.status(200).json({
-        message: 'No changes to apply',
+      const hasFailures = errors.length > 0;
+      res.status(hasFailures ? 207 : 200).json({
+        message: hasFailures ? 'No successful updates, some attendees failed' : 'No changes to apply',
         updatedCount: 0,
-        usedTransactions: false
+        usedTransactions: false,
+        errors,
+        totalRequested: attendeeIds.length,
+        successCount: 0,
+        failureCount: errors.length
       });
       return;
     }
@@ -199,11 +226,31 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       }
     });
 
-    res.status(200).json({
-      message: 'Attendees updated successfully',
+    // Determine appropriate status code and message
+    const hasFailures = errors.length > 0;
+    const successCount = result.updatedCount;
+    const totalRequested = attendeeIds.length;
+
+    let statusCode = 200;
+    let message = 'Attendees updated successfully';
+
+    if (hasFailures && successCount > 0) {
+      statusCode = 207; // Multi-Status (partial success)
+      message = `Partially successful: ${successCount} updated, ${errors.length} failed`;
+    } else if (hasFailures && successCount === 0) {
+      statusCode = 207; // Multi-Status (all failed)
+      message = 'All attendee updates failed';
+    }
+
+    res.status(statusCode).json({
+      message,
       updatedCount: result.updatedCount,
       usedTransactions: result.usedTransactions,
-      batchCount: result.batchCount
+      batchCount: result.batchCount,
+      errors,
+      totalRequested,
+      successCount,
+      failureCount: errors.length
     });
 
   } catch (error: any) {

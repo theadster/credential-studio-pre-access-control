@@ -61,10 +61,10 @@ describe('Backward Compatibility Tests - Printable Field Feature', () => {
 
   beforeEach(() => {
     resetAllMocks();
-    
+
     jsonMock = vi.fn();
     statusMock = vi.fn(() => ({ json: jsonMock }));
-    
+
     mockReq = {
       method: 'PUT',
       cookies: { 'appwrite-session': 'test-session' },
@@ -73,7 +73,7 @@ describe('Backward Compatibility Tests - Printable Field Feature', () => {
       user: mockAuthUser,
       userProfile: mockUserProfile,
     } as any;
-    
+
     mockRes = {
       status: statusMock as any,
       setHeader: vi.fn(),
@@ -139,22 +139,19 @@ describe('Backward Compatibility Tests - Printable Field Feature', () => {
 
       // Verify: Request succeeds without errors
       expect(statusMock).toHaveBeenCalledWith(200);
-      
+
       // Verify: Transaction was created
       expect(mockTablesDB.createOperations).toHaveBeenCalled();
       const operations = mockTablesDB.createOperations.mock.calls[0][0].operations;
       const updateOp = operations.find((op: any) => op.action === 'update');
-      
+
       expect(updateOp).toBeDefined();
-      
+
       // Verify: Fields without printable property are treated as non-printable (false)
       // This means lastSignificantUpdate should NOT be updated when only these fields change
       // The system defaults to false (non-printable) for backward compatibility
-      if (updateOp.data.lastSignificantUpdate) {
-        // If lastSignificantUpdate is present, it should be unchanged
-        expect(updateOp.data.lastSignificantUpdate).toBe('2024-01-01T00:00:00.000Z');
-      }
-      // Otherwise, it's not in the update data, which is correct (no significant change)
+      // According to implementation: "Do NOT initialize lastSignificantUpdate for non-printable changes"
+      expect(updateOp.data.lastSignificantUpdate).toBeUndefined();
     });
 
     it('should handle custom fields with undefined printable property', async () => {
@@ -270,7 +267,7 @@ describe('Backward Compatibility Tests - Printable Field Feature', () => {
         firstName: 'John',
         lastName: 'Doe',
         barcodeNumber: '12345',
-        customFieldValues: JSON.stringify({ 
+        customFieldValues: JSON.stringify({
           'legacy-field': 'old value',
           'new-field': 'old value'
         }),
@@ -295,7 +292,7 @@ describe('Backward Compatibility Tests - Printable Field Feature', () => {
         .mockResolvedValueOnce(existingAttendee)
         .mockResolvedValueOnce({
           ...existingAttendee,
-          customFieldValues: JSON.stringify({ 
+          customFieldValues: JSON.stringify({
             'legacy-field': 'new value',
             'new-field': 'new value'
           }),
@@ -307,7 +304,7 @@ describe('Backward Compatibility Tests - Printable Field Feature', () => {
       // Verify: No errors occur with mixed field types
       expect(statusMock).toHaveBeenCalledWith(200);
       expect(mockTablesDB.createOperations).toHaveBeenCalled();
-      
+
       // Verify: lastSignificantUpdate was updated (because new-field is printable=true)
       const operations = mockTablesDB.createOperations.mock.calls[0][0].operations;
       const updateOp = operations.find((op: any) => op.action === 'update');
@@ -379,7 +376,7 @@ describe('Backward Compatibility Tests - Printable Field Feature', () => {
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       expect(statusMock).toHaveBeenCalledWith(200);
-      
+
       // Verify: lastSignificantUpdate was updated
       const operations = mockTablesDB.createOperations.mock.calls[0][0].operations;
       const updateOp = operations.find((op: any) => op.action === 'update');
@@ -419,7 +416,7 @@ describe('Backward Compatibility Tests - Printable Field Feature', () => {
 
       // Verify: No errors occur
       expect(statusMock).toHaveBeenCalledWith(200);
-      
+
       // Verify: lastSignificantUpdate is now added
       const operations = mockTablesDB.createOperations.mock.calls[0][0].operations;
       const updateOp = operations.find((op: any) => op.action === 'update');
@@ -456,7 +453,7 @@ describe('Backward Compatibility Tests - Printable Field Feature', () => {
 
       // Verify: No errors occur
       expect(statusMock).toHaveBeenCalledWith(200);
-      
+
       // Verify: lastSignificantUpdate is still tracked
       const operations = mockTablesDB.createOperations.mock.calls[0][0].operations;
       const updateOp = operations.find((op: any) => op.action === 'update');
@@ -601,11 +598,11 @@ describe('Backward Compatibility Tests - Printable Field Feature', () => {
 
       // Verify: Old client code still works
       expect(statusMock).toHaveBeenCalledWith(200);
-      
+
       // Verify: Server correctly handles printable logic
       const operations = mockTablesDB.createOperations.mock.calls[0][0].operations;
       const updateOp = operations.find((op: any) => op.action === 'update');
-      
+
       // firstName changed (significant), so lastSignificantUpdate should be updated
       expect(updateOp.data.lastSignificantUpdate).not.toBe('2024-01-01T00:00:00.000Z');
     });
@@ -718,7 +715,7 @@ describe('Backward Compatibility Tests - Printable Field Feature', () => {
 
       // Verify: Handles mixed migration state gracefully
       expect(statusMock).toHaveBeenCalledWith(200);
-      
+
       // Verify: lastSignificantUpdate was updated (field-1 is printable=true)
       const operations = mockTablesDB.createOperations.mock.calls[0][0].operations;
       const updateOp = operations.find((op: any) => op.action === 'update');
