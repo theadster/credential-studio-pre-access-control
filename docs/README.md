@@ -103,6 +103,7 @@ docs/
 - [**SweetAlert Best Practices Guide**](./guides/SWEETALERT_BEST_PRACTICES_GUIDE.md) - Best practices for notifications and user experience
 
 #### Other Guides
+- [**Printable Fields User Guide**](./guides/PRINTABLE_FIELDS_USER_GUIDE.md) - 🎯 Complete guide to configuring printable fields and managing credential status
 - [**Custom Field Columns Quick Reference**](./guides/CUSTOM_FIELD_COLUMNS_QUICK_REFERENCE.md) - ⚡ Quick reference for custom field column configuration
 - [**Custom Field Columns Visual Guide**](./guides/CUSTOM_FIELD_COLUMNS_VISUAL_GUIDE.md) - 📊 Visual examples and decision tree for choosing column count
 - [**Custom Field Columns Configuration**](./guides/CUSTOM_FIELD_COLUMNS_CONFIGURATION.md) - Configure custom field column layout for different screen resolutions

@@ -1,3 +1,34 @@
+# Scripts
+
+This directory contains utility scripts for database migrations, testing, and maintenance.
+
+## Migration Scripts
+
+### Add Printable Attribute
+
+Adds the `printable` boolean attribute to the `custom_fields` collection. This attribute controls whether changes to a custom field should mark an attendee's credential as OUTDATED and require reprinting.
+
+**Usage:**
+```bash
+npx tsx scripts/add-printable-attribute.ts
+```
+
+**What it does:**
+- Adds `printable` boolean attribute to `custom_fields` collection
+- Sets default value to `false` (non-printable) for backward compatibility
+- Waits for attribute to become available in Appwrite
+- All existing custom fields will default to non-printable
+
+**Prerequisites:**
+- Appwrite project with existing `custom_fields` collection
+- Environment variables configured in `.env.local`
+
+**Related:**
+- See `.kiro/specs/printable-field-outdated-tracking/` for full feature documentation
+- Part of the printable field tracking feature implementation
+
+---
+
 # Test Scripts
 
 ## Inject Test Logs
