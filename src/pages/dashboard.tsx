@@ -430,6 +430,12 @@ export default function Dashboard() {
   }, []);
 
   const loadLogs = useCallback(async (page = 1, filters = logsFilters, retryCount = 0) => {
+    // Don't load logs if user is not authenticated
+    if (!currentUser) {
+      console.log('Skipping logs load - user not authenticated');
+      return;
+    }
+
     setLogsLoading(true);
     try {
       const params = new URLSearchParams({
@@ -469,7 +475,7 @@ export default function Dashboard() {
     } finally {
       setLogsLoading(false);
     }
-  }, [logsPagination.limit, logsFilters]);
+  }, [logsPagination.limit, logsFilters, currentUser]);
 
   // Get available tabs for current user
   const getAvailableTabs = (): string[] => {
@@ -2326,10 +2332,11 @@ export default function Dashboard() {
 
   // Load logs when filters change or tab becomes active
   useEffect(() => {
-    if (activeTab === 'logs' && canAccessTab(currentUser?.role, 'logs')) {
+    // Only load logs if user is authenticated and has permission
+    if (currentUser && activeTab === 'logs' && canAccessTab(currentUser?.role, 'logs')) {
       loadLogs();
     }
-  }, [activeTab, currentUser?.role, loadLogs]);
+  }, [activeTab, currentUser, loadLogs]);
 
   if (loading) {
     return (
