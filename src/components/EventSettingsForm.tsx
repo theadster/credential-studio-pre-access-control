@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Plus, Trash2, Edit, Save, X, GripVertical, Type, Hash, Mail, Calendar, Link, List, CheckSquare, ToggleLeft, FileText, Settings, Eye } from "lucide-react";
+import { Plus, Trash2, Edit, Save, X, GripVertical, Type, Hash, Mail, Calendar, Link, List, CheckSquare, ToggleLeft, FileText, Settings, Eye, Printer } from "lucide-react";
 import { generateInternalFieldName } from "@/util/string";
 import { useSweetAlert } from "@/hooks/useSweetAlert";
 import { validateCustomFieldDeletion } from "@/lib/customFieldValidation";
@@ -51,6 +51,12 @@ import { CSS } from '@dnd-kit/utilities';
  *   - true: Field appears as column in main attendees table
  *   - false: Field is hidden from main page but visible in edit/create forms
  *   - undefined: Defaults to true (backward compatibility)
+ * @property printable - Indicates if this field appears on printed credentials
+ *   - true: Changes to this field will mark credentials as OUTDATED and require reprinting
+ *   - false: Changes to this field will NOT affect credential status
+ *   - undefined: Defaults to false (non-printable) for backward compatibility
+ *   - This flag controls whether changes to the field update the lastSignificantUpdate timestamp,
+ *     which determines if a credential needs to be regenerated
  */
 interface CustomField {
   id?: string;
@@ -61,6 +67,7 @@ interface CustomField {
   required: boolean;
   order: number;
   showOnMainPage?: boolean;
+  printable?: boolean;
 }
 
 interface FieldMapping {
@@ -236,6 +243,21 @@ function SortableCustomField({ field, onEdit, onDelete }: SortableCustomFieldPro
                 </Tooltip>
               </TooltipProvider>
             )}
+            {field.printable && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant="outline" className="text-xs">
+                      <Printer className="h-3 w-3 mr-1" />
+                      Printable
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>This field appears on printed credentials</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
           </div>
           {field.internalFieldName && (
             <div className="text-xs text-muted-foreground mt-1">
@@ -290,6 +312,8 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
   const [showMappingForm, setShowMappingForm] = useState(false);
   const [editingFieldMapping, setEditingFieldMapping] = useState<FieldMapping | null>(null);
   const [integrationStatus, setIntegrationStatus] = useState<{ cloudinary: boolean; switchboard: boolean } | null>(null);
+  // Track original printable flags to detect changes
+  const [originalPrintableFlags, setOriginalPrintableFlags] = useState<Map<string, boolean>>(new Map());
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -344,6 +368,16 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
         eventTime: parsedTime
       });
       setCustomFields(eventSettings.customFields || []);
+      
+      // Store original printable flags for change detection
+      const printableMap = new Map<string, boolean>();
+      (eventSettings.customFields || []).forEach(field => {
+        if (field.id) {
+          printableMap.set(field.id, field.printable === true);
+        }
+      });
+      setOriginalPrintableFlags(printableMap);
+      
       // Ensure fieldMappings is always an array, even if database value is malformed
       const mappings = eventSettings.switchboardFieldMappings;
       if (Array.isArray(mappings)) {
@@ -368,6 +402,7 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
       });
       setCustomFields([]);
       setFieldMappings([]);
+      setOriginalPrintableFlags(new Map());
     }
   }, [eventSettings, isOpen]);
 
@@ -383,6 +418,20 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
     setLoading(true);
 
     try {
+      // Check if any printable flags have changed
+      let hasPrintableFlagChanges = false;
+      for (const field of customFields) {
+        if (field.id) {
+          const originalPrintable = originalPrintableFlags.get(field.id) === true;
+          const currentPrintable = field.printable === true;
+          
+          if (originalPrintable !== currentPrintable) {
+            hasPrintableFlagChanges = true;
+            break;
+          }
+        }
+      }
+
       const settingsData = {
         ...formData,
         customFields,
@@ -390,6 +439,15 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
       };
 
       await onSave(settingsData);
+      
+      // Show info message if printable flags were changed
+      if (hasPrintableFlagChanges) {
+        info(
+          "Printable Field Configuration Updated",
+          "Existing credential statuses will not be affected until attendee records are updated. Only future changes to these fields will impact credential status."
+        );
+      }
+      
       onClose();
       // Success notification is now handled by the parent component (dashboard)
     } catch (err: any) {
@@ -1811,6 +1869,7 @@ function CustomFieldForm({ isOpen, field, onSave, onCancel }: CustomFieldFormPro
     fieldType: "text",
     required: false,
     order: 1,
+    printable: false,
   });
   const [selectOptions, setSelectOptions] = useState<string[]>([]);
 
@@ -1835,6 +1894,7 @@ function CustomFieldForm({ isOpen, field, onSave, onCancel }: CustomFieldFormPro
         fieldType: "text",
         required: false,
         order: 1,
+        printable: false,
       });
       setSelectOptions([]);
     }
@@ -1938,19 +1998,21 @@ function CustomFieldForm({ isOpen, field, onSave, onCancel }: CustomFieldFormPro
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onCancel()}>
-      <DialogContent className="max-w-lg">
-        <form onSubmit={handleSubmit}>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Settings className="h-5 w-5" />
-              {field?.id ? "Edit Custom Field" : "Add Custom Field"}
-            </DialogTitle>
-            <DialogDescription>
-              Define a new piece of information to collect from attendees.
-            </DialogDescription>
-          </DialogHeader>
+      <DialogContent className="max-w-lg max-h-[90vh] p-0 gap-0 overflow-hidden">
+        <form onSubmit={handleSubmit} className="flex flex-col max-h-[90vh]">
+          <div className="px-6 pt-6 pb-4 flex-shrink-0">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Settings className="h-5 w-5" />
+                {field?.id ? "Edit Custom Field" : "Add Custom Field"}
+              </DialogTitle>
+              <DialogDescription>
+                Define a new piece of information to collect from attendees.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
 
-          <div className="space-y-5 py-6">
+          <div className="space-y-5 px-6 py-4 overflow-y-auto flex-1">
             <div>
               <Label htmlFor="fieldName" className="flex items-center gap-2 text-sm font-medium mb-2">
                 <Type className="h-4 w-4" />
@@ -2084,16 +2146,35 @@ function CustomFieldForm({ isOpen, field, onSave, onCancel }: CustomFieldFormPro
                 onCheckedChange={(checked) => setFieldData(prev => ({ ...prev, showOnMainPage: checked }))}
               />
             </div>
+
+            <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+              <div className="space-y-0.5">
+                <Label htmlFor="printable" className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                  <Printer className="h-4 w-4" />
+                  Printable Field
+                </Label>
+                <div className="text-xs text-muted-foreground">
+                  Mark this field as printable if it appears on the credential. Changes to printable fields will mark credentials as outdated and require reprinting.
+                </div>
+              </div>
+              <Switch
+                id="printable"
+                checked={fieldData.printable || false}
+                onCheckedChange={(checked) => setFieldData(prev => ({ ...prev, printable: checked }))}
+              />
+            </div>
           </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onCancel}>
-              Cancel
-            </Button>
-            <Button type="submit">
-              <Save className="mr-2 h-4 w-4" />
-              {field?.id ? "Update Field" : "Add Field"}
-            </Button>
-          </DialogFooter>
+          <div className="px-6 pb-6 pt-4 flex-shrink-0 border-t">
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={onCancel}>
+                Cancel
+              </Button>
+              <Button type="submit">
+                <Save className="mr-2 h-4 w-4" />
+                {field?.id ? "Update Field" : "Add Field"}
+              </Button>
+            </DialogFooter>
+          </div>
         </form>
       </DialogContent>
     </Dialog>
@@ -2186,19 +2267,21 @@ function FieldMappingForm({ isOpen, customFields, editingMapping, onSave, onCanc
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onCancel()}>
-      <DialogContent className="max-w-lg">
-        <form onSubmit={handleSubmit}>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Link className="h-5 w-5" />
-              {editingMapping ? "Edit Field Mapping" : "Add Field Mapping"}
-            </DialogTitle>
-            <DialogDescription>
-              Map custom field responses to specific variable names for your JSON request body.
-            </DialogDescription>
-          </DialogHeader>
+      <DialogContent className="max-w-lg max-h-[90vh] p-0 gap-0 overflow-hidden">
+        <form onSubmit={handleSubmit} className="flex flex-col max-h-[90vh]">
+          <div className="px-6 pt-6 pb-4 flex-shrink-0">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Link className="h-5 w-5" />
+                {editingMapping ? "Edit Field Mapping" : "Add Field Mapping"}
+              </DialogTitle>
+              <DialogDescription>
+                Map custom field responses to specific variable names for your JSON request body.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
 
-          <div className="space-y-5 py-6">
+          <div className="space-y-5 px-6 py-4 overflow-y-auto flex-1">
             <div>
               <Label htmlFor="customField" className="flex items-center gap-2 text-sm font-medium mb-2">
                 <Settings className="h-4 w-4" />
@@ -2306,18 +2389,20 @@ function FieldMappingForm({ isOpen, customFields, editingMapping, onSave, onCanc
               </>
             )}
           </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onCancel}>
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={!selectedField || !jsonVariable.trim()}
-            >
-              <Save className="mr-2 h-4 w-4" />
-              {editingMapping ? "Update Mapping" : "Add Mapping"}
-            </Button>
-          </DialogFooter>
+          <div className="px-6 pb-6 pt-4 flex-shrink-0 border-t">
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={onCancel}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={!selectedField || !jsonVariable.trim()}
+              >
+                <Save className="mr-2 h-4 w-4" />
+                {editingMapping ? "Update Mapping" : "Add Mapping"}
+              </Button>
+            </DialogFooter>
+          </div>
         </form>
       </DialogContent>
     </Dialog>

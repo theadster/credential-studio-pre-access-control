@@ -5,6 +5,85 @@ import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
 import { parseCustomFieldValues } from '@/util/customFields';
 import { shouldLog } from '@/lib/logSettings';
 
+/**
+ * Attendee Update API Endpoint
+ * 
+ * This endpoint handles GET and PUT operations for individual attendee records.
+ * 
+ * ## Printable Field Logic
+ * 
+ * The endpoint implements intelligent credential status tracking based on "printable" custom fields.
+ * This determines when a credential needs to be regenerated after attendee data changes.
+ * 
+ * ### How Printable Fields Work:
+ * 
+ * 1. **Custom Field Configuration**: Each custom field has a `printable` boolean flag that indicates
+ *    whether the field appears on the printed credential.
+ * 
+ * 2. **Significant Change Detection**: When an attendee is updated, the endpoint checks which fields changed:
+ *    - Default significant fields: firstName, lastName, barcodeNumber, photoUrl
+ *    - Printable custom fields: Any custom field marked with printable=true
+ *    - Non-significant fields: notes, non-printable custom fields
+ * 
+ * 3. **lastSignificantUpdate Timestamp**: This field tracks when data that appears on the credential
+ *    was last modified:
+ *    - Updated when: Any significant field changes (including printable custom fields)
+ *    - NOT updated when: Only notes or non-printable custom fields change
+ *    - Used to determine: If credential is OUTDATED (needs reprinting)
+ * 
+ * ### Credential Status Logic:
+ * 
+ * The credential status is determined by comparing two timestamps:
+ * - `credentialGeneratedAt`: When the credential image was last generated
+ * - `lastSignificantUpdate`: When printable data was last changed
+ * 
+ * Status calculation:
+ * - CURRENT: credentialGeneratedAt >= lastSignificantUpdate (credential is up-to-date)
+ * - OUTDATED: credentialGeneratedAt < lastSignificantUpdate (credential needs reprinting)
+ * 
+ * ### Implementation Details:
+ * 
+ * 1. **Fetch Custom Fields**: The endpoint fetches all custom field configurations to build
+ *    a map of field ID → printable status.
+ * 
+ * 2. **Compare Values**: For each custom field being updated, check if:
+ *    - The field is marked as printable
+ *    - The value actually changed from the existing value
+ * 
+ * 3. **Update Timestamp**: If any printable field changed, update lastSignificantUpdate to
+ *    the current time, marking the credential as outdated.
+ * 
+ * 4. **Fallback Behavior**: If custom fields configuration cannot be fetched, all custom field
+ *    changes are treated as significant (safe fallback to avoid missing credential updates).
+ * 
+ * ### Example Scenarios:
+ * 
+ * ```
+ * Scenario 1: Update email (non-printable field)
+ * - Email field: printable=false
+ * - Result: lastSignificantUpdate NOT updated, credential stays CURRENT
+ * 
+ * Scenario 2: Update company name (printable field)
+ * - Company field: printable=true
+ * - Result: lastSignificantUpdate updated, credential becomes OUTDATED
+ * 
+ * Scenario 3: Update notes field
+ * - Notes: Always non-significant (hardcoded)
+ * - Result: lastSignificantUpdate NOT updated, credential stays CURRENT
+ * 
+ * Scenario 4: Update firstName
+ * - firstName: Always significant (default field)
+ * - Result: lastSignificantUpdate updated, credential becomes OUTDATED
+ * ```
+ * 
+ * ### Related Documentation:
+ * - Design: .kiro/specs/printable-field-outdated-tracking/design.md
+ * - Requirements: .kiro/specs/printable-field-outdated-tracking/requirements.md
+ * - Notes Field Enhancement: docs/enhancements/NOTES_FIELD_CREDENTIAL_STATUS_ENHANCEMENT.md
+ * 
+ * @param req - Authenticated request with user and userProfile attached by middleware
+ * @param res - Next.js API response object
+ */
 export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   const { id } = req.query;
 
@@ -108,6 +187,39 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           currentCustomFieldValues = {};
         }
 
+        /**
+         * Printable Field Configuration Fetch
+         * 
+         * Fetches custom field configurations to determine which fields are "printable"
+         * (appear on the credential). This information is used to decide if changes
+         * should mark the credential as OUTDATED.
+         * 
+         * The printableFieldsMap stores: fieldId → isPrintable (boolean)
+         * - true: Field appears on credential, changes mark credential outdated
+         * - false/undefined: Field doesn't appear on credential, changes don't affect status
+         * 
+         * Fallback: If fetch fails, the map will be empty, and all custom field changes
+         * will be treated as significant (safe fallback to avoid missing updates).
+         */
+        let printableFieldsMap = new Map<string, boolean>();
+        try {
+          const customFieldsDocs = await databases.listDocuments(
+            dbId,
+            customFieldsCollectionId,
+            [Query.limit(100)]
+          );
+          
+          // Create a map of field ID to printable status
+          // Only fields with printable=true are marked as printable
+          printableFieldsMap = new Map(
+            customFieldsDocs.documents.map((cf: any) => [cf.$id, cf.printable === true])
+          );
+        } catch (error) {
+          console.error('Failed to fetch custom fields configuration:', error);
+          // Fallback: If we can't fetch custom fields, treat all custom field changes as significant
+          // This ensures we don't accidentally skip marking credentials as outdated
+        }
+
         // Check if barcode is unique (excluding current attendee)
         if (barcodeNumber && barcodeNumber !== existingAttendee.barcodeNumber) {
           const duplicateBarcodeDocs = await databases.listDocuments(
@@ -121,8 +233,26 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           }
         }
 
-        // Check if any significant fields (non-notes) are being updated
-        let hasCustomFieldChanges = false;
+        /**
+         * Printable Custom Field Change Detection
+         * 
+         * This section determines if any custom fields marked as "printable" have changed.
+         * Only changes to printable fields will mark the credential as OUTDATED.
+         * 
+         * Process:
+         * 1. Convert incoming custom field values to object format for comparison
+         * 2. Compare each field's new value against its existing value
+         * 3. Only count changes to fields marked as printable (printable=true)
+         * 4. Check for removed printable field values
+         * 
+         * Fallback behavior:
+         * - If printableFieldsMap is empty (fetch failed), treat ALL custom fields as printable
+         * - This ensures we don't accidentally skip marking credentials as outdated
+         * 
+         * Non-printable field changes (printable=false or undefined) are ignored and won't
+         * affect the credential status, allowing updates to internal data without triggering reprints.
+         */
+        let hasPrintableCustomFieldChanges = false;
         if (customFieldValues !== undefined && Array.isArray(customFieldValues)) {
           // Compare custom field values to see if they actually changed
           const newCustomFieldValues: Record<string, any> = {};
@@ -132,32 +262,58 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             }
           });
           
-          // Check if any custom field value is different
+          // Check if any PRINTABLE custom field value is different
           for (const [fieldId, newValue] of Object.entries(newCustomFieldValues)) {
             const oldValue = currentCustomFieldValues[fieldId];
-            if (String(oldValue || '') !== String(newValue || '')) {
-              hasCustomFieldChanges = true;
+            const isPrintable = printableFieldsMap.size === 0 || printableFieldsMap.get(fieldId) === true;
+            
+            // If we couldn't fetch custom fields (map is empty), treat all as printable (safe fallback)
+            // Otherwise, only check fields that are marked as printable
+            if (isPrintable && String(oldValue || '') !== String(newValue || '')) {
+              hasPrintableCustomFieldChanges = true;
               break;
             }
           }
           
-          // Also check if any existing custom field was removed
-          if (!hasCustomFieldChanges) {
+          // Also check if any existing PRINTABLE custom field was removed
+          if (!hasPrintableCustomFieldChanges) {
             for (const fieldId of Object.keys(currentCustomFieldValues)) {
-              if (!(fieldId in newCustomFieldValues) && currentCustomFieldValues[fieldId]) {
-                hasCustomFieldChanges = true;
+              const isPrintable = printableFieldsMap.size === 0 || printableFieldsMap.get(fieldId) === true;
+              
+              if (isPrintable && !(fieldId in newCustomFieldValues) && currentCustomFieldValues[fieldId]) {
+                hasPrintableCustomFieldChanges = true;
                 break;
               }
             }
           }
         }
         
+        /**
+         * Significant Change Detection
+         * 
+         * Determines if any "significant" fields have changed. Significant fields are those
+         * that appear on the printed credential and require reprinting when modified.
+         * 
+         * Significant fields include:
+         * - firstName: Always significant (default field on credential)
+         * - lastName: Always significant (default field on credential)
+         * - barcodeNumber: Always significant (default field on credential)
+         * - photoUrl: Always significant (photo appears on credential)
+         * - Printable custom fields: Any custom field with printable=true
+         * 
+         * Non-significant fields (changes don't affect credential status):
+         * - notes: Internal notes field (hardcoded as non-significant)
+         * - Non-printable custom fields: Custom fields with printable=false or undefined
+         * 
+         * If hasSignificantChanges is true, the lastSignificantUpdate timestamp will be
+         * updated to the current time, marking the credential as OUTDATED.
+         */
         const hasSignificantChanges = 
           (firstName && firstName !== existingAttendee.firstName) ||
           (lastName && lastName !== existingAttendee.lastName) ||
           (barcodeNumber && barcodeNumber !== existingAttendee.barcodeNumber) ||
           (photoUrl !== undefined && photoUrl !== existingAttendee.photoUrl) ||
-          hasCustomFieldChanges;
+          hasPrintableCustomFieldChanges;
 
         // Prepare update data
         const updateData: any = {
@@ -168,6 +324,34 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           photoUrl: photoUrl !== undefined ? photoUrl : existingAttendee.photoUrl,
         };
 
+        /**
+         * lastSignificantUpdate Timestamp Management
+         * 
+         * This timestamp tracks when data that appears on the credential was last modified.
+         * It's used to determine if a credential is OUTDATED and needs reprinting.
+         * 
+         * Update logic:
+         * 
+         * 1. If significant changes detected:
+         *    - Set lastSignificantUpdate to current time
+         *    - This marks the credential as OUTDATED (if one exists)
+         * 
+         * 2. If no significant changes AND field doesn't exist:
+         *    - Initialize with credentialGeneratedAt (if credential exists)
+         *    - Or initialize with record creation time
+         *    - This ensures backward compatibility with existing records
+         * 
+         * 3. If no significant changes AND field exists:
+         *    - Leave unchanged (don't update)
+         *    - This preserves the credential's CURRENT status
+         * 
+         * The credential status is calculated by comparing:
+         * - credentialGeneratedAt (when credential was created)
+         * - lastSignificantUpdate (when printable data last changed)
+         * 
+         * If credentialGeneratedAt >= lastSignificantUpdate: CURRENT
+         * If credentialGeneratedAt < lastSignificantUpdate: OUTDATED
+         */
         // Handle lastSignificantUpdate field
         if (hasSignificantChanges) {
           // If significant fields changed, update the lastSignificantUpdate timestamp

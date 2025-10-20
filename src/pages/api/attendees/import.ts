@@ -272,12 +272,17 @@ const handler = async (req: AuthenticatedRequest, res: NextApiResponse) => {
             // Add the generated barcode to the set to avoid duplicates within this import
             existingBarcodes.add(generatedBarcode);
 
+            // For new records, set lastSignificantUpdate to creation time
+            // This establishes a baseline for future credential status tracking
+            const now = new Date().toISOString();
+
             return {
               firstName: processedFirstName,
               lastName: processedLastName,
               barcodeNumber: generatedBarcode,
               customFieldValues: JSON.stringify(customFieldsData),
               notes: '', // Set to empty string instead of null to avoid false change detection
+              lastSignificantUpdate: now, // Initialize for new records
             };
           }).filter(Boolean) as any[];
 

@@ -110,7 +110,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           return res.status(403).json({ error: 'Insufficient permissions to update custom fields' });
         }
 
-        const { fieldName, fieldType, fieldOptions, required, order, version, showOnMainPage } = req.body;
+        const { fieldName, fieldType, fieldOptions, required, order, version, showOnMainPage, printable } = req.body;
 
         if (!fieldName || !fieldType) {
           return res.status(400).json({ error: 'Missing required fields' });
@@ -130,6 +130,15 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           return res.status(400).json({
             error: 'Invalid showOnMainPage value',
             details: 'showOnMainPage must be a boolean value'
+          });
+        }
+
+        // Validate printable is boolean if provided
+        // This ensures data integrity and prevents type coercion issues
+        if (printable !== undefined && typeof printable !== 'boolean') {
+          return res.status(400).json({
+            error: 'Invalid printable value',
+            details: 'printable must be a boolean value'
           });
         }
 
@@ -179,6 +188,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           required: required || false,
           order: order || 1,
           showOnMainPage: showOnMainPage !== undefined ? showOnMainPage : true, // Default to visible
+          printable: printable !== undefined ? printable : false, // Default to non-printable for backward compatibility
           version: currentVersion + 1 // Increment version for optimistic locking
         };
 

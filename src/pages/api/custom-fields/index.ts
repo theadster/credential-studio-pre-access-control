@@ -68,7 +68,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           return res.status(403).json({ error: 'Insufficient permissions to create custom fields' });
         }
 
-        const { eventSettingsId, fieldName, fieldType, fieldOptions, required, order, showOnMainPage } = req.body;
+        const { eventSettingsId, fieldName, fieldType, fieldOptions, required, order, showOnMainPage, printable } = req.body;
 
         if (!eventSettingsId || !fieldName || !fieldType) {
           return res.status(400).json({ error: 'Missing required fields' });
@@ -80,6 +80,15 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           return res.status(400).json({
             error: 'Invalid showOnMainPage value',
             details: 'showOnMainPage must be a boolean value'
+          });
+        }
+
+        // Validate printable is boolean if provided
+        // This ensures data integrity and prevents type coercion issues
+        if (printable !== undefined && typeof printable !== 'boolean') {
+          return res.status(400).json({
+            error: 'Invalid printable value',
+            details: 'printable must be a boolean value'
           });
         }
 
@@ -139,6 +148,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           required: required || false,
           order: fieldOrder,
           showOnMainPage: showOnMainPage !== undefined ? showOnMainPage : true, // Default to visible
+          printable: printable !== undefined ? printable : false, // Default to non-printable for backward compatibility
           version: 0
         };
 

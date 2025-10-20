@@ -50,6 +50,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     );
     const customFields = customFieldsDocs.documents;
 
+    // Create a map of field ID to printable status (fetch once for entire bulk operation)
+    const printableFieldsMap = new Map(
+      customFields.map((cf: any) => [cf.$id, cf.printable === true])
+    );
+
     // Prepare updates array for transaction
     const updates: Array<{ rowId: string; data: any }> = [];
 
@@ -81,6 +86,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         }
 
         let hasChanges = false;
+        let hasPrintableCustomFieldChanges = false;
+        
         // Create a map for easier lookup and updates
         const customFieldMap = new Map(
           currentCustomFieldValues.map(cfv => [cfv.customFieldId, cfv.value])
@@ -107,6 +114,12 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           if (currentValue !== String(processedValue)) {
             customFieldMap.set(fieldId, String(processedValue));
             hasChanges = true;
+            
+            // Check if this is a printable field
+            const isPrintable = printableFieldsMap.get(fieldId) === true;
+            if (isPrintable) {
+              hasPrintableCustomFieldChanges = true;
+            }
           }
         }
 
@@ -118,21 +131,32 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             value
           }));
 
+          const updateData: any = {
+            customFieldValues: JSON.stringify(updatedCustomFieldValues)
+          };
+
+          // Update lastSignificantUpdate if printable fields changed
+          if (hasPrintableCustomFieldChanges) {
+            updateData.lastSignificantUpdate = new Date().toISOString();
+          } else if (!attendee.lastSignificantUpdate) {
+            // Initialize lastSignificantUpdate if it doesn't exist
+            if (attendee.credentialGeneratedAt) {
+              updateData.lastSignificantUpdate = attendee.credentialGeneratedAt;
+            } else {
+              updateData.lastSignificantUpdate = attendee.$createdAt || new Date().toISOString();
+            }
+          }
+
           updates.push({
             rowId: attendeeId,
-            data: {
-              customFieldValues: JSON.stringify(updatedCustomFieldValues)
-            }
+            data: updateData
           });
         }
       } catch (error: any) {
         console.error(`Failed to prepare update for attendee ${attendeeId}:`, error);
-        // Validation errors should be caught before transaction
-        res.status(400).json({
-          error: 'Failed to prepare updates',
-          details: error.message
-        });
-        return;
+        // Continue processing other attendees instead of failing entire batch
+        // This allows partial success in bulk operations
+        continue;
       }
     }
 

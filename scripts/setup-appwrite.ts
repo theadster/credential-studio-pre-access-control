@@ -186,6 +186,7 @@ async function createCustomFieldsCollection(databaseId: string) {
     await databases.createBooleanAttribute(databaseId, COLLECTIONS.CUSTOM_FIELDS, 'required', false, false);
     await databases.createIntegerAttribute(databaseId, COLLECTIONS.CUSTOM_FIELDS, 'fieldOrder', true);
     await databases.createBooleanAttribute(databaseId, COLLECTIONS.CUSTOM_FIELDS, 'showOnMainPage', false, true);
+    await databases.createBooleanAttribute(databaseId, COLLECTIONS.CUSTOM_FIELDS, 'printable', false, false);
 
     // Create indexes
     await databases.createIndex(databaseId, COLLECTIONS.CUSTOM_FIELDS, 'eventSettingsId_idx', IndexType.Key, ['eventSettingsId']);

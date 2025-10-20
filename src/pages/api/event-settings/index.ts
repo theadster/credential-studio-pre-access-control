@@ -153,6 +153,7 @@ async function createDefaultCustomFields(
         required: false,
         order: 1,
         showOnMainPage: true, // Visible on main attendees page by default
+        printable: false, // Default to non-printable
         version: 0
       }
     );
@@ -173,6 +174,7 @@ async function createDefaultCustomFields(
         required: false,
         order: 2,
         showOnMainPage: true, // Visible on main attendees page by default
+        printable: false, // Default to non-printable
         version: 0
       }
     );
@@ -304,6 +306,7 @@ async function handleCustomFieldModifications(
       required: modifiedField.required || false,
       order: modifiedField.order,
       showOnMainPage: modifiedField.showOnMainPage !== undefined ? modifiedField.showOnMainPage : true,
+      printable: modifiedField.printable !== undefined ? modifiedField.printable : false,
     });
   }
 }
@@ -336,6 +339,7 @@ async function handleCustomFieldAdditions(
       required: field.required || false,
       order: field.order || totalFieldsCount,
       showOnMainPage: field.showOnMainPage !== undefined ? field.showOnMainPage : true,
+      printable: field.printable !== undefined ? field.printable : false,
     });
   }
 }
@@ -576,6 +580,7 @@ async function handleEventSettingsUpdateWithTransactions(
     required: field.required,
     order: field.order,
     showOnMainPage: field.showOnMainPage,
+    printable: field.printable,
     fieldOptions: (() => {
       if (!field.fieldOptions) return null;
       if (typeof field.fieldOptions === 'string') return JSON.parse(field.fieldOptions);
@@ -730,6 +735,7 @@ async function buildEventSettingsTransactionOperations(
         existingField.fieldType !== incomingField.fieldType ||
         existingField.required !== incomingField.required ||
         existingField.showOnMainPage !== incomingField.showOnMainPage ||
+        existingField.printable !== incomingField.printable ||
         JSON.stringify(existingField.fieldOptions) !== JSON.stringify(incomingField.fieldOptions);
     });
 
@@ -753,6 +759,7 @@ async function buildEventSettingsTransactionOperations(
           required: modifiedField.required || false,
           order: modifiedField.order,
           showOnMainPage: modifiedField.showOnMainPage !== undefined ? modifiedField.showOnMainPage : true,
+          printable: modifiedField.printable !== undefined ? modifiedField.printable : false,
         }
       });
     }
@@ -780,6 +787,7 @@ async function buildEventSettingsTransactionOperations(
           required: field.required || false,
           order: field.order || customFields.length,
           showOnMainPage: field.showOnMainPage !== undefined ? field.showOnMainPage : true,
+          printable: field.printable !== undefined ? field.printable : false,
         }
       });
     }
@@ -1261,6 +1269,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           required: field.required,
           order: field.order,
           showOnMainPage: field.showOnMainPage !== undefined ? field.showOnMainPage : true,
+          printable: field.printable !== undefined ? field.printable : false,
           fieldOptions: (() => {
             if (!field.fieldOptions) return null;
             if (typeof field.fieldOptions === 'string') return JSON.parse(field.fieldOptions);
@@ -1981,6 +1990,8 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
     fieldType: field.fieldType,
     required: field.required,
     order: field.order,
+    showOnMainPage: field.showOnMainPage,
+    printable: field.printable,
     fieldOptions: (() => {
       if (!field.fieldOptions) return null;
       if (typeof field.fieldOptions === 'string') return JSON.parse(field.fieldOptions);

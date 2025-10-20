@@ -11,6 +11,15 @@ vi.mock('@/lib/appwrite', () => ({
   })),
 }));
 
+// Mock the API middleware to inject user and userProfile directly
+vi.mock('@/lib/apiMiddleware', () => ({
+  withAuth: (handler: any) => async (req: any, res: any) => {
+    // The test will set req.user and req.userProfile before calling handler
+    return handler(req, res);
+  },
+  AuthenticatedRequest: {} as any,
+}));
+
 describe('/api/attendees/[id] - Attendee Detail API', () => {
   let mockReq: Partial<NextApiRequest>;
   let mockRes: Partial<NextApiResponse>;
@@ -77,7 +86,18 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
       cookies: { 'appwrite-session': 'test-session' },
       query: { id: 'attendee-123' },
       body: {},
-    };
+      // Inject authenticated user and profile (bypassing middleware)
+      user: mockAuthUser,
+      userProfile: {
+        ...mockUserProfile,
+        role: {
+          id: mockAdminRole.$id,
+          name: mockAdminRole.name,
+          description: mockAdminRole.description,
+          permissions: JSON.parse(mockAdminRole.permissions),
+        },
+      },
+    } as any;
     
     mockRes = {
       status: statusMock as any,
@@ -121,10 +141,7 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
 
   describe('GET /api/attendees/[id]', () => {
     it('should return attendee details for authorized user', async () => {
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument
-        .mockResolvedValueOnce(mockAdminRole) // User role
-        .mockResolvedValueOnce(mockAttendee); // Attendee
+      mockDatabases.getDocument.mockResolvedValueOnce(mockAttendee);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -138,8 +155,16 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
         permissions: JSON.stringify({ attendees: { read: false } }),
       };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(noPermRole);
+      // Update the request to have a user without read permission
+      mockReq.userProfile = {
+        ...mockUserProfile,
+        role: {
+          id: noPermRole.$id,
+          name: noPermRole.name,
+          description: noPermRole.description,
+          permissions: JSON.parse(noPermRole.permissions),
+        },
+      };
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -153,10 +178,7 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
       const error = new Error('Not found');
       (error as any).code = 404;
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument
-        .mockResolvedValueOnce(mockAdminRole)
-        .mockRejectedValueOnce(error);
+      mockDatabases.getDocument.mockRejectedValueOnce(error);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -164,10 +186,7 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
     });
 
     it('should create log entry for viewing attendee', async () => {
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument
-        .mockResolvedValueOnce(mockAdminRole)
-        .mockResolvedValueOnce(mockAttendee);
+      mockDatabases.getDocument.mockResolvedValueOnce(mockAttendee);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -211,12 +230,10 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
       };
 
       mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // User profile
         .mockResolvedValueOnce({ documents: [], total: 0 }) // Check barcode uniqueness
         .mockResolvedValueOnce({ documents: [{ $id: 'field-1', fieldName: 'Field 1', fieldType: 'text' }], total: 1 }); // Custom fields
 
       mockDatabases.getDocument
-        .mockResolvedValueOnce(mockAdminRole) // User role
         .mockResolvedValueOnce(mockAttendee) // Existing attendee
         .mockResolvedValueOnce(updatedAttendee); // Final attendee after update
 
@@ -242,8 +259,15 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
     });
 
     it('should return 403 if user does not have update permission', async () => {
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockViewerRole);
+      mockReq.userProfile = {
+        ...mockUserProfile,
+        role: {
+          id: mockViewerRole.$id,
+          name: mockViewerRole.name,
+          description: mockViewerRole.description,
+          permissions: JSON.parse(mockViewerRole.permissions),
+        },
+      };
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -257,10 +281,7 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
       const error = new Error('Not found');
       (error as any).code = 404;
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument
-        .mockResolvedValueOnce(mockAdminRole)
-        .mockRejectedValueOnce(error);
+      mockDatabases.getDocument.mockRejectedValueOnce(error);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -271,12 +292,9 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
       const anotherAttendee = { ...mockAttendee, $id: 'another-attendee' };
 
       mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
         .mockResolvedValueOnce({ documents: [anotherAttendee], total: 1 }); // Barcode exists
 
-      mockDatabases.getDocument
-        .mockResolvedValueOnce(mockAdminRole)
-        .mockResolvedValueOnce(mockAttendee);
+      mockDatabases.getDocument.mockResolvedValueOnce(mockAttendee);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -294,11 +312,9 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
       };
 
       mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
         .mockResolvedValueOnce({ documents: [{ $id: 'field-1', fieldName: 'Field 1', fieldType: 'text' }], total: 1 });
 
       mockDatabases.getDocument
-        .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockAttendee)
         .mockResolvedValueOnce(updatedAttendee);
 
@@ -315,13 +331,10 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
       ];
 
       mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
         .mockResolvedValueOnce({ documents: [], total: 0 })
         .mockResolvedValueOnce({ documents: [{ $id: 'field-1' }], total: 1 }); // Valid fields
 
-      mockDatabases.getDocument
-        .mockResolvedValueOnce(mockAdminRole)
-        .mockResolvedValueOnce(mockAttendee);
+      mockDatabases.getDocument.mockResolvedValueOnce(mockAttendee);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -344,9 +357,7 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
         $updatedAt: '2024-01-06T00:00:00.000Z',
       };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
       mockDatabases.getDocument
-        .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockAttendee)
         .mockResolvedValueOnce(updatedAttendee);
 
@@ -374,12 +385,10 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
       };
 
       mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
         .mockResolvedValueOnce({ documents: [], total: 0 })
         .mockResolvedValueOnce({ documents: [{ $id: 'field-1', fieldName: 'Field 1', fieldType: 'text' }], total: 1 });
 
       mockDatabases.getDocument
-        .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockAttendee)
         .mockResolvedValueOnce(updatedAttendee);
 
@@ -407,11 +416,7 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
     });
 
     it('should delete attendee successfully', async () => {
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument
-        .mockResolvedValueOnce(mockAdminRole) // User role
-        .mockResolvedValueOnce(mockAttendee); // Attendee to delete
-
+      mockDatabases.getDocument.mockResolvedValueOnce(mockAttendee);
       mockDatabases.deleteDocument.mockResolvedValue({ success: true });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
@@ -427,8 +432,15 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
     });
 
     it('should return 403 if user does not have delete permission', async () => {
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockViewerRole);
+      mockReq.userProfile = {
+        ...mockUserProfile,
+        role: {
+          id: mockViewerRole.$id,
+          name: mockViewerRole.name,
+          description: mockViewerRole.description,
+          permissions: JSON.parse(mockViewerRole.permissions),
+        },
+      };
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -442,10 +454,7 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
       const error = new Error('Not found');
       (error as any).code = 404;
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument
-        .mockResolvedValueOnce(mockAdminRole)
-        .mockRejectedValueOnce(error);
+      mockDatabases.getDocument.mockRejectedValueOnce(error);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -453,11 +462,7 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
     });
 
     it('should create log entry for attendee deletion', async () => {
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument
-        .mockResolvedValueOnce(mockAdminRole)
-        .mockResolvedValueOnce(mockAttendee);
-
+      mockDatabases.getDocument.mockResolvedValueOnce(mockAttendee);
       mockDatabases.deleteDocument.mockResolvedValue({ success: true });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
@@ -483,6 +488,361 @@ describe('/api/attendees/[id] - Attendee Detail API', () => {
 
       expect(statusMock).toHaveBeenCalledWith(405);
       expect(jsonMock).toHaveBeenCalledWith({ error: 'Method PATCH not allowed' });
+    });
+  });
+
+  describe('Printable Field Change Detection', () => {
+    beforeEach(() => {
+      mockReq.method = 'PUT';
+    });
+
+    it('should update lastSignificantUpdate when printable field changes', async () => {
+      const mockCustomFields = [
+        {
+          $id: 'field-1',
+          fieldName: 'Email',
+          fieldType: 'text',
+          printable: true, // Printable field
+        },
+        {
+          $id: 'field-2',
+          fieldName: 'Internal Notes',
+          fieldType: 'text',
+          printable: false, // Non-printable field
+        },
+      ];
+
+      const existingAttendee = {
+        ...mockAttendee,
+        customFieldValues: JSON.stringify({ 'field-1': 'old@email.com', 'field-2': 'old notes' }),
+        lastSignificantUpdate: '2024-01-01T00:00:00.000Z',
+      };
+
+      mockReq.body = {
+        customFieldValues: [
+          { customFieldId: 'field-1', value: 'new@email.com' }, // Changing printable field
+          { customFieldId: 'field-2', value: 'old notes' }, // Not changing non-printable
+        ],
+      };
+
+      mockDatabases.listDocuments
+        .mockResolvedValueOnce({ documents: [], total: 0 }) // Check barcode uniqueness
+        .mockResolvedValueOnce({ documents: mockCustomFields, total: 2 }); // Custom fields
+
+      mockDatabases.getDocument
+        .mockResolvedValueOnce(existingAttendee) // Existing attendee
+        .mockResolvedValueOnce(existingAttendee); // Final attendee after update
+
+      mockDatabases.updateDocument.mockResolvedValue({
+        ...existingAttendee,
+        customFieldValues: JSON.stringify({ 'field-1': 'new@email.com', 'field-2': 'old notes' }),
+        lastSignificantUpdate: '2024-01-06T00:00:00.000Z',
+      });
+
+      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+
+      expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID,
+        'attendee-123',
+        expect.objectContaining({
+          lastSignificantUpdate: expect.any(String),
+        })
+      );
+
+      // Verify lastSignificantUpdate was updated (should be different from original)
+      const updateCall = mockDatabases.updateDocument.mock.calls[0];
+      const updatedData = updateCall[3];
+      expect(updatedData.lastSignificantUpdate).not.toBe('2024-01-01T00:00:00.000Z');
+    });
+
+    it('should NOT update lastSignificantUpdate when only non-printable field changes', async () => {
+      const mockCustomFields = [
+        {
+          $id: 'field-1',
+          fieldName: 'Email',
+          fieldType: 'text',
+          printable: true,
+        },
+        {
+          $id: 'field-2',
+          fieldName: 'Internal Notes',
+          fieldType: 'text',
+          printable: false, // Non-printable field
+        },
+      ];
+
+      const existingAttendee = {
+        ...mockAttendee,
+        customFieldValues: JSON.stringify({ 'field-1': 'email@test.com', 'field-2': 'old notes' }),
+        lastSignificantUpdate: '2024-01-01T00:00:00.000Z',
+      };
+
+      mockReq.body = {
+        customFieldValues: [
+          { customFieldId: 'field-1', value: 'email@test.com' }, // Not changing printable
+          { customFieldId: 'field-2', value: 'new notes' }, // Changing NON-printable field only
+        ],
+      };
+
+      mockDatabases.listDocuments
+        .mockResolvedValueOnce({ documents: [], total: 0 }) // Check barcode uniqueness
+        .mockResolvedValueOnce({ documents: mockCustomFields, total: 2 }); // Custom fields
+
+      mockDatabases.getDocument
+        .mockResolvedValueOnce(existingAttendee) // Existing attendee
+        .mockResolvedValueOnce(existingAttendee); // Final attendee after update
+
+      mockDatabases.updateDocument.mockResolvedValue({
+        ...existingAttendee,
+        customFieldValues: JSON.stringify({ 'field-1': 'email@test.com', 'field-2': 'new notes' }),
+      });
+
+      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+
+      expect(mockDatabases.updateDocument).toHaveBeenCalled();
+      
+      // Verify lastSignificantUpdate was NOT updated (should be same as original or not present)
+      const updateCall = mockDatabases.updateDocument.mock.calls[0];
+      const updatedData = updateCall[3];
+      
+      // Either lastSignificantUpdate is not in the update, or it's the same as before
+      if (updatedData.lastSignificantUpdate) {
+        expect(updatedData.lastSignificantUpdate).toBe('2024-01-01T00:00:00.000Z');
+      }
+    });
+
+    it('should update lastSignificantUpdate when both printable and non-printable fields change', async () => {
+      const mockCustomFields = [
+        {
+          $id: 'field-1',
+          fieldName: 'Email',
+          fieldType: 'text',
+          printable: true,
+        },
+        {
+          $id: 'field-2',
+          fieldName: 'Internal Notes',
+          fieldType: 'text',
+          printable: false,
+        },
+      ];
+
+      const existingAttendee = {
+        ...mockAttendee,
+        customFieldValues: JSON.stringify({ 'field-1': 'old@email.com', 'field-2': 'old notes' }),
+        lastSignificantUpdate: '2024-01-01T00:00:00.000Z',
+      };
+
+      mockReq.body = {
+        customFieldValues: [
+          { customFieldId: 'field-1', value: 'new@email.com' }, // Changing printable
+          { customFieldId: 'field-2', value: 'new notes' }, // Changing non-printable
+        ],
+      };
+
+      mockDatabases.listDocuments
+        .mockResolvedValueOnce({ documents: [], total: 0 }) // Check barcode uniqueness
+        .mockResolvedValueOnce({ documents: mockCustomFields, total: 2 }); // Custom fields
+
+      mockDatabases.getDocument
+        .mockResolvedValueOnce(existingAttendee) // Existing attendee
+        .mockResolvedValueOnce(existingAttendee); // Final attendee after update
+
+      mockDatabases.updateDocument.mockResolvedValue({
+        ...existingAttendee,
+        customFieldValues: JSON.stringify({ 'field-1': 'new@email.com', 'field-2': 'new notes' }),
+        lastSignificantUpdate: '2024-01-06T00:00:00.000Z',
+      });
+
+      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+
+      expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID,
+        'attendee-123',
+        expect.objectContaining({
+          lastSignificantUpdate: expect.any(String),
+        })
+      );
+
+      // Verify lastSignificantUpdate was updated
+      const updateCall = mockDatabases.updateDocument.mock.calls[0];
+      const updatedData = updateCall[3];
+      expect(updatedData.lastSignificantUpdate).not.toBe('2024-01-01T00:00:00.000Z');
+    });
+
+    it('should treat missing printable flag as non-printable (default to false)', async () => {
+      const mockCustomFields = [
+        {
+          $id: 'field-1',
+          fieldName: 'Email',
+          fieldType: 'text',
+          // printable property is missing - should default to false
+        },
+        {
+          $id: 'field-2',
+          fieldName: 'Phone',
+          fieldType: 'text',
+          printable: undefined, // Explicitly undefined
+        },
+      ];
+
+      const existingAttendee = {
+        ...mockAttendee,
+        customFieldValues: JSON.stringify({ 'field-1': 'old@email.com', 'field-2': '123-456' }),
+        lastSignificantUpdate: '2024-01-01T00:00:00.000Z',
+      };
+
+      mockReq.body = {
+        customFieldValues: [
+          { customFieldId: 'field-1', value: 'new@email.com' }, // Changing field without printable flag
+          { customFieldId: 'field-2', value: '789-012' }, // Changing field with undefined printable
+        ],
+      };
+
+      mockDatabases.listDocuments
+        .mockResolvedValueOnce({ documents: [], total: 0 }) // Check barcode uniqueness
+        .mockResolvedValueOnce({ documents: mockCustomFields, total: 2 }); // Custom fields
+
+      mockDatabases.getDocument
+        .mockResolvedValueOnce(existingAttendee) // Existing attendee
+        .mockResolvedValueOnce(existingAttendee); // Final attendee after update
+
+      mockDatabases.updateDocument.mockResolvedValue({
+        ...existingAttendee,
+        customFieldValues: JSON.stringify({ 'field-1': 'new@email.com', 'field-2': '789-012' }),
+      });
+
+      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+
+      expect(mockDatabases.updateDocument).toHaveBeenCalled();
+      
+      // Verify lastSignificantUpdate was NOT updated (fields treated as non-printable)
+      const updateCall = mockDatabases.updateDocument.mock.calls[0];
+      const updatedData = updateCall[3];
+      
+      if (updatedData.lastSignificantUpdate) {
+        expect(updatedData.lastSignificantUpdate).toBe('2024-01-01T00:00:00.000Z');
+      }
+    });
+
+    it('should handle custom fields fetch failure gracefully by treating all changes as significant', async () => {
+      const existingAttendee = {
+        ...mockAttendee,
+        customFieldValues: JSON.stringify({ 'field-1': 'old@email.com' }),
+        lastSignificantUpdate: '2024-01-01T00:00:00.000Z',
+      };
+
+      mockReq.body = {
+        customFieldValues: [
+          { customFieldId: 'field-1', value: 'new@email.com' },
+        ],
+      };
+
+      mockDatabases.listDocuments
+        .mockResolvedValueOnce({ documents: [], total: 0 }) // Check barcode uniqueness
+        .mockRejectedValueOnce(new Error('Failed to fetch custom fields')); // Fetch failure
+
+      mockDatabases.getDocument
+        .mockResolvedValueOnce(existingAttendee) // Existing attendee
+        .mockResolvedValueOnce(existingAttendee); // Final attendee after update
+
+      mockDatabases.updateDocument.mockResolvedValue({
+        ...existingAttendee,
+        customFieldValues: JSON.stringify({ 'field-1': 'new@email.com' }),
+        lastSignificantUpdate: '2024-01-06T00:00:00.000Z',
+      });
+
+      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+
+      // Should still update successfully, treating all changes as significant (fallback behavior)
+      expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID,
+        'attendee-123',
+        expect.objectContaining({
+          lastSignificantUpdate: expect.any(String),
+        })
+      );
+
+      // Verify lastSignificantUpdate was updated (fallback to treating as significant)
+      const updateCall = mockDatabases.updateDocument.mock.calls[0];
+      const updatedData = updateCall[3];
+      expect(updatedData.lastSignificantUpdate).not.toBe('2024-01-01T00:00:00.000Z');
+    });
+
+    it('should update lastSignificantUpdate when standard fields change (firstName, lastName, etc.)', async () => {
+      const existingAttendee = {
+        ...mockAttendee,
+        firstName: 'John',
+        lastName: 'Doe',
+        lastSignificantUpdate: '2024-01-01T00:00:00.000Z',
+      };
+
+      mockReq.body = {
+        firstName: 'Jane', // Changing standard field
+      };
+
+      mockDatabases.getDocument
+        .mockResolvedValueOnce(existingAttendee) // Existing attendee
+        .mockResolvedValueOnce(existingAttendee); // Final attendee after update
+
+      mockDatabases.updateDocument.mockResolvedValue({
+        ...existingAttendee,
+        firstName: 'Jane',
+        lastSignificantUpdate: '2024-01-06T00:00:00.000Z',
+      });
+
+      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+
+      expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID,
+        'attendee-123',
+        expect.objectContaining({
+          firstName: 'Jane',
+          lastSignificantUpdate: expect.any(String),
+        })
+      );
+
+      // Verify lastSignificantUpdate was updated
+      const updateCall = mockDatabases.updateDocument.mock.calls[0];
+      const updatedData = updateCall[3];
+      expect(updatedData.lastSignificantUpdate).not.toBe('2024-01-01T00:00:00.000Z');
+    });
+
+    it('should NOT update lastSignificantUpdate when only notes field changes', async () => {
+      const existingAttendee = {
+        ...mockAttendee,
+        notes: 'old notes',
+        lastSignificantUpdate: '2024-01-01T00:00:00.000Z',
+      };
+
+      mockReq.body = {
+        notes: 'new notes', // Changing notes field only
+      };
+
+      mockDatabases.getDocument
+        .mockResolvedValueOnce(existingAttendee) // Existing attendee
+        .mockResolvedValueOnce(existingAttendee); // Final attendee after update
+
+      mockDatabases.updateDocument.mockResolvedValue({
+        ...existingAttendee,
+        notes: 'new notes',
+      });
+
+      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+
+      expect(mockDatabases.updateDocument).toHaveBeenCalled();
+      
+      // Verify lastSignificantUpdate was NOT updated
+      const updateCall = mockDatabases.updateDocument.mock.calls[0];
+      const updatedData = updateCall[3];
+      
+      if (updatedData.lastSignificantUpdate) {
+        expect(updatedData.lastSignificantUpdate).toBe('2024-01-01T00:00:00.000Z');
+      }
     });
   });
 });
