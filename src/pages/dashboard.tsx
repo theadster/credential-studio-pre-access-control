@@ -45,7 +45,8 @@ import {
   UsersRound,
   CheckCircle,
   Circle,
-  X
+  X,
+  HelpCircle
 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -2494,6 +2495,14 @@ export default function Dashboard() {
                   Activity Logs
                 </Button>
               )}
+              <Button
+                variant="ghost"
+                className="w-full justify-start text-base"
+                onClick={() => window.open('https://help.credential.studio', '_blank')}
+              >
+                <HelpCircle className="mr-2 h-4 w-4" />
+                Help Center
+              </Button>
             </nav>
           </div>
         </div>
