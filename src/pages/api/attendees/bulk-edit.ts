@@ -4,6 +4,7 @@ import { Query } from 'appwrite';
 import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
 import { bulkEditWithFallback } from '@/lib/bulkOperations';
 import { handleTransactionError } from '@/lib/transactions';
+import { CLEAR_SENTINEL } from '@/lib/constants';
 
 export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   if (req.method !== 'POST') {
@@ -15,7 +16,12 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
   try {
     // User and userProfile are already attached by middleware
     const { user, userProfile } = req;
-    const { databases, tablesDB } = createSessionClient(req);
+    const { databases } = createSessionClient(req);
+
+    // TablesDB bulk operations require API key authentication (admin client)
+    // Session-based JWT authentication doesn't have sufficient permissions
+    const { createAdminClient } = await import('@/lib/appwrite');
+    const { tablesDB: adminTablesDB } = createAdminClient();
 
     // Validate request body
     const { attendeeIds, changes } = req.body;
@@ -46,29 +52,34 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     const allCustomFields: any[] = [];
     let offset = 0;
     const pageSize = 100;
-    
+
     while (true) {
       const customFieldsDocs = await databases.listDocuments(
         dbId,
         customFieldsCollectionId,
         [Query.limit(pageSize), Query.offset(offset)]
       );
-      
+
       allCustomFields.push(...customFieldsDocs.documents);
-      
+
       // If we got fewer than pageSize results, we've reached the end
       if (customFieldsDocs.documents.length < pageSize) {
         break;
       }
-      
+
       offset += pageSize;
     }
-    
+
     const customFields = allCustomFields;
 
-    // Create a map of field ID to printable status (fetch once for entire bulk operation)
-    const printableFieldsMap = new Map(
-      customFields.map((cf: any) => [cf.$id, cf.printable === true])
+    // Create a map of field ID to field properties for O(1) lookups (fetch once for entire bulk operation)
+    // This avoids O(n*m) behavior from repeated find() calls in the bulk loop
+    const customFieldsMap = new Map(
+      customFields.map((cf: any) => [cf.$id, {
+        fieldType: cf.fieldType,
+        fieldName: cf.fieldName,
+        printable: cf.printable === true
+      }])
     );
 
     // Prepare updates array for transaction
@@ -118,13 +129,16 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             continue;
           }
 
-          const customField = customFields.find(cf => cf.$id === fieldId);
+          const customField = customFieldsMap.get(fieldId);
           if (!customField) {
             continue;
           }
 
+          // Handle special CLEAR_SENTINEL value to empty the field
           let processedValue = value;
-          if (customField.fieldType === 'uppercase' && typeof processedValue === 'string') {
+          if (value === CLEAR_SENTINEL) {
+            processedValue = '';
+          } else if (customField.fieldType === 'uppercase' && typeof processedValue === 'string') {
             processedValue = processedValue.toUpperCase();
           }
 
@@ -135,8 +149,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             hasChanges = true;
 
             // Check if this is a printable field
-            const isPrintable = printableFieldsMap.get(fieldId) === true;
-            if (isPrintable) {
+            if (customField.printable) {
               hasPrintableCustomFieldChanges = true;
             }
           }
@@ -201,12 +214,13 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     const changedFieldNames = Object.keys(changes)
       .filter(fieldId => changes[fieldId] && changes[fieldId] !== 'no-change')
       .map(fieldId => {
-        const field = customFields.find(cf => cf.$id === fieldId);
+        const field = customFieldsMap.get(fieldId);
         return field?.fieldName || fieldId;
       });
 
     // Execute bulk edit with transaction and fallback support
-    const result = await bulkEditWithFallback(tablesDB, databases, {
+    // Use admin TablesDB client for bulk operations (requires API key)
+    const result = await bulkEditWithFallback(adminTablesDB, databases, {
       databaseId: dbId,
       tableId: attendeesCollectionId,
       updates,
@@ -258,5 +272,6 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
     // Use centralized transaction error handling
     handleTransactionError(error, res);
+    return;
   }
 });

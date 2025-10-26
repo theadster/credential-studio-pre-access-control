@@ -131,11 +131,16 @@ export const useSweetAlert = () => {
         cancelButton: 'bg-secondary text-secondary-foreground hover:bg-secondary/90 px-4 py-2 rounded-md ml-2',
       },
       buttonsStyling: false,
+      backdrop: true,
+      allowOutsideClick: false,
+      allowEscapeKey: true,
       showClass: {
         popup: 'animate-in fade-in-0 zoom-in-95 duration-200',
+        backdrop: 'swal2-backdrop-show',
       },
       hideClass: {
         popup: 'animate-out fade-out-0 zoom-out-95 duration-150',
+        backdrop: 'swal2-backdrop-hide',
       },
     });
 

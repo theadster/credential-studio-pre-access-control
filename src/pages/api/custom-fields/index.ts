@@ -4,13 +4,13 @@ import { Query, ID } from 'appwrite';
 import { generateInternalFieldName } from '@/util/string';
 import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
 import { shouldLog } from '@/lib/logSettings';
-import { executeTransactionWithRetry, handleTransactionError, type TransactionOperation } from '@/lib/transactions';
+import { handleTransactionError } from '@/lib/transactions';
 
 export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   try {
     // User and userProfile are already attached by middleware
     const { user, userProfile } = req;
-    const { databases, tablesDB } = createSessionClient(req);
+    const { databases } = createSessionClient(req);
 
     const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
     const customFieldsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID!;
@@ -137,7 +137,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
         // Generate unique ID for the custom field
         const customFieldId = ID.unique();
-        
+
         // Prepare custom field data
         const customFieldData = {
           eventSettingsId,
@@ -146,68 +146,86 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           fieldType,
           fieldOptions: fieldOptionsStr,
           required: required || false,
-          order: fieldOrder,
+          order: fieldOrder,  // Database uses 'order' field
           showOnMainPage: showOnMainPage !== undefined ? showOnMainPage : true, // Default to visible
-          printable: printable !== undefined ? printable : false, // Default to non-printable for backward compatibility
-          version: 0
+          printable: printable !== undefined ? printable : false // Default to non-printable for backward compatibility
         };
 
-        // Check if logging is enabled
-        const loggingEnabled = await shouldLog('customFieldCreate');
-
-        // Create transaction operations
-        const operations: TransactionOperation[] = [
-          {
-            action: 'create',
-            databaseId: dbId,
-            tableId: customFieldsCollectionId,
-            rowId: customFieldId,
-            data: customFieldData
-          }
-        ];
-
-        // Add audit log to transaction if logging is enabled
-        if (loggingEnabled) {
-          operations.push({
-            action: 'create',
-            databaseId: dbId,
-            tableId: logsCollectionId,
-            rowId: ID.unique(),
-            data: {
-              userId: user.$id,
-              action: 'create',
-              details: JSON.stringify({
-                type: 'custom_field',
-                fieldName: fieldName,
-                fieldType: fieldType,
-                customFieldId: customFieldId,
-                timestamp: new Date().toISOString()
-              })
-            }
-          });
-        }
-
-        // Execute transaction with retry logic
+        // Create the custom field using regular Databases API with retry on order conflict
+        // Note: Single document creation is not atomic with audit logging in Appwrite
+        // Retry loop handles race conditions where two POSTs calculate the same order
+        // TODO: Consider adding a unique index on (eventSettingsId, order) in Appwrite to enforce integrity
+        let createdField;
         try {
-          await executeTransactionWithRetry(tablesDB, operations);
-          
-          console.log('[custom-fields] Custom field created with transaction', {
+          for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+              createdField = await databases.createDocument(
+                dbId,
+                customFieldsCollectionId,
+                customFieldId,
+                customFieldData
+              );
+              break; // Success, exit retry loop
+            } catch (e: any) {
+              // On unique conflict (e.g., unique index on eventSettingsId+order), recompute and retry
+              if (e?.code === 409 && attempt < 3) {
+                console.log(`[custom-fields] Order conflict detected (attempt ${attempt}), recalculating order...`);
+                const lastFieldResult = await databases.listDocuments(
+                  dbId,
+                  customFieldsCollectionId,
+                  [
+                    Query.equal('eventSettingsId', eventSettingsId),
+                    Query.orderDesc('order'),
+                    Query.limit(1)
+                  ]
+                );
+                fieldOrder = lastFieldResult.documents.length > 0
+                  ? (lastFieldResult.documents[0].order as number) + 1
+                  : 1;
+                customFieldData.order = fieldOrder;
+                console.log(`[custom-fields] Retrying with new order: ${fieldOrder}`);
+                continue; // Retry with new order
+              }
+              throw e; // Re-throw if not a conflict or max attempts reached
+            }
+          }
+
+          console.log('[custom-fields] Custom field created', {
             customFieldId,
-            fieldName,
-            loggingEnabled,
-            operationCount: operations.length
+            fieldName
           });
 
-          // Return the created custom field data
-          // Note: In a transaction, we don't get the document back, so we return what we created
-          return res.status(201).json({
-            $id: customFieldId,
-            ...customFieldData,
-            $createdAt: new Date().toISOString(),
-            $updatedAt: new Date().toISOString()
-          });
+          // Create audit log separately (not atomic with field creation)
+          const loggingEnabled = await shouldLog('customFieldCreate');
+          if (loggingEnabled) {
+            try {
+              await databases.createDocument(
+                dbId,
+                logsCollectionId,
+                ID.unique(),
+                {
+                  userId: user.$id,
+                  action: 'create',
+                  details: JSON.stringify({
+                    type: 'custom_field',
+                    fieldName: fieldName,
+                    fieldType: fieldType,
+                    customFieldId: customFieldId,
+                    eventSettingsId: eventSettingsId,
+                    timestamp: new Date().toISOString()
+                  })
+                }
+              );
+            } catch (logError: any) {
+              console.error('[custom-fields] Failed to create audit log:', logError.message);
+              // Don't fail the operation if audit log fails
+            }
+          }
+
+          // Return the created custom field
+          return res.status(201).json(createdField);
         } catch (error: any) {
-          console.error('[custom-fields] Transaction failed:', error);
+          console.error('[custom-fields] Failed to create custom field:', error);
           return handleTransactionError(error, res);
         }
 

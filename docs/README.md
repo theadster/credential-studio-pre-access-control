@@ -15,6 +15,9 @@ docs/
 
 ## Quick Links
 
+### Canonical Implementations
+- [**Bulk Operations (TablesDB)**](./misc/BULK_OPERATIONS_CANONICAL.md) - ✅ **CANONICAL:** TablesDB atomic operations for bulk edit/delete/import
+
 ### Recent Enhancements
 - [**Custom Field Columns Configuration**](./enhancements/CUSTOM_FIELD_COLUMNS_SETTING.md) - ✅ Configure custom field column layout (3-10 columns) for different screen resolutions
 - [**Attendees Pagination Improvement**](./enhancements/ATTENDEES_PAGINATION_IMPROVEMENT.md) - ✅ Show first/last page with ellipsis for better navigation

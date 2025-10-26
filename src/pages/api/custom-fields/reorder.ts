@@ -3,25 +3,23 @@ import { createSessionClient } from '@/lib/appwrite';
 import { ID } from 'node-appwrite';
 import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
 import { shouldLog } from '@/lib/logSettings';
-import { executeTransactionWithRetry, handleTransactionError, type TransactionOperation } from '@/lib/transactions';
+import { handleTransactionError } from '@/lib/transactions';
 
 /**
- * REORDER CUSTOM FIELDS ENDPOINT (TRANSACTION-BASED)
+ * REORDER CUSTOM FIELDS ENDPOINT (ATOMIC BULK OPERATION)
  * 
- * Reorders multiple custom fields atomically using transactions.
- * All order updates and the audit log are created in a single transaction
- * to ensure data consistency and complete audit trail.
+ * Reorders multiple custom fields atomically using TablesDB bulk operations.
+ * All order updates are performed in a single atomic operation.
  * 
  * Request Body:
  * - fieldOrders: Array<{ id: string, order: number }> (required)
  *   Array of field IDs with their new order values
  * 
- * Transaction Behavior:
- * - All order updates and audit log are atomic (all succeed or all fail)
- * - Automatic retry on conflicts (up to 3 times with exponential backoff)
- * - Automatic rollback on any failure
+ * Atomic Behavior:
+ * - All order updates are atomic (all succeed or all fail)
+ * - Uses TablesDB.upsertRows() for atomic bulk updates
  * - No partial reordering - either all fields are reordered or none are
- * - No orphaned audit logs
+ * - Audit log is created separately (not atomic with reorder)
  * 
  * Error Handling:
  * - 400: Invalid request data
@@ -36,7 +34,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
   try {
     // User and userProfile are already attached by middleware
     const { user, userProfile } = req;
-    const { databases, tablesDB } = createSessionClient(req);
+    const { databases } = createSessionClient(req);
+    
+    // TablesDB bulk operations require API key authentication (admin client)
+    const { createAdminClient } = await import('@/lib/appwrite');
+    const { tablesDB: adminTablesDB } = createAdminClient();
 
     if (req.method !== 'PUT') {
       res.setHeader('Allow', ['PUT']);
@@ -99,51 +101,70 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       }
     }
 
-    // Check if logging is enabled
-    const loggingEnabled = await shouldLog('customFieldReorder');
+    // Fetch existing documents to merge with updates (TablesDB requires all required fields)
+    console.log(`[Reorder] Fetching ${fieldOrders.length} custom fields for atomic update`);
+    const existingDocs = await Promise.all(
+      fieldOrders.map(({ id }) =>
+        databases.getDocument(dbId, customFieldsCollectionId, id)
+      )
+    );
 
-    // Build transaction operations for all order updates
-    const operations: TransactionOperation[] = fieldOrders.map(({ id, order }) => ({
-      action: 'update',
-      databaseId: dbId,
-      tableId: customFieldsCollectionId,
-      rowId: id,
-      data: { order }
-    }));
+    // Prepare rows for atomic upsert
+    const rows = fieldOrders.map(({ id, order }, index) => {
+      const existingDoc = existingDocs[index];
+      // Remove Appwrite metadata fields
+      const { $permissions, $createdAt, $updatedAt, $collectionId, $databaseId, ...docData } = existingDoc as any;
+      
+      return {
+        ...docData,
+        order,  // Update the order (database uses 'order' field)
+        $id: id
+      };
+    });
 
-    // Add audit log if logging is enabled
-    if (loggingEnabled) {
-      operations.push({
-        action: 'create',
-        databaseId: dbId,
-        tableId: logsCollectionId,
-        rowId: ID.unique(),
-        data: {
-          userId: user.$id,
-          action: 'update',
-          details: JSON.stringify({
-            type: 'custom_fields_reorder',
-            fieldCount: fieldOrders.length,
-            fieldOrders: fieldOrders.map(({ id, order }) => ({ id, order }))
-          })
-        }
-      });
-    }
-
-    // Execute transaction with automatic retry on conflicts
+    // Execute atomic bulk update using TablesDB
+    console.log(`[Reorder] Executing atomic reorder of ${rows.length} fields`);
     try {
-      await executeTransactionWithRetry(tablesDB, operations, {
-        maxRetries: 3,
-        retryDelay: 100
-      });
+      await adminTablesDB.upsertRows(
+        dbId,
+        customFieldsCollectionId,
+        rows
+      );
+
+      console.log(`[Reorder] Atomic reorder completed successfully`);
+
+      // Create audit log separately (not atomic with the reorder)
+      const loggingEnabled = await shouldLog('customFieldReorder');
+      if (loggingEnabled) {
+        try {
+          await databases.createDocument(
+            dbId,
+            logsCollectionId,
+            ID.unique(),
+            {
+              userId: user.$id,
+              action: 'update',
+              details: JSON.stringify({
+                type: 'custom_fields_reorder',
+                fieldCount: fieldOrders.length,
+                fieldOrders: fieldOrders.map(({ id, order }) => ({ id, order }))
+              })
+            }
+          );
+        } catch (logError: any) {
+          console.error('[Reorder] Failed to create audit log:', logError.message);
+          // Don't fail the operation if audit log fails
+        }
+      }
 
       return res.status(200).json({ 
         success: true,
         message: 'Custom fields reordered successfully',
-        fieldCount: fieldOrders.length
+        fieldCount: fieldOrders.length,
+        usedAtomicOperation: true
       });
     } catch (error: any) {
-      console.error('[Reorder] Transaction failed:', error);
+      console.error('[Reorder] Atomic reorder failed:', error);
       return handleTransactionError(error, res);
     }
   } catch (error: any) {

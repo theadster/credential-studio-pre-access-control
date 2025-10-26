@@ -33,4 +33,5 @@ export const defaultSweetAlertConfig = {
   timerProgressBar: true,
   showConfirmButton: false,
   toast: true,
+  // Note: backdrop parameter is incompatible with toasts - don't set it
 };

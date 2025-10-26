@@ -1,69 +1,17 @@
 /**
- * Bulk Operation Wrappers with Fallback Support
+ * Bulk Operation Wrappers Using TablesDB Atomic Operations
  * 
- * This module provides high-level wrappers for bulk operations that automatically
- * handle transactions with fallback to legacy API when needed.
+ * This module provides wrappers for TablesDB's built-in atomic bulk operations.
+ * According to Appwrite documentation: "Bulk operations in Appwrite are atomic,
+ * meaning they follow an all-or-nothing approach."
  * 
  * @module bulkOperations
  */
 
-import { TablesDB } from 'node-appwrite';
-import { ID } from 'appwrite';
-import {
-  executeBulkOperationWithFallback,
-  createBulkDeleteOperations,
-  createBulkUpdateOperations,
-  createBulkCreateOperations
-} from './transactions';
+import { TablesDB, ID, Query } from 'node-appwrite';
 
 /**
- * Configuration for bulk delete operation
- */
-interface BulkDeleteConfig {
-  /** Database ID */
-  databaseId: string;
-  /** Table/collection ID to delete from */
-  tableId: string;
-  /** Array of row/document IDs to delete */
-  rowIds: string[];
-  /** Audit log configuration */
-  auditLog: {
-    /** Audit log table/collection ID */
-    tableId: string;
-    /** User ID performing the action */
-    userId: string;
-    /** Action name for audit log */
-    action: string;
-    /** Additional details to log */
-    details: any;
-  };
-}
-
-/**
- * Configuration for bulk import operation
- */
-interface BulkImportConfig {
-  /** Database ID */
-  databaseId: string;
-  /** Table/collection ID to import into */
-  tableId: string;
-  /** Array of items to import */
-  items: Array<{ data: any }>;
-  /** Audit log configuration */
-  auditLog: {
-    /** Audit log table/collection ID */
-    tableId: string;
-    /** User ID performing the action */
-    userId: string;
-    /** Action name for audit log */
-    action: string;
-    /** Additional details to log */
-    details: any;
-  };
-}
-
-/**
- * Configuration for bulk edit operation
+ * Configuration for bulk edit operation using TablesDB
  */
 interface BulkEditConfig {
   /** Database ID */
@@ -86,268 +34,15 @@ interface BulkEditConfig {
 }
 
 /**
- * Bulk delete with automatic fallback to legacy API
+ * Bulk edit using TablesDB's atomic updateRows operation
  * 
- * This function attempts to delete multiple records using transactions.
- * If transactions fail, it automatically falls back to sequential deletion
- * using the legacy Databases API.
- * 
- * @param tablesDB - TablesDB client instance
- * @param databases - Legacy Databases API client (for fallback)
- * @param config - Delete configuration
- * @returns Result with deleted count, transaction usage flag, and batch count
- * 
- * @example
- * ```typescript
- * const result = await bulkDeleteWithFallback(tablesDB, databases, {
- *   databaseId: 'db123',
- *   tableId: 'attendees',
- *   rowIds: ['id1', 'id2', 'id3'],
- *   auditLog: {
- *     tableId: 'logs',
- *     userId: 'user123',
- *     action: 'BULK_DELETE_ATTENDEES',
- *     details: { count: 3 }
- *   }
- * });
- * 
- * console.log(`Deleted ${result.deletedCount} records`);
- * console.log(`Used transactions: ${result.usedTransactions}`);
- * ```
- */
-export async function bulkDeleteWithFallback(
-  tablesDB: TablesDB,
-  databases: any,
-  config: BulkDeleteConfig
-): Promise<{
-  deletedCount: number;
-  usedTransactions: boolean;
-  batchCount?: number;
-}> {
-  console.log(`[bulkDeleteWithFallback] Starting delete of ${config.rowIds.length} items`);
-  
-  // Create transaction operations
-  const operations = createBulkDeleteOperations(
-    config.databaseId,
-    config.tableId,
-    config.rowIds,
-    config.auditLog
-  );
-  
-  // Legacy fallback function
-  const legacyDelete = async () => {
-    console.log('[bulkDeleteWithFallback] Using legacy API approach');
-    let deletedCount = 0;
-    const errors: Array<{ id: string; error: string }> = [];
-    
-    for (const rowId of config.rowIds) {
-      try {
-        await databases.deleteDocument(config.databaseId, config.tableId, rowId);
-        deletedCount++;
-        
-        // Delay to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 50));
-      } catch (error: any) {
-        console.error(`[bulkDeleteWithFallback] Failed to delete ${rowId}:`, error.message);
-        errors.push({ id: rowId, error: error.message });
-      }
-    }
-    
-    // Create audit log separately (legacy approach)
-    if (config.auditLog) {
-      try {
-        await databases.createDocument(
-          config.databaseId,
-          config.auditLog.tableId,
-          ID.unique(),
-          {
-            userId: config.auditLog.userId,
-            action: config.auditLog.action,
-            details: JSON.stringify(config.auditLog.details)
-          }
-        );
-      } catch (logError: any) {
-        console.error('[bulkDeleteWithFallback] Failed to create audit log:', logError.message);
-      }
-    }
-    
-    console.log(`[bulkDeleteWithFallback] Legacy delete complete: ${deletedCount}/${config.rowIds.length} deleted`);
-    if (errors.length > 0) {
-      console.warn(`[bulkDeleteWithFallback] ${errors.length} errors occurred during legacy delete`);
-    }
-    
-    return { deletedCount, errors };
-  };
-  
-  // Execute with fallback
-  const result = await executeBulkOperationWithFallback(
-    tablesDB,
-    databases,
-    operations,
-    legacyDelete,
-    {
-      operationType: 'delete',
-      itemCount: config.rowIds.length
-    }
-  );
-  
-  const deletedCount = result.usedTransactions 
-    ? config.rowIds.length 
-    : result.result?.deletedCount || 0;
-  
-  console.log(
-    `[bulkDeleteWithFallback] Complete: ${deletedCount} deleted, ` +
-    `used transactions: ${result.usedTransactions}`
-  );
-  
-  return {
-    deletedCount,
-    usedTransactions: result.usedTransactions,
-    batchCount: result.batchCount
-  };
-}
-
-/**
- * Bulk import with automatic fallback to legacy API
- * 
- * This function attempts to import multiple records using transactions.
- * If transactions fail, it automatically falls back to sequential creation
- * using the legacy Databases API.
+ * Uses TablesDB.updateRows() which is atomic by default. According to Appwrite docs:
+ * "Bulk operations in Appwrite are atomic, meaning they follow an all-or-nothing approach."
  * 
  * @param tablesDB - TablesDB client instance
- * @param databases - Legacy Databases API client (for fallback)
- * @param config - Import configuration
- * @returns Result with created count, transaction usage flag, and batch count
- * 
- * @example
- * ```typescript
- * const result = await bulkImportWithFallback(tablesDB, databases, {
- *   databaseId: 'db123',
- *   tableId: 'attendees',
- *   items: [
- *     { data: { name: 'John Doe', email: 'john@example.com' } },
- *     { data: { name: 'Jane Smith', email: 'jane@example.com' } }
- *   ],
- *   auditLog: {
- *     tableId: 'logs',
- *     userId: 'user123',
- *     action: 'BULK_IMPORT_ATTENDEES',
- *     details: { count: 2 }
- *   }
- * });
- * 
- * console.log(`Imported ${result.createdCount} records`);
- * console.log(`Used transactions: ${result.usedTransactions}`);
- * ```
- */
-export async function bulkImportWithFallback(
-  tablesDB: TablesDB,
-  databases: any,
-  config: BulkImportConfig
-): Promise<{
-  createdCount: number;
-  usedTransactions: boolean;
-  batchCount?: number;
-}> {
-  console.log(`[bulkImportWithFallback] Starting import of ${config.items.length} items`);
-  
-  // Create transaction operations
-  const operations = createBulkCreateOperations(
-    config.databaseId,
-    config.tableId,
-    config.items.map(item => ({ rowId: ID.unique(), data: item.data })),
-    config.auditLog
-  );
-  
-  // Legacy fallback function
-  const legacyImport = async () => {
-    console.log('[bulkImportWithFallback] Using legacy API approach');
-    let createdCount = 0;
-    const errors: Array<{ row: number; error: string }> = [];
-    
-    for (let i = 0; i < config.items.length; i++) {
-      try {
-        await databases.createDocument(
-          config.databaseId,
-          config.tableId,
-          ID.unique(),
-          config.items[i].data
-        );
-        createdCount++;
-        
-        // Delay to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 50));
-      } catch (error: any) {
-        console.error(`[bulkImportWithFallback] Failed to import row ${i + 1}:`, error.message);
-        errors.push({ row: i + 1, error: error.message });
-      }
-    }
-    
-    // Create audit log separately (legacy approach)
-    if (config.auditLog) {
-      try {
-        await databases.createDocument(
-          config.databaseId,
-          config.auditLog.tableId,
-          ID.unique(),
-          {
-            userId: config.auditLog.userId,
-            action: config.auditLog.action,
-            details: JSON.stringify(config.auditLog.details)
-          }
-        );
-      } catch (logError: any) {
-        console.error('[bulkImportWithFallback] Failed to create audit log:', logError.message);
-      }
-    }
-    
-    console.log(`[bulkImportWithFallback] Legacy import complete: ${createdCount}/${config.items.length} created`);
-    if (errors.length > 0) {
-      console.warn(`[bulkImportWithFallback] ${errors.length} errors occurred during legacy import`);
-    }
-    
-    return { createdCount, errors };
-  };
-  
-  // Execute with fallback
-  const result = await executeBulkOperationWithFallback(
-    tablesDB,
-    databases,
-    operations,
-    legacyImport,
-    {
-      operationType: 'import',
-      itemCount: config.items.length
-    }
-  );
-  
-  const createdCount = result.usedTransactions 
-    ? config.items.length 
-    : result.result?.createdCount || 0;
-  
-  console.log(
-    `[bulkImportWithFallback] Complete: ${createdCount} created, ` +
-    `used transactions: ${result.usedTransactions}`
-  );
-  
-  return {
-    createdCount,
-    usedTransactions: result.usedTransactions,
-    batchCount: result.batchCount
-  };
-}
-
-/**
- * Bulk edit with automatic fallback to legacy API
- * 
- * This function attempts to update multiple records using transactions.
- * If transactions fail, it automatically falls back to sequential updates
- * using the legacy Databases API.
- * 
- * @param tablesDB - TablesDB client instance
- * @param databases - Legacy Databases API client (for fallback)
+ * @param databases - Databases client for audit log
  * @param config - Edit configuration
- * @returns Result with updated count, transaction usage flag, and batch count
+ * @returns Result with updated count and transaction usage flag
  * 
  * @example
  * ```typescript
@@ -355,19 +50,16 @@ export async function bulkImportWithFallback(
  *   databaseId: 'db123',
  *   tableId: 'attendees',
  *   updates: [
- *     { rowId: 'id1', data: { status: 'checked-in' } },
- *     { rowId: 'id2', data: { status: 'checked-in' } }
+ *     { rowId: 'id1', data: { status: 'updated' } },
+ *     { rowId: 'id2', data: { status: 'updated' } }
  *   ],
  *   auditLog: {
  *     tableId: 'logs',
  *     userId: 'user123',
- *     action: 'BULK_EDIT_ATTENDEES',
- *     details: { count: 2, changes: { status: 'checked-in' } }
+ *     action: 'BULK_EDIT',
+ *     details: { count: 2 }
  *   }
  * });
- * 
- * console.log(`Updated ${result.updatedCount} records`);
- * console.log(`Used transactions: ${result.usedTransactions}`);
  * ```
  */
 export async function bulkEditWithFallback(
@@ -379,22 +71,82 @@ export async function bulkEditWithFallback(
   usedTransactions: boolean;
   batchCount?: number;
 }> {
-  console.log(`[bulkEditWithFallback] Starting edit of ${config.updates.length} items`);
-  
-  // Create transaction operations
-  const operations = createBulkUpdateOperations(
-    config.databaseId,
-    config.tableId,
-    config.updates,
-    config.auditLog
-  );
-  
-  // Legacy fallback function
-  const legacyEdit = async () => {
-    console.log('[bulkEditWithFallback] Using legacy API approach');
+  console.log(`[bulkEditWithFallback] Starting atomic bulk edit of ${config.updates.length} items using TablesDB`);
+  console.log(`[bulkEditWithFallback] Database ID: ${config.databaseId}`);
+  console.log(`[bulkEditWithFallback] Table ID: ${config.tableId}`);
+
+  try {
+    // TablesDB.upsertRows() requires ALL required fields to be present
+    // We need to fetch existing documents first and merge changes
+    console.log(`[bulkEditWithFallback] Fetching existing documents for merge...`);
+
+    const existingDocs = await Promise.all(
+      config.updates.map(update =>
+        databases.getDocument(config.databaseId, config.tableId, update.rowId)
+      )
+    );
+
+    // Prepare rows for TablesDB.upsertRows()
+    // Merge existing document data with updates
+    const rows = config.updates.map((update, index) => {
+      const existingDoc = existingDocs[index];
+      // Remove Appwrite metadata fields that shouldn't be in the upsert
+      const { $permissions, $createdAt, $updatedAt, $collectionId, $databaseId, $sequence, ...docData } = existingDoc as any;
+
+      return {
+        ...docData,  // Existing data with all required fields
+        ...update.data,  // Override with updates
+        $id: update.rowId  // Ensure ID is set
+      };
+    });
+
+    console.log(`[bulkEditWithFallback] Prepared ${rows.length} rows for upsert`);
+
+    // Use TablesDB's atomic upsertRows operation
+    // This is atomic by default - all updates succeed or all fail
+    // Note: Uses positional parameters, not named object parameters
+    const result = await tablesDB.upsertRows(
+      config.databaseId,
+      config.tableId,
+      rows
+    );
+
+    console.log(`[bulkEditWithFallback] Atomic bulk update completed successfully`);
+
+    // Create audit log separately (not part of the atomic operation)
+    try {
+      const documentId = ID.unique();
+      const data = {
+        userId: config.auditLog.userId,
+        action: config.auditLog.action,
+        details: JSON.stringify(config.auditLog.details)
+      };
+      await databases.createDocument(
+        config.databaseId,
+        config.auditLog.tableId,
+        documentId,
+        data
+      );
+    } catch (logError: any) {
+      console.error('[bulkEditWithFallback] Failed to create audit log:', logError.message);
+      // Don't fail the operation if audit log fails
+    }
+
+    return {
+      updatedCount: config.updates.length,
+      usedTransactions: true, // TablesDB bulk operations are atomic
+      batchCount: 1
+    };
+
+  } catch (error: any) {
+    console.error('[bulkEditWithFallback] Atomic bulk update failed:', error);
+
+    // If atomic operation fails, fall back to sequential updates
+    console.log('[bulkEditWithFallback] Falling back to sequential updates');
+
     let updatedCount = 0;
     const errors: Array<{ id: string; error: string }> = [];
-    
+
     for (const update of config.updates) {
       try {
         await databases.updateDocument(
@@ -404,65 +156,272 @@ export async function bulkEditWithFallback(
           update.data
         );
         updatedCount++;
-        
+
         // Delay to avoid rate limiting
         await new Promise(resolve => setTimeout(resolve, 50));
-      } catch (error: any) {
-        console.error(`[bulkEditWithFallback] Failed to update ${update.rowId}:`, error.message);
-        errors.push({ id: update.rowId, error: error.message });
+      } catch (updateError: any) {
+        console.error(`[bulkEditWithFallback] Failed to update ${update.rowId}:`, updateError.message);
+        errors.push({ id: update.rowId, error: updateError.message });
       }
     }
-    
-    // Create audit log separately (legacy approach)
-    if (config.auditLog) {
+
+    // Create audit log for fallback
+    try {
+      const documentId = ID.unique();
+      const data = {
+        userId: config.auditLog.userId,
+        action: config.auditLog.action,
+        details: JSON.stringify({
+          ...config.auditLog.details,
+          usedFallback: true,
+          errors: errors.length
+        })
+      };
+      await databases.createDocument(
+        config.databaseId,
+        config.auditLog.tableId,
+        documentId,
+        data
+      );
+    } catch (logError: any) {
+      console.error('[bulkEditWithFallback] Failed to create audit log:', logError.message);
+    }
+
+    console.log(`[bulkEditWithFallback] Sequential fallback complete: ${updatedCount}/${config.updates.length} updated`);
+
+    return {
+      updatedCount,
+      usedTransactions: false, // Used fallback
+      batchCount: undefined
+    };
+  }
+}
+
+/**
+ * Bulk delete using TablesDB's atomic deleteRows operation
+ * 
+ * @param tablesDB - TablesDB client instance
+ * @param databases - Databases client for audit log
+ * @param config - Delete configuration
+ * @returns Result with deleted count and transaction usage flag
+ */
+export async function bulkDeleteWithFallback(
+  tablesDB: TablesDB,
+  databases: any,
+  config: {
+    databaseId: string;
+    tableId: string;
+    rowIds: string[];
+    auditLog: {
+      tableId: string;
+      userId: string;
+      action: string;
+      details: any;
+    };
+  }
+): Promise<{
+  deletedCount: number;
+  usedTransactions: boolean;
+}> {
+  console.log(`[bulkDeleteWithFallback] Starting atomic bulk delete of ${config.rowIds.length} items using TablesDB`);
+
+  try {
+    // Use TablesDB's atomic deleteRows operation
+    // Delete by query matching the IDs
+    // Note: Uses positional parameters, not named object parameters
+    await tablesDB.deleteRows(
+      config.databaseId,
+      config.tableId,
+      [Query.equal('$id', config.rowIds)]
+    );
+
+    console.log(`[bulkDeleteWithFallback] Atomic bulk delete completed successfully`);
+
+    // Create audit log
+    try {
+      const documentId = ID.unique();
+      const data = {
+        userId: config.auditLog.userId,
+        action: config.auditLog.action,
+        details: JSON.stringify(config.auditLog.details)
+      };
+      await databases.createDocument(
+        config.databaseId,
+        config.auditLog.tableId,
+        documentId,
+        data
+      );
+    } catch (logError: any) {
+      console.error('[bulkDeleteWithFallback] Failed to create audit log:', logError.message);
+    }
+
+    return {
+      deletedCount: config.rowIds.length,
+      usedTransactions: true
+    };
+
+  } catch (error: any) {
+    console.error('[bulkDeleteWithFallback] Atomic bulk delete failed:', error);
+    console.log('[bulkDeleteWithFallback] Falling back to sequential deletes');
+
+    let deletedCount = 0;
+
+    for (const rowId of config.rowIds) {
       try {
+        await databases.deleteDocument(
+          config.databaseId,
+          config.tableId,
+          rowId
+        );
+        deletedCount++;
+        await new Promise(resolve => setTimeout(resolve, 50));
+      } catch (deleteError: any) {
+        console.error(`[bulkDeleteWithFallback] Failed to delete ${rowId}:`, deleteError.message);
+      }
+    }
+
+    // Create audit log
+    try {
+      const documentId = ID.unique();
+      const data = {
+        userId: config.auditLog.userId,
+        action: config.auditLog.action,
+        details: JSON.stringify({
+          ...config.auditLog.details,
+          usedFallback: true
+        })
+      };
+      await databases.createDocument(
+        config.databaseId,
+        config.auditLog.tableId,
+        documentId,
+        data
+      );
+    } catch (logError: any) {
+      console.error('[bulkDeleteWithFallback] Failed to create audit log:', logError.message);
+    }
+
+    return {
+      deletedCount,
+      usedTransactions: false
+    };
+  }
+}
+
+/**
+ * Bulk import using TablesDB's atomic createRows operation
+ * 
+ * @param tablesDB - TablesDB client instance
+ * @param databases - Databases client for audit log
+ * @param config - Import configuration
+ * @returns Result with created count and transaction usage flag
+ */
+export async function bulkImportWithFallback(
+  tablesDB: TablesDB,
+  databases: any,
+  config: {
+    databaseId: string;
+    tableId: string;
+    items: Array<{ data: any }>;
+    auditLog: {
+      tableId: string;
+      userId: string;
+      action: string;
+      details: any;
+    };
+  }
+): Promise<{
+  createdCount: number;
+  usedTransactions: boolean;
+}> {
+  console.log(`[bulkImportWithFallback] Starting atomic bulk import of ${config.items.length} items using TablesDB`);
+
+  try {
+    // Prepare rows for TablesDB.createRows()
+    const rows = config.items.map(item => ({
+      $id: ID.unique(),
+      ...item.data
+    }));
+
+    // Use TablesDB's atomic createRows operation
+    // Note: Uses positional parameters, not named object parameters
+    await tablesDB.createRows(
+      config.databaseId,
+      config.tableId,
+      rows
+    );
+
+    console.log(`[bulkImportWithFallback] Atomic bulk import completed successfully`);
+
+    // Create audit log
+    try {
+      const documentId = ID.unique();
+      const data = {
+        userId: config.auditLog.userId,
+        action: config.auditLog.action,
+        details: JSON.stringify(config.auditLog.details)
+      };
+      await databases.createDocument(
+        config.databaseId,
+        config.auditLog.tableId,
+        documentId,
+        data
+      );
+    } catch (logError: any) {
+      console.error('[bulkImportWithFallback] Failed to create audit log:', logError.message);
+    }
+
+    return {
+      createdCount: config.items.length,
+      usedTransactions: true
+    };
+
+  } catch (error: any) {
+    console.error('[bulkImportWithFallback] Atomic bulk import failed:', error);
+    console.log('[bulkImportWithFallback] Falling back to sequential creates');
+
+    let createdCount = 0;
+
+    for (const item of config.items) {
+      try {
+        const documentId = ID.unique();
         await databases.createDocument(
           config.databaseId,
-          config.auditLog.tableId,
-          ID.unique(),
-          {
-            userId: config.auditLog.userId,
-            action: config.auditLog.action,
-            details: JSON.stringify(config.auditLog.details)
-          }
+          config.tableId,
+          documentId,
+          item.data
         );
-      } catch (logError: any) {
-        console.error('[bulkEditWithFallback] Failed to create audit log:', logError.message);
+        createdCount++;
+        await new Promise(resolve => setTimeout(resolve, 50));
+      } catch (createError: any) {
+        console.error(`[bulkImportWithFallback] Failed to create item:`, createError.message);
       }
     }
-    
-    console.log(`[bulkEditWithFallback] Legacy edit complete: ${updatedCount}/${config.updates.length} updated`);
-    if (errors.length > 0) {
-      console.warn(`[bulkEditWithFallback] ${errors.length} errors occurred during legacy edit`);
+
+    // Create audit log
+    try {
+      const documentId = ID.unique();
+      const data = {
+        userId: config.auditLog.userId,
+        action: config.auditLog.action,
+        details: JSON.stringify({
+          ...config.auditLog.details,
+          usedFallback: true
+        })
+      };
+      await databases.createDocument(
+        config.databaseId,
+        config.auditLog.tableId,
+        documentId,
+        data
+      );
+    } catch (logError: any) {
+      console.error('[bulkImportWithFallback] Failed to create audit log:', logError.message);
     }
-    
-    return { updatedCount, errors };
-  };
-  
-  // Execute with fallback
-  const result = await executeBulkOperationWithFallback(
-    tablesDB,
-    databases,
-    operations,
-    legacyEdit,
-    {
-      operationType: 'edit',
-      itemCount: config.updates.length
-    }
-  );
-  
-  const updatedCount = result.usedTransactions 
-    ? config.updates.length 
-    : result.result?.updatedCount || 0;
-  
-  console.log(
-    `[bulkEditWithFallback] Complete: ${updatedCount} updated, ` +
-    `used transactions: ${result.usedTransactions}`
-  );
-  
-  return {
-    updatedCount,
-    usedTransactions: result.usedTransactions,
-    batchCount: result.batchCount
-  };
+
+    return {
+      createdCount,
+      usedTransactions: false
+    };
+  }
 }

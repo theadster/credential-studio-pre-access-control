@@ -75,6 +75,7 @@ import LogsExportDialog from "@/components/LogsExportDialog";
 import LogsDeleteDialog from "@/components/LogsDeleteDialog";
 import LogSettingsDialog from "@/components/LogSettingsDialog";
 import { hasPermission, canAccessTab, canManageUser } from "@/lib/permissions";
+import { CLEAR_SENTINEL } from "@/lib/constants";
 
 interface User {
   id: string;
@@ -523,14 +524,14 @@ export default function Dashboard() {
         const response = await fetch('/api/profile');
         if (response.ok) {
           const currentUserData = await response.json();
-          
+
           // Debug logging (only in development)
           if (process.env.NODE_ENV === 'development') {
             console.log('Current user data:', currentUserData);
             console.log('Role:', currentUserData.role);
             console.log('Permissions:', currentUserData.role?.permissions);
           }
-          
+
           setCurrentUser(currentUserData);
         } else {
           console.error('Failed to fetch user profile:', response.status);
@@ -2282,7 +2283,12 @@ export default function Dashboard() {
       setCurrentPage(1);
 
       close();
-      success("Success", `Successfully updated ${result.updatedCount} attendees.`);
+
+      // Show transaction status in success message
+      const transactionInfo = result.usedTransactions
+        ? ' (using atomic transactions)'
+        : ' (using sequential updates)';
+      success("Success", `Successfully updated ${result.updatedCount} attendees${transactionInfo}.`);
 
     } catch (err: any) {
       close();
@@ -3211,6 +3217,7 @@ export default function Dashboard() {
                                             <SelectItem value="no-change">No Change</SelectItem>
                                             <SelectItem value="yes">Yes</SelectItem>
                                             <SelectItem value="no">No</SelectItem>
+                                            <SelectItem value={CLEAR_SENTINEL}>Clear Field</SelectItem>
                                           </SelectContent>
                                         </Select>
                                       ) : field.fieldType === 'select' ? (
@@ -3222,17 +3229,41 @@ export default function Dashboard() {
                                           </SelectTrigger>
                                           <SelectContent>
                                             <SelectItem value="no-change">No Change</SelectItem>
+                                            <SelectItem value={CLEAR_SENTINEL}>Clear Field</SelectItem>
                                             {field.fieldOptions?.options?.map((option: string, index: number) => (
                                               <SelectItem key={index} value={option}>{option}</SelectItem>
                                             ))}
                                           </SelectContent>
                                         </Select>
                                       ) : (
-                                        <Input
-                                          id={`bulk-edit-${field.id}`}
-                                          placeholder="Leave empty for no change"
-                                          onChange={(e) => setBulkEditChanges(prev => ({ ...prev, [field.id]: e.target.value }))}
-                                        />
+                                        <div className="space-y-2">
+                                          <Input
+                                            id={`bulk-edit-${field.id}`}
+                                            placeholder="Leave empty for no change"
+                                            value={bulkEditChanges[field.id] === CLEAR_SENTINEL ? '' : bulkEditChanges[field.id] || ''}
+                                            onChange={(e) => setBulkEditChanges(prev => ({ ...prev, [field.id]: e.target.value }))}
+                                            disabled={bulkEditChanges[field.id] === CLEAR_SENTINEL}
+                                            aria-disabled={bulkEditChanges[field.id] === CLEAR_SENTINEL}
+                                          />
+                                          <div className="flex items-center space-x-2">
+                                            <Checkbox
+                                              id={`clear-${field.id}`}
+                                              checked={bulkEditChanges[field.id] === CLEAR_SENTINEL}
+                                              onCheckedChange={(checked) => {
+                                                setBulkEditChanges(prev => ({
+                                                  ...prev,
+                                                  [field.id]: checked ? CLEAR_SENTINEL : ''
+                                                }));
+                                              }}
+                                            />
+                                            <Label
+                                              htmlFor={`clear-${field.id}`}
+                                              className="text-sm text-muted-foreground cursor-pointer"
+                                            >
+                                              Clear this field for all selected attendees
+                                            </Label>
+                                          </div>
+                                        </div>
                                       )}
                                     </div>
                                   ))}

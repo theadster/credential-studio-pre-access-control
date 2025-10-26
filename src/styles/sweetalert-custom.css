@@ -1,5 +1,65 @@
 /* SweetAlert2 Custom Styling */
 
+/* Z-Index Layer System
+ * Centralized z-index values for maintainable layering:
+ * - Dialog: 50 (shadcn default)
+ * - SweetAlert Backdrop: 100 (above dialog)
+ * - SweetAlert Container: 101 (above backdrop)
+ * - SweetAlert Popup: 102 (above container)
+ */
+:root {
+  --z-index-dialog: 50;
+  --z-index-sweetalert-backdrop: 100;
+  --z-index-sweetalert-container: 101;
+  --z-index-sweetalert-popup: 102;
+}
+
+/* Z-Index Fix: Ensure SweetAlert appears above shadcn Dialog */
+.swal2-container {
+  z-index: var(--z-index-sweetalert-container) !important;
+  pointer-events: auto !important;
+}
+
+.swal2-container.swal2-backdrop-show {
+  z-index: var(--z-index-sweetalert-backdrop) !important;
+  pointer-events: auto !important;
+}
+
+/* TARGETED FIX: Override backdrop for toast containers at top-end position */
+/* Covers both show and hide animation states to prevent flash */
+.swal2-container.swal2-backdrop-show.swal2-top-end,
+.swal2-container.swal2-backdrop-hide.swal2-top-end {
+  background: none !important;
+  animation: none !important;
+  /* Disable backdrop animations to prevent flash */
+}
+
+/* Ensure backdrop blocks clicks to elements underneath */
+.swal2-container:not(.swal2-toast) {
+  background-color: rgba(0, 0, 0, 0.4) !important;
+  pointer-events: auto !important;
+}
+
+.dark .swal2-container:not(.swal2-toast) {
+  background-color: rgba(0, 0, 0, 0.6) !important;
+}
+
+/* Toast container styling */
+.swal2-container.swal2-toast {
+  pointer-events: none !important;
+}
+
+.swal2-container.swal2-toast .swal2-popup {
+  pointer-events: auto !important;
+}
+
+/* Ensure popup is clickable */
+.swal2-popup {
+  pointer-events: auto !important;
+  position: relative !important;
+  z-index: var(--z-index-sweetalert-popup) !important;
+}
+
 /* Toast positioning and sizing */
 .swal2-container.swal2-top-end {
   top: 1rem;
@@ -149,13 +209,16 @@
     transform: scale(0.7) translateZ(0);
     opacity: 0;
   }
+
   45% {
     transform: scale(1.05) translateZ(0);
     opacity: 1;
   }
+
   80% {
     transform: scale(0.95) translateZ(0);
   }
+
   100% {
     transform: scale(1) translateZ(0);
     opacity: 1;
@@ -168,6 +231,7 @@
     transform: scale(1) translateZ(0);
     opacity: 1;
   }
+
   100% {
     transform: scale(0.5) translateZ(0);
     opacity: 0;
@@ -180,6 +244,7 @@
     transform: translateX(100%) translateZ(0);
     opacity: 0;
   }
+
   100% {
     transform: translateX(0) translateZ(0);
     opacity: 1;
@@ -192,6 +257,7 @@
     transform: translateX(0) translateZ(0);
     opacity: 1;
   }
+
   100% {
     transform: translateX(100%) translateZ(0);
     opacity: 0;
@@ -203,6 +269,7 @@
   0% {
     opacity: 0;
   }
+
   100% {
     opacity: 0.4;
   }
@@ -213,6 +280,7 @@
   0% {
     opacity: 0.4;
   }
+
   100% {
     opacity: 0;
   }
@@ -236,13 +304,19 @@
   animation: swal2-hide 0.15s cubic-bezier(0.7, 0, 0.84, 0);
 }
 
-/* Backdrop animations */
-.swal2-container.swal2-backdrop-show {
+/* Backdrop animations - only for modal dialogs, not toasts */
+.swal2-container:not(.swal2-toast).swal2-backdrop-show {
   animation: swal2-backdrop-show 0.2s;
 }
 
-.swal2-container.swal2-backdrop-hide {
+.swal2-container:not(.swal2-toast).swal2-backdrop-hide {
   animation: swal2-backdrop-hide 0.15s;
+}
+
+/* Disable backdrop animations for toast notifications */
+.swal2-container.swal2-toast.swal2-backdrop-show,
+.swal2-container.swal2-toast.swal2-backdrop-hide {
+  animation: none !important;
 }
 
 /* Icon animations */
@@ -255,10 +329,12 @@
     transform: scale(0) rotate(-45deg) translateZ(0);
     opacity: 0;
   }
+
   50% {
     transform: scale(1.2) rotate(10deg) translateZ(0);
     opacity: 1;
   }
+
   100% {
     transform: scale(1) rotate(0deg) translateZ(0);
     opacity: 1;
@@ -274,6 +350,7 @@
   0% {
     width: 100%;
   }
+
   100% {
     width: 0%;
   }
@@ -284,6 +361,7 @@
   0% {
     transform: rotate(0deg) translateZ(0);
   }
+
   100% {
     transform: rotate(360deg) translateZ(0);
   }
@@ -291,6 +369,7 @@
 
 /* Reduce motion for users who prefer it */
 @media (prefers-reduced-motion: reduce) {
+
   .swal2-popup,
   .swal2-icon,
   .swal2-loader {

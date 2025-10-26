@@ -103,10 +103,18 @@
 
 /* Cloudinary Widget Z-Index Fix */
 @layer utilities {
-  /* Ensure the Cloudinary widget and its overlay have a very high z-index to appear above all other content. */
+  /* Z-Index Layer System Extension
+   * Cloudinary widget needs to appear above SweetAlert
+   * - Cloudinary: 200 (above all app UI)
+   */
+  :root {
+    --z-index-cloudinary: 200;
+  }
+
+  /* Ensure the Cloudinary widget and its overlay appear above all other content */
   #cloudinary-overlay,
   .cloudinary-widget {
-    z-index: 99999 !important;
+    z-index: var(--z-index-cloudinary) !important;
   }
   
   /* Glass effect for cards */

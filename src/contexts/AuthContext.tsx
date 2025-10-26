@@ -315,6 +315,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             toast({
               title: "Welcome Back",
               description: "Your session has been restored successfully.",
+              variant: "success"
             });
           }
         } catch (jwtError) {
@@ -768,6 +769,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       toast({
         title: "Success",
         description: "You have successfully signed in",
+        variant: "success"
       });
 
       // Check for return URL from session expiration
@@ -842,6 +844,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       toast({
         title: "Success",
         description: "Sign up successful! Please login to continue.",
+        variant: "success"
       });
     } catch (error: any) {
       console.error('Sign up error:', error);
@@ -878,6 +881,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       toast({
         title: "Success",
         description: "Check your email for the login link",
+        variant: "success"
       });
     } catch (error: any) {
       console.error('Magic link error:', error);
@@ -967,6 +971,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       toast({
         title: "Success",
         description: "You have successfully signed out",
+        variant: "success"
       });
 
       router.push('/');
@@ -996,6 +1001,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       toast({
         title: "Success",
         description: "Check your email for the password reset link",
+        variant: "success"
       });
     } catch (error: any) {
       console.error('Password reset error:', error);
@@ -1027,6 +1033,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       toast({
         title: "Success",
         description: "Password updated successfully",
+        variant: "success"
       });
     } catch (error: any) {
       console.error('Password update error:', error);

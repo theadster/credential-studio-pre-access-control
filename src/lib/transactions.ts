@@ -570,10 +570,20 @@ export async function executeBulkOperationWithFallback<T>(
 }> {
   const limit = getTransactionLimit();
   
+  // Check if TablesDB methods are available
+  const hasTransactionSupport = typeof tablesDB.createTransaction === 'function';
+  
   // Log operation details
   console.log(
     `[Bulk ${options.operationType}] Processing ${options.itemCount} items (limit: ${limit})`
   );
+  
+  if (!hasTransactionSupport) {
+    console.warn(
+      `[Bulk ${options.operationType}] ⚠️  Transactions API not available in current SDK version. ` +
+      `Using sequential fallback. See docs/misc/TRANSACTIONS_API_STATUS.md for details.`
+    );
+  }
   
   try {
     // Attempt transaction-based approach

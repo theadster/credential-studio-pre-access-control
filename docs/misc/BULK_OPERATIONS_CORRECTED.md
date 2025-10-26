@@ -138,8 +138,11 @@ Look for:
 - ❌ `docs/misc/TRANSACTIONS_IMPLEMENTATION_COMPLETE.md` - Deleted
 - ❌ `docs/misc/TRANSACTIONS_API_UPDATE.md` - Deleted
 
-### Backed Up
-- 📦 `src/lib/bulkOperations-backup.ts` - Original implementation
+### Canonical Implementation
+- ✅ `src/lib/bulkOperations.ts` - TablesDB atomic operations (canonical)
+  - Uses TablesDB.upsertRows(), deleteRows(), createRows()
+  - Provides atomic guarantees for all bulk operations
+  - See `docs/fixes/TABLESDB_BULK_OPERATIONS_WORKING.md` for details
 
 ## Next Steps
 
