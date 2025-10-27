@@ -554,12 +554,6 @@ export default function Dashboard() {
       // Wait for currentUser to be loaded before fetching data
       if (!currentUser) return;
 
-      // Show loading notification
-      showLoading({
-        title: "Loading Dashboard",
-        text: "Please wait while we load your data..."
-      });
-
       try {
         // Only load data for tabs the user has access to
         // Load users (only if user has permission)
@@ -611,14 +605,8 @@ export default function Dashboard() {
         if (canAccessTab(currentUser.role, 'logs')) {
           await loadLogs();
         }
-
-        // Close loading and show success
-        close();
-        success("Dashboard Loaded", "All data loaded successfully!");
       } catch (err) {
         console.error('Error loading data:', err);
-        // Close loading and show error
-        close();
         error("Loading Failed", "Failed to load dashboard data. Using fallback data.");
         // Fall back to mock data if API fails
         loadMockData();

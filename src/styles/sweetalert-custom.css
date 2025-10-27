@@ -14,10 +14,44 @@
   --z-index-sweetalert-popup: 102;
 }
 
+/* ============================================================================
+ * CRITICAL FIX: Toast Backdrop Flash Prevention
+ * ============================================================================
+ * 
+ * PROBLEM:
+ * When SweetAlert2 toast notifications appear, there was a brief (16-32ms) 
+ * flash of a dark grey backdrop (rgba(0, 0, 0, 0.4)) behind the toast that 
+ * spanned the full page height and toast width.
+ * 
+ * ROOT CAUSE:
+ * SweetAlert2 applies CSS classes in sequence during initialization:
+ *   Frame 1: <div class="swal2-container swal2-backdrop-show">
+ *   Frame 2: <div class="swal2-container swal2-backdrop-show swal2-top-end">
+ *   Frame 3: <div class="swal2-container swal2-backdrop-show swal2-top-end swal2-toast">
+ * 
+ * The library's default CSS applies backdrop styling in Frame 1, before 
+ * position or toast classes are added. Previous fixes targeted specific 
+ * class combinations but missed the initial state.
+ * 
+ * SOLUTION:
+ * 1. Set ALL containers to background: none by default (this rule)
+ * 2. Only apply backdrop to CENTERED modal dialogs (.swal2-center)
+ * 3. Toast notifications use position classes (.swal2-top-end, etc.) not .swal2-center
+ * 
+ * This prevents ANY backdrop from appearing on toast containers, regardless 
+ * of timing or class application order.
+ * 
+ * DO NOT REMOVE: background: none !important
+ * This is the foundation of the fix. Without it, the flash will return.
+ * ============================================================================
+ */
+
 /* Z-Index Fix: Ensure SweetAlert appears above shadcn Dialog */
 .swal2-container {
   z-index: var(--z-index-sweetalert-container) !important;
   pointer-events: auto !important;
+  background: none !important;
+  /* CRITICAL: Prevents backdrop flash on toasts */
 }
 
 .swal2-container.swal2-backdrop-show {
@@ -25,28 +59,55 @@
   pointer-events: auto !important;
 }
 
-/* TARGETED FIX: Override backdrop for toast containers at top-end position */
-/* Covers both show and hide animation states to prevent flash */
-.swal2-container.swal2-backdrop-show.swal2-top-end,
-.swal2-container.swal2-backdrop-hide.swal2-top-end {
-  background: none !important;
-  animation: none !important;
-  /* Disable backdrop animations to prevent flash */
-}
+/* ============================================================================
+ * Modal Dialog Backdrop (Centered Dialogs Only)
+ * ============================================================================
+ * 
+ * IMPORTANT: Only apply backdrop to CENTERED modal dialogs
+ * 
+ * Modal dialogs use .swal2-center positioning
+ * Toast notifications use .swal2-top-end, .swal2-bottom-end, etc.
+ * 
+ * By targeting .swal2-center specifically, we ensure:
+ * - Modal dialogs (confirm, alert) get their backdrop ✓
+ * - Toast notifications never get a backdrop ✓
+ * - No timing issues with class application ✓
+ * 
+ * DO NOT change .swal2-center to a broader selector like :not(.swal2-toast)
+ * This will reintroduce the backdrop flash bug on toasts.
+ * ============================================================================
+ */
 
 /* Ensure backdrop blocks clicks to elements underneath */
-.swal2-container:not(.swal2-toast) {
+/* Only apply backdrop to modal dialogs (centered, not positioned at corners) */
+.swal2-container.swal2-center:not(.swal2-toast) {
   background-color: rgba(0, 0, 0, 0.4) !important;
   pointer-events: auto !important;
 }
 
-.dark .swal2-container:not(.swal2-toast) {
+.dark .swal2-container.swal2-center:not(.swal2-toast) {
   background-color: rgba(0, 0, 0, 0.6) !important;
 }
+
+/* ============================================================================
+ * Toast Container Styling
+ * ============================================================================
+ * 
+ * Toast containers should:
+ * - Not block clicks to page content (pointer-events: none on container)
+ * - Allow clicks on the toast itself (pointer-events: auto on popup)
+ * - Never have a background (background: none)
+ * 
+ * The explicit background: none here is defensive - the base container rule
+ * already sets this, but we keep it for clarity and as a safety net.
+ * ============================================================================
+ */
 
 /* Toast container styling */
 .swal2-container.swal2-toast {
   pointer-events: none !important;
+  background: none !important;
+  /* Defensive: ensures no backdrop on toasts */
 }
 
 .swal2-container.swal2-toast .swal2-popup {
@@ -304,12 +365,28 @@
   animation: swal2-hide 0.15s cubic-bezier(0.7, 0, 0.84, 0);
 }
 
-/* Backdrop animations - only for modal dialogs, not toasts */
-.swal2-container:not(.swal2-toast).swal2-backdrop-show {
+/* ============================================================================
+ * Backdrop Animations (Modal Dialogs Only)
+ * ============================================================================
+ * 
+ * IMPORTANT: Only apply backdrop animations to .swal2-center (modal dialogs)
+ * 
+ * These animations fade the backdrop in/out for modal dialogs.
+ * Toast notifications should never trigger these animations.
+ * 
+ * The .swal2-center selector ensures only centered modal dialogs get 
+ * backdrop animations, preventing any animation-related backdrop flash 
+ * on positioned toast notifications.
+ * ============================================================================
+ */
+
+/* Backdrop animations - only for modal dialogs (centered), not toasts */
+.swal2-container.swal2-center:not(.swal2-toast).swal2-backdrop-show {
   animation: swal2-backdrop-show 0.2s;
+  background-color: rgba(0, 0, 0, 0.4);
 }
 
-.swal2-container:not(.swal2-toast).swal2-backdrop-hide {
+.swal2-container.swal2-center:not(.swal2-toast).swal2-backdrop-hide {
   animation: swal2-backdrop-hide 0.15s;
 }
 
