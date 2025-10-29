@@ -4,20 +4,303 @@ A practical guide to using the Zen MCP server for common development scenarios i
 
 ## Table of Contents
 
-1. [Quick Collaboration with Chat](#1-quick-collaboration-with-chat)
-2. [Debugging Production Issues](#2-debugging-production-issues)
-3. [Code Review Before Merge](#3-code-review-before-merge)
-4. [Architecture Analysis](#4-architecture-analysis)
-5. [Refactoring Legacy Code](#5-refactoring-legacy-code)
-6. [Security Audit](#6-security-audit)
-7. [Test Generation](#7-test-generation)
-8. [Pre-commit Validation](#8-pre-commit-validation)
-9. [Complex Planning](#9-complex-planning)
-10. [Multi-Model Consensus](#10-multi-model-consensus)
+1. [Optimized Prompts - Start Here!](#1-optimized-prompts---start-here)
+2. [Quick Collaboration with Chat](#2-quick-collaboration-with-chat)
+3. [Debugging Production Issues](#3-debugging-production-issues)
+4. [Code Review Before Merge](#4-code-review-before-merge)
+5. [Architecture Analysis](#5-architecture-analysis)
+6. [Refactoring Legacy Code](#6-refactoring-legacy-code)
+7. [Security Audit](#7-security-audit)
+8. [Test Generation](#8-test-generation)
+9. [Pre-commit Validation](#9-pre-commit-validation)
+10. [Complex Planning](#10-complex-planning)
+11. [Multi-Model Consensus](#11-multi-model-consensus)
 
 ---
 
-## 1. Quick Collaboration with Chat
+## 1. Optimized Prompts - Start Here!
+
+### Why This Section Exists
+
+When using Zen tools, you might encounter errors like:
+- "Model 'gemini-2.0-flash-exp' is not available"
+- "All file paths must be FULL absolute paths"
+- Multiple failed attempts before analysis starts
+
+These optimized prompts help you **jump straight to analysis** without trial and error.
+
+---
+
+### Code Review - Best Prompt
+
+**Simple version:**
+```
+Analyze src/components/AttendeeForm.tsx using Zen codereview with claude-sonnet-4.5
+```
+
+**Detailed version:**
+```
+Run a Zen code review on src/components/AttendeeForm.tsx using claude-sonnet-4.5. Focus on:
+- Component architecture and separation of concerns
+- TypeScript type safety issues
+- React hooks patterns and performance
+- Security vulnerabilities
+- Accessibility gaps
+
+Provide specific line numbers and concrete fixes for all issues found.
+```
+
+**What makes this work:**
+- ✅ Specifies model upfront (`claude-sonnet-4.5`)
+- ✅ Uses relative path (Kiro converts to absolute)
+- ✅ Clear tool name ("Zen codereview")
+- ✅ Specific scope (what to focus on)
+- ✅ Expected output (line numbers + fixes)
+
+---
+
+### Debug Analysis - Best Prompt
+
+**Simple version:**
+```
+Zen debug the photo upload timeout issue in src/pages/api/attendees/[id]/photo.ts with gpt-5-pro
+```
+
+**Detailed version:**
+```
+Use Zen debug with gpt-5-pro to investigate why photo uploads fail intermittently. 
+Start with src/pages/api/attendees/[id]/photo.ts and related Cloudinary integration.
+Focus on timeout handling, error recovery, and race conditions.
+```
+
+---
+
+### Security Audit - Best Prompt
+
+**Simple version:**
+```
+Zen secaudit on src/pages/api with gpt-5-pro for OWASP Top 10 issues
+```
+
+**Detailed version:**
+```
+Run Zen secaudit with gpt-5-pro on src/pages/api focusing on:
+- OWASP Top 10 vulnerabilities
+- Authentication and authorization flaws
+- Input validation gaps
+- Data exposure risks
+
+Threat level: high (handles PII and credentials)
+```
+
+---
+
+### Refactoring Analysis - Best Prompt
+
+**Simple version:**
+```
+Zen refactor src/components/AttendeeForm.tsx with gpt-5-codex - focus on code smells
+```
+
+**Detailed version:**
+```
+Use Zen refactor with gpt-5-codex to analyze src/components/AttendeeForm.tsx for:
+- Code smells and anti-patterns
+- Opportunities for decomposition
+- Modernization improvements
+- Performance optimizations
+
+Provide priority-ranked recommendations with code examples.
+```
+
+---
+
+### Architecture Analysis - Best Prompt
+
+**Simple version:**
+```
+Zen analyze src/lib/permissions.ts for architecture with gemini-2.5-pro
+```
+
+**Detailed version:**
+```
+Use Zen analyze with gemini-2.5-pro to map the architecture of our RBAC system.
+Start with src/lib/permissions.ts and trace through:
+- Permission checking logic
+- Role hierarchy
+- Integration points with API routes
+- Potential improvements
+```
+
+---
+
+### Test Generation - Best Prompt
+
+**Simple version:**
+```
+Zen testgen for src/lib/barcodeGenerator.ts with gpt-5-codex
+```
+
+**Detailed version:**
+```
+Use Zen testgen with gpt-5-codex to create comprehensive tests for src/lib/barcodeGenerator.ts.
+Include:
+- Unit tests for all functions
+- Edge cases and boundary conditions
+- Error scenarios
+- Integration tests for uniqueness validation
+
+Use Vitest framework (project standard).
+```
+
+---
+
+### Pre-commit Validation - Best Prompt
+
+**Simple version:**
+```
+Zen precommit validation with claude-sonnet-4.5 for staged changes
+```
+
+**Detailed version:**
+```
+Run Zen precommit with claude-sonnet-4.5 to validate my staged changes.
+Check for:
+- Breaking changes
+- Security issues
+- Missing tests
+- Documentation gaps
+- Type safety
+
+Include both staged and unstaged changes.
+```
+
+---
+
+### Planning - Best Prompt
+
+**Simple version:**
+```
+Zen planner for multi-tenant feature with gpt-5-pro
+```
+
+**Detailed version:**
+```
+Use Zen planner with gpt-5-pro to create a detailed plan for adding multi-tenant support.
+Break down into:
+- Database schema changes
+- API layer modifications
+- UI updates
+- Migration strategy
+- Testing requirements
+
+Consider backward compatibility and rollback options.
+```
+
+---
+
+### Quick Reference: Available Models
+
+Use these exact model names in your prompts:
+
+**Recommended for Code Review:**
+- `anthropic/claude-sonnet-4.5` - Balanced, excellent for code review
+- `openai/gpt-5-pro` - Deep analysis, great for complex issues
+- `google/gemini-2.5-pro` - Strong architecture understanding
+
+**Recommended for Code Generation:**
+- `openai/gpt-5-codex` - Best for refactoring and test generation
+- `openai/gpt-5` - Good all-rounder
+
+**Fast & Efficient:**
+- `anthropic/claude-3.5-haiku` - Quick responses for simple tasks
+- `google/gemini-2.5-flash` - Fast analysis
+
+**Specialized:**
+- `x-ai/grok-4` - Alternative perspective
+- `openai/o3-mini` - Reasoning-focused
+
+**Check available models:**
+```
+List available Zen models
+```
+
+---
+
+### Common Mistakes to Avoid
+
+❌ **Don't do this:**
+```
+"Analyze AttendeeForm.tsx with gemini-2.0-flash-exp"
+```
+- Wrong: Model doesn't exist
+- Wrong: Missing "Zen" tool name
+- Wrong: No specific focus areas
+
+✅ **Do this instead:**
+```
+"Zen codereview on src/components/AttendeeForm.tsx with claude-sonnet-4.5 
+focusing on architecture and security"
+```
+
+---
+
+❌ **Don't do this:**
+```
+"Review /Users/myname/project/src/file.tsx"
+```
+- Wrong: Absolute path (Kiro handles this)
+- Better to use relative paths
+
+✅ **Do this instead:**
+```
+"Zen codereview on src/file.tsx with claude-sonnet-4.5"
+```
+
+---
+
+❌ **Don't do this:**
+```
+"Check my code for issues"
+```
+- Wrong: Too vague
+- Wrong: No tool specified
+- Wrong: No file specified
+
+✅ **Do this instead:**
+```
+"Zen codereview on src/components/MyComponent.tsx with claude-sonnet-4.5 
+focusing on security and performance"
+```
+
+---
+
+### Pro Tips
+
+1. **Always specify the model** - Prevents "model not available" errors
+2. **Use relative paths** - Let Kiro convert to absolute paths
+3. **Be specific about focus areas** - Gets better, targeted results
+4. **Request line numbers** - Makes fixes easier to implement
+5. **Ask for code examples** - Gets concrete, actionable recommendations
+
+---
+
+### Template for Any Zen Tool
+
+```
+[Tool name] [action] on [file/folder] with [model] focusing on [aspects]
+```
+
+**Examples:**
+- `Zen codereview on src/lib/auth.ts with gpt-5-pro focusing on security`
+- `Zen debug the login timeout in src/pages/api/auth/login.ts with claude-sonnet-4.5`
+- `Zen refactor src/components/Form.tsx with gpt-5-codex for code smells`
+- `Zen secaudit on src/pages/api with gpt-5-pro for OWASP issues`
+- `Zen analyze src/lib/permissions.ts with gemini-2.5-pro for architecture`
+
+---
+
+## 2. Quick Collaboration with Chat
 
 ### Scenario: Deciding on a New Feature Approach
 
@@ -69,7 +352,7 @@ Kiro uses the continuation_id to maintain context and asks about:
 
 ---
 
-## 2. Debugging Production Issues
+## 3. Debugging Production Issues
 
 ### Scenario: Users Report Intermittent Photo Upload Failures
 
@@ -108,7 +391,7 @@ After examining code:
 
 ---
 
-## 3. Code Review Before Merge
+## 4. Code Review Before Merge
 
 ### Scenario: Reviewing a New Custom Fields Feature
 
@@ -148,7 +431,7 @@ Step 2: Findings
 
 ---
 
-## 4. Architecture Analysis
+## 5. Architecture Analysis
 
 ### Scenario: Understanding the Authentication Flow
 
@@ -186,7 +469,7 @@ Step 2: Assessment
 
 ---
 
-## 5. Refactoring Legacy Code
+## 6. Refactoring Legacy Code
 
 ### Scenario: Modernizing the Attendee Management Module
 
@@ -226,7 +509,7 @@ Findings:
 
 ---
 
-## 6. Security Audit
+## 7. Security Audit
 
 ### Scenario: Pre-Launch Security Review
 
@@ -272,7 +555,7 @@ Step 2: Compliance Check
 
 ---
 
-## 7. Test Generation
+## 8. Test Generation
 
 ### Scenario: Adding Tests for New Barcode Generation Feature
 
@@ -316,7 +599,7 @@ Step 2: Test plan
 
 ---
 
-## 8. Pre-commit Validation
+## 9. Pre-commit Validation
 
 ### Scenario: Validating Changes Before Committing
 
@@ -362,7 +645,7 @@ Step 3: Recommendations
 
 ---
 
-## 9. Complex Planning
+## 10. Complex Planning
 
 ### Scenario: Planning a Multi-Tenant Feature
 
@@ -420,7 +703,7 @@ Step 4: Risk assessment
 
 ---
 
-## 10. Multi-Model Consensus
+## 11. Multi-Model Consensus
 
 ### Scenario: Deciding on Database Migration Strategy
 
