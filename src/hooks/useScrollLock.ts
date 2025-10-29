@@ -24,15 +24,19 @@ let originalPaddingRight = '';
  */
 export function useScrollLock(isLocked: boolean) {
   useEffect(() => {
+    // Track whether this effect applied the lock
+    let applied = false;
+
     if (!isLocked) return;
 
     // Increment counter
     scrollLockCount++;
+    applied = true;
 
     // Only apply lock on first modal
     if (scrollLockCount === 1) {
       const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
-      
+
       // Store original values
       originalOverflow = document.body.style.overflow;
       originalPaddingRight = document.body.style.paddingRight;
@@ -45,6 +49,9 @@ export function useScrollLock(isLocked: boolean) {
     }
 
     return () => {
+      // Only cleanup if this effect actually applied the lock
+      if (!applied) return;
+
       // Decrement counter
       scrollLockCount--;
 

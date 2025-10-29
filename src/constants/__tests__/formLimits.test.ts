@@ -15,8 +15,8 @@ describe('formLimits', () => {
     });
 
     it('defines barcode generation limits', () => {
-      expect(FORM_LIMITS.BARCODE_DEFAULT_LENGTH).toBe(8);
-      expect(FORM_LIMITS.BARCODE_MAX_GENERATION_ATTEMPTS).toBe(100);
+      expect(FORM_LIMITS.BARCODE_LENGTH_DEFAULT).toBe(8);
+      expect(FORM_LIMITS.BARCODE_GENERATION_MAX_ATTEMPTS).toBe(10);
     });
 
     it('defines custom field limits', () => {
@@ -24,11 +24,12 @@ describe('formLimits', () => {
       expect(FORM_LIMITS.CUSTOM_FIELD_VALUE_MAX_LENGTH).toBe(1000);
     });
 
-    it('is defined as const', () => {
+    it('is defined with expected structure', () => {
       // TypeScript enforces immutability at compile time with 'as const'
-      // This test verifies the constants are defined
       expect(FORM_LIMITS).toBeDefined();
-      expect(Object.isFrozen(FORM_LIMITS)).toBe(false); // 'as const' is compile-time only
+      expect(typeof FORM_LIMITS.NOTES_MAX_LENGTH).toBe('number');
+      expect(typeof FORM_LIMITS.NAME_MAX_LENGTH).toBe('number');
+      expect(Array.isArray(FORM_LIMITS.PHOTO_ALLOWED_FORMATS)).toBe(true);
     });
 
     it('has photo formats as readonly array', () => {
@@ -56,7 +57,7 @@ describe('formLimits', () => {
 
     it('defines complete color palette', () => {
       const palette = CLOUDINARY_CONFIG.PALETTE;
-      
+
       expect(palette.window).toBe("#FFFFFF");
       expect(palette.windowBorder).toBe("#90A0B3");
       expect(palette.tabIcon).toBe("#8B5CF6");
@@ -75,24 +76,26 @@ describe('formLimits', () => {
     it('palette colors are valid hex codes', () => {
       const hexColorRegex = /^#[0-9A-F]{6}$/i;
       const palette = CLOUDINARY_CONFIG.PALETTE;
-      
+
       Object.values(palette).forEach(color => {
         expect(color).toMatch(hexColorRegex);
       });
     });
 
-    it('is defined as const', () => {
+    it('is defined with expected structure', () => {
       // TypeScript enforces immutability at compile time with 'as const'
-      // This test verifies the constants are defined
       expect(CLOUDINARY_CONFIG).toBeDefined();
-      expect(Object.isFrozen(CLOUDINARY_CONFIG)).toBe(false); // 'as const' is compile-time only
+      expect(typeof CLOUDINARY_CONFIG.FOLDER).toBe('string');
+      expect(typeof CLOUDINARY_CONFIG.THEME).toBe('string');
+      expect(Array.isArray(CLOUDINARY_CONFIG.SOURCES)).toBe(true);
+      expect(typeof CLOUDINARY_CONFIG.PALETTE).toBe('object');
     });
   });
 
   describe('Type Safety', () => {
     it('photo formats are correctly typed', () => {
       const formats = FORM_LIMITS.PHOTO_ALLOWED_FORMATS;
-      
+
       // TypeScript should infer the exact type
       const firstFormat: 'jpg' | 'jpeg' | 'png' = formats[0];
       expect(['jpg', 'jpeg', 'png']).toContain(firstFormat);
@@ -100,7 +103,7 @@ describe('formLimits', () => {
 
     it('cloudinary sources are correctly typed', () => {
       const sources = CLOUDINARY_CONFIG.SOURCES;
-      
+
       // TypeScript should infer the exact type
       const firstSource: 'local' | 'url' | 'camera' = sources[0];
       expect(['local', 'url', 'camera']).toContain(firstSource);
@@ -123,14 +126,14 @@ describe('formLimits', () => {
 
     it('barcode length is reasonable', () => {
       // Default barcode length should be between 4 and 20
-      expect(FORM_LIMITS.BARCODE_DEFAULT_LENGTH).toBeGreaterThanOrEqual(4);
-      expect(FORM_LIMITS.BARCODE_DEFAULT_LENGTH).toBeLessThanOrEqual(20);
+      expect(FORM_LIMITS.BARCODE_LENGTH_DEFAULT).toBeGreaterThanOrEqual(4);
+      expect(FORM_LIMITS.BARCODE_LENGTH_DEFAULT).toBeLessThanOrEqual(20);
     });
 
     it('max generation attempts prevents infinite loops', () => {
       // Should have a reasonable limit to prevent infinite loops
-      expect(FORM_LIMITS.BARCODE_MAX_GENERATION_ATTEMPTS).toBeGreaterThan(0);
-      expect(FORM_LIMITS.BARCODE_MAX_GENERATION_ATTEMPTS).toBeLessThanOrEqual(1000);
+      expect(FORM_LIMITS.BARCODE_GENERATION_MAX_ATTEMPTS).toBeGreaterThan(0);
+      expect(FORM_LIMITS.BARCODE_GENERATION_MAX_ATTEMPTS).toBeLessThanOrEqual(1000);
     });
   });
 

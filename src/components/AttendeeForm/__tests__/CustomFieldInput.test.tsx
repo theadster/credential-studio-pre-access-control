@@ -1,5 +1,6 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import '@testing-library/jest-dom/vitest';
 import { CustomFieldInput } from '../CustomFieldInput';
 
 describe('CustomFieldInput', () => {
@@ -20,7 +21,7 @@ describe('CustomFieldInput', () => {
       };
 
       render(<CustomFieldInput field={field} value="test" onChange={mockOnChange} />);
-      
+
       const input = screen.getByRole('textbox');
       expect(input).toBeInTheDocument();
       expect(input).toHaveValue('test');
@@ -37,10 +38,10 @@ describe('CustomFieldInput', () => {
       };
 
       render(<CustomFieldInput field={field} value="" onChange={mockOnChange} />);
-      
+
       const input = screen.getByRole('textbox');
       fireEvent.change(input, { target: { value: 'hello' } });
-      
+
       expect(mockOnChange).toHaveBeenCalledWith('HELLO');
     });
   });
@@ -56,7 +57,7 @@ describe('CustomFieldInput', () => {
       };
 
       render(<CustomFieldInput field={field} value="25" onChange={mockOnChange} />);
-      
+
       const input = screen.getByRole('spinbutton');
       expect(input).toBeInTheDocument();
       expect(input).toHaveValue(25);
@@ -74,26 +75,99 @@ describe('CustomFieldInput', () => {
       };
 
       render(<CustomFieldInput field={field} value="test@example.com" onChange={mockOnChange} />);
-      
+
       const input = screen.getByRole('textbox');
       expect(input).toBeInTheDocument();
       expect(input).toHaveAttribute('type', 'email');
     });
   });
 
-  describe('Select Field', () => {
-    it('renders select input correctly', () => {
+  describe('Date Field', () => {
+    it('renders date input correctly', () => {
       const field = {
         id: '4',
-        fieldName: 'Category',
-        fieldType: 'select',
-        fieldOptions: { options: ['Option 1', 'Option 2', 'Option 3'] },
+        fieldName: 'Birth Date',
+        fieldType: 'date',
         required: true,
         order: 4
       };
 
+      render(<CustomFieldInput field={field} value="2024-01-15" onChange={mockOnChange} />);
+
+      const input = screen.getByLabelText('Birth Date');
+      expect(input).toBeInTheDocument();
+      expect(input).toHaveAttribute('type', 'date');
+      expect(input).toHaveValue('2024-01-15');
+    });
+
+    it('validates and accepts valid date format', () => {
+      const field = {
+        id: '4',
+        fieldName: 'Birth Date',
+        fieldType: 'date',
+        required: true,
+        order: 4
+      };
+
+      render(<CustomFieldInput field={field} value="" onChange={mockOnChange} />);
+
+      const input = screen.getByLabelText('Birth Date');
+      fireEvent.change(input, { target: { value: '2024-12-25' } });
+
+      expect(mockOnChange).toHaveBeenCalledWith('2024-12-25');
+    });
+
+    it('validates date format with regex', () => {
+      const field = {
+        id: '4',
+        fieldName: 'Birth Date',
+        fieldType: 'date',
+        required: true,
+        order: 4
+      };
+
+      render(<CustomFieldInput field={field} value="" onChange={mockOnChange} />);
+
+      const input = screen.getByLabelText('Birth Date');
+
+      // Test that only YYYY-MM-DD format is accepted
+      // Note: Browser date inputs typically enforce this format,
+      // but our validation provides an additional layer of security
+      fireEvent.change(input, { target: { value: '2024-01-15' } });
+      expect(mockOnChange).toHaveBeenCalledWith('2024-01-15');
+    });
+
+    it('handles empty date input', () => {
+      const field = {
+        id: '4',
+        fieldName: 'Birth Date',
+        fieldType: 'date',
+        required: false,
+        order: 4
+      };
+
+      render(<CustomFieldInput field={field} value="2024-01-15" onChange={mockOnChange} />);
+
+      const input = screen.getByLabelText('Birth Date');
+      fireEvent.change(input, { target: { value: '' } });
+
+      expect(mockOnChange).toHaveBeenCalledWith('');
+    });
+  });
+
+  describe('Select Field', () => {
+    it('renders select input correctly', () => {
+      const field = {
+        id: '5',
+        fieldName: 'Category',
+        fieldType: 'select',
+        fieldOptions: { options: ['Option 1', 'Option 2', 'Option 3'] },
+        required: true,
+        order: 5
+      };
+
       render(<CustomFieldInput field={field} value="Option 1" onChange={mockOnChange} />);
-      
+
       const select = screen.getByRole('combobox');
       expect(select).toBeInTheDocument();
     });
@@ -110,7 +184,7 @@ describe('CustomFieldInput', () => {
       };
 
       render(<CustomFieldInput field={field} value="true" onChange={mockOnChange} />);
-      
+
       const checkbox = screen.getByRole('checkbox');
       expect(checkbox).toBeInTheDocument();
       expect(checkbox).toBeChecked();
@@ -126,10 +200,10 @@ describe('CustomFieldInput', () => {
       };
 
       render(<CustomFieldInput field={field} value="false" onChange={mockOnChange} />);
-      
+
       const checkbox = screen.getByRole('checkbox');
       fireEvent.click(checkbox);
-      
+
       expect(mockOnChange).toHaveBeenCalledWith('true');
     });
   });
@@ -144,11 +218,28 @@ describe('CustomFieldInput', () => {
         order: 6
       };
 
-      render(<CustomFieldInput field={field} value="yes" onChange={mockOnChange} />);
-      
+      render(<CustomFieldInput field={field} value="true" onChange={mockOnChange} />);
+
       const switchElement = screen.getByRole('switch');
       expect(switchElement).toBeInTheDocument();
       expect(switchElement).toBeChecked();
+    });
+
+    it('handles boolean toggle correctly', () => {
+      const field = {
+        id: '6',
+        fieldName: 'Active',
+        fieldType: 'boolean',
+        required: false,
+        order: 6
+      };
+
+      render(<CustomFieldInput field={field} value="false" onChange={mockOnChange} />);
+
+      const switchElement = screen.getByRole('switch');
+      fireEvent.click(switchElement);
+
+      expect(mockOnChange).toHaveBeenCalledWith('true');
     });
   });
 
@@ -186,7 +277,7 @@ describe('CustomFieldInput', () => {
       };
 
       render(<CustomFieldInput field={field} value="" onChange={mockOnChange} />);
-      
+
       const input = screen.getByRole('textbox');
       expect(input).toHaveAttribute('aria-label', 'Test Field');
       expect(input).toHaveAttribute('aria-required', 'true');

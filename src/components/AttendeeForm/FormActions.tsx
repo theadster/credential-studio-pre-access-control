@@ -21,16 +21,16 @@ export function FormActions({
 }: FormActionsProps) {
   return (
     <div className="flex justify-end space-x-2 pt-4 border-t">
-      <Button 
-        type="button" 
-        variant="outline" 
+      <Button
+        type="button"
+        variant="outline"
         onClick={onCancel}
         aria-label="Cancel and close form"
       >
         Cancel
       </Button>
-      <Button 
-        type="submit" 
+      <Button
+        type="submit"
         disabled={loading || loadingAndGenerate}
         aria-label={isEditMode ? 'Update attendee information' : 'Create new attendee'}
       >
@@ -46,9 +46,11 @@ export function FormActions({
           className="bg-purple-600 hover:bg-purple-700"
           aria-label="Update attendee and generate credential"
         >
-          {loadingAndGenerate && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
-          <Save className="mr-2 h-4 w-4" aria-hidden="true" />
-          <Printer className="mr-2 h-4 w-4" aria-hidden="true" />
+          {loadingAndGenerate ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+          ) : (
+            <Printer className="mr-2 h-4 w-4" aria-hidden="true" />
+          )}
           Update & Generate Credential
         </Button>
       )}

@@ -10,10 +10,10 @@ import {
 } from '../sanitization';
 
 describe('sanitizeInput', () => {
-  it('should remove HTML tags and content', () => {
-    expect(sanitizeInput('<script>alert("xss")</script>John')).toBe('scriptalert("xss")/scriptJohn');
-    expect(sanitizeInput('John<b>Doe</b>')).toBe('JohnbDoe/b');
-    expect(sanitizeInput('<div>Test</div>')).toBe('divTest/div');
+  it('should remove HTML tags and dangerous content', () => {
+    expect(sanitizeInput('<script>alert("xss")</script>John')).toBe('John');
+    expect(sanitizeInput('John<b>Doe</b>')).toBe('JohnDoe');
+    expect(sanitizeInput('<div>Test</div>')).toBe('Test');
   });
 
   it('should remove javascript: protocol', () => {
@@ -27,9 +27,12 @@ describe('sanitizeInput', () => {
     expect(sanitizeInput('test onerror=alert(1)')).toBe('test alert(1)');
   });
 
-  it('should remove angle brackets', () => {
+  it('should remove all HTML tags', () => {
     expect(sanitizeInput('test<>test')).toBe('testtest');
-    expect(sanitizeInput('<test>')).toBe('test');
+    expect(sanitizeInput('<test>')).toBe(''); // <test> is treated as a complete tag
+    expect(sanitizeInput('<test>content</test>')).toBe('content'); // Content is preserved
+    expect(sanitizeInput('<img src=x onerror=alert(1)>')).toBe('');
+    expect(sanitizeInput('<div onclick=alert(1)>content</div>')).toBe('content');
   });
 
   it('should NOT trim whitespace during typing', () => {
@@ -46,6 +49,17 @@ describe('sanitizeInput', () => {
     expect(sanitizeInput('Test-123')).toBe('Test-123');
     expect(sanitizeInput("O'Brien")).toBe("O'Brien");
   });
+
+  it('should handle complex XSS attempts', () => {
+    expect(sanitizeInput('<img src=x onerror=alert(1)>Name')).toBe('Name');
+    expect(sanitizeInput('<svg onload=alert(1)>Text</svg>')).toBe('Text');
+    expect(sanitizeInput('Before<script>evil()</script>After')).toBe('BeforeAfter');
+  });
+
+  it('should remove style tags with content', () => {
+    expect(sanitizeInput('<style>body{display:none}</style>Text')).toBe('Text');
+    expect(sanitizeInput('Normal<style>css</style>Text')).toBe('NormalText');
+  });
 });
 
 describe('sanitizeInputFinal', () => {
@@ -60,7 +74,8 @@ describe('sanitizeInputFinal', () => {
   });
 
   it('should remove XSS and trim', () => {
-    expect(sanitizeInputFinal('  <script>alert(1)</script>John  ')).toBe('scriptalert(1)/scriptJohn');
+    expect(sanitizeInputFinal('  <script>alert(1)</script>John  ')).toBe('John');
+    expect(sanitizeInputFinal('  <b>Bold</b> text  ')).toBe('Bold text');
   });
 });
 
@@ -111,9 +126,12 @@ describe('sanitizeUrl', () => {
 });
 
 describe('sanitizeNotes', () => {
-  it('should remove script tags', () => {
+  it('should remove all HTML tags', () => {
     expect(sanitizeNotes('<script>alert("xss")</script>Notes')).toBe('Notes');
     expect(sanitizeNotes('Test<script src="evil.js"></script>Notes')).toBe('TestNotes');
+    expect(sanitizeNotes('<b>Bold</b> text')).toBe('Bold text');
+    expect(sanitizeNotes('<div>Test</div>')).toBe('Test');
+    expect(sanitizeNotes('<p>Paragraph</p>')).toBe('Paragraph');
   });
 
   it('should remove event handlers', () => {
@@ -136,8 +154,22 @@ describe('sanitizeNotes', () => {
   });
 
   it('should handle complex XSS attempts', () => {
-    expect(sanitizeNotes('<img src=x onerror=alert(1)>')).toBe('<img src=x alert(1)>');
-    expect(sanitizeNotes('<svg onload=alert(1)>')).toBe('<svg alert(1)>');
+    expect(sanitizeNotes('<img src=x onerror=alert(1)>')).toBe('');
+    expect(sanitizeNotes('<svg onload=alert(1)>')).toBe('');
+    expect(sanitizeNotes('<iframe src="evil.com"></iframe>')).toBe('');
+    expect(sanitizeNotes('<div onclick=alert(1)>text</div>')).toBe('text');
+  });
+
+  it('should remove dangerous tags with content', () => {
+    expect(sanitizeNotes('<script>malicious code</script>')).toBe('');
+    expect(sanitizeNotes('<style>body{display:none}</style>')).toBe('');
+    expect(sanitizeNotes('Before<script>alert(1)</script>After')).toBe('BeforeAfter');
+  });
+
+  it('should handle mixed content safely', () => {
+    expect(sanitizeNotes('Normal text <b>bold</b> more text')).toBe('Normal text bold more text');
+    expect(sanitizeNotes('<a href="javascript:alert(1)">Click</a>')).toBe('Click');
+    expect(sanitizeNotes('<img src=x onerror=alert(1)>Text')).toBe('Text');
   });
 });
 

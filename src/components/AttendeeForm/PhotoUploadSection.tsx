@@ -11,6 +11,37 @@ interface PhotoUploadSectionProps {
   onRemove: () => void;
 }
 
+/**
+ * Compute safe initials from first and last names
+ * Handles empty, null, or undefined values gracefully
+ * 
+ * @param firstName - First name (may be empty or undefined)
+ * @param lastName - Last name (may be empty or undefined)
+ * @returns Initials string (e.g., "JD", "J?", "NN")
+ */
+function getInitials(firstName: string, lastName: string): string {
+  const first = firstName?.trim() || '';
+  const last = lastName?.trim() || '';
+
+  if (first && last) {
+    // Both names available: use first char of each
+    return `${first.charAt(0).toUpperCase()}${last.charAt(0).toUpperCase()}`;
+  } else if (first) {
+    // Only first name: use first two chars or first char + "?"
+    return first.length >= 2
+      ? `${first.charAt(0).toUpperCase()}${first.charAt(1).toUpperCase()}`
+      : `${first.charAt(0).toUpperCase()}?`;
+  } else if (last) {
+    // Only last name: use first two chars or first char + "?"
+    return last.length >= 2
+      ? `${last.charAt(0).toUpperCase()}${last.charAt(1).toUpperCase()}`
+      : `${last.charAt(0).toUpperCase()}?`;
+  } else {
+    // No names available: use default placeholder
+    return 'NN';
+  }
+}
+
 export function PhotoUploadSection({
   photoUrl,
   firstName,
@@ -35,12 +66,12 @@ export function PhotoUploadSection({
               className="w-full h-full object-cover"
             />
           ) : (
-            <div 
+            <div
               className="w-full h-full bg-gray-200 flex items-center justify-center text-gray-600 font-medium text-lg"
               role="img"
               aria-label={`Placeholder initials for ${firstName} ${lastName}`}
             >
-              {firstName.charAt(0)}{lastName.charAt(0)}
+              {getInitials(firstName, lastName)}
             </div>
           )}
         </div>

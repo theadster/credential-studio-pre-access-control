@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useSweetAlert } from '@/hooks/useSweetAlert';
 import { useAttendeeForm } from '@/hooks/useAttendeeForm';
@@ -62,24 +62,78 @@ interface EventSettings {
 interface AttendeeFormProps {
   /** Whether the form dialog is open */
   isOpen: boolean;
-  
+
   /** Callback when dialog should close */
   onClose: () => void;
-  
+
   /** Callback when form is saved */
   onSave: (attendee: Attendee) => void;
-  
+
   /** Optional callback for save and generate credential action */
   onSaveAndGenerate?: (attendee: Attendee) => void;
-  
+
   /** Existing attendee data for edit mode (undefined for create mode) */
   attendee?: Attendee;
-  
+
   /** Array of custom fields to render */
   customFields: CustomField[];
-  
+
   /** Event settings including barcode config and Cloudinary settings */
   eventSettings?: EventSettings;
+}
+
+/**
+ * FocusTrap component to manage keyboard focus within the dialog
+ * 
+ * Provides focus trapping for keyboard users while respecting the Cloudinary widget.
+ * When the Cloudinary widget is open, focus trapping is disabled to allow interaction
+ * with the widget.
+ */
+interface FocusTrapProps {
+  children: React.ReactNode;
+  enabled: boolean;
+  allowCloudinary: boolean;
+}
+
+function FocusTrap({ children, enabled, allowCloudinary }: FocusTrapProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!enabled || allowCloudinary) return;
+
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+
+      const focusableElements = container.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      if (e.shiftKey) {
+        // Shift + Tab: moving backwards
+        if (document.activeElement === firstElement) {
+          e.preventDefault();
+          lastElement?.focus();
+        }
+      } else {
+        // Tab: moving forwards
+        if (document.activeElement === lastElement) {
+          e.preventDefault();
+          firstElement?.focus();
+        }
+      }
+    };
+
+    container.addEventListener('keydown', handleKeyDown);
+    return () => container.removeEventListener('keydown', handleKeyDown);
+  }, [enabled, allowCloudinary]);
+
+  return <div ref={containerRef}>{children}</div>;
 }
 
 const AttendeeForm = React.memo(function AttendeeForm({
@@ -151,7 +205,7 @@ const AttendeeForm = React.memo(function AttendeeForm({
       setHasUnsavedChanges(hasChanges || customFieldsChanged);
     } else {
       // For create mode: check if any user-entered data exists
-      const hasData = 
+      const hasData =
         formData.firstName.trim() !== '' ||
         formData.lastName.trim() !== '' ||
         (formData.notes && formData.notes.trim() !== '') ||
@@ -227,11 +281,11 @@ const AttendeeForm = React.memo(function AttendeeForm({
       }
 
       const attendeeData = prepareAttendeeData();
-      
+
       // Mark as closing to prevent unsaved changes dialog
       isClosingRef.current = true;
       setHasUnsavedChanges(false);
-      
+
       onSave(attendeeData);
       resetForm();
       onClose();
@@ -261,7 +315,7 @@ const AttendeeForm = React.memo(function AttendeeForm({
         // Mark as closing to prevent unsaved changes dialog
         isClosingRef.current = true;
         setHasUnsavedChanges(false);
-        
+
         onSaveAndGenerate(attendeeData);
         resetForm();
         onClose();
@@ -301,63 +355,65 @@ const AttendeeForm = React.memo(function AttendeeForm({
           }
         }}
       >
-        <DialogHeader>
-          <DialogTitle>
-            {attendee ? 'Edit Attendee' : 'Add New Attendee'}
-          </DialogTitle>
-          <DialogDescription>
-            {attendee ? 'Update attendee information' : 'Enter attendee details and upload a photo'}
-          </DialogDescription>
-        </DialogHeader>
+        <FocusTrap enabled={isOpen} allowCloudinary={isCloudinaryOpen}>
+          <DialogHeader>
+            <DialogTitle>
+              {attendee ? 'Edit Attendee' : 'Add New Attendee'}
+            </DialogTitle>
+            <DialogDescription>
+              {attendee ? 'Update attendee information' : 'Enter attendee details and upload a photo'}
+            </DialogDescription>
+          </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-12 gap-6">
-            {/* Photo Upload Section - Left Column */}
-            <div className="col-span-3">
-              <PhotoUploadSection
-                photoUrl={formData.photoUrl}
-                firstName={formData.firstName}
-                lastName={formData.lastName}
-                onUpload={openUploadWidget}
-                onRemove={removePhoto}
-              />
-            </div>
-
-            {/* Form Fields - Right Columns */}
-            <div className="col-span-9">
-              <div className="space-y-6">
-                <BasicInformationSection
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="grid grid-cols-12 gap-6">
+              {/* Photo Upload Section - Left Column */}
+              <div className="col-span-3">
+                <PhotoUploadSection
+                  photoUrl={formData.photoUrl}
                   firstName={formData.firstName}
                   lastName={formData.lastName}
-                  barcodeNumber={formData.barcodeNumber}
-                  notes={formData.notes}
-                  isEditMode={!!attendee}
-                  eventSettings={eventSettings}
-                  onFirstNameChange={(value) => updateField('firstName', value)}
-                  onLastNameChange={(value) => updateField('lastName', value)}
-                  onBarcodeChange={(value) => updateField('barcodeNumber', value)}
-                  onNotesChange={(value) => updateField('notes', value)}
-                  onGenerateBarcode={generateBarcode}
-                />
-
-                <CustomFieldsSection
-                  customFields={customFields}
-                  values={formData.customFieldValues}
-                  onChange={updateCustomField}
+                  onUpload={openUploadWidget}
+                  onRemove={removePhoto}
                 />
               </div>
-            </div>
-          </div>
 
-          <FormActions
-            isEditMode={!!attendee}
-            loading={loading}
-            loadingAndGenerate={loadingAndGenerate}
-            showGenerateButton={!!attendee && !!onSaveAndGenerate}
-            onCancel={handleCloseWithConfirmation}
-            onSaveAndGenerate={handleSaveAndGenerate}
-          />
-        </form>
+              {/* Form Fields - Right Columns */}
+              <div className="col-span-9">
+                <div className="space-y-6">
+                  <BasicInformationSection
+                    firstName={formData.firstName}
+                    lastName={formData.lastName}
+                    barcodeNumber={formData.barcodeNumber}
+                    notes={formData.notes}
+                    isEditMode={!!attendee}
+                    eventSettings={eventSettings}
+                    onFirstNameChange={(value) => updateField('firstName', value)}
+                    onLastNameChange={(value) => updateField('lastName', value)}
+                    onBarcodeChange={(value) => updateField('barcodeNumber', value)}
+                    onNotesChange={(value) => updateField('notes', value)}
+                    onGenerateBarcode={generateBarcode}
+                  />
+
+                  <CustomFieldsSection
+                    customFields={customFields}
+                    values={formData.customFieldValues}
+                    onChange={updateCustomField}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <FormActions
+              isEditMode={!!attendee}
+              loading={loading}
+              loadingAndGenerate={loadingAndGenerate}
+              showGenerateButton={!!attendee && !!onSaveAndGenerate}
+              onCancel={handleCloseWithConfirmation}
+              onSaveAndGenerate={handleSaveAndGenerate}
+            />
+          </form>
+        </FocusTrap>
       </DialogContent>
     </Dialog>
   );

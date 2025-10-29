@@ -84,8 +84,7 @@ describe('/api/attendees/check-barcode', () => {
 
     expect(statusMock).toHaveBeenCalledWith(500);
     expect(jsonMock).toHaveBeenCalledWith({
-      error: 'Failed to check barcode uniqueness',
-      exists: false
+      error: 'Failed to check barcode uniqueness. Please try again.'
     });
   });
 

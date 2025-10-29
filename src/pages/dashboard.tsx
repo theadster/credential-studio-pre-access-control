@@ -414,7 +414,7 @@ export default function Dashboard() {
         // Format display value based on field type
         if (field.fieldType === 'boolean') {
           // For boolean fields, always show Yes/No, defaulting to No if no value is set
-          displayValue = (displayValue === 'yes') ? 'Yes' : 'No';
+          displayValue = (displayValue === 'true') ? 'Yes' : 'No';
         } else if (displayValue && field.fieldType === 'url') {
           // For URLs, show a clickable link
           displayValue = displayValue;

@@ -63,9 +63,14 @@ export function useCloudinaryUpload({ eventSettings, onUploadSuccess }: UseCloud
       return null;
     }
 
-    let croppingAspectRatio = CLOUDINARY_CONFIG.DEFAULT_CROP_ASPECT_RATIO;
+    let croppingAspectRatio: number = CLOUDINARY_CONFIG.DEFAULT_CROP_ASPECT_RATIO;
     if (eventSettings.cloudinaryCropAspectRatio && eventSettings.cloudinaryCropAspectRatio !== 'free') {
-      croppingAspectRatio = parseFloat(eventSettings.cloudinaryCropAspectRatio);
+      const parsedRatio = parseFloat(eventSettings.cloudinaryCropAspectRatio);
+      if (Number.isFinite(parsedRatio) && parsedRatio > 0) {
+        croppingAspectRatio = parsedRatio;
+      } else {
+        console.warn(`Invalid crop aspect ratio: ${eventSettings.cloudinaryCropAspectRatio}. Using default: ${CLOUDINARY_CONFIG.DEFAULT_CROP_ASPECT_RATIO}`);
+      }
     }
 
     const config: CloudinaryWidgetConfig = {

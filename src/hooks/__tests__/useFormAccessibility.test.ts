@@ -99,13 +99,37 @@ describe('useFormAccessibility', () => {
   });
 
   describe('ARIA Props Generation', () => {
+    it('formats camelCase field names to human-readable labels', () => {
+      const { result } = renderHook(() => useFormAccessibility());
+
+      const props1 = result.current.getFieldAriaProps('firstName', false, false);
+      expect(props1['aria-label']).toBe('First Name');
+
+      const props2 = result.current.getFieldAriaProps('barcodeNumber', false, false);
+      expect(props2['aria-label']).toBe('Barcode Number');
+    });
+
+    it('formats snake_case field names to human-readable labels', () => {
+      const { result } = renderHook(() => useFormAccessibility());
+
+      const props = result.current.getFieldAriaProps('barcode_number', false, false);
+      expect(props['aria-label']).toBe('Barcode Number');
+    });
+
+    it('formats single word field names correctly', () => {
+      const { result } = renderHook(() => useFormAccessibility());
+
+      const props = result.current.getFieldAriaProps('notes', false, false);
+      expect(props['aria-label']).toBe('Notes');
+    });
+
     it('generates basic ARIA props for required field', () => {
       const { result } = renderHook(() => useFormAccessibility());
 
       const props = result.current.getFieldAriaProps('firstName', true, false);
 
       expect(props).toEqual({
-        'aria-label': 'firstName',
+        'aria-label': 'First Name',
         'aria-required': 'true',
         'aria-invalid': 'false'
       });
@@ -117,7 +141,7 @@ describe('useFormAccessibility', () => {
       const props = result.current.getFieldAriaProps('notes', false, false);
 
       expect(props).toEqual({
-        'aria-label': 'notes',
+        'aria-label': 'Notes',
         'aria-required': 'false',
         'aria-invalid': 'false'
       });
@@ -133,7 +157,7 @@ describe('useFormAccessibility', () => {
       const props = result.current.getFieldAriaProps('firstName', true, true);
 
       expect(props).toEqual({
-        'aria-label': 'firstName',
+        'aria-label': 'First Name',
         'aria-required': 'true',
         'aria-invalid': 'true',
         'aria-describedby': 'firstName-error'

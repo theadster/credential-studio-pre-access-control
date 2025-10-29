@@ -35,9 +35,8 @@ export default async function handler(
     });
   } catch (error) {
     console.error('Error checking barcode uniqueness:', error);
-    return res.status(500).json({ 
-      error: 'Failed to check barcode uniqueness',
-      exists: false // Return false to allow operation to continue
+    return res.status(500).json({
+      error: 'Failed to check barcode uniqueness. Please try again.'
     });
   }
 }

@@ -38,6 +38,8 @@ export function getCustomFieldIcon(fieldType: string) {
       return <ChevronDown className="h-4 w-4 text-muted-foreground" />;
     case 'boolean':
       return <ToggleLeft className="h-4 w-4 text-muted-foreground" />;
+    case 'checkbox':
+      return <ToggleLeft className="h-4 w-4 text-muted-foreground" />;
     case 'textarea':
       return <FileText className="h-4 w-4 text-muted-foreground" />;
     default:
@@ -63,6 +65,6 @@ export function getCustomFieldLabel(fieldType: string): string {
     boolean: 'Yes/No',
     textarea: 'Long Text'
   };
-  
+
   return labels[fieldType] || 'Text';
 }

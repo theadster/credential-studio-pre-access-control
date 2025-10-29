@@ -71,7 +71,7 @@ export function BasicInformationSection({
         <CardTitle className="text-base">Basic Information</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="firstName" className="flex items-center gap-2">
               <User className="h-4 w-4 text-muted-foreground" />
@@ -86,6 +86,8 @@ export function BasicInformationSection({
                 eventSettings?.forceFirstNameUppercase
               )}
               required
+              maxLength={FORM_LIMITS.NAME_MAX_LENGTH}
+              autoComplete="given-name"
               aria-label="First name"
               aria-required="true"
               aria-invalid={hasErrors && !firstName ? 'true' : 'false'}
@@ -104,6 +106,8 @@ export function BasicInformationSection({
                 eventSettings?.forceLastNameUppercase
               )}
               required
+              maxLength={FORM_LIMITS.NAME_MAX_LENGTH}
+              autoComplete="family-name"
               aria-label="Last name"
               aria-required="true"
               aria-invalid={hasErrors && !lastName ? 'true' : 'false'}
@@ -148,6 +152,10 @@ export function BasicInformationSection({
                   onBarcodeChange(sanitized);
                 }}
                 required
+                maxLength={64}
+                pattern="^[0-9A-Za-z-]+$"
+                title="Barcode must contain only letters, numbers, and hyphens"
+                autoComplete="off"
                 className="flex-1"
                 aria-label="Barcode number"
                 aria-required="true"

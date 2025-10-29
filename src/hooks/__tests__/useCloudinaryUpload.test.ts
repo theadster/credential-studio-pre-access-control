@@ -81,6 +81,34 @@ describe('useCloudinaryUpload', () => {
       );
     });
 
+    it('handles invalid aspect ratio by using default', () => {
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      
+      const eventSettings = {
+        cloudinaryCloudName: 'test-cloud',
+        cloudinaryUploadPreset: 'test-preset',
+        cloudinaryCropAspectRatio: 'invalid',
+        cloudinaryDisableSkipCrop: false
+      };
+
+      renderHook(() => useCloudinaryUpload({
+        eventSettings,
+        onUploadSuccess: mockOnUploadSuccess
+      }));
+
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Invalid crop aspect ratio: invalid')
+      );
+      expect(mockCreateUploadWidget).toHaveBeenCalledWith(
+        expect.objectContaining({
+          croppingAspectRatio: 1 // Default value
+        }),
+        expect.any(Function)
+      );
+
+      consoleWarnSpy.mockRestore();
+    });
+
     it('handles free aspect ratio', () => {
       const eventSettings = {
         cloudinaryCloudName: 'test-cloud',
@@ -196,7 +224,7 @@ describe('useCloudinaryUpload', () => {
 
       expect(mockCreateUploadWidget).toHaveBeenCalledTimes(1);
 
-      // Change callback (should not recreate widget due to memoization)
+      // Change callback (recreates widget because callback is in dependency array)
       const newCallback = vi.fn();
       rerender({ callback: newCallback });
 

@@ -1,5 +1,6 @@
 import { useReducer, useEffect, useMemo, useCallback } from 'react';
 import { useSweetAlert } from '@/hooks/useSweetAlert';
+import { FORM_LIMITS } from '@/constants/formLimits';
 
 interface CustomFieldValue {
   customFieldId: string;
@@ -69,7 +70,7 @@ function formReducer(state: FormData, action: FormAction): FormData {
   switch (action.type) {
     case 'SET_FIELD':
       return { ...state, [action.field]: action.value };
-    
+
     case 'SET_CUSTOM_FIELD':
       return {
         ...state,
@@ -78,19 +79,19 @@ function formReducer(state: FormData, action: FormAction): FormData {
           [action.fieldId]: action.value
         }
       };
-    
+
     case 'SET_PHOTO_URL':
       return { ...state, photoUrl: action.url };
-    
+
     case 'REMOVE_PHOTO':
       return { ...state, photoUrl: '' };
-    
+
     case 'RESET_FORM':
       return initialFormState;
-    
+
     case 'INITIALIZE_FORM':
       return action.data;
-    
+
     case 'PRUNE_CUSTOM_FIELDS': {
       const filteredCustomFieldValues = Object.entries(state.customFieldValues)
         .filter(([fieldId]) => action.validFieldIds.has(fieldId))
@@ -98,7 +99,7 @@ function formReducer(state: FormData, action: FormAction): FormData {
           acc[fieldId] = value;
           return acc;
         }, {} as Record<string, string>);
-      
+
       // Only update if something changed
       if (Object.keys(filteredCustomFieldValues).length !== Object.keys(state.customFieldValues).length) {
         return {
@@ -108,7 +109,7 @@ function formReducer(state: FormData, action: FormAction): FormData {
       }
       return state;
     }
-    
+
     default:
       return state;
   }
@@ -149,11 +150,6 @@ function formReducer(state: FormData, action: FormAction): FormData {
 export function useAttendeeForm({ attendee, customFields, eventSettings }: UseAttendeeFormProps) {
   const { error } = useSweetAlert();
   const [formData, dispatch] = useReducer(formReducer, initialFormState);
-
-  const customFieldIds = useMemo(() =>
-    customFields.map(cf => cf.id).join(','),
-    [customFields]
-  );
 
   // Memoized initialization logic
   const initializeFormData = useCallback(() => {
@@ -202,7 +198,7 @@ export function useAttendeeForm({ attendee, customFields, eventSettings }: UseAt
       const currentCustomFieldIds = new Set(customFields.map(cf => cf.id));
       dispatch({ type: 'PRUNE_CUSTOM_FIELDS', validFieldIds: currentCustomFieldIds });
     }
-  }, [customFieldIds, attendee, customFields]);
+  }, [attendee, customFields]);
 
   /**
    * Generates a unique barcode for an attendee
@@ -214,7 +210,7 @@ export function useAttendeeForm({ attendee, customFields, eventSettings }: UseAt
    * @throws {Error} If unable to generate unique barcode after max retries
    * 
    * @remarks
-   * - Retries up to 10 times if barcode already exists
+   * - Retries up to BARCODE_GENERATION_MAX_ATTEMPTS times if barcode already exists
    * - Falls back to manual entry if generation fails
    * - Shows error message to user on failure
    */
@@ -222,21 +218,56 @@ export function useAttendeeForm({ attendee, customFields, eventSettings }: UseAt
     if (!eventSettings) return;
 
     const barcodeType = eventSettings.barcodeType || 'alphanumeric';
-    const barcodeLength = eventSettings.barcodeLength || 8;
-    const maxRetries = 10;
+    const barcodeLength = eventSettings.barcodeLength || FORM_LIMITS.BARCODE_LENGTH_DEFAULT;
+    const maxRetries = FORM_LIMITS.BARCODE_GENERATION_MAX_ATTEMPTS;
 
+    /**
+     * Generate cryptographically secure random barcode
+     * Uses Web Crypto API for unbiased random generation
+     */
     const generateRandomBarcode = () => {
+      const charset = barcodeType === 'numerical'
+        ? '0123456789'
+        : 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+
+      const charsetLength = charset.length;
       let barcode = '';
-      if (barcodeType === 'numerical') {
-        for (let i = 0; i < barcodeLength; i++) {
-          barcode += Math.floor(Math.random() * 10);
-        }
+
+      // Generate random bytes using Web Crypto API
+      const randomBytes = new Uint8Array(barcodeLength * 2); // Extra bytes for rejection sampling
+
+      if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
+        // Browser environment
+        window.crypto.getRandomValues(randomBytes);
+      } else if (typeof global !== 'undefined' && global.crypto && global.crypto.getRandomValues) {
+        // Node.js 15+ with Web Crypto API
+        global.crypto.getRandomValues(randomBytes);
       } else {
-        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        // Fallback to Math.random (should not happen in modern environments)
+        console.warn('Crypto API not available, falling back to Math.random');
         for (let i = 0; i < barcodeLength; i++) {
-          barcode += chars.charAt(Math.floor(Math.random() * chars.length));
+          barcode += charset.charAt(Math.floor(Math.random() * charsetLength));
         }
+        return barcode;
       }
+
+      // Use rejection sampling to avoid modulo bias
+      let byteIndex = 0;
+      for (let i = 0; i < barcodeLength; i++) {
+        // Find a random byte that doesn't cause modulo bias
+        let randomValue;
+        do {
+          if (byteIndex >= randomBytes.length) {
+            // Need more random bytes
+            window.crypto?.getRandomValues(randomBytes) || global.crypto?.getRandomValues(randomBytes);
+            byteIndex = 0;
+          }
+          randomValue = randomBytes[byteIndex++];
+        } while (randomValue >= 256 - (256 % charsetLength)); // Reject biased values
+
+        barcode += charset.charAt(randomValue % charsetLength);
+      }
+
       return barcode;
     };
 
@@ -244,21 +275,24 @@ export function useAttendeeForm({ attendee, customFields, eventSettings }: UseAt
       try {
         const response = await fetch(`/api/attendees/check-barcode?barcode=${encodeURIComponent(barcode)}`);
         if (!response.ok) {
-          console.error('Failed to check barcode uniqueness');
-          return true;
+          const errorText = await response.text();
+          console.error('Barcode uniqueness check failed:', response.status, errorText);
+          error('Failed to verify barcode uniqueness. Please try again.');
+          return false; // Treat server errors as not unique to prevent duplicates
         }
         const data = await response.json();
         return !data.exists;
       } catch (err) {
         console.error('Error checking barcode uniqueness:', err);
-        return true;
+        error('Network error while checking barcode uniqueness. Please check your connection and try again.');
+        return false; // Treat network errors as not unique to prevent duplicates
       }
     };
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       const barcode = generateRandomBarcode();
       const isUnique = await checkBarcodeUniqueness(barcode);
-      
+
       if (isUnique) {
         dispatch({ type: 'SET_FIELD', field: 'barcodeNumber', value: barcode });
         return;
@@ -313,9 +347,16 @@ export function useAttendeeForm({ attendee, customFields, eventSettings }: UseAt
             error("Validation Error", "This barcode number already exists. Please generate a new one or enter a different barcode.");
             return false;
           }
+        } else {
+          const errorText = await response.text();
+          console.error('Barcode uniqueness check failed:', response.status, errorText);
+          error("Validation Error", "Unable to verify barcode uniqueness. Please try again.");
+          return false;
         }
       } catch (err) {
         console.error('Error checking barcode uniqueness:', err);
+        error("Validation Error", "Unable to verify barcode uniqueness. Please try again.");
+        return false;
       }
     }
 

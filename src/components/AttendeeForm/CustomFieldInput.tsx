@@ -29,8 +29,81 @@ interface CustomFieldInputProps {
 }
 
 /**
+ * Custom comparison function for React.memo optimization.
+ * 
+ * Only re-renders when field identity, value, or onChange reference changes.
+ * This prevents unnecessary re-renders when parent components update unrelated state.
+ * 
+ * @param prevProps - Previous props
+ * @param nextProps - Next props
+ * @returns true if props are equal (skip re-render), false if different (re-render)
+ */
+function arePropsEqual(
+  prevProps: CustomFieldInputProps,
+  nextProps: CustomFieldInputProps
+): boolean {
+  // Compare field identity (id is the unique identifier)
+  if (prevProps.field.id !== nextProps.field.id) {
+    return false;
+  }
+
+  // Compare field type (affects which input component renders)
+  if (prevProps.field.fieldType !== nextProps.field.fieldType) {
+    return false;
+  }
+
+  // Compare required flag (affects validation)
+  if (prevProps.field.required !== nextProps.field.required) {
+    return false;
+  }
+
+  // Compare field options (affects behavior like uppercase, dropdown options)
+  const prevOptions = prevProps.field.fieldOptions;
+  const nextOptions = nextProps.field.fieldOptions;
+
+  if (prevOptions?.uppercase !== nextOptions?.uppercase) {
+    return false;
+  }
+
+  // For select fields, compare options array
+  if (prevProps.field.fieldType === 'select') {
+    const prevSelectOptions = prevOptions?.options;
+    const nextSelectOptions = nextOptions?.options;
+
+    if (prevSelectOptions?.length !== nextSelectOptions?.length) {
+      return false;
+    }
+
+    if (prevSelectOptions && nextSelectOptions) {
+      for (let i = 0; i < prevSelectOptions.length; i++) {
+        if (prevSelectOptions[i] !== nextSelectOptions[i]) {
+          return false;
+        }
+      }
+    }
+  }
+
+  // Compare value (the actual input value)
+  if (prevProps.value !== nextProps.value) {
+    return false;
+  }
+
+  // Compare onChange by reference
+  // If parent wraps onChange with useCallback, this prevents unnecessary re-renders
+  if (prevProps.onChange !== nextProps.onChange) {
+    return false;
+  }
+
+  // All relevant props are equal - skip re-render
+  return true;
+}
+
+/**
  * Memoized custom field input component to prevent unnecessary re-renders.
  * Each field type is handled with appropriate sanitization and validation.
+ * 
+ * Uses custom comparison (arePropsEqual) to optimize re-renders by only comparing
+ * relevant field properties, value, and onChange reference.
  */
 export const CustomFieldInput = memo(function CustomFieldInput({
   field,
@@ -44,8 +117,8 @@ export const CustomFieldInput = memo(function CustomFieldInput({
           value={value}
           onChange={(e) => {
             const sanitized = sanitizeInput(e.target.value);
-            const processed = field.fieldOptions?.uppercase 
-              ? sanitized.toUpperCase() 
+            const processed = field.fieldOptions?.uppercase
+              ? sanitized.toUpperCase()
               : sanitized;
             onChange(processed);
           }}
@@ -107,7 +180,32 @@ export const CustomFieldInput = memo(function CustomFieldInput({
         <Input
           type="date"
           value={value}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => {
+            const rawValue = e.target.value.trim();
+
+            // If empty, pass empty string
+            if (!rawValue) {
+              onChange('');
+              return;
+            }
+
+            // Validate YYYY-MM-DD format
+            const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+            if (!dateRegex.test(rawValue)) {
+              onChange('');
+              return;
+            }
+
+            // Validate it's a real date
+            const date = new Date(rawValue);
+            if (isNaN(date.getTime())) {
+              onChange('');
+              return;
+            }
+
+            // Pass the normalized ISO date string
+            onChange(rawValue);
+          }}
           required={field.required}
           aria-label={field.fieldName}
           aria-required={field.required}
@@ -121,11 +219,17 @@ export const CustomFieldInput = memo(function CustomFieldInput({
             <SelectValue placeholder={`Select ${field.fieldName}`} />
           </SelectTrigger>
           <SelectContent>
-            {field.fieldOptions?.options?.map((option: string, index: number) => (
-              <SelectItem key={index} value={option}>
-                {option}
+            {!field.fieldOptions?.options || field.fieldOptions.options.length === 0 ? (
+              <SelectItem value="" disabled>
+                No options available
               </SelectItem>
-            ))}
+            ) : (
+              field.fieldOptions.options.map((option: string, index: number) => (
+                <SelectItem key={`${option}-${index}`} value={option}>
+                  {option}
+                </SelectItem>
+              ))
+            )}
           </SelectContent>
         </Select>
       );
@@ -146,11 +250,11 @@ export const CustomFieldInput = memo(function CustomFieldInput({
       return (
         <div className="flex items-center space-x-2">
           <Switch
-            checked={value === 'yes'}
-            onCheckedChange={(checked) => onChange(checked ? 'yes' : 'no')}
+            checked={value === 'true'}
+            onCheckedChange={(checked) => onChange(checked ? 'true' : 'false')}
             aria-label={field.fieldName}
           />
-          <Label>{value === 'yes' ? 'Yes' : 'No'}</Label>
+          <Label>{value === 'true' ? 'Yes' : 'No'}</Label>
         </div>
       );
 
@@ -168,4 +272,4 @@ export const CustomFieldInput = memo(function CustomFieldInput({
         />
       );
   }
-});
+}, arePropsEqual);

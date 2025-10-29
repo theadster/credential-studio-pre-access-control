@@ -5,22 +5,28 @@
 
 /**
  * Sanitizes user input to prevent XSS attacks
- * Removes potentially dangerous characters while preserving usability
+ * Removes all HTML tags and dangerous content completely
  * Does NOT trim to allow spaces during typing
  */
 export function sanitizeInput(value: string): string {
   if (!value) return '';
   
   return value
-    // Remove script-like content first
+    // Remove script tags and their content first
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    // Remove style tags and their content
+    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+    // Remove all remaining HTML tags (but keep their text content)
+    .replace(/<[^>]*>/g, '')
+    // Remove javascript: protocol
     .replace(/javascript:/gi, '')
-    .replace(/on\w+\s*=/gi, '')
-    // Remove angle brackets (this removes < and > completely)
-    .replace(/[<>]/g, '');
+    // Remove event handlers
+    .replace(/on\w+\s*=/gi, '');
 }
 
 /**
  * Sanitizes user input with trimming
+ * Removes all HTML tags and dangerous content completely
  * Use this on blur/submit to clean up leading/trailing whitespace
  */
 export function sanitizeInputFinal(value: string): string {
@@ -28,11 +34,16 @@ export function sanitizeInputFinal(value: string): string {
   
   return value
     .trim()
-    // Remove script-like content first
+    // Remove script tags and their content first
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    // Remove style tags and their content
+    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+    // Remove all remaining HTML tags (but keep their text content)
+    .replace(/<[^>]*>/g, '')
+    // Remove javascript: protocol
     .replace(/javascript:/gi, '')
-    .replace(/on\w+\s*=/gi, '')
-    // Remove angle brackets (this removes < and > completely)
-    .replace(/[<>]/g, '');
+    // Remove event handlers
+    .replace(/on\w+\s*=/gi, '');
 }
 
 /**
@@ -61,20 +72,28 @@ export function sanitizeUrl(value: string): string {
 
 /**
  * Sanitizes notes/textarea input
- * More permissive but still safe
+ * Removes all HTML tags and event handlers to prevent XSS
  * Does NOT trim to allow spaces during typing
  */
 export function sanitizeNotes(value: string): string {
   if (!value) return '';
   
   return value
-    // Remove script tags and event handlers
+    // Remove script tags and their content first
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    // Remove style tags and their content
+    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+    // Remove all remaining HTML tags (but keep their text content)
+    .replace(/<[^>]*>/g, '')
+    // Remove javascript: protocol
+    .replace(/javascript:/gi, '')
+    // Remove event handlers
     .replace(/on\w+\s*=/gi, '');
 }
 
 /**
  * Sanitizes notes/textarea input with trimming
+ * Removes all HTML tags and event handlers to prevent XSS
  * Use this on blur/submit to clean up leading/trailing whitespace
  */
 export function sanitizeNotesFinal(value: string): string {
@@ -82,8 +101,15 @@ export function sanitizeNotesFinal(value: string): string {
   
   return value
     .trim()
-    // Remove script tags and event handlers
+    // Remove script tags and their content first
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    // Remove style tags and their content
+    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+    // Remove all remaining HTML tags (but keep their text content)
+    .replace(/<[^>]*>/g, '')
+    // Remove javascript: protocol
+    .replace(/javascript:/gi, '')
+    // Remove event handlers
     .replace(/on\w+\s*=/gi, '');
 }
 
