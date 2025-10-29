@@ -153,8 +153,10 @@ interface EventSettings {
     required: boolean;
     order: number;
   }[];
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
+  $createdAt?: string;
+  $updatedAt?: string;
   [key: string]: unknown;
 }
 
@@ -1174,7 +1176,37 @@ export default function Dashboard() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to save attendee');
+        const errorMessage = errorData.error || 'Failed to save attendee';
+        
+        close();
+        
+        // Show user-friendly error dialog based on error type
+        if (errorMessage.toLowerCase().includes('barcode')) {
+          // Build detailed message with existing attendee info if available
+          let detailedMessage = "This barcode number already exists in the system.";
+          
+          if (errorData.existingAttendee) {
+            const { firstName, lastName, barcodeNumber } = errorData.existingAttendee;
+            detailedMessage += `\n\nThis barcode is currently assigned to:\n${firstName} ${lastName} (${barcodeNumber})`;
+          }
+          
+          detailedMessage += "\n\nPlease generate a new barcode or enter a different number.";
+          
+          await alert({
+            title: "Duplicate Barcode Number",
+            text: detailedMessage,
+            icon: "error",
+            confirmButtonText: "OK"
+          });
+        } else {
+          await alert({
+            title: "Unable to Save Attendee",
+            text: errorMessage,
+            icon: "error",
+            confirmButtonText: "OK"
+          });
+        }
+        return;
       }
 
       const savedAttendee = await response.json();
@@ -1192,7 +1224,7 @@ export default function Dashboard() {
       setEditingAttendee(null);
     } catch (err: any) {
       close();
-      error("Error", err.message);
+      error("Unexpected Error", "An unexpected error occurred while saving the attendee. Please try again.");
       throw err;
     }
   };
@@ -1222,7 +1254,37 @@ export default function Dashboard() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to save attendee');
+        const errorMessage = errorData.error || 'Failed to save attendee';
+        
+        close();
+        
+        // Show user-friendly error dialog based on error type
+        if (errorMessage.toLowerCase().includes('barcode')) {
+          // Build detailed message with existing attendee info if available
+          let detailedMessage = "This barcode number already exists in the system.";
+          
+          if (errorData.existingAttendee) {
+            const { firstName, lastName, barcodeNumber } = errorData.existingAttendee;
+            detailedMessage += `\n\nThis barcode is currently assigned to:\n${firstName} ${lastName} (${barcodeNumber})`;
+          }
+          
+          detailedMessage += "\n\nPlease generate a new barcode or enter a different number.";
+          
+          await alert({
+            title: "Duplicate Barcode Number",
+            text: detailedMessage,
+            icon: "error",
+            confirmButtonText: "OK"
+          });
+        } else {
+          await alert({
+            title: "Unable to Save Attendee",
+            text: errorMessage,
+            icon: "error",
+            confirmButtonText: "OK"
+          });
+        }
+        return;
       }
 
       const savedAttendee = await response.json();
@@ -1244,7 +1306,7 @@ export default function Dashboard() {
       setEditingAttendee(null);
     } catch (err: any) {
       close();
-      error("Error", err.message);
+      error("Unexpected Error", "An unexpected error occurred while saving the attendee. Please try again.");
       throw err;
     }
   };
@@ -2337,6 +2399,12 @@ export default function Dashboard() {
     return (
       <div className="flex min-h-screen bg-background items-center justify-center">
         <div className="text-center">
+          <div className="mb-6">
+            <IdCard className="h-16 w-16 text-primary mx-auto mb-4" />
+            <h2 className="text-2xl font-bold mb-2">
+              {eventSettings?.eventName || 'credential.studio'}
+            </h2>
+          </div>
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted-foreground">Loading dashboard...</p>
         </div>
@@ -4288,7 +4356,17 @@ export default function Dashboard() {
                         <div className="flex items-center justify-between pt-4 border-t">
                           <div>
                             <p className="text-sm text-muted-foreground">
-                              Last updated {new Date(eventSettings.updatedAt || eventSettings.createdAt).toLocaleDateString()} at {new Date(eventSettings.updatedAt || eventSettings.createdAt).toLocaleTimeString()}
+                              {(() => {
+                                const timestamp = eventSettings.updatedAt || eventSettings.$updatedAt || eventSettings.createdAt || eventSettings.$createdAt;
+                                if (!timestamp) return 'Last updated: Unknown';
+                                try {
+                                  const date = new Date(timestamp);
+                                  if (isNaN(date.getTime())) return 'Last updated: Unknown';
+                                  return `Last updated ${date.toLocaleDateString()} at ${date.toLocaleTimeString()}`;
+                                } catch {
+                                  return 'Last updated: Unknown';
+                                }
+                              })()}
                             </p>
                           </div>
                           {hasPermission(currentUser?.role, 'eventSettings', 'update') && (

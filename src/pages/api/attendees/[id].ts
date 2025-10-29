@@ -245,7 +245,15 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           );
 
           if (duplicateBarcodeDocs.documents.length > 0) {
-            return res.status(400).json({ error: 'Barcode number already exists' });
+            const duplicateAttendee = duplicateBarcodeDocs.documents[0];
+            return res.status(400).json({ 
+              error: 'Barcode number already exists',
+              existingAttendee: {
+                firstName: duplicateAttendee.firstName,
+                lastName: duplicateAttendee.lastName,
+                barcodeNumber: duplicateAttendee.barcodeNumber
+              }
+            });
           }
         }
 

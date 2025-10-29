@@ -448,6 +448,9 @@ export function flattenEventSettings(settings: EventSettingsWithIntegrations): a
 
   return {
     ...coreSettings,
+    // Map Appwrite's automatic timestamp fields to the expected format
+    createdAt: (coreSettings as any).$createdAt || (coreSettings as any).createdAt,
+    updatedAt: (coreSettings as any).$updatedAt || (coreSettings as any).updatedAt,
     // Cloudinary fields
     cloudinaryEnabled: cloudinary?.enabled || false,
     cloudinaryCloudName: cloudinary?.cloudName || '',

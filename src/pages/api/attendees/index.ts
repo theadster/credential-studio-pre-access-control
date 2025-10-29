@@ -532,7 +532,15 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         );
 
         if (existingAttendeeDocs.documents.length > 0) {
-          return res.status(400).json({ error: 'Barcode number already exists' });
+          const existingAttendee = existingAttendeeDocs.documents[0];
+          return res.status(400).json({ 
+            error: 'Barcode number already exists',
+            existingAttendee: {
+              firstName: existingAttendee.firstName,
+              lastName: existingAttendee.lastName,
+              barcodeNumber: existingAttendee.barcodeNumber
+            }
+          });
         }
 
         // Validate custom field IDs if provided

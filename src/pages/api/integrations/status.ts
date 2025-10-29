@@ -14,9 +14,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
   try {
     // Check if required environment variables are configured
+    // Note: CLOUDINARY_CLOUD_NAME is stored per-event in the database, not in env vars
     const status: IntegrationStatus = {
       cloudinary: !!(
-        process.env.CLOUDINARY_CLOUD_NAME &&
         process.env.CLOUDINARY_API_KEY &&
         process.env.CLOUDINARY_API_SECRET
       ),

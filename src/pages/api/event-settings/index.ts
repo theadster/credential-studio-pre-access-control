@@ -985,9 +985,10 @@ function getCoreEventSettingsFields(updateData: any) {
   } = updateData;
 
   // Filter out ALL Appwrite internal fields (anything starting with $)
+  // Also filter out createdAt and updatedAt which are managed by Appwrite
   const coreFields: any = {};
   for (const [key, value] of Object.entries(remainingFields)) {
-    if (!key.startsWith('$')) {
+    if (!key.startsWith('$') && key !== 'createdAt' && key !== 'updatedAt') {
       coreFields[key] = value;
     }
   }
