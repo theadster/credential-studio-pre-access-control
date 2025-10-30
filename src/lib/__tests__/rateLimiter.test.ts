@@ -1,258 +1,192 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import rateLimiter from '../rateLimiter';
 
-describe('RateLimiter', () => {
+describe('Rate Limiter', () => {
   beforeEach(() => {
-    // Clear rate limiter before each test
     rateLimiter.clear();
-    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    rateLimiter.destroy();
-    vi.useRealTimers();
+    rateLimiter.clear();
   });
 
-  describe('check()', () => {
-    it('should allow first request', () => {
-      const result = rateLimiter.check('test-key', 3, 60000);
-
-      expect(result.allowed).toBe(true);
-      expect(result.remaining).toBe(2);
-      expect(result.resetAt).toBeGreaterThan(Date.now());
-    });
-
-    it('should allow requests up to the limit', () => {
-      const limit = 3;
-      const windowMs = 60000;
-
-      // First request
-      const result1 = rateLimiter.check('test-key', limit, windowMs);
+  describe('Basic Functionality', () => {
+    it('should allow requests under the limit', () => {
+      const result1 = rateLimiter.check('test-key', 3, 60000);
       expect(result1.allowed).toBe(true);
       expect(result1.remaining).toBe(2);
 
-      // Second request
-      const result2 = rateLimiter.check('test-key', limit, windowMs);
+      const result2 = rateLimiter.check('test-key', 3, 60000);
       expect(result2.allowed).toBe(true);
       expect(result2.remaining).toBe(1);
 
-      // Third request
-      const result3 = rateLimiter.check('test-key', limit, windowMs);
+      const result3 = rateLimiter.check('test-key', 3, 60000);
       expect(result3.allowed).toBe(true);
       expect(result3.remaining).toBe(0);
     });
 
-    it('should block requests after limit is exceeded', () => {
-      const limit = 3;
-      const windowMs = 60000;
+    it('should block requests over the limit', () => {
+      // Use up the limit
+      rateLimiter.check('test-key', 3, 60000);
+      rateLimiter.check('test-key', 3, 60000);
+      rateLimiter.check('test-key', 3, 60000);
 
-      // Make 3 requests (up to limit)
-      rateLimiter.check('test-key', limit, windowMs);
-      rateLimiter.check('test-key', limit, windowMs);
-      rateLimiter.check('test-key', limit, windowMs);
-
-      // Fourth request should be blocked
-      const result = rateLimiter.check('test-key', limit, windowMs);
+      // This should be blocked
+      const result = rateLimiter.check('test-key', 3, 60000);
       expect(result.allowed).toBe(false);
       expect(result.remaining).toBe(0);
     });
 
-    it('should reset after time window expires', () => {
-      const limit = 3;
-      const windowMs = 60000;
+    it('should return resetAt timestamp', () => {
+      const before = Date.now();
+      const result = rateLimiter.check('test-key', 3, 60000);
+      const after = Date.now();
 
-      // Make 3 requests (up to limit)
-      rateLimiter.check('test-key', limit, windowMs);
-      rateLimiter.check('test-key', limit, windowMs);
-      rateLimiter.check('test-key', limit, windowMs);
-
-      // Fourth request should be blocked
-      const blocked = rateLimiter.check('test-key', limit, windowMs);
-      expect(blocked.allowed).toBe(false);
-
-      // Advance time past the window
-      vi.advanceTimersByTime(windowMs + 1000);
-
-      // Should be allowed again
-      const result = rateLimiter.check('test-key', limit, windowMs);
-      expect(result.allowed).toBe(true);
-      expect(result.remaining).toBe(2);
-    });
-
-    it('should track different keys independently', () => {
-      const limit = 3;
-      const windowMs = 60000;
-
-      // Make requests for key1
-      rateLimiter.check('key1', limit, windowMs);
-      rateLimiter.check('key1', limit, windowMs);
-      rateLimiter.check('key1', limit, windowMs);
-
-      // key1 should be blocked
-      const result1 = rateLimiter.check('key1', limit, windowMs);
-      expect(result1.allowed).toBe(false);
-
-      // key2 should still be allowed
-      const result2 = rateLimiter.check('key2', limit, windowMs);
-      expect(result2.allowed).toBe(true);
-      expect(result2.remaining).toBe(2);
-    });
-
-    it('should return correct resetAt timestamp', () => {
-      const limit = 3;
-      const windowMs = 60000;
-      const now = Date.now();
-
-      const result = rateLimiter.check('test-key', limit, windowMs);
-
-      expect(result.resetAt).toBeGreaterThanOrEqual(now + windowMs);
-      expect(result.resetAt).toBeLessThanOrEqual(now + windowMs + 100);
+      expect(result.resetAt).toBeGreaterThanOrEqual(before + 60000);
+      expect(result.resetAt).toBeLessThanOrEqual(after + 60000);
     });
   });
 
-  describe('reset()', () => {
-    it('should reset rate limit for specific key', () => {
-      const limit = 3;
-      const windowMs = 60000;
+  describe('Time Window Expiration', () => {
+    it('should reset after time window expires', () => {
+      vi.useFakeTimers();
 
-      // Exhaust the limit
-      rateLimiter.check('test-key', limit, windowMs);
-      rateLimiter.check('test-key', limit, windowMs);
-      rateLimiter.check('test-key', limit, windowMs);
+      // Use up the limit
+      rateLimiter.check('test-key', 3, 60000);
+      rateLimiter.check('test-key', 3, 60000);
+      rateLimiter.check('test-key', 3, 60000);
 
       // Should be blocked
-      const blocked = rateLimiter.check('test-key', limit, windowMs);
-      expect(blocked.allowed).toBe(false);
+      let result = rateLimiter.check('test-key', 3, 60000);
+      expect(result.allowed).toBe(false);
+
+      // Fast forward 61 seconds
+      vi.advanceTimersByTime(61000);
+
+      // Should be allowed again
+      result = rateLimiter.check('test-key', 3, 60000);
+      expect(result.allowed).toBe(true);
+      expect(result.remaining).toBe(2);
+
+      vi.useRealTimers();
+    });
+
+    it('should not reset before time window expires', () => {
+      vi.useFakeTimers();
+
+      // Use up the limit
+      rateLimiter.check('test-key', 3, 60000);
+      rateLimiter.check('test-key', 3, 60000);
+      rateLimiter.check('test-key', 3, 60000);
+
+      // Should be blocked
+      let result = rateLimiter.check('test-key', 3, 60000);
+      expect(result.allowed).toBe(false);
+
+      // Fast forward 30 seconds (not enough)
+      vi.advanceTimersByTime(30000);
+
+      // Should still be blocked
+      result = rateLimiter.check('test-key', 3, 60000);
+      expect(result.allowed).toBe(false);
+
+      vi.useRealTimers();
+    });
+  });
+
+  describe('Multiple Keys', () => {
+    it('should handle different keys independently', () => {
+      rateLimiter.check('key1', 2, 60000);
+      rateLimiter.check('key1', 2, 60000);
+
+      // key1 is at limit
+      let result = rateLimiter.check('key1', 2, 60000);
+      expect(result.allowed).toBe(false);
+
+      // key2 should still be allowed
+      result = rateLimiter.check('key2', 2, 60000);
+      expect(result.allowed).toBe(true);
+      expect(result.remaining).toBe(1);
+    });
+
+    it('should track multiple keys simultaneously', () => {
+      const keys = ['user1', 'user2', 'user3'];
+
+      keys.forEach(key => {
+        const result = rateLimiter.check(key, 5, 60000);
+        expect(result.allowed).toBe(true);
+        expect(result.remaining).toBe(4);
+      });
+
+      // Each key should have its own count
+      keys.forEach(key => {
+        const result = rateLimiter.check(key, 5, 60000);
+        expect(result.allowed).toBe(true);
+        expect(result.remaining).toBe(3);
+      });
+    });
+  });
+
+  describe('Manual Reset', () => {
+    it('should reset a specific key', () => {
+      rateLimiter.check('test-key', 3, 60000);
+      rateLimiter.check('test-key', 3, 60000);
+      rateLimiter.check('test-key', 3, 60000);
+
+      // Should be blocked
+      let result = rateLimiter.check('test-key', 3, 60000);
+      expect(result.allowed).toBe(false);
 
       // Reset the key
       rateLimiter.reset('test-key');
 
       // Should be allowed again
-      const result = rateLimiter.check('test-key', limit, windowMs);
+      result = rateLimiter.check('test-key', 3, 60000);
       expect(result.allowed).toBe(true);
       expect(result.remaining).toBe(2);
     });
 
-    it('should not affect other keys', () => {
-      const limit = 3;
-      const windowMs = 60000;
-
-      // Make requests for both keys
-      rateLimiter.check('key1', limit, windowMs);
-      rateLimiter.check('key2', limit, windowMs);
+    it('should not affect other keys when resetting', () => {
+      rateLimiter.check('key1', 2, 60000);
+      rateLimiter.check('key1', 2, 60000);
+      rateLimiter.check('key2', 2, 60000);
 
       // Reset key1
       rateLimiter.reset('key1');
 
       // key1 should be reset
-      const result1 = rateLimiter.check('key1', limit, windowMs);
-      expect(result1.allowed).toBe(true);
-      expect(result1.remaining).toBe(2);
+      let result = rateLimiter.check('key1', 2, 60000);
+      expect(result.allowed).toBe(true);
+      expect(result.remaining).toBe(1);
 
-      // key2 should still have 1 request counted
-      const result2 = rateLimiter.check('key2', limit, windowMs);
-      expect(result2.allowed).toBe(true);
-      expect(result2.remaining).toBe(1);
+      // key2 should be unchanged
+      result = rateLimiter.check('key2', 2, 60000);
+      expect(result.allowed).toBe(true);
+      expect(result.remaining).toBe(0);
     });
   });
 
-  describe('clear()', () => {
-    it('should clear all rate limit entries', () => {
-      const limit = 3;
-      const windowMs = 60000;
+  describe('Clear All', () => {
+    it('should clear all entries', () => {
+      rateLimiter.check('key1', 2, 60000);
+      rateLimiter.check('key1', 2, 60000);
+      rateLimiter.check('key2', 2, 60000);
+      rateLimiter.check('key2', 2, 60000);
 
-      // Make requests for multiple keys
-      rateLimiter.check('key1', limit, windowMs);
-      rateLimiter.check('key1', limit, windowMs);
-      rateLimiter.check('key2', limit, windowMs);
-      rateLimiter.check('key2', limit, windowMs);
+      // Both keys at limit
+      expect(rateLimiter.check('key1', 2, 60000).allowed).toBe(false);
+      expect(rateLimiter.check('key2', 2, 60000).allowed).toBe(false);
 
       // Clear all
       rateLimiter.clear();
 
-      // All keys should be reset
-      const result1 = rateLimiter.check('key1', limit, windowMs);
-      expect(result1.allowed).toBe(true);
-      expect(result1.remaining).toBe(2);
-
-      const result2 = rateLimiter.check('key2', limit, windowMs);
-      expect(result2.allowed).toBe(true);
-      expect(result2.remaining).toBe(2);
+      // Both keys should be reset
+      expect(rateLimiter.check('key1', 2, 60000).allowed).toBe(true);
+      expect(rateLimiter.check('key2', 2, 60000).allowed).toBe(true);
     });
   });
 
-  describe('Rate limiting scenarios', () => {
-    it('should enforce per-user rate limit (3 per hour)', () => {
-      const userLimit = 3;
-      const windowMs = 60 * 60 * 1000; // 1 hour
-      const userId = 'user-123';
-
-      // User makes 3 requests
-      for (let i = 0; i < userLimit; i++) {
-        const result = rateLimiter.check(`verify-email:user:${userId}`, userLimit, windowMs);
-        expect(result.allowed).toBe(true);
-      }
-
-      // 4th request should be blocked
-      const blocked = rateLimiter.check(`verify-email:user:${userId}`, userLimit, windowMs);
-      expect(blocked.allowed).toBe(false);
-    });
-
-    it('should enforce per-admin rate limit (20 per hour)', () => {
-      const adminLimit = 20;
-      const windowMs = 60 * 60 * 1000; // 1 hour
-      const adminId = 'admin-123';
-
-      // Admin makes 20 requests
-      for (let i = 0; i < adminLimit; i++) {
-        const result = rateLimiter.check(`verify-email:admin:${adminId}`, adminLimit, windowMs);
-        expect(result.allowed).toBe(true);
-      }
-
-      // 21st request should be blocked
-      const blocked = rateLimiter.check(`verify-email:admin:${adminId}`, adminLimit, windowMs);
-      expect(blocked.allowed).toBe(false);
-    });
-
-    it('should allow different users to have independent limits', () => {
-      const userLimit = 3;
-      const windowMs = 60 * 60 * 1000;
-
-      // User 1 exhausts their limit
-      rateLimiter.check('verify-email:user:user1', userLimit, windowMs);
-      rateLimiter.check('verify-email:user:user1', userLimit, windowMs);
-      rateLimiter.check('verify-email:user:user1', userLimit, windowMs);
-
-      const user1Blocked = rateLimiter.check('verify-email:user:user1', userLimit, windowMs);
-      expect(user1Blocked.allowed).toBe(false);
-
-      // User 2 should still be able to make requests
-      const user2Result = rateLimiter.check('verify-email:user:user2', userLimit, windowMs);
-      expect(user2Result.allowed).toBe(true);
-    });
-
-    it('should allow admin to continue after user limit is reached', () => {
-      const userLimit = 3;
-      const adminLimit = 20;
-      const windowMs = 60 * 60 * 1000;
-      const userId = 'user-123';
-      const adminId = 'admin-123';
-
-      // User exhausts their limit
-      rateLimiter.check(`verify-email:user:${userId}`, userLimit, windowMs);
-      rateLimiter.check(`verify-email:user:${userId}`, userLimit, windowMs);
-      rateLimiter.check(`verify-email:user:${userId}`, userLimit, windowMs);
-
-      const userBlocked = rateLimiter.check(`verify-email:user:${userId}`, userLimit, windowMs);
-      expect(userBlocked.allowed).toBe(false);
-
-      // Admin should still be able to make requests
-      const adminResult = rateLimiter.check(`verify-email:admin:${adminId}`, adminLimit, windowMs);
-      expect(adminResult.allowed).toBe(true);
-    });
-  });
-
-  describe('Edge cases', () => {
+  describe('Edge Cases', () => {
     it('should handle limit of 1', () => {
       const result1 = rateLimiter.check('test-key', 1, 60000);
       expect(result1.allowed).toBe(true);
@@ -260,48 +194,102 @@ describe('RateLimiter', () => {
 
       const result2 = rateLimiter.check('test-key', 1, 60000);
       expect(result2.allowed).toBe(false);
+      expect(result2.remaining).toBe(0);
     });
 
     it('should handle very short time windows', () => {
-      const limit = 3;
-      const windowMs = 100; // 100ms
+      vi.useFakeTimers();
 
-      // Make 3 requests
-      rateLimiter.check('test-key', limit, windowMs);
-      rateLimiter.check('test-key', limit, windowMs);
-      rateLimiter.check('test-key', limit, windowMs);
+      rateLimiter.check('test-key', 2, 1000); // 1 second window
+      rateLimiter.check('test-key', 2, 1000);
 
       // Should be blocked
-      const blocked = rateLimiter.check('test-key', limit, windowMs);
-      expect(blocked.allowed).toBe(false);
+      let result = rateLimiter.check('test-key', 2, 1000);
+      expect(result.allowed).toBe(false);
 
-      // Advance time past window
-      vi.advanceTimersByTime(windowMs + 10);
+      // Fast forward 1.1 seconds
+      vi.advanceTimersByTime(1100);
 
       // Should be allowed again
-      const result = rateLimiter.check('test-key', limit, windowMs);
+      result = rateLimiter.check('test-key', 2, 1000);
       expect(result.allowed).toBe(true);
+
+      vi.useRealTimers();
     });
 
-    it('should handle concurrent requests for same key', () => {
+    it('should handle very large limits', () => {
+      const limit = 1000;
+
+      for (let i = 0; i < limit; i++) {
+        const result = rateLimiter.check('test-key', limit, 60000);
+        expect(result.allowed).toBe(true);
+        expect(result.remaining).toBe(limit - i - 1);
+      }
+
+      // Should be blocked after limit
+      const result = rateLimiter.check('test-key', limit, 60000);
+      expect(result.allowed).toBe(false);
+    });
+
+    it('should handle empty key string', () => {
+      const result = rateLimiter.check('', 3, 60000);
+      expect(result.allowed).toBe(true);
+      expect(result.remaining).toBe(2);
+    });
+  });
+
+  describe('Password Reset Scenarios', () => {
+    it('should enforce per-user limit (3 per hour)', () => {
+      const userId = 'user123';
+      const key = `password-reset:user:${userId}`;
       const limit = 3;
-      const windowMs = 60000;
+      const window = 60 * 60 * 1000; // 1 hour
 
-      // Simulate concurrent requests
-      const results = [
-        rateLimiter.check('test-key', limit, windowMs),
-        rateLimiter.check('test-key', limit, windowMs),
-        rateLimiter.check('test-key', limit, windowMs),
-        rateLimiter.check('test-key', limit, windowMs)
-      ];
+      // First 3 attempts should succeed
+      for (let i = 0; i < limit; i++) {
+        const result = rateLimiter.check(key, limit, window);
+        expect(result.allowed).toBe(true);
+      }
 
-      // First 3 should be allowed
-      expect(results[0].allowed).toBe(true);
-      expect(results[1].allowed).toBe(true);
-      expect(results[2].allowed).toBe(true);
+      // 4th attempt should fail
+      const result = rateLimiter.check(key, limit, window);
+      expect(result.allowed).toBe(false);
+    });
 
-      // 4th should be blocked
-      expect(results[3].allowed).toBe(false);
+    it('should enforce per-admin limit (20 per hour)', () => {
+      const adminId = 'admin123';
+      const limit = 20;
+      const window = 60 * 60 * 1000; // 1 hour
+
+      // Admin can send to 20 different users
+      for (let i = 0; i < limit; i++) {
+        const key = `password-reset:admin:${adminId}`;
+        const result = rateLimiter.check(key, limit, window);
+        expect(result.allowed).toBe(true);
+      }
+
+      // 21st attempt should fail
+      const key = `password-reset:admin:${adminId}`;
+      const result = rateLimiter.check(key, limit, window);
+      expect(result.allowed).toBe(false);
+    });
+
+    it('should allow different users to have independent limits', () => {
+      const user1Key = 'password-reset:user:user1';
+      const user2Key = 'password-reset:user:user2';
+      const limit = 3;
+      const window = 60 * 60 * 1000;
+
+      // Use up user1's limit
+      for (let i = 0; i < limit; i++) {
+        rateLimiter.check(user1Key, limit, window);
+      }
+
+      // user1 should be blocked
+      expect(rateLimiter.check(user1Key, limit, window).allowed).toBe(false);
+
+      // user2 should still be allowed
+      expect(rateLimiter.check(user2Key, limit, window).allowed).toBe(true);
     });
   });
 });

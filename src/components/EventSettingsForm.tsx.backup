@@ -15,6 +15,8 @@ import { Plus, Trash2, Edit, Save, X, GripVertical, Type, Hash, Mail, Calendar, 
 import { generateInternalFieldName } from "@/util/string";
 import { useSweetAlert } from "@/hooks/useSweetAlert";
 import { validateCustomFieldDeletion } from "@/lib/customFieldValidation";
+import { sanitizeHTMLTemplate } from "@/lib/sanitization";
+import { validateSwitchboardRequestBody, validateEventSettings } from "@/lib/validation";
 import {
   DndContext,
   closestCenter,
@@ -418,6 +420,41 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
     setLoading(true);
 
     try {
+      // Prepare settings data
+      const settingsData = {
+        ...formData,
+        customFields,
+        switchboardFieldMappings: fieldMappings
+      };
+
+      // PHASE 1 SECURITY: Validate required fields
+      const settingsValidation = validateEventSettings(settingsData);
+      if (!settingsValidation.valid) {
+        error("Validation Error", settingsValidation.error || "Please fill in all required fields");
+        setLoading(false);
+        return;
+      }
+
+      // PHASE 1 SECURITY: Sanitize HTML templates for OneSimpleAPI
+      if (settingsData.oneSimpleApiEnabled) {
+        if (settingsData.oneSimpleApiFormDataValue) {
+          settingsData.oneSimpleApiFormDataValue = sanitizeHTMLTemplate(settingsData.oneSimpleApiFormDataValue);
+        }
+        if (settingsData.oneSimpleApiRecordTemplate) {
+          settingsData.oneSimpleApiRecordTemplate = sanitizeHTMLTemplate(settingsData.oneSimpleApiRecordTemplate);
+        }
+      }
+
+      // PHASE 1 SECURITY: Validate Switchboard JSON request body
+      if (settingsData.switchboardEnabled && settingsData.switchboardRequestBody) {
+        const validation = validateSwitchboardRequestBody(settingsData.switchboardRequestBody);
+        if (!validation.valid) {
+          error("Invalid JSON", validation.error || "Request body must be valid JSON");
+          setLoading(false);
+          return;
+        }
+      }
+
       // Check if any printable flags have changed
       let hasPrintableFlagChanges = false;
       for (const field of customFields) {
@@ -431,12 +468,6 @@ export default function EventSettingsForm({ isOpen, onClose, onSave, eventSettin
           }
         }
       }
-
-      const settingsData = {
-        ...formData,
-        customFields,
-        switchboardFieldMappings: fieldMappings
-      };
 
       await onSave(settingsData);
       

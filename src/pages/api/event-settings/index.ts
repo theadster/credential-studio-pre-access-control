@@ -7,6 +7,8 @@ import { createSessionClient, createAdminClient } from '@/lib/appwrite';
 import { Query, ID } from 'appwrite';
 import { generateInternalFieldName } from '@/util/string';
 import { shouldLog } from '@/lib/logSettings';
+import { sanitizeHTMLTemplate } from '@/lib/sanitization';
+import { validateSwitchboardRequestBody, validateEventSettings } from '@/lib/validation';
 import {
   IntegrationConflictError,
   updateCloudinaryIntegration,
@@ -1432,6 +1434,36 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
     // Initialize performance tracker for POST request
     const postPerfTracker = new PerformanceTracker();
 
+    // PHASE 1 SECURITY: Validate request body
+    const settingsValidation = validateEventSettings(req.body);
+    if (!settingsValidation.valid) {
+      return res.status(400).json({ 
+        error: 'Validation Error', 
+        message: settingsValidation.error 
+      });
+    }
+
+    // PHASE 1 SECURITY: Sanitize HTML templates
+    if (req.body.oneSimpleApiEnabled) {
+      if (req.body.oneSimpleApiFormDataValue) {
+        req.body.oneSimpleApiFormDataValue = sanitizeHTMLTemplate(req.body.oneSimpleApiFormDataValue);
+      }
+      if (req.body.oneSimpleApiRecordTemplate) {
+        req.body.oneSimpleApiRecordTemplate = sanitizeHTMLTemplate(req.body.oneSimpleApiRecordTemplate);
+      }
+    }
+
+    // PHASE 1 SECURITY: Validate Switchboard JSON
+    if (req.body.switchboardEnabled && req.body.switchboardRequestBody) {
+      const validation = validateSwitchboardRequestBody(req.body.switchboardRequestBody);
+      if (!validation.valid) {
+        return res.status(400).json({ 
+          error: 'Invalid JSON', 
+          message: validation.error 
+        });
+      }
+    }
+
     // Create initial event settings (should only happen once)
     const {
       eventName,
@@ -1576,6 +1608,36 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
   // PUT request - Update event settings
   const updateData = req.body;
   const { customFields, ...eventSettingsData } = updateData;
+
+  // PHASE 1 SECURITY: Validate request body
+  const settingsValidation = validateEventSettings(updateData);
+  if (!settingsValidation.valid) {
+    return res.status(400).json({ 
+      error: 'Validation Error', 
+      message: settingsValidation.error 
+    });
+  }
+
+  // PHASE 1 SECURITY: Sanitize HTML templates
+  if (updateData.oneSimpleApiEnabled) {
+    if (updateData.oneSimpleApiFormDataValue) {
+      updateData.oneSimpleApiFormDataValue = sanitizeHTMLTemplate(updateData.oneSimpleApiFormDataValue);
+    }
+    if (updateData.oneSimpleApiRecordTemplate) {
+      updateData.oneSimpleApiRecordTemplate = sanitizeHTMLTemplate(updateData.oneSimpleApiRecordTemplate);
+    }
+  }
+
+  // PHASE 1 SECURITY: Validate Switchboard JSON
+  if (updateData.switchboardEnabled && updateData.switchboardRequestBody) {
+    const validation = validateSwitchboardRequestBody(updateData.switchboardRequestBody);
+    if (!validation.valid) {
+      return res.status(400).json({ 
+        error: 'Invalid JSON', 
+        message: validation.error 
+      });
+    }
+  }
 
   // DEBUG: Log incoming switchboard field mappings
   console.log('[Event Settings PUT] Request body analysis:', {

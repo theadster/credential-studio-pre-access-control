@@ -1,3 +1,23 @@
+/**
+ * UserForm Component
+ * 
+ * This component handles two user management scenarios:
+ * 
+ * 1. LINK MODE: Link existing Appwrite auth users to the application
+ *    - Searches for existing Appwrite auth users
+ *    - Creates a user profile in the database linking to the auth user
+ *    - Assigns a role to the user
+ *    - Optionally adds user to project team
+ * 
+ * 2. EDIT MODE: Update existing user profiles
+ *    - Updates user name and role assignment
+ *    - Provides password reset functionality for users with auth accounts
+ * 
+ * NOTE: This component does NOT create new Appwrite auth users with passwords.
+ * New auth users are created through the /api/auth/signup endpoint, which uses
+ * Appwrite's built-in authentication system (enforces 8-character minimum password).
+ */
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -5,7 +25,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Loader2, UserCheck, UserPlus, Link as LinkIcon, Mail, User as UserIcon, KeyRound } from 'lucide-react';
+import { Loader2, UserCheck, Link as LinkIcon, Mail, User as UserIcon, KeyRound } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -58,14 +78,12 @@ export default function UserForm({ isOpen, onClose, onSave, user, roles, mode = 
     email: string;
     name: string;
     roleId: string | undefined;
-    password: string;
     authUserId: string;
     addToTeam: boolean;
   }>({
     email: '',
     name: '',
     roleId: undefined,
-    password: '',
     authUserId: '',
     addToTeam: false
   });
@@ -76,7 +94,6 @@ export default function UserForm({ isOpen, onClose, onSave, user, roles, mode = 
         email: user.email,
         name: user.name || '',
         roleId: user.role?.id || undefined,
-        password: '', // Don't populate password for editing
         authUserId: '',
         addToTeam: false
       });
@@ -86,7 +103,6 @@ export default function UserForm({ isOpen, onClose, onSave, user, roles, mode = 
         email: '',
         name: '',
         roleId: undefined,
-        password: '',
         authUserId: '',
         addToTeam: mode === 'link' // Default to true in link mode
       });
@@ -169,47 +185,12 @@ export default function UserForm({ isOpen, onClose, onSave, user, roles, mode = 
         await onSave(linkData);
       } else {
         // Validation for edit mode (Requirement 7.3)
-        if (!formData.email || !formData.name || !formData.roleId) {
+        // Note: Edit mode only updates name and role for existing users
+        // New auth users are created via /api/auth/signup, not through this form
+        if (!formData.name || !formData.roleId) {
           handleError(
             { error: 'Please fill in all required fields', code: 'VALIDATION_ERROR' },
             'Please fill in all required fields'
-          );
-          setLoading(false);
-          return;
-        }
-
-        if (!user && !formData.password) {
-          handleError(
-            { error: 'Password is required for new users', code: 'VALIDATION_ERROR' },
-            'Password is required for new users'
-          );
-          setLoading(false);
-          return;
-        }
-
-        // Email validation with comprehensive RFC-5322 style regex
-        const trimmedEmail = formData.email.trim();
-        // Comprehensive email regex that prevents common invalid patterns:
-        // - No consecutive dots
-        // - No dots at start/end of local part
-        // - Valid characters in local and domain parts
-        // - Proper domain structure with TLD
-        const emailRegex = /^[a-zA-Z0-9]([a-zA-Z0-9._+-]*[a-zA-Z0-9])?@[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)+$/;
-
-        if (!trimmedEmail || !emailRegex.test(trimmedEmail)) {
-          handleError(
-            { error: 'Please enter a valid email address', code: 'VALIDATION_ERROR' },
-            'Please enter a valid email address'
-          );
-          setLoading(false);
-          return;
-        }
-
-        // Password validation for new users
-        if (!user && formData.password.length < 6) {
-          handleError(
-            { error: 'Password must be at least 6 characters long', code: 'VALIDATION_ERROR' },
-            'Password must be at least 6 characters long'
           );
           setLoading(false);
           return;
@@ -294,15 +275,10 @@ export default function UserForm({ isOpen, onClose, onSave, user, roles, mode = 
                 <LinkIcon className="h-5 w-5" />
                 Link Existing User
               </>
-            ) : user ? (
-              <>
-                {user.isInvited ? <LinkIcon className="h-5 w-5" /> : <UserCheck className="h-5 w-5" />}
-                Edit User
-              </>
             ) : (
               <>
-                <UserPlus className="h-5 w-5" />
-                Create New User
+                {user?.isInvited ? <LinkIcon className="h-5 w-5" /> : <UserCheck className="h-5 w-5" />}
+                Edit User
               </>
             )}
           </DialogTitle>
@@ -310,13 +286,9 @@ export default function UserForm({ isOpen, onClose, onSave, user, roles, mode = 
             <DialogDescription>
               Search for and select an existing Appwrite auth user to link to your application.
             </DialogDescription>
-          ) : user ? (
-            <DialogDescription>
-              Update user information and role assignment.
-            </DialogDescription>
           ) : (
             <DialogDescription>
-              Create a new user account with email and password.
+              Update user information and role assignment.
             </DialogDescription>
           )}
         </DialogHeader>
@@ -374,10 +346,7 @@ export default function UserForm({ isOpen, onClose, onSave, user, roles, mode = 
                 <Label htmlFor="role">Role *</Label>
                 <Select
                   value={formData.roleId}
-                  onValueChange={(value) => {
-                    console.log('Role selected (link mode):', value);
-                    handleChange('roleId', value);
-                  }}
+                  onValueChange={(value) => handleChange('roleId', value)}
                 >
                   <SelectTrigger id="role">
                     <SelectValue placeholder="Select a role">
@@ -469,7 +438,6 @@ export default function UserForm({ isOpen, onClose, onSave, user, roles, mode = 
                 <Select
                   value={formData.roleId}
                   onValueChange={(value) => {
-                    console.log('Role selected (edit mode):', value);
                     if (value) {
                       handleChange('roleId', value);
                     }
@@ -508,24 +476,6 @@ export default function UserForm({ isOpen, onClose, onSave, user, roles, mode = 
                   </SelectContent>
                 </Select>
               </div>
-
-              {!user && (
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password *</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={formData.password}
-                    onChange={(e) => handleChange('password', e.target.value)}
-                    placeholder="Minimum 6 characters"
-                    required
-                    minLength={6}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    The user will be able to sign in with this password immediately.
-                  </p>
-                </div>
-              )}
 
               {/* Password Reset for Existing Users with Auth Accounts */}
               {user && user.userId && (
@@ -589,7 +539,7 @@ export default function UserForm({ isOpen, onClose, onSave, user, roles, mode = 
             </Button>
             <Button type="submit" disabled={loading}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {mode === 'link' ? 'Link User' : user ? 'Update User' : 'Create User'}
+              {mode === 'link' ? 'Link User' : 'Update User'}
             </Button>
           </div>
         </form>
