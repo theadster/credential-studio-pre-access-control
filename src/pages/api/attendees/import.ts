@@ -208,19 +208,24 @@ const handler = async (req: AuthenticatedRequest, res: NextApiResponse) => {
               if (customFieldId && value !== null && value !== undefined && value !== '') {
                 let processedValue: string | boolean = String(value);
 
-                // Handle boolean fields - convert YES/NO, TRUE/FALSE, 1/0 to yes/no
-                // The UI uses 'yes'/'no' strings for boolean Switch components
+                // CRITICAL: Boolean fields MUST be stored as 'yes'/'no' (NOT 'true'/'false')
+                // Convert various input formats (YES/NO, TRUE/FALSE, 1/0) to standardized 'yes'/'no'
+                // This ensures consistency with:
+                // - Form Switch component
+                // - Switchboard integration field mappings
+                // - Bulk edit operations
+                // - Database queries and display logic
                 if (fieldInfo?.fieldType === 'boolean') {
                   const truthyValues = ['yes', 'true', '1'];
                   const falsyValues = ['no', 'false', '0'];
                   const lowerValue = String(value).toLowerCase().trim();
                   
                   if (truthyValues.includes(lowerValue)) {
-                    processedValue = 'yes';
+                    processedValue = 'yes';  // Always store as 'yes', never 'true'
                   } else if (falsyValues.includes(lowerValue)) {
-                    processedValue = 'no';
+                    processedValue = 'no';   // Always store as 'no', never 'false'
                   } else {
-                    // Default to no for unrecognized values
+                    // Default to 'no' for unrecognized values
                     processedValue = 'no';
                   }
                 }

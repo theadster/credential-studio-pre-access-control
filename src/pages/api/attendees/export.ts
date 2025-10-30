@@ -279,7 +279,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         if (fields.includes(`custom_${customField.$id}`)) {
           let value = customFieldValues[customField.$id] || '';
 
-          // Format boolean values
+          // CRITICAL: Boolean fields are stored as 'yes'/'no' in database
+          // Format for CSV export as 'Yes'/'No' for readability
+          // Note: Database stores 'yes'/'no' (lowercase), NOT 'true'/'false'
           if (customField.fieldType === 'boolean') {
             const truthyValues = ['yes', 'true', '1', true];
             value = truthyValues.includes(String(value).toLowerCase()) ? 'Yes' : 'No';

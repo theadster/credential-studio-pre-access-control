@@ -165,6 +165,9 @@ export function useAttendeeForm({ attendee, customFields, eventSettings }: UseAt
         });
       }
 
+      // CRITICAL: Boolean custom fields default to 'no' (NOT 'false')
+      // Boolean format: 'yes'/'no' (never 'true'/'false')
+      // This ensures consistency across the application and Switchboard integration
       customFields.forEach(field => {
         if (field.fieldType === 'boolean' && !initialCustomFieldValues[field.id]) {
           initialCustomFieldValues[field.id] = 'no';

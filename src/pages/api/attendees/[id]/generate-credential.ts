@@ -170,9 +170,10 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
               const originalValue = customFieldValue || '';
               let lookupKey = String(originalValue);
 
-              // For boolean fields, normalize the case for consistent lookup
+              // CRITICAL: Boolean fields are stored as 'yes'/'no' (lowercase) in database
+              // Normalize case for consistent field mapping lookup
               if (mapping.fieldType === 'boolean') {
-                lookupKey = originalValue.toLowerCase();
+                lookupKey = originalValue.toLowerCase();  // Should be 'yes' or 'no'
               }
               
               if (Object.prototype.hasOwnProperty.call(mapping.valueMapping, lookupKey)) {
@@ -182,7 +183,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           } else {
             // If no custom field value exists, check if there's a default mapping
             if (mapping.valueMapping && typeof mapping.valueMapping === 'object') {
-              // For boolean fields, default to 'no' if no value exists
+              // CRITICAL: Boolean fields default to 'no' (NOT 'false')
+              // If no value exists, use the mapping for 'no' or fallback to '0'
               if (mapping.fieldType === 'boolean') {
                 finalValue = mapping.valueMapping['no'] || '0';
               } else {

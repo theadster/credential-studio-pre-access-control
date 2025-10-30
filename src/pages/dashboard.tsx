@@ -381,8 +381,11 @@ export default function Dashboard() {
 
         // Format display value based on field type
         if (field.fieldType === 'boolean') {
-          // For boolean fields, always show Yes/No, defaulting to No if no value is set
-          displayValue = (displayValue === 'true') ? 'Yes' : 'No';
+          // CRITICAL: Boolean fields use 'yes'/'no' format (NOT 'true'/'false')
+          // However, for display purposes, accept both 'yes' and 'true' as truthy
+          // to handle any legacy values gracefully
+          const normalizedValue = String(displayValue || '').trim().toLowerCase();
+          displayValue = (normalizedValue === 'yes' || normalizedValue === 'true') ? 'Yes' : 'No';
         } else if (displayValue && field.fieldType === 'url') {
           // For URLs, show a clickable link
           displayValue = displayValue;

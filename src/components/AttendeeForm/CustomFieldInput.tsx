@@ -1,3 +1,22 @@
+/**
+ * Custom Field Input Component
+ * 
+ * CRITICAL BOOLEAN FIELD FORMAT:
+ * Boolean custom fields MUST use 'yes'/'no' format (NOT 'true'/'false')
+ * - Default value: 'no'
+ * - Checked state: 'yes'
+ * - Unchecked state: 'no'
+ * 
+ * DO NOT change boolean format to 'true'/'false' - it will:
+ * - Corrupt database data
+ * - Break Switchboard integration field mappings
+ * - Break import/export functionality
+ * - Break bulk edit operations
+ * - Cause inconsistencies across the application
+ * 
+ * See: docs/fixes/BOOLEAN_FIELD_DATA_CORRUPTION_FIX.md
+ */
+
 import React, { memo } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -247,14 +266,27 @@ export const CustomFieldInput = memo(function CustomFieldInput({
       );
 
     case 'boolean':
+      // CRITICAL: Boolean custom fields MUST use 'yes'/'no' format (NOT 'true'/'false')
+      // - Default value: 'no'
+      // - Checked state: 'yes'
+      // - Unchecked state: 'no'
+      // This format is required for:
+      // - Database consistency
+      // - Switchboard integration field mappings
+      // - Import/export functionality
+      // - Bulk edit operations
+      // DO NOT change to 'true'/'false' - it will corrupt data and break integrations
+      //
+      // GRACEFUL HANDLING: For display/editing, accept both 'yes' and 'true' as checked
+      // to handle any legacy values, but ALWAYS save as 'yes'/'no'
       return (
         <div className="flex items-center space-x-2">
           <Switch
-            checked={value === 'true'}
-            onCheckedChange={(checked) => onChange(checked ? 'true' : 'false')}
+            checked={value === 'yes' || value === 'true'}
+            onCheckedChange={(checked) => onChange(checked ? 'yes' : 'no')}
             aria-label={field.fieldName}
           />
-          <Label>{value === 'true' ? 'Yes' : 'No'}</Label>
+          <Label>{(value === 'yes' || value === 'true') ? 'Yes' : 'No'}</Label>
         </div>
       );
 

@@ -39,6 +39,10 @@ docs/
 - [**Role User Assignment Display Fix**](./fixes/ROLE_USER_ASSIGNMENT_FIX.md) - ✅ Fixed role cards showing "no users assigned" by normalizing API field names
 - [**Bulk Operations Pagination Reset Fix**](./fixes/BULK_OPERATIONS_PAGINATION_RESET_FIX.md) - ✅ Reset to page 1 after bulk delete/edit to prevent empty pages
 - [**🎉 Import Complete Fix Session Summary**](./fixes/IMPORT_COMPLETE_FIX_SESSION_SUMMARY.md) - ✅ **COMPREHENSIVE: All 8 import issues fixed and verified**
+- [**Boolean Field Data Corruption Fix**](./fixes/BOOLEAN_FIELD_DATA_CORRUPTION_FIX.md) - 🔴 CRITICAL: Fixed Switch component storing 'true'/'false' instead of 'yes'/'no', includes migration script
+- [**Boolean Field Documentation Added**](./fixes/BOOLEAN_FIELD_DOCUMENTATION_ADDED.md) - 📝 Added comprehensive comments throughout codebase to prevent future boolean format issues
+- [**Boolean Scripts Data Structure Fix**](./fixes/BOOLEAN_SCRIPTS_DATA_STRUCTURE_FIX.md) - 🔴 CRITICAL: Fixed migration scripts to handle JSON string format correctly
+- [**Boolean Display Graceful Handling**](./fixes/BOOLEAN_DISPLAY_GRACEFUL_HANDLING.md) - ✨ Enhanced display logic to gracefully handle both 'yes'/'no' and legacy 'true'/'false' values
 - [**Import Notes and Uppercase Fix**](./fixes/IMPORT_NOTES_AND_UPPERCASE_FIX.md) - ✅ Fixed notes field null issue and custom field uppercase transformation
 - [**Custom Field Storage Format Consistency Fix**](./fixes/CUSTOM_FIELD_STORAGE_FORMAT_CONSISTENCY_FIX.md) - ✅ Fixed update endpoint to use object format, preventing false change detection
 - [**Import Boolean Format Fix**](./fixes/IMPORT_BOOLEAN_FORMAT_FIX.md) - ✅ Fixed boolean values to use 'yes'/'no' instead of 'true'/'false'
