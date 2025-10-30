@@ -80,6 +80,12 @@ export const UI_CONSTANTS = {
 } as const;
 
 /**
+ * Special sentinel value for bulk edit operations
+ * Used to indicate that a field should be cleared/set to null
+ */
+export const CLEAR_SENTINEL = '__CLEAR_FIELD__' as const;
+
+/**
  * File upload constants
  */
 export const FILE_CONSTANTS = {

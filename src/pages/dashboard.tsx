@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRealtimeSubscription } from "@/hooks/useRealtimeSubscription";
+import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
+import { usePageVisibility } from "@/hooks/usePageVisibility";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import type { EventSettings, CustomField } from "@/components/EventSettingsForm/types";
 import {
   Users,
   Settings,
@@ -119,45 +122,10 @@ interface Attendee {
   [key: string]: unknown;
 }
 
-interface EventSettings {
-  id: string;
-  eventName: string;
-  eventDate: string;
-  eventTime?: string;
-  eventLocation: string;
-  timeZone: string;
-  barcodeType: string;
-  barcodeLength: number;
-  barcodeUnique: boolean;
-  attendeeSortField?: string;
-  attendeeSortDirection?: string;
-  customFieldColumns?: number;
-  bannerImageUrl: string | null;
-  oneSimpleApiEnabled?: boolean;
-  oneSimpleApiUrl?: string;
-  switchboardEnabled?: boolean;
-  switchboardApiEndpoint?: string;
-  // DEPRECATED: API key no longer stored in database
-  // switchboardApiKey?: string;
-  cloudinaryEnabled?: boolean;
-  cloudinaryCloudName?: string;
-  // DEPRECATED: Credentials no longer stored in database
-  // cloudinaryApiKey?: string;
-  cloudinaryUploadPreset?: string;
-  customFields: {
-    id: string;
-    fieldName: string;
-    internalFieldName?: string;
-    fieldType: string;
-    fieldOptions?: { options: string[] };
-    required: boolean;
-    order: number;
-  }[];
-  createdAt?: string;
-  updatedAt?: string;
+// Extend EventSettings with Appwrite-specific fields
+interface DashboardEventSettings extends EventSettings {
   $createdAt?: string;
   $updatedAt?: string;
-  [key: string]: unknown;
 }
 
 interface Log {
@@ -208,7 +176,7 @@ export default function Dashboard() {
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [attendees, setAttendees] = useState<Attendee[]>([]);
-  const [eventSettings, setEventSettings] = useState<EventSettings | null>(null);
+  const [eventSettings, setEventSettings] = useState<DashboardEventSettings | null>(null);
   const [logs, setLogs] = useState<Log[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
   const [logsPagination, setLogsPagination] = useState({
@@ -750,58 +718,81 @@ export default function Dashboard() {
     loadData();
   }, [currentUser]); // Re-run when currentUser changes
 
-  // Real-time subscriptions with debouncing to prevent excessive API calls
-  useEffect(() => {
-    const refreshTimeouts: { [key: string]: NodeJS.Timeout } = {};
+  // ============================================================================
+  // MEMORY LEAK PREVENTION: Page Visibility & Debounced Callbacks
+  // ============================================================================
 
-    const debouncedRefresh = (key: string, refreshFunction: () => void, delay: number = 1000) => {
-      if (refreshTimeouts[key]) {
-        clearTimeout(refreshTimeouts[key]);
-      }
-      refreshTimeouts[key] = setTimeout(() => {
-        refreshFunction();
-        delete refreshTimeouts[key];
-      }, delay);
-    };
+  /**
+   * Track page visibility to pause subscriptions when page is hidden
+   * This prevents memory accumulation when the dashboard is idle in a background tab
+   */
+  const isPageVisible = usePageVisibility();
 
-    return () => {
-      // Clear any pending timeouts
-      Object.values(refreshTimeouts).forEach(timeout => clearTimeout(timeout));
-    };
-  }, []);
+  /**
+   * Create debounced versions of refresh functions to prevent excessive API calls
+   * This replaces the setTimeout pattern which could accumulate timeouts
+   */
+  const debouncedRefreshAttendees = useDebouncedCallback(refreshAttendees, 500);
+  const debouncedRefreshUsers = useDebouncedCallback(refreshUsers, 500);
+  const debouncedRefreshRoles = useDebouncedCallback(refreshRoles, 500);
+  const debouncedRefreshEventSettings = useDebouncedCallback(refreshEventSettings, 500);
+  const debouncedLoadLogs = useDebouncedCallback(loadLogs, 1000);
 
-  // Appwrite real-time subscriptions for attendees
-  // PERFORMANCE OPTIMIZATION: Reduced delay for faster updates
+  // ============================================================================
+  // MEMORY LEAK PREVENTION: Conditional Realtime Subscriptions
+  // ============================================================================
+
+  /**
+   * Attendees subscription - Only active when:
+   * 1. Page is visible (not in background tab)
+   * 2. User is on the attendees tab
+   * 
+   * This prevents unnecessary WebSocket connections and memory accumulation
+   */
   useRealtimeSubscription({
     channels: [`databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID}.documents`],
     callback: useCallback((response: any) => {
       console.log('Attendee change received!', response);
-      setTimeout(() => refreshAttendees(), 500);
-    }, [refreshAttendees])
+      debouncedRefreshAttendees();
+    }, [debouncedRefreshAttendees]),
+    enabled: isPageVisible && activeTab === 'attendees'
   });
 
-  // Appwrite real-time subscriptions for users
-  // PERFORMANCE OPTIMIZATION: Reduced delay for faster updates
+  /**
+   * Users subscription - Only active when:
+   * 1. Page is visible
+   * 2. User is on the users tab
+   */
   useRealtimeSubscription({
     channels: [`databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID}.documents`],
     callback: useCallback((response: any) => {
       console.log('Users change received!', response);
-      setTimeout(() => refreshUsers(), 500);
-    }, [refreshUsers])
+      debouncedRefreshUsers();
+    }, [debouncedRefreshUsers]),
+    enabled: isPageVisible && activeTab === 'users'
   });
 
-  // Appwrite real-time subscriptions for roles
-  // PERFORMANCE OPTIMIZATION: Reduced delay for faster updates
+  /**
+   * Roles subscription - Only active when:
+   * 1. Page is visible
+   * 2. User is on the roles tab
+   */
   useRealtimeSubscription({
     channels: [`databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID}.documents`],
     callback: useCallback((response: any) => {
       console.log('Roles change received!', response);
-      setTimeout(() => refreshRoles(), 500);
-    }, [refreshRoles])
+      debouncedRefreshRoles();
+    }, [debouncedRefreshRoles]),
+    enabled: isPageVisible && activeTab === 'roles'
   });
 
-  // Appwrite real-time subscriptions for event settings and custom fields
-  // PERFORMANCE OPTIMIZATION: Reduced delay for faster updates
+  /**
+   * Event settings subscription - Only active when:
+   * 1. Page is visible
+   * 2. User is on the settings tab
+   * 
+   * Monitors both event settings and custom fields collections
+   */
   useRealtimeSubscription({
     channels: [
       `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID}.documents`,
@@ -809,27 +800,74 @@ export default function Dashboard() {
     ],
     callback: useCallback((response: any) => {
       console.log('Event settings or custom fields change received!', response);
-      setTimeout(() => refreshEventSettings(), 500);
-    }, [refreshEventSettings])
+      debouncedRefreshEventSettings();
+    }, [debouncedRefreshEventSettings]),
+    enabled: isPageVisible && activeTab === 'settings'
   });
 
-  // State to pause logs real-time updates during bulk deletion
+  /**
+   * State to pause logs real-time updates during bulk deletion
+   * This prevents excessive refreshes during bulk operations
+   */
   const [pauseLogsRealtime, setPauseLogsRealtime] = useState(false);
 
-  // Appwrite real-time subscriptions for logs (with pause capability during bulk operations)
-  // PERFORMANCE OPTIMIZATION: Reduced delay for faster updates
+  /**
+   * Logs subscription - Only active when:
+   * 1. Page is visible
+   * 2. User is on the logs tab
+   * 3. Not paused during bulk operations
+   * 
+   * Note: The enabled prop already handles the pauseLogsRealtime check,
+   * so no need for redundant checks in the callback
+   */
   useRealtimeSubscription({
     channels: [`databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID}.documents`],
     callback: useCallback((response: any) => {
-      // Skip refresh if paused (during bulk deletion)
-      if (pauseLogsRealtime) {
-        console.log('Logs change received but refresh paused during bulk operation');
-        return;
-      }
       console.log('Logs change received!', response);
-      setTimeout(() => loadLogs(), 1000);
-    }, [loadLogs, pauseLogsRealtime])
+      debouncedLoadLogs();
+    }, [debouncedLoadLogs]),
+    enabled: isPageVisible && activeTab === 'logs' && !pauseLogsRealtime
   });
+
+  // ============================================================================
+  // MEMORY MONITORING (Development Only)
+  // ============================================================================
+
+  /**
+   * Monitor memory usage in development to detect potential leaks
+   * Logs memory stats every 30 seconds when page is visible
+   * 
+   * Note: performance.memory is only available in Chrome/Edge
+   */
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'development') {
+      return;
+    }
+
+    // Only monitor when page is visible to avoid noise
+    if (!isPageVisible) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      if ('memory' in performance) {
+        const memory = (performance as any).memory;
+        const used = Math.round(memory.usedJSHeapSize / 1048576);
+        const total = Math.round(memory.totalJSHeapSize / 1048576);
+        const limit = Math.round(memory.jsHeapSizeLimit / 1048576);
+        const percentage = Math.round((used / limit) * 100);
+
+        console.log(`[Memory Monitor] Used: ${used}MB / ${limit}MB (${percentage}%) | Total: ${total}MB | Active Tab: ${activeTab}`);
+
+        // Warn if memory usage is high
+        if (percentage > 80) {
+          console.warn(`[Memory Monitor] High memory usage detected: ${percentage}%`);
+        }
+      }
+    }, 30000); // Every 30 seconds
+
+    return () => clearInterval(interval);
+  }, [isPageVisible, activeTab]);
 
   /**
    * CUSTOM FIELD VISIBILITY FILTERING
@@ -1177,21 +1215,21 @@ export default function Dashboard() {
       if (!response.ok) {
         const errorData = await response.json();
         const errorMessage = errorData.error || 'Failed to save attendee';
-        
+
         close();
-        
+
         // Show user-friendly error dialog based on error type
         if (errorMessage.toLowerCase().includes('barcode')) {
           // Build detailed message with existing attendee info if available
           let detailedMessage = "This barcode number already exists in the system.";
-          
+
           if (errorData.existingAttendee) {
             const { firstName, lastName, barcodeNumber } = errorData.existingAttendee;
             detailedMessage += `\n\nThis barcode is currently assigned to:\n${firstName} ${lastName} (${barcodeNumber})`;
           }
-          
+
           detailedMessage += "\n\nPlease generate a new barcode or enter a different number.";
-          
+
           await alert({
             title: "Duplicate Barcode Number",
             text: detailedMessage,
@@ -1255,21 +1293,21 @@ export default function Dashboard() {
       if (!response.ok) {
         const errorData = await response.json();
         const errorMessage = errorData.error || 'Failed to save attendee';
-        
+
         close();
-        
+
         // Show user-friendly error dialog based on error type
         if (errorMessage.toLowerCase().includes('barcode')) {
           // Build detailed message with existing attendee info if available
           let detailedMessage = "This barcode number already exists in the system.";
-          
+
           if (errorData.existingAttendee) {
             const { firstName, lastName, barcodeNumber } = errorData.existingAttendee;
             detailedMessage += `\n\nThis barcode is currently assigned to:\n${firstName} ${lastName} (${barcodeNumber})`;
           }
-          
+
           detailedMessage += "\n\nPlease generate a new barcode or enter a different number.";
-          
+
           await alert({
             title: "Duplicate Barcode Number",
             text: detailedMessage,
@@ -3338,10 +3376,13 @@ export default function Dashboard() {
                     {hasPermission(currentUser?.role, 'attendees', 'import') && (
                       <ImportDialog
                         onImportSuccess={refreshAttendees}
-                        customFields={(eventSettings?.customFields || []).map(field => ({
-                          ...field,
-                          internalFieldName: field.internalFieldName || field.fieldName.toLowerCase().replace(/\s+/g, '_')
-                        }))}
+                        customFields={(eventSettings?.customFields || [])
+                          .filter(field => field.id) // Filter out fields without id
+                          .map(field => ({
+                            ...field,
+                            id: field.id!, // Assert non-null since we filtered
+                            internalFieldName: field.internalFieldName || field.fieldName.toLowerCase().replace(/\s+/g, '_')
+                          }))}
                       >
                         <Button variant="outline">
                           <Upload className="mr-2 h-4 w-4" />
@@ -3368,7 +3409,16 @@ export default function Dashboard() {
                             ])
                           )
                         } : null}
-                        eventSettings={eventSettings || undefined}
+                        eventSettings={eventSettings ? {
+                          customFields: (eventSettings.customFields || [])
+                            .filter(field => field.id)
+                            .map(field => ({
+                              id: field.id!,
+                              fieldName: field.fieldName,
+                              fieldType: field.fieldType,
+                              required: field.required
+                            }))
+                        } : undefined}
                       >
                         <Button variant="outline">
                           <Download className="mr-2 h-4 w-4" />
@@ -4893,8 +4943,24 @@ export default function Dashboard() {
         onSave={handleSaveAttendee}
         onSaveAndGenerate={handleSaveAndGenerateCredential}
         attendee={editingAttendee || undefined}
-        customFields={eventSettings?.customFields || []}
-        eventSettings={eventSettings || undefined}
+        customFields={(eventSettings?.customFields || []).map(field => ({
+          ...field,
+          id: field.id || '',
+          fieldOptions: field.fieldOptions as { uppercase?: boolean; options?: string[] } | undefined
+        }))}
+        eventSettings={eventSettings ? {
+          id: eventSettings.id,
+          eventName: eventSettings.eventName,
+          eventDate: eventSettings.eventDate,
+          barcodeType: eventSettings.barcodeType as 'numerical' | 'alphanumeric' | undefined,
+          barcodeLength: eventSettings.barcodeLength,
+          cloudinaryCloudName: eventSettings.cloudinaryCloudName,
+          cloudinaryUploadPreset: eventSettings.cloudinaryUploadPreset,
+          cloudinaryCropAspectRatio: eventSettings.cloudinaryCropAspectRatio,
+          cloudinaryDisableSkipCrop: eventSettings.cloudinaryDisableSkipCrop,
+          forceFirstNameUppercase: eventSettings.forceFirstNameUppercase,
+          forceLastNameUppercase: eventSettings.forceLastNameUppercase
+        } : undefined}
       />
 
       {/* User Form Modal */}

@@ -25,6 +25,8 @@ docs/
 - [**Bulk Delete Log Size Fix**](./fixes/BULK_DELETE_LOG_SIZE_FIX.md) - Use API key for bulk deletes and handle large log entries
 
 ### Recent Fixes
+- [**🧠 Memory Leak Fixes**](./fixes/MEMORY_LEAK_FIXES_IMPLEMENTED.md) - ✅ **FIXED:** Dashboard memory leak with conditional subscriptions and debouncing
+- [**📊 Memory Leak Analysis**](./fixes/MEMORY_LEAK_ANALYSIS.md) - 🔍 **ANALYSIS:** Root cause analysis of dashboard memory accumulation
 - [**🔧 Bulk Delete Timestamp Fix**](./fixes/BULK_DELETE_TIMESTAMP_FIX.md) - ✅ **FIXED:** Removed invalid timestamp attribute from audit logs
 - [**🔒 Email Verification Security Fix**](./fixes/EMAIL_VERIFICATION_SECURITY_FIX.md) - ✅ **CRITICAL:** Fixed automatic verification bypass
 - [**📧 Email Verification Appwrite Limitation**](./fixes/EMAIL_VERIFICATION_APPWRITE_LIMITATION.md) - ⚠️ **IMPORTANT:** Appwrite doesn't support admin-initiated email verification
@@ -104,6 +106,9 @@ docs/
 - [**SweetAlert Customization Guide**](./guides/SWEETALERT_CUSTOMIZATION_GUIDE.md) - Theme, duration, position, and animation customization
 - [**SweetAlert Migration Guide**](./guides/SWEETALERT_MIGRATION_GUIDE.md) - Migrating from old toast system to SweetAlert2
 - [**SweetAlert Best Practices Guide**](./guides/SWEETALERT_BEST_PRACTICES_GUIDE.md) - Best practices for notifications and user experience
+
+#### Performance & Optimization
+- [**Memory Optimization Guide**](./guides/MEMORY_OPTIMIZATION_GUIDE.md) - 🚀 Best practices for preventing memory leaks and optimizing performance
 
 #### Other Guides
 - [**Printable Fields User Guide**](./guides/PRINTABLE_FIELDS_USER_GUIDE.md) - 🎯 Complete guide to configuring printable fields and managing credential status

@@ -71,6 +71,15 @@ export function useRealtimeSubscription<T extends Models.Document = Models.Docum
   useEffect(() => {
     // Don't subscribe if disabled
     if (!enabled) {
+      // Clean up existing subscription if disabled
+      if (unsubscribeRef.current) {
+        try {
+          unsubscribeRef.current();
+        } catch (err) {
+          // Ignore errors when unsubscribing
+        }
+        unsubscribeRef.current = null;
+      }
       return;
     }
 
@@ -115,6 +124,11 @@ export function useRealtimeSubscription<T extends Models.Document = Models.Docum
 
         // Store the unsubscribe function
         unsubscribeRef.current = unsubscribe;
+        
+        // Log subscription in development
+        if (process.env.NODE_ENV === 'development') {
+          console.debug('Realtime subscription active:', channels);
+        }
       } catch (error) {
         stableOnError(
           error instanceof Error 
@@ -132,6 +146,9 @@ export function useRealtimeSubscription<T extends Models.Document = Models.Docum
       if (unsubscribeRef.current) {
         try {
           unsubscribeRef.current();
+          if (process.env.NODE_ENV === 'development') {
+            console.debug('Realtime subscription cleaned up:', channels);
+          }
         } catch (err) {
           // Ignore errors when cleaning up - WebSocket might already be closed
           console.debug('Realtime cleanup: WebSocket already closed');
