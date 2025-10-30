@@ -239,6 +239,9 @@ export default function Dashboard() {
   const [exportingPdfs, setExportingPdfs] = useState(false);
   const [bulkGeneratingCredentials, setBulkGeneratingCredentials] = useState(false);
   const [isDark, setIsDark] = useState(false);
+  const [showSelectAllDialog, setShowSelectAllDialog] = useState(false);
+  const [showPageJumpDialog, setShowPageJumpDialog] = useState(false);
+  const [pageJumpInput, setPageJumpInput] = useState("");
 
   const refreshAttendees = useCallback(async () => {
     try {
@@ -3163,6 +3166,12 @@ export default function Dashboard() {
                                 return `${count} ${count === 1 ? 'filter' : 'filters'}`;
                               })()}
                             </Badge>
+                            <span className="text-sm text-muted-foreground">
+                              •
+                            </span>
+                            <span className="text-sm font-medium text-foreground">
+                              {filteredAttendees.length} {filteredAttendees.length === 1 ? 'record' : 'records'} found
+                            </span>
                           </div>
                           <div className="flex items-center space-x-2">
                             <Button
@@ -3452,10 +3461,19 @@ export default function Dashboard() {
                             onCheckedChange={() => {
                               const paginatedIds = paginatedAttendees.map(a => a.id);
                               const allOnPageSelected = paginatedAttendees.every(a => selectedAttendees.includes(a.id));
+
                               if (allOnPageSelected) {
+                                // Deselect all on current page
                                 setSelectedAttendees(prev => prev.filter(id => !paginatedIds.includes(id)));
                               } else {
-                                setSelectedAttendees(prev => [...new Set([...prev, ...paginatedIds])]);
+                                // Check if there are more records than just the current page
+                                if (filteredAttendees.length > recordsPerPage) {
+                                  // Show dialog to choose between current page or all records
+                                  setShowSelectAllDialog(true);
+                                } else {
+                                  // Only one page, just select all
+                                  setSelectedAttendees(prev => [...new Set([...prev, ...paginatedIds])]);
+                                }
                               }
                             }}
                             aria-label="Select all on this page"
@@ -3929,11 +3947,141 @@ export default function Dashboard() {
                         >
                           Next
                         </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowPageJumpDialog(true)}
+                          title="Jump to page"
+                        >
+                          <Hash className="h-4 w-4" />
+                        </Button>
                       </div>
                     )}
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Select All Dialog */}
+              <Dialog open={showSelectAllDialog} onOpenChange={setShowSelectAllDialog}>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Select Attendees</DialogTitle>
+                    <DialogDescription>
+                      You have {filteredAttendees.length} attendees matching your current filters. Would you like to select just the current page or all matching records?
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="flex flex-col gap-4 py-4">
+                    <div className="flex items-center gap-3 p-4 border rounded-lg hover:bg-accent/50 transition-colors">
+                      <div className="flex-1">
+                        <div className="font-medium">Current Page Only</div>
+                        <div className="text-sm text-muted-foreground">
+                          Select {paginatedAttendees.length} attendees on this page
+                        </div>
+                      </div>
+                      <Button
+                        onClick={() => {
+                          const paginatedIds = paginatedAttendees.map(a => a.id);
+                          setSelectedAttendees(prev => [...new Set([...prev, ...paginatedIds])]);
+                          setShowSelectAllDialog(false);
+                        }}
+                      >
+                        Select Page
+                      </Button>
+                    </div>
+                    <div className="flex items-center gap-3 p-4 border rounded-lg hover:bg-accent/50 transition-colors">
+                      <div className="flex-1">
+                        <div className="font-medium">All Matching Records</div>
+                        <div className="text-sm text-muted-foreground">
+                          Select all {filteredAttendees.length} attendees in search results
+                        </div>
+                      </div>
+                      <Button
+                        onClick={() => {
+                          const allIds = filteredAttendees.map(a => a.id);
+                          setSelectedAttendees(allIds);
+                          setShowSelectAllDialog(false);
+                        }}
+                      >
+                        Select All
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="flex justify-end">
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowSelectAllDialog(false)}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              {/* Page Jump Dialog */}
+              <Dialog open={showPageJumpDialog} onOpenChange={setShowPageJumpDialog}>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Jump to Page</DialogTitle>
+                    <DialogDescription>
+                      Enter a page number between 1 and {totalPages}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="flex flex-col gap-4 py-4">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="page-jump" className="text-right whitespace-nowrap">
+                        Page Number
+                      </Label>
+                      <Input
+                        id="page-jump"
+                        type="number"
+                        min="1"
+                        max={totalPages}
+                        value={pageJumpInput}
+                        onChange={(e) => setPageJumpInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            const pageNum = parseInt(pageJumpInput);
+                            if (pageNum >= 1 && pageNum <= totalPages) {
+                              handlePageChange(pageNum);
+                              setShowPageJumpDialog(false);
+                              setPageJumpInput("");
+                            }
+                          }
+                        }}
+                        placeholder={`1-${totalPages}`}
+                        className="flex-1"
+                        autoFocus
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowPageJumpDialog(false);
+                        setPageJumpInput("");
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        const pageNum = parseInt(pageJumpInput);
+                        if (pageNum >= 1 && pageNum <= totalPages) {
+                          handlePageChange(pageNum);
+                          setShowPageJumpDialog(false);
+                          setPageJumpInput("");
+                        } else {
+                          error("Invalid Page", `Please enter a page number between 1 and ${totalPages}`);
+                        }
+                      }}
+                      disabled={!pageJumpInput || parseInt(pageJumpInput) < 1 || parseInt(pageJumpInput) > totalPages}
+                    >
+                      Go to Page
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
           )}
 
