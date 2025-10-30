@@ -53,15 +53,19 @@ export function CustomFieldsTab({
     })
   );
 
-  // Memoize sorted fields
-  const sortedFields = useMemo(() => 
-    [...customFields].sort((a, b) => a.order - b.order),
+  // Memoize sorted fields (filter out fields without IDs)
+  const sortedFields = useMemo(() =>
+    customFields
+      .filter(field => field.id != null)
+      .sort((a, b) => a.order - b.order),
     [customFields]
   );
 
-  // Memoize field IDs for SortableContext
-  const fieldIds = useMemo(() => 
-    customFields.map(field => field.id!),
+  // Memoize field IDs for SortableContext (only include fields with valid IDs)
+  const fieldIds = useMemo(() =>
+    customFields
+      .filter(field => field.id != null)
+      .map(field => field.id!),
     [customFields]
   );
 
@@ -88,8 +92,7 @@ export function CustomFieldsTab({
 
       // Announce the move for screen readers
       setAnnouncement(
-        `Moved ${activeField?.fieldName} ${
-          oldIndex < newIndex ? 'after' : 'before'
+        `Moved ${activeField?.fieldName} ${oldIndex < newIndex ? 'after' : 'before'
         } ${overField?.fieldName}`
       );
 
@@ -118,15 +121,15 @@ export function CustomFieldsTab({
           ) : (
             <>
               {/* Screen reader announcement for drag-and-drop */}
-              <div 
-                role="status" 
-                aria-live="polite" 
-                aria-atomic="true" 
+              <div
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
                 className="sr-only"
               >
                 {announcement}
               </div>
-              
+
               <DndContext
                 sensors={sensors}
                 collisionDetection={closestCenter}

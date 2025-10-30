@@ -47,11 +47,9 @@ const validateLinkMode = (
  * - Role must be selected
  * 
  * Note: Email is not validated in edit mode because it's disabled
- * Note: Password is not validated because UserForm doesn't create auth users
  */
 const validateEditMode = (
-  formData: UserFormData,
-  user?: User | null
+  formData: UserFormData
 ): ValidationError[] => {
   const errors: ValidationError[] = [];
 
@@ -70,14 +68,6 @@ const validateEditMode = (
     });
   }
 
-  // If both are missing, show general error
-  if (!formData.name && !formData.roleId) {
-    errors.push({
-      field: 'general',
-      message: 'Please fill in all required fields',
-    });
-  }
-
   return errors;
 };
 
@@ -89,7 +79,6 @@ export interface UseUserFormValidationReturn {
   validate: (
     formData: UserFormData,
     mode: UserFormMode,
-    user?: User | null,
     selectedAuthUser?: AppwriteAuthUser | null
   ) => ValidationResult;
 }
@@ -104,13 +93,13 @@ export interface UseUserFormValidationReturn {
  * const { validate } = useUserFormValidation();
  * 
  * // Validate in link mode
- * const result = validate(formData, 'link', null, selectedAuthUser);
+ * const result = validate(formData, 'link', selectedAuthUser);
  * if (!result.isValid) {
  *   console.log('Errors:', result.errors);
  * }
  * 
  * // Validate in edit mode
- * const result = validate(formData, 'edit', user);
+ * const result = validate(formData, 'edit');
  * if (!result.isValid) {
  *   console.log('Errors:', result.errors);
  * }
@@ -122,20 +111,18 @@ export function useUserFormValidation(): UseUserFormValidationReturn {
    * 
    * @param formData - Form data to validate
    * @param mode - Operation mode ('link' or 'edit')
-   * @param user - User being edited (edit mode only)
    * @param selectedAuthUser - Selected auth user (link mode only)
    * @returns Validation result with errors
    */
   const validate = (
     formData: UserFormData,
     mode: UserFormMode,
-    user?: User | null,
     selectedAuthUser?: AppwriteAuthUser | null
   ): ValidationResult => {
     // Run appropriate validation based on mode
     const errors = mode === 'link'
       ? validateLinkMode(formData, selectedAuthUser || null)
-      : validateEditMode(formData, user);
+      : validateEditMode(formData);
 
     return {
       isValid: errors.length === 0,

@@ -27,8 +27,8 @@ export const BarcodeTab = memo(function BarcodeTab({ formData, onInputChange }: 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="barcodeType">Barcode Type</Label>
-              <Select 
-                value={formData.barcodeType} 
+              <Select
+                value={formData.barcodeType}
                 onValueChange={(value) => onInputChange("barcodeType", value)}
               >
                 <SelectTrigger>
@@ -55,7 +55,7 @@ export const BarcodeTab = memo(function BarcodeTab({ formData, onInputChange }: 
                 min={MIN_BARCODE_LENGTH}
                 max={MAX_BARCODE_LENGTH}
                 value={formData.barcodeLength}
-                onChange={(e) => onInputChange("barcodeLength", parseInt(e.target.value))}
+                onChange={(e) => onInputChange("barcodeLength", parseInt(e.target.value, 10))}
               />
               <p className="text-xs text-muted-foreground mt-1">
                 Length must be between {MIN_BARCODE_LENGTH} and {MAX_BARCODE_LENGTH} characters

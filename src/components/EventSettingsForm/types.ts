@@ -1,12 +1,34 @@
 // EventSettingsForm Types
 // Extracted from monolithic component for better type safety and reusability
 
+/**
+ * Field options for select-type fields
+ */
+export interface SelectFieldOptions {
+  /** Array of option values for select dropdown */
+  options: string[];
+}
+
+/**
+ * Field options for text-type fields
+ */
+export interface TextFieldOptions {
+  /** Whether to force text to uppercase */
+  uppercase?: boolean;
+}
+
+/**
+ * Union type for all field option types
+ * Different field types use different option structures
+ */
+export type FieldOptions = SelectFieldOptions | TextFieldOptions;
+
 export interface CustomField {
   id?: string;
   fieldName: string;
   internalFieldName?: string;
   fieldType: string;
-  fieldOptions?: any;
+  fieldOptions?: FieldOptions;
   required: boolean;
   order: number;
   showOnMainPage?: boolean;

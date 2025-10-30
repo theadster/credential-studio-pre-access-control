@@ -12,7 +12,7 @@ import { Settings, Save, Plus, Type, Eye, Printer, CheckSquare, X } from "lucide
 import { generateInternalFieldName } from "@/util/string";
 import { FIELD_TYPES } from './constants';
 import { getFieldIcon, getFieldPlaceholder } from './utils';
-import { CustomField } from './types';
+import { CustomField, FieldOptions, SelectFieldOptions, TextFieldOptions } from './types';
 import {
   DndContext,
   closestCenter,
@@ -100,6 +100,7 @@ export const CustomFieldForm = memo(function CustomFieldForm({ isOpen, field, on
     printable: false,
   });
   const [selectOptions, setSelectOptions] = useState<string[]>([]);
+  const [validationError, setValidationError] = useState<string>("");
 
   // Focus management refs
   const firstInputRef = useRef<HTMLInputElement>(null);
@@ -117,7 +118,7 @@ export const CustomFieldForm = memo(function CustomFieldForm({ isOpen, field, on
     if (isOpen) {
       // Store current focus
       previousFocusRef.current = document.activeElement as HTMLElement;
-      
+
       // Focus first input after dialog opens
       setTimeout(() => {
         firstInputRef.current?.focus();
@@ -131,7 +132,11 @@ export const CustomFieldForm = memo(function CustomFieldForm({ isOpen, field, on
   useEffect(() => {
     if (field) {
       setFieldData(field);
-      if (field.fieldType === "select" && Array.isArray(field.fieldOptions?.options)) {
+      // Type guard to check if fieldOptions is SelectFieldOptions
+      if (field.fieldType === "select" &&
+        field.fieldOptions &&
+        'options' in field.fieldOptions &&
+        Array.isArray(field.fieldOptions.options)) {
         setSelectOptions(field.fieldOptions.options);
       } else {
         setSelectOptions([]);
@@ -151,19 +156,33 @@ export const CustomFieldForm = memo(function CustomFieldForm({ isOpen, field, on
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const fieldOptions: any = {};
+    // Clear previous validation errors
+    setValidationError("");
 
+    // Validate select options
     if (fieldData.fieldType === "select") {
-      fieldOptions.options = selectOptions;
+      const nonEmptyOptions = selectOptions.filter(opt => opt.trim());
+      if (nonEmptyOptions.length === 0) {
+        setValidationError("Select fields must have at least one non-empty option.");
+        return;
+      }
     }
 
-    if (fieldData.fieldType === "text") {
-      fieldOptions.uppercase = fieldData.fieldOptions?.uppercase || false;
+    let fieldOptions: FieldOptions | undefined;
+
+    if (fieldData.fieldType === "select") {
+      fieldOptions = { options: selectOptions } as SelectFieldOptions;
+    } else if (fieldData.fieldType === "text") {
+      // Type guard to safely access uppercase property
+      const uppercase = fieldData.fieldOptions && 'uppercase' in fieldData.fieldOptions
+        ? fieldData.fieldOptions.uppercase
+        : false;
+      fieldOptions = { uppercase } as TextFieldOptions;
     }
 
     const finalFieldData = {
       ...fieldData,
-      fieldOptions: Object.keys(fieldOptions).length > 0 ? fieldOptions : undefined
+      fieldOptions
     };
 
     onSave(finalFieldData);
@@ -171,22 +190,49 @@ export const CustomFieldForm = memo(function CustomFieldForm({ isOpen, field, on
 
   const addSelectOption = () => {
     setSelectOptions(prev => [...prev, ""]);
+    setValidationError(""); // Clear error when adding options
   };
 
   const updateSelectOption = (index: number, value: string) => {
     setSelectOptions(prev => prev.map((opt, i) => i === index ? value : opt));
+    setValidationError(""); // Clear error when updating options
   };
 
   const removeSelectOption = (index: number) => {
     setSelectOptions(prev => prev.filter((_, i) => i !== index));
   };
 
+  // Helper functions for option ID management
+  const getOptionId = (index: number): string => {
+    return `option-${index}`;
+  };
+
+  const parseOptionId = (id: string | number): number => {
+    const idStr = String(id);
+    const prefix = 'option-';
+
+    if (!idStr.startsWith(prefix)) {
+      console.error(`Invalid option ID format: "${idStr}". Expected format: "${prefix}N"`);
+      return 0; // Safe fallback
+    }
+
+    const indexStr = idStr.replace(prefix, '');
+    const index = parseInt(indexStr, 10);
+
+    if (isNaN(index) || index < 0) {
+      console.error(`Invalid option index in ID: "${idStr}". Parsed as: ${indexStr}`);
+      return 0; // Safe fallback
+    }
+
+    return index;
+  };
+
   const handleOptionDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (over && active.id !== over.id) {
       setSelectOptions((items) => {
-        const oldIndex = parseInt(String(active.id).replace('option-', ''));
-        const newIndex = parseInt(String(over.id).replace('option-', ''));
+        const oldIndex = parseOptionId(active.id);
+        const newIndex = parseOptionId(over.id);
         return arrayMove(items, oldIndex, newIndex);
       });
     }
@@ -272,12 +318,12 @@ export const CustomFieldForm = memo(function CustomFieldForm({ isOpen, field, on
                     onDragEnd={handleOptionDragEnd}
                   >
                     <SortableContext
-                      items={selectOptions.map((_, index) => `option-${index}`)}
+                      items={selectOptions.map((_, index) => getOptionId(index))}
                       strategy={verticalListSortingStrategy}
                     >
                       {selectOptions.map((option, index) => (
                         <SortableSelectOption
-                          key={`option-${index}`}
+                          key={getOptionId(index)}
                           index={index}
                           option={option}
                           onUpdate={updateSelectOption}
@@ -296,6 +342,11 @@ export const CustomFieldForm = memo(function CustomFieldForm({ isOpen, field, on
                     <Plus className="mr-2 h-4 w-4" />
                     Add Option
                   </Button>
+                  {validationError && fieldData.fieldType === "select" && (
+                    <p className="text-sm text-destructive mt-2">
+                      {validationError}
+                    </p>
+                  )}
                 </div>
               </div>
             )}
@@ -304,13 +355,16 @@ export const CustomFieldForm = memo(function CustomFieldForm({ isOpen, field, on
               <div className="flex items-center space-x-3 p-3 bg-muted/30 rounded-lg">
                 <Switch
                   id="uppercase"
-                  checked={fieldData.fieldOptions?.uppercase || false}
+                  checked={
+                    fieldData.fieldOptions && 'uppercase' in fieldData.fieldOptions
+                      ? fieldData.fieldOptions.uppercase || false
+                      : false
+                  }
                   onCheckedChange={(checked) => setFieldData(prev => ({
                     ...prev,
                     fieldOptions: {
-                      ...prev.fieldOptions,
                       uppercase: checked
-                    }
+                    } as TextFieldOptions
                   }))}
                 />
                 <Label htmlFor="uppercase" className="flex items-center gap-2 text-sm font-medium cursor-pointer">
@@ -380,13 +434,5 @@ export const CustomFieldForm = memo(function CustomFieldForm({ isOpen, field, on
         </form>
       </DialogContent>
     </Dialog>
-  );
-}, (prevProps, nextProps) => {
-  // Custom comparison for optimization
-  return (
-    prevProps.isOpen === nextProps.isOpen &&
-    prevProps.field?.id === nextProps.field?.id &&
-    prevProps.field?.fieldName === nextProps.field?.fieldName &&
-    prevProps.field?.fieldType === nextProps.field?.fieldType
   );
 });

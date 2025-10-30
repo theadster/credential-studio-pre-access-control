@@ -10,6 +10,8 @@
  * - Vercel KV for Vercel deployments
  */
 
+import { RATE_LIMIT_CONSTANTS } from './constants';
+
 interface RateLimitEntry {
   count: number;
   resetAt: number;
@@ -25,16 +27,16 @@ export interface RateLimitConfig {
 
 export const RATE_LIMITS = {
   PASSWORD_RESET: {
-    maxAttempts: 3,
-    windowMs: 60 * 60 * 1000, // 1 hour
+    maxAttempts: RATE_LIMIT_CONSTANTS.PASSWORD_RESET_MAX_ATTEMPTS,
+    windowMs: RATE_LIMIT_CONSTANTS.PASSWORD_RESET_WINDOW_MS,
   },
   EMAIL_VERIFICATION: {
-    maxAttempts: 5,
-    windowMs: 60 * 60 * 1000, // 1 hour
+    maxAttempts: RATE_LIMIT_CONSTANTS.EMAIL_VERIFICATION_MAX_ATTEMPTS,
+    windowMs: RATE_LIMIT_CONSTANTS.EMAIL_VERIFICATION_WINDOW_MS,
   },
   LOGIN_ATTEMPTS: {
-    maxAttempts: 5,
-    windowMs: 15 * 60 * 1000, // 15 minutes
+    maxAttempts: RATE_LIMIT_CONSTANTS.LOGIN_ATTEMPTS_MAX_ATTEMPTS,
+    windowMs: RATE_LIMIT_CONSTANTS.LOGIN_ATTEMPTS_WINDOW_MS,
   },
 } as const;
 
@@ -121,6 +123,19 @@ export function cleanupRateLimitStore(): void {
  */
 export function getRateLimitStoreSize(): number {
   return rateLimitStore.size;
+}
+
+/**
+ * Clear all rate limit entries unconditionally
+ * 
+ * WARNING: This is intended for testing only. It clears ALL entries
+ * regardless of expiration status, ensuring complete test isolation.
+ * Do not use in production code.
+ * 
+ * @internal
+ */
+export function clearAllRateLimits(): void {
+  rateLimitStore.clear();
 }
 
 // Cleanup every 5 minutes (only on server-side)

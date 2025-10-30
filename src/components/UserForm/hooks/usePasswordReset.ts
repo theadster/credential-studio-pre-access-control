@@ -15,7 +15,7 @@ import { User } from '../types';
 export interface UsePasswordResetReturn {
   /** Send password reset email */
   sendPasswordReset: (user: User) => Promise<void>;
-  
+
   /** Whether password reset is being sent */
   sending: boolean;
 }
@@ -69,13 +69,22 @@ export function usePasswordReset(): UsePasswordResetReturn {
         `Password reset email sent to ${user.email}. User must click the link in their email to reset their password.`
       );
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      console.error('Error sending password reset email:', errorMessage);
+      console.error('Error sending password reset email:', err);
+
+      // Type guard for error with code property
+      const hasErrorCode = (error: unknown): error is { code?: string; message?: string } => {
+        return typeof error === 'object' && error !== null;
+      };
+
+      // Check for rate limiting error by code (preferred) or message (fallback)
+      const isRateLimitError = hasErrorCode(err) && (
+        err.code === 'VERIFICATION_RATE_LIMIT' ||
+        (typeof err.message === 'string' && err.message.includes('Too many password reset'))
+      );
 
       const error = err instanceof Error ? err : new Error(String(err));
-      
-      // Check for rate limiting error
-      if (errorMessage.includes('Too many password reset attempts')) {
+
+      if (isRateLimitError) {
         handleError(error, 'Rate limit exceeded. Please wait before trying again.');
       } else {
         handleError(error, 'Failed to send password reset email');

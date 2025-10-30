@@ -8,10 +8,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Settings, Plus, Link } from "lucide-react";
+import { Settings, Plus, Link, Edit, Trash2 } from "lucide-react";
 import { IntegrationSection } from './IntegrationSection';
 import { ASPECT_RATIOS, AUTH_HEADER_TYPES } from './constants';
 import { EventSettings, IntegrationStatus, FieldMapping, CustomField } from './types';
+import { Badge } from '@/components/ui/badge';
 
 interface IntegrationsTabProps {
   formData: EventSettings;
@@ -360,92 +361,72 @@ export const IntegrationsTab = memo(function IntegrationsTab({
               </Button>
             </div>
 
-            {fieldMappings.length === 0 ? (
-              <div className="text-center py-4 text-sm text-muted-foreground border rounded-lg">
-                No field mappings configured. Click &quot;Add Mapping&quot; to map custom fields to JSON variables.
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {fieldMappings.map((mapping) => {
-                  // Find the custom field to get additional details
-                  const customField = customFields.find(f => f.id === mapping.fieldId);
-                  
-                  return (
-                    <div 
-                      key={`${mapping.fieldId}-${mapping.jsonVariable}`} 
-                      className="p-4 border rounded-lg bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/20 dark:to-purple-950/20 border-violet-200 dark:border-violet-800/50"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1 space-y-2">
-                          {/* Field Name and Type */}
-                          <div className="flex items-start gap-2">
-                            <Link className="h-4 w-4 text-violet-600 dark:text-violet-400 mt-0.5 flex-shrink-0" />
-                            <div className="flex-1">
-                              <p className="text-sm font-medium text-foreground break-words">{mapping.fieldName}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {mapping.fieldType.charAt(0).toUpperCase() + mapping.fieldType.slice(1)}
-                                {customField?.required && <span className="ml-2 text-amber-600 dark:text-amber-400">• Required</span>}
-                              </p>
-                            </div>
+            <div className="p-4 border rounded-lg bg-purple-50 dark:bg-purple-950/20">
+              <p className="text-sm text-purple-800 dark:text-purple-200 mb-3">
+                <strong>Field Mappings</strong> allow you to map custom field responses to different variable names in your JSON request.
+                This is especially useful for boolean (Yes/No) and select fields where you want to transform the values.
+              </p>
+
+              {fieldMappings.length === 0 ? (
+                <div className="text-center py-4 text-purple-600 dark:text-purple-400 text-sm">
+                  {customFields.length === 0
+                    ? "Create custom fields first to add field mappings"
+                    : "No field mappings configured. Click 'Add Mapping' to create one."}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {fieldMappings.map((mapping) => {
+                    // Find the custom field to get additional details
+                    const customField = customFields.find(f => f.id === mapping.fieldId);
+                    
+                    return (
+                      <div 
+                        key={`${mapping.fieldId}-${mapping.jsonVariable}`} 
+                        className="flex items-center justify-between p-3 bg-background border rounded-lg"
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-medium text-sm">{mapping.fieldName}</span>
+                            <Badge variant="outline" className="text-xs">{mapping.fieldType}</Badge>
                           </div>
-                          
-                          {/* Mapping Arrow and JSON Variable */}
-                          <div className="flex items-center gap-2 pl-6 flex-wrap">
-                            <span className="text-xs text-muted-foreground flex-shrink-0">→</span>
-                            <code className="px-2 py-1 bg-white dark:bg-gray-900 border border-violet-200 dark:border-violet-800 rounded text-xs font-mono text-violet-700 dark:text-violet-300 break-all">
-                              {`{{${mapping.jsonVariable}}}`}
-                            </code>
+                          <div className="text-xs text-muted-foreground">
+                            Maps to: <code className="bg-muted px-1 rounded">{mapping.jsonVariable}</code>
                           </div>
-                          
-                          {/* Value Mapping if present */}
                           {mapping.valueMapping && Object.keys(mapping.valueMapping).length > 0 && (
-                            <div className="pl-6 pt-1">
-                              <p className="text-xs text-muted-foreground mb-1.5">Value mappings:</p>
-                              <div className="space-y-1">
-                                {Object.entries(mapping.valueMapping).slice(0, 3).map(([key, value]) => (
-                                  <div key={key} className="flex items-center gap-2 text-xs flex-wrap">
-                                    <code className="px-1.5 py-0.5 bg-white dark:bg-gray-900 border border-violet-200 dark:border-violet-800 rounded font-mono text-violet-700 dark:text-violet-300 break-all">{key}</code>
-                                    <span className="text-muted-foreground flex-shrink-0">→</span>
-                                    <code className="px-1.5 py-0.5 bg-white dark:bg-gray-900 border border-violet-200 dark:border-violet-800 rounded font-mono text-violet-700 dark:text-violet-300 break-all">{value}</code>
-                                  </div>
-                                ))}
-                                {Object.keys(mapping.valueMapping).length > 3 && (
-                                  <p className="text-xs text-muted-foreground italic">
-                                    +{Object.keys(mapping.valueMapping).length - 3} more...
-                                  </p>
-                                )}
-                              </div>
+                            <div className="text-xs text-muted-foreground mt-1">
+                              Value mappings: {Object.entries(mapping.valueMapping).map(([key, value]) => (
+                                <span key={key} className="inline-block mr-2">
+                                  <code className="bg-muted px-1 rounded">{key}</code> → <code className="bg-muted px-1 rounded">{value}</code>
+                                </span>
+                              ))}
                             </div>
                           )}
                         </div>
-                        
-                        {/* Action Buttons */}
-                        <div className="flex flex-col gap-2 flex-shrink-0">
+                        <div className="flex items-center space-x-2">
                           <Button
                             type="button"
                             variant="ghost"
                             size="sm"
                             onClick={() => onEditFieldMapping(mapping)}
-                            className="hover:bg-violet-100 dark:hover:bg-violet-900/30 w-20"
                           >
-                            Edit
+                            <Edit className="h-4 w-4" />
                           </Button>
                           <Button
                             type="button"
                             variant="ghost"
                             size="sm"
+                            className="text-destructive"
                             onClick={() => onDeleteFieldMapping(mapping.fieldId, mapping.jsonVariable)}
-                            className="text-destructive hover:text-destructive hover:bg-red-100 dark:hover:bg-red-900/30 w-20"
                           >
-                            Delete
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </IntegrationSection>

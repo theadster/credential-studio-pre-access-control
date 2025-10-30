@@ -16,14 +16,14 @@ interface UseEventSettingsFormProps {
   onClose: () => void;
 }
 
-export function useEventSettingsForm({ 
-  eventSettings, 
-  isOpen, 
-  onSave, 
-  onClose 
+export function useEventSettingsForm({
+  eventSettings,
+  isOpen,
+  onSave,
+  onClose
 }: UseEventSettingsFormProps) {
   const { success, error, info } = useSweetAlert();
-  
+
   // Form state
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("general");
@@ -32,7 +32,7 @@ export function useEventSettingsForm({
   const [fieldMappings, setFieldMappings] = useState<FieldMapping[]>([]);
   const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatus | null>(null);
   const [originalPrintableFlags, setOriginalPrintableFlags] = useState<Map<string, boolean>>(new Map());
-  
+
   // Modal state
   const [editingField, setEditingField] = useState<CustomField | null>(null);
   const [showFieldForm, setShowFieldForm] = useState(false);
@@ -47,9 +47,17 @@ export function useEventSettingsForm({
         if (response.ok) {
           const status = await response.json();
           setIntegrationStatus(status);
+        } else {
+          // Log error for debugging
+          console.error('Failed to fetch integration status:', response.status, response.statusText);
+          // Set safe default to prevent UI breakage
+          setIntegrationStatus({ cloudinary: false, switchboard: false });
         }
       } catch (err) {
+        // Log full error for debugging
         console.error('Failed to fetch integration status:', err);
+        // Set safe default to prevent UI breakage
+        setIntegrationStatus({ cloudinary: false, switchboard: false });
       }
     };
 
@@ -63,7 +71,7 @@ export function useEventSettingsForm({
       setFormData(parsed);
       setCustomFields(eventSettings.customFields || []);
       setOriginalPrintableFlags(extractPrintableFlags(eventSettings.customFields || []));
-      
+
       // Ensure fieldMappings is always an array
       const mappings = eventSettings.switchboardFieldMappings;
       setFieldMappings(Array.isArray(mappings) ? mappings : []);
@@ -128,7 +136,7 @@ export function useEventSettingsForm({
       const hasPrintableFlagChanges = checkPrintableFlagChanges(customFields, originalPrintableFlags);
 
       await onSave(settingsData);
-      
+
       // Show info message if printable flags were changed
       if (hasPrintableFlagChanges) {
         info(
@@ -136,10 +144,14 @@ export function useEventSettingsForm({
           "Existing credential statuses will not be affected until attendee records are updated. Only future changes to these fields will impact credential status."
         );
       }
-      
+
       onClose();
     } catch (err: any) {
-      throw err;
+      console.error('Failed to save event settings:', err);
+      error(
+        'Save Failed',
+        err?.message || 'An error occurred while saving event settings. Please try again.'
+      );
     } finally {
       setLoading(false);
     }
@@ -189,18 +201,18 @@ export function useEventSettingsForm({
       field.internalFieldName || '',
       formData
     );
-    
+
     if (!validation.canDelete) {
-      const warningMessage = validation.warnings.length > 0 
+      const warningMessage = validation.warnings.length > 0
         ? validation.warnings.join('\n')
         : "This field is in use and cannot be deleted";
-      
+
       error("Cannot Delete Field", warningMessage);
       return;
     }
 
     setCustomFields(prev => prev.filter(f => f.id !== fieldId));
-    
+
     // Remove any field mappings for this field
     setFieldMappings(prev => prev.filter(m => m.fieldId !== fieldId));
   }, [customFields, formData, error]);
@@ -233,7 +245,7 @@ export function useEventSettingsForm({
   }, [editingFieldMapping]);
 
   const handleDeleteFieldMapping = useCallback((fieldId: string, jsonVariable: string) => {
-    setFieldMappings(prev => prev.filter(m => 
+    setFieldMappings(prev => prev.filter(m =>
       !(m.fieldId === fieldId && m.jsonVariable === jsonVariable)
     ));
   }, []);
@@ -246,19 +258,19 @@ export function useEventSettingsForm({
     customFields,
     fieldMappings,
     integrationStatus,
-    
+
     // Modal state
     editingField,
     showFieldForm,
     showMappingForm,
     editingFieldMapping,
-    
+
     // Handlers
     setActiveTab,
     handleInputChange,
     handleSubmit,
     setCustomFields,
-    
+
     // Custom field handlers
     handleAddCustomField,
     handleEditCustomField,
@@ -266,7 +278,7 @@ export function useEventSettingsForm({
     handleDeleteCustomField,
     setShowFieldForm,
     setEditingField,
-    
+
     // Field mapping handlers
     handleAddFieldMapping,
     handleEditFieldMapping,

@@ -1,11 +1,11 @@
 /**
- * HTML Sanitization Utilities
+ * Sanitization Utilities
  * 
- * Provides secure HTML sanitization to prevent XSS attacks.
- * Used primarily for user-provided HTML templates in integrations.
+ * Provides secure sanitization for various input types to prevent XSS attacks.
+ * Used for user inputs, HTML templates, and form fields.
  */
 
-import * as DOMPurify from 'isomorphic-dompurify';
+import DOMPurify from 'isomorphic-dompurify';
 
 /**
  * Sanitizes HTML content to prevent XSS attacks
@@ -27,8 +27,10 @@ export function sanitizeHTML(html: string): string {
 
   return DOMPurify.sanitize(html, {
     // Allow only safe HTML tags for templates
+    // Note: 'style' tag removed to prevent CSS-based attack vectors
+    // Use inline style attribute instead for styling needs
     ALLOWED_TAGS: [
-      'html', 'head', 'body', 'title', 'style', 
+      'html', 'head', 'body', 'title',
       'div', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
       'img', 'br', 'hr', 'a', 'strong', 'em', 'u', 'b', 'i',
       'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tr', 'td', 'th'
@@ -68,7 +70,7 @@ export function sanitizeHTMLTemplate(html: string): string {
   // Temporarily replace placeholders with safe tokens
   const placeholderMap = new Map<string, string>();
   let counter = 0;
-  
+
   const withTokens = html.replace(/\{\{([^}]+)\}\}/g, (match, variable) => {
     const token = `__PLACEHOLDER_${counter}__`;
     placeholderMap.set(token, match);
@@ -120,4 +122,116 @@ export function validateHTMLSafety(html: string): { valid: boolean; error?: stri
   }
 
   return { valid: true };
+}
+
+/**
+ * Sanitizes general text input (real-time, no trimming)
+ * Uses DOMPurify to strip all HTML and scripts, returning text-only output
+ * Preserves spaces for real-time input
+ */
+export function sanitizeInput(value: string): string {
+  if (!value) return '';
+  
+  // Use DOMPurify to strip all HTML tags and scripts, returning only text
+  return DOMPurify.sanitize(value, {
+    ALLOWED_TAGS: [], // No HTML tags allowed - text only
+    ALLOWED_ATTR: [], // No attributes allowed
+    KEEP_CONTENT: true, // Keep text content when removing tags
+  });
+}
+
+/**
+ * Final sanitization for text input (trims whitespace)
+ * Use on blur or submit
+ */
+export function sanitizeInputFinal(value: string): string {
+  return sanitizeInput(value).trim();
+}
+
+/**
+ * Sanitizes and validates email input
+ * Uses DOMPurify to strip HTML, then validates email format
+ * Returns sanitized email or empty string if invalid
+ * 
+ * @param value - Email string to sanitize
+ * @returns Sanitized, lowercased, trimmed email or empty string if invalid
+ * 
+ * @example
+ * ```typescript
+ * sanitizeEmail('User@Example.com') // 'user@example.com'
+ * sanitizeEmail('<script>alert()</script>test@example.com') // 'test@example.com'
+ * sanitizeEmail('invalid-email') // ''
+ * ```
+ */
+export function sanitizeEmail(value: string): string {
+  if (!value) return '';
+  
+  // First, use DOMPurify to strip all HTML and scripts
+  const stripped = DOMPurify.sanitize(value, {
+    ALLOWED_TAGS: [], // No HTML tags allowed
+    ALLOWED_ATTR: [], // No attributes allowed
+    KEEP_CONTENT: true, // Keep text content
+  });
+  
+  // Normalize: lowercase and trim
+  const normalized = stripped.toLowerCase().trim();
+  
+  // Validate email format using a standard regex
+  // RFC 5322 compliant basic email validation
+  const emailRegex = /^[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
+  
+  // Return sanitized email if valid, empty string if invalid
+  return emailRegex.test(normalized) ? normalized : '';
+}
+
+/**
+ * Sanitizes URL input
+ */
+export function sanitizeUrl(value: string): string {
+  if (!value) return '';
+  
+  const sanitized = value
+    .replace(/[<>'"]/g, '')
+    .trim();
+  
+  if (!sanitized) return '';
+  
+  // Ensure URL has a protocol
+  if (!/^https?:\/\//i.test(sanitized)) {
+    return `https://${sanitized}`;
+  }
+  
+  return sanitized;
+}
+
+/**
+ * Sanitizes notes/textarea input (real-time, no trimming)
+ * More permissive but still safe
+ */
+export function sanitizeNotes(value: string): string {
+  if (!value) return '';
+  
+  return value
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/on\w+\s*=\s*["'][^"']*["']/gi, '');
+}
+
+/**
+ * Final sanitization for notes (trims whitespace)
+ * Use on blur or submit
+ */
+export function sanitizeNotesFinal(value: string): string {
+  return sanitizeNotes(value).trim();
+}
+
+/**
+ * Sanitizes barcode input
+ * Allows only alphanumeric characters
+ */
+export function sanitizeBarcode(value: string): string {
+  if (!value) return '';
+  
+  return value
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .toUpperCase();
 }

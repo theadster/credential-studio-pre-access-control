@@ -1,9 +1,9 @@
 // EventSettingsForm Utility Functions
 // Helper functions for form operations and data transformation
 
-import { 
-  Type, Hash, Mail, Calendar, Link, List, 
-  CheckSquare, ToggleLeft, FileText 
+import {
+  Type, Hash, Mail, Calendar, Link, List,
+  CheckSquare, ToggleLeft, FileText
 } from "lucide-react";
 import { FieldMapping, CustomField, EventSettings } from './types';
 
@@ -61,9 +61,9 @@ export function validateFieldMapping(mapping: FieldMapping): { valid: boolean; e
   }
 
   if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(mapping.jsonVariable)) {
-    return { 
-      valid: false, 
-      error: "JSON variable must be a valid identifier (letters, numbers, underscores)" 
+    return {
+      valid: false,
+      error: "JSON variable must be a valid identifier (letters, numbers, underscores)"
     };
   }
 
@@ -121,7 +121,7 @@ export function checkPrintableFlagChanges(
     if (field.id) {
       const originalPrintable = originalFlags.get(field.id) === true;
       const currentPrintable = field.printable === true;
-      
+
       if (originalPrintable !== currentPrintable) {
         return true;
       }
@@ -160,8 +160,12 @@ export function validateCustomField(field: CustomField): { valid: boolean; error
     return { valid: false, error: "Field type is required" };
   }
 
-  if (field.fieldType === 'select' && (!field.fieldOptions || field.fieldOptions.length === 0)) {
-    return { valid: false, error: "Select fields must have at least one option" };
+  if (field.fieldType === 'select') {
+    if (!field.fieldOptions ||
+      !Array.isArray(field.fieldOptions.options) ||
+      field.fieldOptions.options.length === 0) {
+      return { valid: false, error: "Select fields must have at least one option" };
+    }
   }
 
   return { valid: true };

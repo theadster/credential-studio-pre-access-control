@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Link, Settings, Type, Hash, Save, ToggleLeft, List } from "lucide-react";
 import { CustomField, FieldMapping } from './types';
+import { useSweetAlert } from '@/hooks/useSweetAlert';
 
 interface FieldMappingFormProps {
   isOpen: boolean;
@@ -19,41 +20,40 @@ interface FieldMappingFormProps {
   onCancel: () => void;
 }
 
-export const FieldMappingForm = memo(function FieldMappingForm({ 
-  isOpen, 
-  customFields, 
-  editingMapping, 
-  onSave, 
-  onCancel 
+// Type guard to ensure field has an id
+function hasId<T extends { id?: string }>(field: T): field is T & { id: string } {
+  return !!field.id;
+}
+
+export const FieldMappingForm = memo(function FieldMappingForm({
+  isOpen,
+  customFields,
+  editingMapping,
+  onSave,
+  onCancel
 }: FieldMappingFormProps) {
+  const { error: showError } = useSweetAlert();
   const [selectedField, setSelectedField] = useState<CustomField | null>(null);
   const [jsonVariable, setJsonVariable] = useState("");
   const [valueMapping, setValueMapping] = useState<{ [key: string]: string }>({});
 
-  // Focus management refs
+  // Focus management ref
   const firstSelectRef = useRef<HTMLButtonElement>(null);
-  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   // Filter fields that support mapping (boolean and select)
   const mappableFields = customFields.filter(field =>
     field.fieldType === 'boolean' || field.fieldType === 'select'
   );
 
-  // Focus management effect
-  useEffect(() => {
-    if (isOpen) {
-      // Store current focus
-      previousFocusRef.current = document.activeElement as HTMLElement;
-      
-      // Focus first select after dialog opens
-      setTimeout(() => {
-        firstSelectRef.current?.focus();
-      }, 100);
+  // Handle dialog open/close for focus management
+  const handleOpenChange = (open: boolean) => {
+    if (open) {
+      // Focus first select when dialog opens
+      firstSelectRef.current?.focus();
     } else {
-      // Restore focus on close
-      previousFocusRef.current?.focus();
+      onCancel();
     }
-  }, [isOpen]);
+  };
 
   // Initialize form with editing data
   useEffect(() => {
@@ -77,7 +77,12 @@ export const FieldMappingForm = memo(function FieldMappingForm({
           'yes': '',
           'no': ''
         });
-      } else if (selectedField.fieldType === 'select' && selectedField.fieldOptions?.options) {
+      } else if (
+        selectedField.fieldType === 'select' &&
+        selectedField.fieldOptions &&
+        'options' in selectedField.fieldOptions &&
+        Array.isArray(selectedField.fieldOptions.options)
+      ) {
         const mapping: { [key: string]: string } = {};
         selectedField.fieldOptions.options.forEach((option: string) => {
           mapping[option] = '';
@@ -94,6 +99,21 @@ export const FieldMappingForm = memo(function FieldMappingForm({
       return;
     }
 
+    // Validate that the selected field has an id
+    if (!selectedField.id) {
+      // Show user-facing error notification
+      showError(
+        'Cannot Save Mapping',
+        'The selected field is missing an ID. This indicates a data integrity issue. Please try selecting a different field or contact support.'
+      );
+      // Also log for debugging purposes
+      console.error('Cannot save mapping: selected field is missing an id', {
+        fieldName: selectedField.fieldName,
+        fieldType: selectedField.fieldType,
+      });
+      return;
+    }
+
     // Keep ALL value mappings, including empty ones
     // This prevents data loss when users are still filling in mappings
     const cleanedValueMapping: { [key: string]: string } = {};
@@ -103,7 +123,7 @@ export const FieldMappingForm = memo(function FieldMappingForm({
     });
 
     const mapping: FieldMapping = {
-      fieldId: selectedField.id!,
+      fieldId: selectedField.id,
       fieldName: selectedField.fieldName,
       fieldType: selectedField.fieldType,
       jsonVariable: jsonVariable.trim(),
@@ -121,7 +141,7 @@ export const FieldMappingForm = memo(function FieldMappingForm({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onCancel()}>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-lg max-h-[90vh] p-0 gap-0 overflow-hidden">
         <form onSubmit={handleSubmit} className="flex flex-col max-h-[90vh]">
           <div className="px-6 pt-6 pb-4 flex-shrink-0">
@@ -153,7 +173,15 @@ export const FieldMappingForm = memo(function FieldMappingForm({
                   }
                 }}
               >
-                <SelectTrigger ref={firstSelectRef} className="h-10" aria-required="true">
+                <SelectTrigger
+                  ref={(node) => {
+                    if (node) {
+                      firstSelectRef.current = node;
+                    }
+                  }}
+                  className="h-10"
+                  aria-required="true"
+                >
                   <SelectValue placeholder="Select a custom field to map" />
                 </SelectTrigger>
                 <SelectContent>
@@ -162,19 +190,21 @@ export const FieldMappingForm = memo(function FieldMappingForm({
                       No boolean or select fields available
                     </SelectItem>
                   ) : (
-                    mappableFields.map((field) => (
-                      <SelectItem key={field.id} value={field.id!}>
-                        <div className="flex items-center gap-2">
-                          {field.fieldType === 'boolean' ? (
-                            <ToggleLeft className="h-4 w-4" />
-                          ) : (
-                            <List className="h-4 w-4" />
-                          )}
-                          <span>{field.fieldName}</span>
-                          <Badge variant="outline" className="text-xs">{field.fieldType}</Badge>
-                        </div>
-                      </SelectItem>
-                    ))
+                    mappableFields
+                      .filter(hasId) // Type guard ensures field.id is defined
+                      .map((field) => (
+                        <SelectItem key={field.id} value={field.id}>
+                          <div className="flex items-center gap-2">
+                            {field.fieldType === 'boolean' ? (
+                              <ToggleLeft className="h-4 w-4" />
+                            ) : (
+                              <List className="h-4 w-4" />
+                            )}
+                            <span>{field.fieldName}</span>
+                            <Badge variant="outline" className="text-xs">{field.fieldType}</Badge>
+                          </div>
+                        </SelectItem>
+                      ))
                   )}
                 </SelectContent>
               </Select>
@@ -268,6 +298,8 @@ export const FieldMappingForm = memo(function FieldMappingForm({
     prevProps.isOpen === nextProps.isOpen &&
     prevProps.customFields.length === nextProps.customFields.length &&
     prevProps.editingMapping?.fieldId === nextProps.editingMapping?.fieldId &&
-    prevProps.editingMapping?.jsonVariable === nextProps.editingMapping?.jsonVariable
+    prevProps.editingMapping?.jsonVariable === nextProps.editingMapping?.jsonVariable &&
+    prevProps.onSave === nextProps.onSave &&
+    prevProps.onCancel === nextProps.onCancel
   );
 });

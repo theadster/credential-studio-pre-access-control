@@ -18,8 +18,23 @@ import { RoleSelectorProps } from './types';
  * @returns Role selector dropdown
  */
 export default function RoleSelector({ value, onChange, roles, disabled = false }: RoleSelectorProps) {
+  // Filter out roles without valid IDs and log warnings
+  const validRoles = roles.filter(role => {
+    const roleId = role.$id || role.id;
+    if (!roleId) {
+      // Data integrity issue: role missing both $id and id fields
+      // This indicates an upstream problem in role creation or fetching
+      console.warn('Role without valid ID detected and skipped:', {
+        name: role.name,
+        hasDescription: !!role.description,
+      });
+      return false;
+    }
+    return true;
+  });
+
   // Find selected role for display
-  const selectedRole = value ? roles.find(r => (r.$id || r.id) === value) : null;
+  const selectedRole = value ? validRoles.find(r => (r.$id || r.id) === value) : null;
 
   return (
     <div className="space-y-2">
@@ -40,8 +55,11 @@ export default function RoleSelector({ value, onChange, roles, disabled = false 
           </SelectValue>
         </SelectTrigger>
         <SelectContent position="popper" sideOffset={4} className="max-w-[380px]">
-          {roles.map((role) => {
-            const roleId = role.$id || role.id || '';
+          {validRoles.map((role) => {
+            const roleId = role.$id ?? role.id;
+            // This should never happen due to filtering, but TypeScript needs the guard
+            if (!roleId) return null;
+
             return (
               <SelectItem key={roleId} value={roleId} className="max-w-[380px]">
                 <div className="flex items-start gap-2 py-1">

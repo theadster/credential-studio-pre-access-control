@@ -2,40 +2,7 @@
  * Tests for Validation Utilities
  */
 
-import { it } from 'node:test';
-import { it } from 'node:test';
-import { describe } from 'node:test';
-import { it } from 'node:test';
-import { it } from 'node:test';
-import { describe } from 'node:test';
-import { it } from 'node:test';
-import { it } from 'node:test';
-import { it } from 'node:test';
-import { it } from 'node:test';
-import { describe } from 'node:test';
-import { it } from 'node:test';
-import { it } from 'node:test';
-import { it } from 'node:test';
-import { it } from 'node:test';
-import { it } from 'node:test';
-import { describe } from 'node:test';
-import { it } from 'node:test';
-import { it } from 'node:test';
-import { it } from 'node:test';
-import { it } from 'node:test';
-import { it } from 'node:test';
-import { describe } from 'node:test';
-import { it } from 'node:test';
-import { it } from 'node:test';
-import { it } from 'node:test';
-import { it } from 'node:test';
-import { it } from 'node:test';
-import { describe } from 'node:test';
-import { it } from 'node:test';
-import { it } from 'node:test';
-import { it } from 'node:test';
-import { it } from 'node:test';
-import { describe } from 'node:test';
+import { describe, it, expect } from 'vitest';
 import {
   validateJSON,
   validateSwitchboardRequestBody,
@@ -102,6 +69,14 @@ describe('validateSwitchboardRequestBody', () => {
     const body = '"string"';
     const result = validateSwitchboardRequestBody(body);
     expect(result.valid).toBe(false);
+  });
+
+  it('should handle malformed JSON with template_id placeholder gracefully', () => {
+    // Edge case: has template_id but JSON is malformed in a way that might slip through initial validation
+    const body = '{"template_id": "{{template_id}}", "data": undefined}';
+    const result = validateSwitchboardRequestBody(body);
+    expect(result.valid).toBe(false);
+    expect(result.error).toBeDefined();
   });
 });
 

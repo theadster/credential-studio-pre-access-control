@@ -23,7 +23,6 @@ const getInitialFormData = (
       email: user.email,
       name: user.name || '',
       roleId: user.role?.id || undefined,
-      password: '',
       authUserId: '',
       addToTeam: false,
     };
@@ -34,7 +33,6 @@ const getInitialFormData = (
     email: '',
     name: '',
     roleId: undefined,
-    password: '',
     authUserId: '',
     addToTeam: mode === 'link', // Default to true in link mode
   };
@@ -42,9 +40,16 @@ const getInitialFormData = (
 
 /**
  * Form action types for reducer
+ * Using a generic type to ensure type safety between field and value
  */
+type SetFieldAction<K extends keyof UserFormData = keyof UserFormData> = {
+  type: 'SET_FIELD';
+  field: K;
+  value: UserFormData[K];
+};
+
 type FormAction =
-  | { type: 'SET_FIELD'; field: keyof UserFormData; value: any }
+  | SetFieldAction
   | { type: 'SET_FORM_DATA'; data: UserFormData }
   | { type: 'RESET_FORM'; user?: User | null; mode: UserFormMode };
 
@@ -59,13 +64,13 @@ function formReducer(state: UserFormData, action: FormAction): UserFormData {
   switch (action.type) {
     case 'SET_FIELD':
       return { ...state, [action.field]: action.value };
-    
+
     case 'SET_FORM_DATA':
       return action.data;
-    
+
     case 'RESET_FORM':
       return getInitialFormData(action.user, action.mode);
-    
+
     default:
       return state;
   }
@@ -77,13 +82,13 @@ function formReducer(state: UserFormData, action: FormAction): UserFormData {
 export interface UseUserFormStateReturn {
   /** Current form data */
   formData: UserFormData;
-  
-  /** Update a single field */
-  updateField: (field: keyof UserFormData, value: any) => void;
-  
+
+  /** Update a single field with type-safe value */
+  updateField: <K extends keyof UserFormData>(field: K, value: UserFormData[K]) => void;
+
   /** Reset form to initial state */
   resetForm: () => void;
-  
+
   /** Set entire form data (for advanced use cases) */
   setFormData: (data: UserFormData) => void;
 }
@@ -132,12 +137,12 @@ export function useUserFormState(
   }, [user, isOpen, mode]);
 
   /**
-   * Update a single field in the form
+   * Update a single field in the form with type-safe value
    * 
    * @param field - Field name to update
-   * @param value - New value for the field
+   * @param value - New value for the field (type-checked against field type)
    */
-  const updateField = (field: keyof UserFormData, value: any) => {
+  const updateField = <K extends keyof UserFormData>(field: K, value: UserFormData[K]) => {
     dispatch({ type: 'SET_FIELD', field, value });
   };
 

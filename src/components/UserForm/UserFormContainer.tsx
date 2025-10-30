@@ -107,7 +107,7 @@ export default function UserFormContainer({
 
     try {
       // Validate form data
-      const validationResult = validate(formData, mode, user, selectedAuthUser);
+      const validationResult = validate(formData, mode, selectedAuthUser);
       
       if (!validationResult.isValid) {
         // Show first error

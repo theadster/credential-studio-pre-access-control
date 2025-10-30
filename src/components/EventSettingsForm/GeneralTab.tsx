@@ -47,7 +47,7 @@ export const GeneralTab = memo(function GeneralTab({ formData, onInputChange }: 
               />
             </div>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="eventTime">Event Time</Label>
@@ -61,8 +61,8 @@ export const GeneralTab = memo(function GeneralTab({ formData, onInputChange }: 
             </div>
             <div>
               <Label htmlFor="timeZone">Time Zone</Label>
-              <Select 
-                value={formData.timeZone} 
+              <Select
+                value={formData.timeZone}
                 onValueChange={(value) => onInputChange("timeZone", value)}
               >
                 <SelectTrigger>
@@ -78,7 +78,7 @@ export const GeneralTab = memo(function GeneralTab({ formData, onInputChange }: 
               </Select>
             </div>
           </div>
-          
+
           <div>
             <Label htmlFor="eventLocation">Event Location *</Label>
             <Input
@@ -89,7 +89,7 @@ export const GeneralTab = memo(function GeneralTab({ formData, onInputChange }: 
               required
             />
           </div>
-          
+
           <div>
             <Label htmlFor="bannerImageUrl">Banner Image URL</Label>
             <Input
@@ -99,7 +99,7 @@ export const GeneralTab = memo(function GeneralTab({ formData, onInputChange }: 
               placeholder="https://images.unsplash.com/photo-1540575467063-178a50c2df87?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80"
             />
           </div>
-          
+
           <div>
             <Label htmlFor="signInBannerUrl">Sign In Banner URL</Label>
             <Input
@@ -157,8 +157,8 @@ export const GeneralTab = memo(function GeneralTab({ formData, onInputChange }: 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="attendeeSortField">Sort By</Label>
-              <Select 
-                value={formData.attendeeSortField || 'lastName'} 
+              <Select
+                value={formData.attendeeSortField || 'lastName'}
                 onValueChange={(value) => onInputChange("attendeeSortField", value)}
               >
                 <SelectTrigger>
@@ -175,8 +175,8 @@ export const GeneralTab = memo(function GeneralTab({ formData, onInputChange }: 
             </div>
             <div>
               <Label htmlFor="attendeeSortDirection">Sort Direction</Label>
-              <Select 
-                value={formData.attendeeSortDirection || 'asc'} 
+              <Select
+                value={formData.attendeeSortDirection || 'asc'}
                 onValueChange={(value) => onInputChange("attendeeSortDirection", value)}
               >
                 <SelectTrigger>
@@ -192,11 +192,11 @@ export const GeneralTab = memo(function GeneralTab({ formData, onInputChange }: 
               </Select>
             </div>
           </div>
-          
+
           <div>
             <Label htmlFor="customFieldColumns">Custom Field Columns (Desktop)</Label>
-            <Select 
-              value={String(formData.customFieldColumns || DEFAULT_CUSTOM_FIELD_COLUMNS)} 
+            <Select
+              value={String(formData.customFieldColumns || DEFAULT_CUSTOM_FIELD_COLUMNS)}
               onValueChange={(value) => onInputChange("customFieldColumns", parseInt(value))}
             >
               <SelectTrigger>
@@ -204,7 +204,7 @@ export const GeneralTab = memo(function GeneralTab({ formData, onInputChange }: 
               </SelectTrigger>
               <SelectContent>
                 {Array.from(
-                  { length: MAX_CUSTOM_FIELD_COLUMNS - MIN_CUSTOM_FIELD_COLUMNS + 1 }, 
+                  { length: MAX_CUSTOM_FIELD_COLUMNS - MIN_CUSTOM_FIELD_COLUMNS + 1 },
                   (_, i) => MIN_CUSTOM_FIELD_COLUMNS + i
                 ).map((num) => (
                   <SelectItem key={num} value={String(num)}>
@@ -220,14 +220,5 @@ export const GeneralTab = memo(function GeneralTab({ formData, onInputChange }: 
         </CardContent>
       </Card>
     </div>
-  );
-}, (prevProps, nextProps) => {
-  // Custom comparison for optimization
-  return (
-    prevProps.formData.eventName === nextProps.formData.eventName &&
-    prevProps.formData.eventDate === nextProps.formData.eventDate &&
-    prevProps.formData.eventLocation === nextProps.formData.eventLocation &&
-    prevProps.formData.forceFirstNameUppercase === nextProps.formData.forceFirstNameUppercase &&
-    prevProps.formData.forceLastNameUppercase === nextProps.formData.forceLastNameUppercase
   );
 });

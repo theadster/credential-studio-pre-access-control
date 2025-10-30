@@ -17,6 +17,47 @@ interface SortableCustomFieldProps {
 }
 
 export function SortableCustomField({ field, onEdit, onDelete }: SortableCustomFieldProps) {
+  // Guard against missing field.id - render non-draggable fallback
+  if (!field.id) {
+    return (
+      <div className="flex items-center justify-between p-3 border rounded-lg bg-background opacity-50">
+        <div className="flex items-center space-x-3 flex-1">
+          <div className="p-1">
+            <GripVertical className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center space-x-2">
+              <span className="font-medium">{field.fieldName}</span>
+              <Badge variant="outline">{field.fieldType}</Badge>
+              <Badge variant="destructive" className="text-xs">No ID</Badge>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center space-x-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => onEdit(field)}
+          >
+            <Edit className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-destructive"
+            disabled
+            title="Cannot delete field without ID"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Normal draggable version for fields with valid IDs
   const {
     attributes,
     listeners,
@@ -24,7 +65,7 @@ export function SortableCustomField({ field, onEdit, onDelete }: SortableCustomF
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: field.id! });
+  } = useSortable({ id: field.id });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -36,9 +77,8 @@ export function SortableCustomField({ field, onEdit, onDelete }: SortableCustomF
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-center justify-between p-3 border rounded-lg bg-background ${
-        isDragging ? 'shadow-lg' : ''
-      }`}
+      className={`flex items-center justify-between p-3 border rounded-lg bg-background ${isDragging ? 'shadow-lg' : ''
+        }`}
     >
       <div className="flex items-center space-x-3 flex-1">
         <div

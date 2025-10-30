@@ -29,9 +29,9 @@ export function validateJSON(jsonString: string): { valid: boolean; error?: stri
     JSON.parse(jsonString);
     return { valid: true };
   } catch (e) {
-    return { 
-      valid: false, 
-      error: e instanceof Error ? e.message : 'Invalid JSON format' 
+    return {
+      valid: false,
+      error: e instanceof Error ? e.message : 'Invalid JSON format'
     };
   }
 }
@@ -60,13 +60,14 @@ export function validateSwitchboardRequestBody(body: string): { valid: boolean; 
 
   // Check for required template_id placeholder
   if (!body.includes('{{template_id}}')) {
-    return { 
-      valid: false, 
-      error: 'Request body must include {{template_id}} placeholder for the Switchboard template ID' 
+    return {
+      valid: false,
+      error: 'Request body must include {{template_id}} placeholder for the Switchboard template ID'
     };
   }
 
   // Validate that it's an object (not array or primitive)
+  // Wrap JSON.parse in try/catch for defensive error handling
   try {
     const parsed = JSON.parse(body);
     if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
@@ -75,10 +76,11 @@ export function validateSwitchboardRequestBody(body: string): { valid: boolean; 
         error: 'Request body must be a JSON object'
       };
     }
-  } catch (e) {
+  } catch (error) {
+    // Handle any parsing errors defensively
     return {
       valid: false,
-      error: 'Failed to parse request body'
+      error: 'Request body must be a valid JSON object'
     };
   }
 
@@ -93,7 +95,7 @@ export function validateSwitchboardRequestBody(body: string): { valid: boolean; 
  */
 export function validateEventSettings(settings: any): { valid: boolean; error?: string } {
   const requiredFields = ['eventName', 'eventDate', 'eventLocation'];
-  
+
   for (const field of requiredFields) {
     if (!settings[field] || settings[field].trim() === '') {
       return {
@@ -190,9 +192,9 @@ export function validateFieldMapping(mapping: any): { valid: boolean; error?: st
 
   // Validate JSON variable name format (must be valid JavaScript identifier)
   if (!/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(mapping.jsonVariable)) {
-    return { 
-      valid: false, 
-      error: 'JSON variable must be a valid identifier (letters, numbers, underscores, $)' 
+    return {
+      valid: false,
+      error: 'JSON variable must be a valid identifier (letters, numbers, underscores, $)'
     };
   }
 
