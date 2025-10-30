@@ -110,18 +110,151 @@ docs/
 
 ## File Naming Conventions
 
-### General Rules
+### Documentation Files
 - Use UPPERCASE for documentation files
 - Use underscores to separate words
 - Be descriptive but concise
 - Include the type of document (SUMMARY, GUIDE, FIX, etc.)
 
-### Examples
+**Examples:**
 - ✅ `CREDENTIAL_GENERATION_FIXES_SUMMARY.md`
 - ✅ `SWITCHBOARD_CONFIGURATION_GUIDE.md`
 - ✅ `CUSTOM_FIELD_API_TESTS_SUMMARY.md`
 - ❌ `fix.md` (too vague)
 - ❌ `documentation.md` (not descriptive)
+
+### Code File Naming Conventions
+
+The project uses a **mixed convention** depending on file type and location:
+
+#### Component Files (Root Level)
+- **Format:** PascalCase for standalone components
+- **Location:** `src/components/`
+- **Examples:**
+  - ✅ `AttendeeForm.tsx`
+  - ✅ `DeleteUserDialog.tsx`
+  - ✅ `LogsExportDialog.tsx`
+  - ✅ `RoleCard.tsx`
+  - ✅ `ErrorBoundary.tsx`
+
+#### Component Folders (Feature Components)
+- **Format:** PascalCase folder names with organized subcomponents
+- **Location:** `src/components/[FeatureName]/`
+- **Pattern:** Feature components are organized in folders with an `index.tsx` export
+- **Examples:**
+  ```
+  src/components/AttendeeForm/
+    ├── index.tsx                      (main export)
+    ├── BasicInformationSection.tsx    (PascalCase subcomponents)
+    ├── CustomFieldInput.tsx
+    ├── CustomFieldsSection.tsx
+    ├── FormActions.tsx
+    └── PhotoUploadSection.tsx
+
+  src/components/EventSettingsForm/
+    ├── index.tsx
+    ├── BarcodeTab.tsx                 (PascalCase subcomponents)
+    ├── CustomFieldForm.tsx
+    ├── GeneralTab.tsx
+    ├── constants.ts                   (camelCase utilities)
+    ├── types.ts                       (camelCase types)
+    ├── useEventSettingsForm.ts        (camelCase hooks)
+    └── utils.ts                       (camelCase utilities)
+  ```
+
+#### UI Components (shadcn/ui)
+- **Format:** kebab-case (lowercase with hyphens)
+- **Location:** `src/components/ui/`
+- **Examples:**
+  - ✅ `alert-dialog.tsx`
+  - ✅ `dropdown-menu.tsx`
+  - ✅ `input-otp.tsx`
+  - ✅ `toggle-group.tsx`
+  - ✅ `button.tsx`
+
+#### Hook Files
+- **Format:** camelCase with `use` prefix
+- **Location:** `src/hooks/` or within component folders
+- **Examples:**
+  - ✅ `useAttendees.ts`
+  - ✅ `useEntityCRUD.ts`
+  - ✅ `useEventSettingsForm.ts`
+  - ✅ `useDebouncedCallback.ts`
+
+#### Utility Files
+- **Format:** camelCase
+- **Location:** `src/lib/` or within component folders
+- **Examples:**
+  - ✅ `sanitize.ts`
+  - ✅ `errorMessages.ts`
+  - ✅ `logger.ts`
+  - ✅ `utils.ts`
+  - ✅ `permissions.ts`
+
+#### Type Files
+- **Format:** camelCase
+- **Location:** `src/types/` or within component folders
+- **Examples:**
+  - ✅ `dashboard.ts`
+  - ✅ `types.ts`
+  - ✅ `attendee.ts`
+
+#### Constant Files
+- **Format:** camelCase
+- **Location:** `src/constants/` or within component folders
+- **Examples:**
+  - ✅ `dashboard.ts`
+  - ✅ `constants.ts`
+
+#### Reducer Files
+- **Format:** camelCase with `Reducer` suffix
+- **Location:** `src/reducers/`
+- **Examples:**
+  - ✅ `attendeesReducer.ts`
+  - ✅ `usersReducer.ts`
+
+#### API Route Files
+- **Format:** kebab-case
+- **Location:** `src/pages/api/`
+- **Examples:**
+  - ✅ `bulk-delete.ts`
+  - ✅ `bulk-edit.ts`
+  - ✅ `generate-credential.ts`
+
+#### Page Files
+- **Format:** kebab-case
+- **Location:** `src/pages/`
+- **Examples:**
+  - ✅ `dashboard.tsx`
+  - ✅ `forgot-password.tsx`
+  - ✅ `reset-password.tsx`
+
+### Quick Reference Table
+
+| File Type | Convention | Location | Example |
+|-----------|-----------|----------|---------|
+| React Components | PascalCase | `src/components/` | `AttendeeForm.tsx` |
+| Feature Folders | PascalCase | `src/components/` | `AttendeeForm/` |
+| UI Components | kebab-case | `src/components/ui/` | `alert-dialog.tsx` |
+| Hooks | camelCase + `use` | `src/hooks/` | `useAttendees.ts` |
+| Utilities | camelCase | `src/lib/` | `sanitize.ts` |
+| Types | camelCase | `src/types/` | `dashboard.ts` |
+| Constants | camelCase | `src/constants/` | `constants.ts` |
+| Reducers | camelCase + `Reducer` | `src/reducers/` | `attendeesReducer.ts` |
+| API Routes | kebab-case | `src/pages/api/` | `bulk-delete.ts` |
+| Pages | kebab-case | `src/pages/` | `dashboard.tsx` |
+| Documentation | UPPERCASE | `docs/` | `SETUP_GUIDE.md` |
+
+### Key Takeaways
+
+- **React Components** = PascalCase (`.tsx` files that export components)
+- **UI Library Components** = kebab-case (shadcn/ui convention)
+- **Utilities, hooks, types, constants** = camelCase
+- **Feature folders** = PascalCase (e.g., `AttendeeForm/`, `EventSettingsForm/`)
+- **API routes and pages** = kebab-case
+- **Documentation** = UPPERCASE with underscores
+
+**Always check the existing folder structure before creating new files to maintain consistency.**
 
 ## What NOT to Put in Project Root
 
