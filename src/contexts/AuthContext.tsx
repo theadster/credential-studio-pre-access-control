@@ -5,7 +5,7 @@ import { useSweetAlert } from "@/hooks/useSweetAlert";
 import { useRouter } from 'next/router';
 import { TokenRefreshManager } from '@/lib/tokenRefresh';
 import { createTabCoordinator, TabCoordinator } from '@/lib/tabCoordinator';
-import { validateEmail } from '@/lib/validation';
+import { isValidEmail } from '@/lib/validation';
 import { isUnauthorizedTeamError } from '@/lib/apiErrorHandler';
 import { escapeHtml } from '@/lib/utils';
 
@@ -557,7 +557,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
 
       // Validate email format before making API call
-      validateEmail(email);
+      if (!isValidEmail(email)) {
+        throw new Error('Invalid email format');
+      }
 
       // Reset notification flag on new login
       setHasShownExpirationNotification(false);
