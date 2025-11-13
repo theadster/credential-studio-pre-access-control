@@ -2,7 +2,7 @@
  * Tests for HTML Sanitization Utilities
  */
 
-import { sanitizeHTML, sanitizeHTMLTemplate, validateHTMLSafety } from '../sanitization';
+import { sanitizeHTML, sanitizeHTMLTemplate, validateHTMLSafety } from '@/lib/sanitization';
 
 describe('sanitizeHTML', () => {
   it('should remove script tags', () => {

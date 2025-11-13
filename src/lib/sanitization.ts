@@ -7,18 +7,52 @@
 
 import DOMPurify from 'dompurify';
 
-// Create a DOMPurify instance that works in both server and client
-let purify: typeof DOMPurify;
+/**
+ * Server-side HTML sanitization using regex patterns
+ * This is a fallback for server-side rendering where DOMPurify can't run
+ */
+function sanitizeHTMLServer(html: string): string {
+  if (!html || typeof html !== 'string') {
+    return '';
+  }
 
-if (typeof window !== 'undefined') {
-  // Client-side: use the browser's window
-  purify = DOMPurify;
-} else {
-  // Server-side: create a JSDOM window and use it with DOMPurify
-  // Using dynamic require to avoid bundling jsdom for client
-  const { JSDOM } = require('jsdom');
-  const window = new JSDOM('').window;
-  purify = DOMPurify(window as unknown as Window);
+  let sanitized = html;
+
+  // Remove script tags and their content
+  sanitized = sanitized.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+  
+  // Remove event handlers (onclick, onerror, etc.)
+  sanitized = sanitized.replace(/\s*on\w+\s*=\s*["'][^"']*["']/gi, '');
+  sanitized = sanitized.replace(/\s*on\w+\s*=\s*[^\s>]*/gi, '');
+  
+  // Remove javascript: protocol
+  sanitized = sanitized.replace(/javascript:/gi, '');
+  
+  // Remove data: protocol for potential data exfiltration
+  sanitized = sanitized.replace(/data:text\/html/gi, '');
+  
+  // Remove dangerous tags
+  sanitized = sanitized.replace(/<iframe[^>]*>.*?<\/iframe>/gi, '');
+  sanitized = sanitized.replace(/<object[^>]*>.*?<\/object>/gi, '');
+  sanitized = sanitized.replace(/<embed[^>]*>/gi, '');
+  sanitized = sanitized.replace(/<applet[^>]*>.*?<\/applet>/gi, '');
+  
+  // Remove style tags (can be used for CSS-based attacks)
+  sanitized = sanitized.replace(/<style[^>]*>.*?<\/style>/gi, '');
+  
+  return sanitized;
+}
+
+/**
+ * Get the appropriate sanitizer based on environment
+ */
+function getSanitizer() {
+  if (typeof window !== 'undefined') {
+    // Client-side: use DOMPurify with browser DOM
+    return DOMPurify;
+  }
+  // Server-side: return null, we'll use regex-based sanitization
+  return null;
 }
 
 /**
@@ -39,26 +73,34 @@ export function sanitizeHTML(html: string): string {
     return '';
   }
 
-  return purify.sanitize(html, {
-    // Allow only safe HTML tags for templates
-    // Note: 'style' tag removed to prevent CSS-based attack vectors
-    // Use inline style attribute instead for styling needs
-    ALLOWED_TAGS: [
-      'html', 'head', 'body', 'title',
-      'div', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-      'img', 'br', 'hr', 'a', 'strong', 'em', 'u', 'b', 'i',
-      'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tr', 'td', 'th'
-    ],
-    // Allow only safe attributes
-    ALLOWED_ATTR: [
-      'class', 'id', 'src', 'alt', 'style', 'href', 'title',
-      'width', 'height', 'colspan', 'rowspan'
-    ],
-    // Disallow data attributes to prevent data exfiltration
-    ALLOW_DATA_ATTR: false,
-    // Keep safe URLs only
-    ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
-  });
+  const purify = getSanitizer();
+  
+  if (purify) {
+    // Client-side: use DOMPurify
+    return purify.sanitize(html, {
+      // Allow only safe HTML tags for templates
+      // Note: 'style' tag removed to prevent CSS-based attack vectors
+      // Use inline style attribute instead for styling needs
+      ALLOWED_TAGS: [
+        'html', 'head', 'body', 'title',
+        'div', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+        'img', 'br', 'hr', 'a', 'strong', 'em', 'u', 'b', 'i',
+        'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tr', 'td', 'th'
+      ],
+      // Allow only safe attributes
+      ALLOWED_ATTR: [
+        'class', 'id', 'src', 'alt', 'style', 'href', 'title',
+        'width', 'height', 'colspan', 'rowspan'
+      ],
+      // Disallow data attributes to prevent data exfiltration
+      ALLOW_DATA_ATTR: false,
+      // Keep safe URLs only
+      ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
+    });
+  }
+  
+  // Server-side: use regex-based sanitization
+  return sanitizeHTMLServer(html);
 }
 
 /**
@@ -146,12 +188,26 @@ export function validateHTMLSafety(html: string): { valid: boolean; error?: stri
 export function sanitizeInput(value: string): string {
   if (!value) return '';
   
-  // Use DOMPurify to strip all HTML tags and scripts, returning only text
-  return purify.sanitize(value, {
-    ALLOWED_TAGS: [], // No HTML tags allowed - text only
-    ALLOWED_ATTR: [], // No attributes allowed
-    KEEP_CONTENT: true, // Keep text content when removing tags
-  });
+  const purify = getSanitizer();
+  
+  if (purify) {
+    // Client-side: use DOMPurify to strip all HTML tags and scripts
+    return purify.sanitize(value, {
+      ALLOWED_TAGS: [], // No HTML tags allowed - text only
+      ALLOWED_ATTR: [], // No attributes allowed
+      KEEP_CONTENT: true, // Keep text content when removing tags
+    });
+  }
+  
+  // Server-side: strip HTML tags using regex
+  return value
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<[^>]+>/g, '') // Remove all HTML tags
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#x27;/g, "'");
 }
 
 /**
@@ -180,12 +236,22 @@ export function sanitizeInputFinal(value: string): string {
 export function sanitizeEmail(value: string): string {
   if (!value) return '';
   
-  // First, use DOMPurify to strip all HTML and scripts
-  const stripped = purify.sanitize(value, {
-    ALLOWED_TAGS: [], // No HTML tags allowed
-    ALLOWED_ATTR: [], // No attributes allowed
-    KEEP_CONTENT: true, // Keep text content
-  });
+  const purify = getSanitizer();
+  let stripped: string;
+  
+  if (purify) {
+    // Client-side: use DOMPurify to strip all HTML and scripts
+    stripped = purify.sanitize(value, {
+      ALLOWED_TAGS: [], // No HTML tags allowed
+      ALLOWED_ATTR: [], // No attributes allowed
+      KEEP_CONTENT: true, // Keep text content
+    });
+  } else {
+    // Server-side: strip HTML tags using regex
+    stripped = value
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      .replace(/<[^>]+>/g, '');
+  }
   
   // Normalize: lowercase and trim
   const normalized = stripped.toLowerCase().trim();

@@ -54,23 +54,8 @@ const nextConfig = {
     if (!context.isServer && context.dev) {
       config.optimization.minimize = false;
     }
-    
-    // Exclude jsdom from client bundle (server-only)
-    if (!context.isServer) {
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        fs: false,
-        net: false,
-        tls: false,
-        child_process: false,
-      };
-    }
-    
     return config;
-  },
-  
-  // Server-only packages configuration
-  serverExternalPackages: ['jsdom']
+  }
 };
 
 export default nextConfig;

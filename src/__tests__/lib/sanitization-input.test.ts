@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sanitizeInput, sanitizeInputFinal, sanitizeEmail } from '../sanitization';
+import { sanitizeInput, sanitizeInputFinal, sanitizeEmail } from '@/lib/sanitization';
 
 describe('sanitizeInput', () => {
   it('should strip all HTML tags', () => {
