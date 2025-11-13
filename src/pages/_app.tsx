@@ -4,6 +4,7 @@ import '../styles/globals.css';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
+import { initializeSanitizer } from '@/lib/sanitization';
 
 export default function App({ Component, pageProps }: AppProps) {
   const [mounted, setMounted] = useState(false);
@@ -17,6 +18,10 @@ export default function App({ Component, pageProps }: AppProps) {
     } else {
       document.documentElement.classList.add('light');
     }
+    
+    // Initialize DOMPurify on client side
+    initializeSanitizer();
+    
     setMounted(true);
   }, []);
 

@@ -5,7 +5,13 @@
  * Used for user inputs, HTML templates, and form fields.
  */
 
-import DOMPurify from 'dompurify';
+// DOMPurify type for client-side usage
+type DOMPurifyInstance = {
+  sanitize: (source: string | Node, config?: any) => string;
+};
+
+// Cache for DOMPurify instance (client-side only)
+let domPurifyInstance: DOMPurifyInstance | null = null;
 
 /**
  * Server-side HTML sanitization using regex patterns
@@ -45,14 +51,36 @@ function sanitizeHTMLServer(html: string): string {
 
 /**
  * Get the appropriate sanitizer based on environment
+ * Dynamically imports DOMPurify only on the client side
  */
-function getSanitizer() {
-  if (typeof window !== 'undefined') {
-    // Client-side: use DOMPurify with browser DOM
-    return DOMPurify;
+async function getSanitizer(): Promise<DOMPurifyInstance | null> {
+  if (typeof window === 'undefined') {
+    // Server-side: return null, we'll use regex-based sanitization
+    return null;
   }
-  // Server-side: return null, we'll use regex-based sanitization
-  return null;
+  
+  // Client-side: dynamically import DOMPurify if not already loaded
+  if (!domPurifyInstance) {
+    try {
+      const DOMPurify = await import('dompurify');
+      domPurifyInstance = DOMPurify.default;
+    } catch (error) {
+      console.error('Failed to load DOMPurify:', error);
+      return null;
+    }
+  }
+  
+  return domPurifyInstance;
+}
+
+/**
+ * Synchronous version for client-side only (assumes DOMPurify is already loaded)
+ */
+function getSanitizerSync(): DOMPurifyInstance | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  return domPurifyInstance;
 }
 
 /**
@@ -73,7 +101,7 @@ export function sanitizeHTML(html: string): string {
     return '';
   }
 
-  const purify = getSanitizer();
+  const purify = getSanitizerSync();
   
   if (purify) {
     // Client-side: use DOMPurify
@@ -99,8 +127,18 @@ export function sanitizeHTML(html: string): string {
     });
   }
   
-  // Server-side: use regex-based sanitization
+  // Server-side or DOMPurify not loaded: use regex-based sanitization
   return sanitizeHTMLServer(html);
+}
+
+/**
+ * Initializes DOMPurify on the client side
+ * Call this early in your app lifecycle (e.g., in _app.tsx)
+ */
+export async function initializeSanitizer(): Promise<void> {
+  if (typeof window !== 'undefined' && !domPurifyInstance) {
+    await getSanitizer();
+  }
 }
 
 /**
@@ -188,7 +226,7 @@ export function validateHTMLSafety(html: string): { valid: boolean; error?: stri
 export function sanitizeInput(value: string): string {
   if (!value) return '';
   
-  const purify = getSanitizer();
+  const purify = getSanitizerSync();
   
   if (purify) {
     // Client-side: use DOMPurify to strip all HTML tags and scripts
@@ -199,7 +237,7 @@ export function sanitizeInput(value: string): string {
     });
   }
   
-  // Server-side: strip HTML tags using regex
+  // Server-side or DOMPurify not loaded: strip HTML tags using regex
   return value
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
     .replace(/<[^>]+>/g, '') // Remove all HTML tags
@@ -236,7 +274,7 @@ export function sanitizeInputFinal(value: string): string {
 export function sanitizeEmail(value: string): string {
   if (!value) return '';
   
-  const purify = getSanitizer();
+  const purify = getSanitizerSync();
   let stripped: string;
   
   if (purify) {
@@ -247,7 +285,7 @@ export function sanitizeEmail(value: string): string {
       KEEP_CONTENT: true, // Keep text content
     });
   } else {
-    // Server-side: strip HTML tags using regex
+    // Server-side or DOMPurify not loaded: strip HTML tags using regex
     stripped = value
       .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
       .replace(/<[^>]+>/g, '');
