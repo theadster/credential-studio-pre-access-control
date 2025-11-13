@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { databases } from '@/lib/appwrite';
+import { createSessionClient } from '@/lib/appwrite';
 import { Query } from 'appwrite';
 
 export default async function handler(
@@ -16,6 +16,9 @@ export default async function handler(
     if (!barcode || typeof barcode !== 'string') {
       return res.status(400).json({ error: 'Barcode parameter is required' });
     }
+
+    // Create session client with user's authentication
+    const { databases } = createSessionClient(req);
 
     const databaseId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
     const collectionId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID!;

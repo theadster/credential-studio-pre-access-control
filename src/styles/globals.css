@@ -1,9 +1,9 @@
+/* SweetAlert2 Custom Styles */
+@import './sweetalert-custom.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-/* SweetAlert2 Custom Styles */
-@import './sweetalert-custom.css';
 
 :root {
   --mode: light;

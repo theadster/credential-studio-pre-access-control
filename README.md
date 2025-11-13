@@ -2,7 +2,7 @@
 
 This is a comprehensive event credential management application that includes:
 
-1. Next.js with Pages Router
+1. Next.js 16 with Pages Router and Turbopack
 2. Tailwind CSS Framework
 3. Context for global state management
 4. Appwrite for backend services
@@ -185,8 +185,10 @@ Open [http://localhost:3000](http://localhost:3000) in your browser to see the a
 ### Common Commands
 
 ```bash
-npm run dev          # Start development server
-npm run build        # Build for production
+npm run dev          # Start development server with Turbopack
+npm run build        # Build for production with Turbopack
+npm run build:webpack # Build with Webpack (fallback option)
+npm run clean        # Clean build artifacts (.next directory)
 npm run start        # Start production server
 npm run lint         # Run ESLint
 ```
@@ -204,17 +206,45 @@ If migrating from an existing Supabase instance, see `MIGRATION_QUICK_START.md` 
 
 ## Technology Stack
 
-- **Frontend**: Next.js 15.5.2, React 19.1.1, TypeScript
+- **Frontend**: Next.js 16.0.3, React 19.2.0, TypeScript 5.9.3
+- **Build System**: Turbopack (default bundler for faster builds and HMR)
 - **Styling**: Tailwind CSS, shadcn/ui, Framer Motion
 - **Backend**: Appwrite (Auth, Database, Realtime)
 - **Image Management**: Cloudinary
 - **Printing**: Switchboard Canvas API
+
+## Next.js 16 Migration
+
+This application has been migrated to Next.js 16 with Turbopack as the default bundler. Key changes include:
+
+- **Turbopack**: Faster development server startup and Hot Module Replacement (HMR)
+- **React 19**: Updated to the latest React version with improved performance
+- **Image Configuration**: Updated to use `remotePatterns` instead of deprecated `domains`
+- **Build Performance**: Significant improvements in build times and development experience
+
+For detailed migration information, see `.kiro/specs/nextjs-16-migration/` directory.
+
+### Turbopack Benefits
+
+- Faster development server startup (20-30% improvement)
+- Improved Hot Module Replacement speed (30-50% improvement)
+- Better build performance with incremental compilation
+- Native support for modern JavaScript features
+
+### Webpack Fallback
+
+If you encounter any issues with Turbopack, you can use the Webpack fallback:
+
+```bash
+npm run build:webpack
+```
 
 ## Learn More
 
 To learn more about the technologies used in this application:
 
 - [Next.js Documentation](https://nextjs.org/docs)
+- [Turbopack Documentation](https://nextjs.org/docs/architecture/turbopack)
 - [Appwrite Documentation](https://appwrite.io/docs)
 - [Tailwind CSS Documentation](https://tailwindcss.com/docs)
 - [shadcn/ui Documentation](https://ui.shadcn.com)

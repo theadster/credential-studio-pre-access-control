@@ -229,6 +229,51 @@ The project uses a **mixed convention** depending on file type and location:
   - ✅ `forgot-password.tsx`
   - ✅ `reset-password.tsx`
 
+#### Test Files
+- **Format:** `*.test.ts` or `*.test.tsx`
+- **Location:** `src/__tests__/` (mirrors source structure)
+- **Pattern:** Test files are organized in a dedicated `__tests__` directory that mirrors the source code structure
+- **Examples:**
+  ```
+  src/__tests__/
+  ├── api/                           (API route tests)
+  │   ├── attendees/
+  │   │   ├── index.test.ts
+  │   │   ├── bulk-edit.test.ts
+  │   │   └── id/
+  │   │       └── generate-credential.test.ts
+  │   ├── users/
+  │   │   ├── index.test.ts
+  │   │   └── search.test.ts
+  │   └── roles/
+  │       └── index.test.ts
+  ├── components/                    (Component tests)
+  │   ├── AttendeeForm/
+  │   │   └── BasicInformationSection.test.tsx
+  │   └── UserForm/
+  │       └── RoleSelector.test.tsx
+  ├── lib/                          (Utility tests)
+  │   ├── permissions.test.ts
+  │   └── sanitize.test.ts
+  └── hooks/                        (Hook tests)
+      └── useAttendees.test.ts
+  ```
+
+**Important Test File Rules:**
+- ❌ **NEVER** place test files in `src/pages/` directory
+- ❌ **NEVER** place test files in `src/pages/api/` directory
+- ❌ **NEVER** use `__tests__` folders inside `src/pages/` or `src/pages/api/`
+- ✅ **ALWAYS** place test files in `src/__tests__/` directory
+- ✅ **ALWAYS** mirror the source structure in `__tests__/`
+- ✅ Use `.test.ts` or `.test.tsx` extension (not `.spec.ts`)
+
+**Why This Matters:**
+- Next.js treats files in `src/pages/` as routes
+- Test files in API routes cause build errors
+- Separate test directory prevents route pollution
+- Cleaner builds and faster compilation
+- Better IDE support and organization
+
 ### Quick Reference Table
 
 | File Type | Convention | Location | Example |
@@ -243,6 +288,7 @@ The project uses a **mixed convention** depending on file type and location:
 | Reducers | camelCase + `Reducer` | `src/reducers/` | `attendeesReducer.ts` |
 | API Routes | kebab-case | `src/pages/api/` | `bulk-delete.ts` |
 | Pages | kebab-case | `src/pages/` | `dashboard.tsx` |
+| Test Files | `*.test.ts(x)` | `src/__tests__/` | `index.test.ts` |
 | Documentation | UPPERCASE | `docs/` | `SETUP_GUIDE.md` |
 
 ### Key Takeaways
@@ -252,9 +298,109 @@ The project uses a **mixed convention** depending on file type and location:
 - **Utilities, hooks, types, constants** = camelCase
 - **Feature folders** = PascalCase (e.g., `AttendeeForm/`, `EventSettingsForm/`)
 - **API routes and pages** = kebab-case
+- **Test files** = `*.test.ts` or `*.test.tsx` in `src/__tests__/` (NEVER in `src/pages/`)
 - **Documentation** = UPPERCASE with underscores
 
 **Always check the existing folder structure before creating new files to maintain consistency.**
+
+## Test File Organization (CRITICAL)
+
+### Test File Location Rules
+
+**✅ CORRECT Test Locations:**
+
+1. **API Route Tests** → `src/__tests__/api/`
+   ```
+   src/__tests__/api/
+   ├── attendees/
+   │   ├── index.test.ts              ✅ Tests for src/pages/api/attendees/index.ts
+   │   ├── bulk-edit.test.ts          ✅ Tests for src/pages/api/attendees/bulk-edit.ts
+   │   └── id/
+   │       └── generate-credential.test.ts  ✅ Tests for src/pages/api/attendees/[id]/generate-credential.ts
+   ```
+
+2. **Component Tests** → `src/__tests__/components/`
+   ```
+   src/__tests__/components/
+   ├── AttendeeForm/
+   │   └── BasicInformationSection.test.tsx  ✅ Tests for src/components/AttendeeForm/BasicInformationSection.tsx
+   ```
+
+3. **Utility Tests** → `src/__tests__/lib/`
+   ```
+   src/__tests__/lib/
+   ├── permissions.test.ts            ✅ Tests for src/lib/permissions.ts
+   └── sanitize.test.ts               ✅ Tests for src/lib/sanitize.ts
+   ```
+
+4. **Hook Tests** → `src/__tests__/hooks/`
+   ```
+   src/__tests__/hooks/
+   └── useAttendees.test.ts           ✅ Tests for src/hooks/useAttendees.ts
+   ```
+
+**❌ INCORRECT Test Locations (NEVER DO THIS):**
+
+```
+src/pages/api/attendees/__tests__/     ❌ WRONG - Causes build errors
+src/pages/api/attendees/index.test.ts  ❌ WRONG - Treated as API route
+src/components/AttendeeForm/__tests__/ ❌ WRONG - Use src/__tests__/components/ instead
+```
+
+### Migration Guide for Existing Tests
+
+If you find test files in the wrong location:
+
+1. **Identify the test file location**
+   ```bash
+   # Find misplaced tests
+   find src/pages -name "*.test.ts" -o -name "*.test.tsx"
+   ```
+
+2. **Create the correct directory structure**
+   ```bash
+   mkdir -p src/__tests__/api/[feature-name]
+   ```
+
+3. **Move the test file**
+   ```bash
+   mv src/pages/api/[feature]/__tests__/test.ts src/__tests__/api/[feature]/test.ts
+   ```
+
+4. **Remove empty directories**
+   ```bash
+   find src/pages -type d -name "__tests__" -empty -delete
+   ```
+
+5. **Clean and rebuild**
+   ```bash
+   npm run clean
+   npm run build
+   ```
+
+### Test File Naming
+
+- **Format:** `[filename].test.ts` or `[filename].test.tsx`
+- **Match source file:** Test file should mirror the source file name
+- **Examples:**
+  - Source: `src/pages/api/users/index.ts` → Test: `src/__tests__/api/users/index.test.ts`
+  - Source: `src/lib/permissions.ts` → Test: `src/__tests__/lib/permissions.test.ts`
+  - Source: `src/components/UserForm.tsx` → Test: `src/__tests__/components/UserForm.test.tsx`
+
+### Test Types
+
+- **Unit Tests:** `*.test.ts` - Test individual functions/components
+- **Integration Tests:** `*.integration.test.ts` - Test multiple components together
+- **Performance Tests:** `*.performance.test.ts` - Test performance benchmarks
+
+### Why This Structure?
+
+1. **Prevents Build Errors:** Next.js won't treat tests as routes
+2. **Clean Builds:** Test files excluded from production bundle
+3. **Better Organization:** Clear separation between source and tests
+4. **Faster Builds:** Fewer files to process during compilation
+5. **IDE Support:** Better autocomplete and navigation
+6. **Consistent Structure:** Easy to find tests for any source file
 
 ## What NOT to Put in Project Root
 
