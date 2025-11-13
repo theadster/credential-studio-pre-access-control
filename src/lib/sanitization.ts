@@ -5,7 +5,21 @@
  * Used for user inputs, HTML templates, and form fields.
  */
 
-import DOMPurify from 'isomorphic-dompurify';
+import DOMPurify from 'dompurify';
+
+// Create a DOMPurify instance that works in both server and client
+let purify: typeof DOMPurify;
+
+if (typeof window !== 'undefined') {
+  // Client-side: use the browser's window
+  purify = DOMPurify;
+} else {
+  // Server-side: create a JSDOM window and use it with DOMPurify
+  // Using dynamic require to avoid bundling jsdom for client
+  const { JSDOM } = require('jsdom');
+  const window = new JSDOM('').window;
+  purify = DOMPurify(window as unknown as Window);
+}
 
 /**
  * Sanitizes HTML content to prevent XSS attacks
@@ -25,7 +39,7 @@ export function sanitizeHTML(html: string): string {
     return '';
   }
 
-  return DOMPurify.sanitize(html, {
+  return purify.sanitize(html, {
     // Allow only safe HTML tags for templates
     // Note: 'style' tag removed to prevent CSS-based attack vectors
     // Use inline style attribute instead for styling needs
@@ -133,7 +147,7 @@ export function sanitizeInput(value: string): string {
   if (!value) return '';
   
   // Use DOMPurify to strip all HTML tags and scripts, returning only text
-  return DOMPurify.sanitize(value, {
+  return purify.sanitize(value, {
     ALLOWED_TAGS: [], // No HTML tags allowed - text only
     ALLOWED_ATTR: [], // No attributes allowed
     KEEP_CONTENT: true, // Keep text content when removing tags
@@ -167,7 +181,7 @@ export function sanitizeEmail(value: string): string {
   if (!value) return '';
   
   // First, use DOMPurify to strip all HTML and scripts
-  const stripped = DOMPurify.sanitize(value, {
+  const stripped = purify.sanitize(value, {
     ALLOWED_TAGS: [], // No HTML tags allowed
     ALLOWED_ATTR: [], // No attributes allowed
     KEEP_CONTENT: true, // Keep text content

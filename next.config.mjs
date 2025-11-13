@@ -8,15 +8,6 @@ const nextConfig = {
   // Exclude test files from pages directory
   pageExtensions: ['tsx', 'ts', 'jsx', 'js'].map(ext => ext),
   
-  // Exclude test files and directories from build
-  excludeFile: (filePath) => {
-    return filePath.includes('__tests__') || 
-           filePath.endsWith('.test.ts') || 
-           filePath.endsWith('.test.tsx') ||
-           filePath.endsWith('.test.js') ||
-           filePath.endsWith('.test.jsx');
-  },
-  
   // Turbopack configuration (promoted from experimental in Next.js 16)
   turbopack: {
     resolveExtensions: ['.mdx', '.tsx', '.ts', '.jsx', '.js', '.json'],
@@ -63,8 +54,23 @@ const nextConfig = {
     if (!context.isServer && context.dev) {
       config.optimization.minimize = false;
     }
+    
+    // Exclude jsdom from client bundle (server-only)
+    if (!context.isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        net: false,
+        tls: false,
+        child_process: false,
+      };
+    }
+    
     return config;
-  }
+  },
+  
+  // Server-only packages configuration
+  serverExternalPackages: ['jsdom']
 };
 
 export default nextConfig;
