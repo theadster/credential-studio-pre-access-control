@@ -56,6 +56,8 @@ export const BarcodeTab = memo(function BarcodeTab({ formData, onInputChange }: 
                 max={MAX_BARCODE_LENGTH}
                 value={formData.barcodeLength}
                 onChange={(e) => onInputChange("barcodeLength", parseInt(e.target.value, 10))}
+                autoComplete="off"
+                data-form-type="other"
               />
               <p className="text-xs text-muted-foreground mt-1">
                 Length must be between {MIN_BARCODE_LENGTH} and {MAX_BARCODE_LENGTH} characters

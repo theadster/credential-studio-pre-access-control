@@ -34,6 +34,8 @@ export const GeneralTab = memo(function GeneralTab({ formData, onInputChange }: 
                 onChange={(e) => onInputChange("eventName", e.target.value)}
                 placeholder="Enter event name"
                 required
+                autoComplete="off"
+                data-form-type="other"
               />
             </div>
             <div>
@@ -44,6 +46,8 @@ export const GeneralTab = memo(function GeneralTab({ formData, onInputChange }: 
                 value={formData.eventDate}
                 onChange={(e) => onInputChange("eventDate", e.target.value)}
                 required
+                autoComplete="off"
+                data-form-type="other"
               />
             </div>
           </div>
@@ -57,6 +61,8 @@ export const GeneralTab = memo(function GeneralTab({ formData, onInputChange }: 
                 value={formData.eventTime || ""}
                 onChange={(e) => onInputChange("eventTime", e.target.value)}
                 placeholder="Select event time"
+                autoComplete="off"
+                data-form-type="other"
               />
             </div>
             <div>
@@ -87,6 +93,8 @@ export const GeneralTab = memo(function GeneralTab({ formData, onInputChange }: 
               onChange={(e) => onInputChange("eventLocation", e.target.value)}
               placeholder="Enter event location"
               required
+              autoComplete="off"
+              data-form-type="other"
             />
           </div>
 
@@ -97,6 +105,8 @@ export const GeneralTab = memo(function GeneralTab({ formData, onInputChange }: 
               value={formData.bannerImageUrl || ""}
               onChange={(e) => onInputChange("bannerImageUrl", e.target.value)}
               placeholder="https://images.unsplash.com/photo-1540575467063-178a50c2df87?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80"
+              autoComplete="off"
+              data-form-type="other"
             />
           </div>
 
@@ -107,6 +117,8 @@ export const GeneralTab = memo(function GeneralTab({ formData, onInputChange }: 
               value={formData.signInBannerUrl || ""}
               onChange={(e) => onInputChange("signInBannerUrl", e.target.value)}
               placeholder="https://images.unsplash.com/photo-1540575467063-178a50c2df87?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80"
+              autoComplete="off"
+              data-form-type="other"
             />
           </div>
         </CardContent>

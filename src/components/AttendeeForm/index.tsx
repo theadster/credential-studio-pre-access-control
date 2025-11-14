@@ -365,7 +365,7 @@ const AttendeeForm = React.memo(function AttendeeForm({
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-6" autoComplete="off" data-form-type="other">
             <div className="grid grid-cols-12 gap-6">
               {/* Photo Upload Section - Left Column */}
               <div className="col-span-3">

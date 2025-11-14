@@ -96,6 +96,8 @@ export default function UserFormFields({
           placeholder="user@example.com"
           disabled={!!user} // Don't allow email changes for existing users
           required
+          autoComplete="off"
+          data-form-type="other"
         />
       </div>
 
@@ -109,6 +111,8 @@ export default function UserFormFields({
           onChange={(e) => onChange('name', e.target.value)}
           placeholder="John Doe"
           required
+          autoComplete="off"
+          data-form-type="other"
         />
       </div>
 

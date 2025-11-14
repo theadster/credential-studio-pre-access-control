@@ -319,7 +319,7 @@ export default function RoleForm({ isOpen, onClose, onSave, role }: RoleFormProp
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6" autoComplete="off" data-form-type="other">
           {/* Basic Information */}
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -336,6 +336,8 @@ export default function RoleForm({ isOpen, onClose, onSave, role }: RoleFormProp
                   }}
                   placeholder="Enter role name"
                   className={errors.name ? "border-destructive" : ""}
+                  autoComplete="off"
+                  data-form-type="other"
                 />
                 {errors.name && (
                   <p className="text-sm text-destructive">{errors.name}</p>
@@ -348,6 +350,8 @@ export default function RoleForm({ isOpen, onClose, onSave, role }: RoleFormProp
                   value={formData.description}
                   onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                   placeholder="Brief description of the role"
+                  autoComplete="off"
+                  data-form-type="other"
                 />
               </div>
             </div>

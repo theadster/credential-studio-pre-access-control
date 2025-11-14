@@ -87,7 +87,8 @@ export function BasicInformationSection({
               )}
               required
               maxLength={FORM_LIMITS.NAME_MAX_LENGTH}
-              autoComplete="given-name"
+              autoComplete="off"
+              data-form-type="other"
               aria-label="First name"
               aria-required="true"
               aria-invalid={hasErrors && !firstName ? 'true' : 'false'}
@@ -107,7 +108,8 @@ export function BasicInformationSection({
               )}
               required
               maxLength={FORM_LIMITS.NAME_MAX_LENGTH}
-              autoComplete="family-name"
+              autoComplete="off"
+              data-form-type="other"
               aria-label="Last name"
               aria-required="true"
               aria-invalid={hasErrors && !lastName ? 'true' : 'false'}
@@ -130,6 +132,8 @@ export function BasicInformationSection({
               rows={2}
               className="resize-y"
               maxLength={FORM_LIMITS.NOTES_MAX_LENGTH}
+              autoComplete="off"
+              data-form-type="other"
               aria-label="Notes"
               aria-required="false"
             />

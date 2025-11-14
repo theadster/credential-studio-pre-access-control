@@ -187,7 +187,7 @@ export default function UserFormContainer({
           )}
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off" data-form-type="other">
           {/* Form Fields */}
           <UserFormFields
             formData={formData}

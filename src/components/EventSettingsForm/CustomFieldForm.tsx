@@ -243,7 +243,7 @@ export const CustomFieldForm = memo(function CustomFieldForm({ isOpen, field, on
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onCancel()}>
       <DialogContent className="max-w-lg max-h-[90vh] p-0 gap-0 overflow-hidden">
-        <form onSubmit={handleSubmit} className="flex flex-col max-h-[90vh]">
+        <form onSubmit={handleSubmit} className="flex flex-col max-h-[90vh]" autoComplete="off" data-form-type="other">
           <div className="px-6 pt-6 pb-4 flex-shrink-0">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
@@ -270,6 +270,8 @@ export const CustomFieldForm = memo(function CustomFieldForm({ isOpen, field, on
                 placeholder={getFieldPlaceholder(fieldData.fieldType)}
                 required
                 className="h-10"
+                autoComplete="off"
+                data-form-type="other"
                 aria-required="true"
               />
               {fieldData.fieldName && (
