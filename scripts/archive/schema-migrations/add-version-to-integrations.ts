@@ -23,6 +23,7 @@
 import { Client, Databases } from 'node-appwrite';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
+import { hasDefaultProperty } from '../../../src/lib/appwriteTypeHelpers';
 
 // Load environment variables
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
@@ -96,7 +97,9 @@ async function verifyAttribute(collectionId: string, collectionName: string): Pr
       console.log(`✓ Verified: version attribute exists in ${collectionName}`);
       console.log(`  - Type: ${versionAttr.type}`);
       console.log(`  - Required: ${versionAttr.required}`);
-      console.log(`  - Default: ${versionAttr.default}`);
+      if (hasDefaultProperty(versionAttr)) {
+        console.log(`  - Default: ${versionAttr.default}`);
+      }
     } else {
       console.log(`✗ Warning: version attribute not found in ${collectionName}`);
     }

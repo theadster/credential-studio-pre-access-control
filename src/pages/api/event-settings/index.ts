@@ -9,6 +9,7 @@ import { generateInternalFieldName } from '@/util/string';
 import { shouldLog } from '@/lib/logSettings';
 import { sanitizeHTMLTemplate } from '@/lib/sanitization';
 import { validateSwitchboardRequestBody, validateEventSettings } from '@/lib/validation';
+import { isError, hasProperty, isFulfilled, isRejected } from '@/lib/typeGuards';
 import {
   IntegrationConflictError,
   updateCloudinaryIntegration,
@@ -24,6 +25,34 @@ import {
   TransactionOperation,
   handleTransactionError
 } from '@/lib/transactions';
+
+/**
+ * Interface for custom field structure
+ */
+interface CustomFieldInput {
+  id?: string;
+  fieldName: string;
+  internalFieldName?: string;
+  fieldType: string;
+  fieldOptions?: any;
+  required?: boolean;
+  order?: number;
+  showOnMainPage?: boolean;
+  printable?: boolean;
+}
+
+/**
+ * Type-safe helper to extract documents from a fulfilled PromiseSettledResult
+ * Returns the documents array if the promise is fulfilled and has documents, otherwise null
+ */
+function getDocuments<T>(
+  result: PromiseSettledResult<{ documents: T[] }>
+): T[] | null {
+  if (isFulfilled(result) && result.value.documents.length > 0) {
+    return result.value.documents;
+  }
+  return null;
+}
 
 /**
  * Extract integration fields from the update payload
@@ -495,7 +524,7 @@ async function handleEventSettingsUpdateWithTransactions(
           fields: e.fields
         }));
       }
-    } catch (error) {
+    } catch (error: unknown) {
       if (error instanceof IntegrationConflictError) {
         return res.status(409).json({
           error: 'Conflict',
@@ -558,20 +587,9 @@ async function handleEventSettingsUpdateWithTransactions(
     )
   ]);
 
-  let updatedSwitchboardData = null;
-  if (updatedSwitchboardResult.status === 'fulfilled' && updatedSwitchboardResult.value.documents.length > 0) {
-    updatedSwitchboardData = updatedSwitchboardResult.value.documents[0];
-  }
-
-  let updatedCloudinaryData = null;
-  if (updatedCloudinaryResult.status === 'fulfilled' && updatedCloudinaryResult.value.documents.length > 0) {
-    updatedCloudinaryData = updatedCloudinaryResult.value.documents[0];
-  }
-
-  let updatedOneSimpleApiData = null;
-  if (updatedOneSimpleApiResult.status === 'fulfilled' && updatedOneSimpleApiResult.value.documents.length > 0) {
-    updatedOneSimpleApiData = updatedOneSimpleApiResult.value.documents[0];
-  }
+  const updatedSwitchboardData = getDocuments(updatedSwitchboardResult)?.[0] ?? null;
+  const updatedCloudinaryData = getDocuments(updatedCloudinaryResult)?.[0] ?? null;
+  const updatedOneSimpleApiData = getDocuments(updatedOneSimpleApiResult)?.[0] ?? null;
 
   // Parse custom fields
   const parsedUpdatedCustomFields = updatedCustomFieldsResult.documents.map((field: any) => ({
@@ -728,9 +746,9 @@ async function buildEventSettingsTransactionOperations(
     }
 
     // 2. Handle custom field modifications
-    const existingFields = customFields.filter(f => f.id && !f.id.startsWith('temp_'));
-    const modifiedFields = existingFields.filter(incomingField => {
-      const existingField = currentCustomFields.find(f => f.$id === incomingField.id);
+    const existingFields = customFields.filter((f: CustomFieldInput) => f.id && !f.id.startsWith('temp_'));
+    const modifiedFields = existingFields.filter((incomingField: CustomFieldInput) => {
+      const existingField = currentCustomFields.find((f: any) => f.$id === incomingField.id);
       if (!existingField) return false;
 
       return existingField.fieldName !== incomingField.fieldName ||
@@ -767,7 +785,7 @@ async function buildEventSettingsTransactionOperations(
     }
 
     // 3. Handle custom field additions
-    const newFields = customFields.filter(f => !f.id || f.id.startsWith('temp_'));
+    const newFields = customFields.filter((f: CustomFieldInput) => !f.id || f.id.startsWith('temp_'));
     for (const field of newFields) {
       const fieldOptionsStr = field.fieldOptions
         ? typeof field.fieldOptions === 'string'
@@ -1104,10 +1122,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                     );
                   }
                 }
-              } catch (error: any) {
+              } catch (error: unknown) {
                 console.warn('Async logging failed for event settings view:', {
-                  error: error.message,
-                  type: error.type,
+                  error: isError(error) ? error.message : 'Unknown error',
+                  type: hasProperty(error, 'type') ? error.type : undefined,
                   hint: 'This is expected if the user logged out or session expired'
                 });
               }
@@ -1177,9 +1195,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         // Extract custom fields or use empty array if failed
         let fetchedCustomFields: any[] = [];
-        if (customFieldsResult.status === 'fulfilled') {
+        if (isFulfilled(customFieldsResult)) {
           fetchedCustomFields = customFieldsResult.value.documents;
-        } else {
+        } else if (isRejected(customFieldsResult)) {
           console.error('Failed to fetch custom fields:', {
             error: customFieldsResult.reason,
             message: customFieldsResult.reason instanceof Error ? customFieldsResult.reason.message : 'Unknown error',
@@ -1193,9 +1211,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const integrationFailures: Array<{ name: string; error: any }> = [];
 
         let switchboardData = null;
-        if (switchboardResult.status === 'fulfilled' && switchboardResult.value.documents.length > 0) {
+        if (isFulfilled(switchboardResult) && switchboardResult.value.documents.length > 0) {
           switchboardData = switchboardResult.value.documents[0];
-        } else if (switchboardResult.status === 'rejected') {
+        } else if (isRejected(switchboardResult)) {
           const error = switchboardResult.reason;
           integrationFailures.push({ name: 'Switchboard', error });
           console.error('Failed to fetch Switchboard integration:', {
@@ -1209,9 +1227,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
 
         let cloudinaryData = null;
-        if (cloudinaryResult.status === 'fulfilled' && cloudinaryResult.value.documents.length > 0) {
+        if (isFulfilled(cloudinaryResult) && cloudinaryResult.value.documents.length > 0) {
           cloudinaryData = cloudinaryResult.value.documents[0];
-        } else if (cloudinaryResult.status === 'rejected') {
+        } else if (isRejected(cloudinaryResult)) {
           const error = cloudinaryResult.reason;
           integrationFailures.push({ name: 'Cloudinary', error });
           console.error('Failed to fetch Cloudinary integration:', {
@@ -1225,9 +1243,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
 
         let oneSimpleApiData = null;
-        if (oneSimpleApiResult.status === 'fulfilled' && oneSimpleApiResult.value.documents.length > 0) {
+        if (isFulfilled(oneSimpleApiResult) && oneSimpleApiResult.value.documents.length > 0) {
           oneSimpleApiData = oneSimpleApiResult.value.documents[0];
-        } else if (oneSimpleApiResult.status === 'rejected') {
+        } else if (isRejected(oneSimpleApiResult)) {
           const error = oneSimpleApiResult.reason;
           integrationFailures.push({ name: 'OneSimpleAPI', error });
           console.error('Failed to fetch OneSimpleAPI integration:', {
@@ -1383,11 +1401,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                   );
                 }
               }
-            } catch (error: any) {
+            } catch (error: unknown) {
               // Log errors but don't throw - logging failures should be silent
               console.warn('Async logging failed for event settings view:', {
-                error: error.message,
-                type: error.type,
+                error: isError(error) ? error.message : 'Unknown error',
+                type: hasProperty(error, 'type') ? error.type : undefined,
                 hint: 'This is expected if the user logged out or session expired'
               });
             }
@@ -1406,11 +1424,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         res.setHeader('Allow', ['GET', 'POST', 'PUT']);
         return res.status(405).json({ error: `Method ${req.method} not allowed` });
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('API Error:', error);
     return res.status(500).json({
       error: 'Internal server error',
-      details: error.message
+      details: isError(error) ? error.message : 'Unknown error'
     });
   }
 }
@@ -1689,7 +1707,7 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
       authUser,
       putPerfTracker
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Transaction failed, return error
     console.error('[Event Settings] Transaction failed:', error);
     return handleTransactionError(error, res);
@@ -1715,11 +1733,11 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
   // Handle custom fields separately if they exist
   if (customFields && Array.isArray(customFields)) {
     // Separate existing fields from new fields
-    const existingFields = customFields.filter(f => f.id && !f.id.startsWith('temp_'));
-    const newFields = customFields.filter(f => !f.id || f.id.startsWith('temp_'));
+    const existingFields = customFields.filter((f: CustomFieldInput) => f.id && !f.id.startsWith('temp_'));
+    const newFields = customFields.filter((f: CustomFieldInput) => !f.id || f.id.startsWith('temp_'));
 
     // Check if any existing fields were modified (excluding order changes)
-    const modifiedFields = existingFields.filter(incomingField => {
+    const modifiedFields = existingFields.filter((incomingField: CustomFieldInput) => {
       const existingField = currentCustomFields.find(f => f.$id === incomingField.id);
       if (!existingField) return false;
 
@@ -1767,8 +1785,8 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
       );
 
       // Handle order updates for unchanged existing fields
-      const unchangedFields = existingFields.filter(incomingField => {
-        const existingField = currentCustomFields.find(f => f.$id === incomingField.id);
+      const unchangedFields = existingFields.filter((incomingField: CustomFieldInput) => {
+        const existingField = currentCustomFields.find((f: any) => f.$id === incomingField.id);
         if (!existingField) return false;
 
         return existingField.fieldName === incomingField.fieldName &&
@@ -1955,7 +1973,7 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
         fields: e.fields
       }));
     }
-  } catch (error) {
+  } catch (error: unknown) {
     // Handle IntegrationConflictError with 409 response
     if (error instanceof IntegrationConflictError) {
       console.error('Integration optimistic locking conflict detected:', {
@@ -2001,11 +2019,7 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
   const putCloudinaryCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CLOUDINARY_COLLECTION_ID!;
   const putOneSimpleApiCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ONESIMPLEAPI_COLLECTION_ID!;
 
-  const [
-    updatedSwitchboardResult,
-    updatedCloudinaryResult,
-    updatedOneSimpleApiResult
-  ] = await Promise.allSettled([
+  const integrationResults = await Promise.allSettled([
     databases.listDocuments(
       dbId,
       putSwitchboardCollectionId,
@@ -2023,26 +2037,38 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
     )
   ]);
 
-  // Extract integration data
+  // Extract integration data using type guards
   let updatedSwitchboardData = null;
-  if (updatedSwitchboardResult.status === 'fulfilled' && updatedSwitchboardResult.value.documents.length > 0) {
-    updatedSwitchboardData = updatedSwitchboardResult.value.documents[0];
-  } else if (updatedSwitchboardResult.status === 'rejected') {
-    console.warn('Failed to fetch updated switchboard integration:', updatedSwitchboardResult.reason);
+  const switchboardResult = integrationResults[0];
+  if (isFulfilled(switchboardResult)) {
+    const documents = (switchboardResult as any).value.documents;
+    if (documents.length > 0) {
+      updatedSwitchboardData = documents[0];
+    }
+  } else if (isRejected(switchboardResult)) {
+    console.warn('Failed to fetch updated switchboard integration:', (switchboardResult as any).reason);
   }
 
   let updatedCloudinaryData = null;
-  if (updatedCloudinaryResult.status === 'fulfilled' && updatedCloudinaryResult.value.documents.length > 0) {
-    updatedCloudinaryData = updatedCloudinaryResult.value.documents[0];
-  } else if (updatedCloudinaryResult.status === 'rejected') {
-    console.warn('Failed to fetch updated cloudinary integration:', updatedCloudinaryResult.reason);
+  const cloudinaryResult = integrationResults[1];
+  if (isFulfilled(cloudinaryResult)) {
+    const documents = (cloudinaryResult as any).value.documents;
+    if (documents.length > 0) {
+      updatedCloudinaryData = documents[0];
+    }
+  } else if (isRejected(cloudinaryResult)) {
+    console.warn('Failed to fetch updated cloudinary integration:', (cloudinaryResult as any).reason);
   }
 
   let updatedOneSimpleApiData = null;
-  if (updatedOneSimpleApiResult.status === 'fulfilled' && updatedOneSimpleApiResult.value.documents.length > 0) {
-    updatedOneSimpleApiData = updatedOneSimpleApiResult.value.documents[0];
-  } else if (updatedOneSimpleApiResult.status === 'rejected') {
-    console.warn('Failed to fetch updated onesimpleapi integration:', updatedOneSimpleApiResult.reason);
+  const oneSimpleApiResult = integrationResults[2];
+  if (isFulfilled(oneSimpleApiResult)) {
+    const documents = (oneSimpleApiResult as any).value.documents;
+    if (documents.length > 0) {
+      updatedOneSimpleApiData = documents[0];
+    }
+  } else if (isRejected(oneSimpleApiResult)) {
+    console.warn('Failed to fetch updated onesimpleapi integration:', (oneSimpleApiResult as any).reason);
   }
 
   // Parse custom fields - convert fieldOptions from JSON string to object

@@ -1,11 +1,19 @@
+// @ts-nocheck
 /**
- * Complete Event Settings Migration
+ * ARCHIVED LEGACY MIGRATION SCRIPT
  * 
- * This script adds ALL missing attributes and migrates data properly.
- * Based on inspection, the collection only has 8 attributes and needs
- * the core attributes from the original setup plus our consolidated ones.
+ * This script is archived and no longer maintained. It was used during the
+ * migration from Prisma/Supabase to Appwrite and imports @prisma/client
+ * which is no longer part of this project.
  * 
- * Usage: npx tsx src/scripts/complete-event-settings-migration.ts
+ * DO NOT USE THIS SCRIPT. It is kept for historical reference only.
+ * 
+ * Original Purpose: Complete Event Settings Migration
+ * - Added ALL missing attributes and migrated data properly
+ * - Based on inspection, the collection only has 8 attributes and needs
+ *   the core attributes from the original setup plus our consolidated ones
+ * 
+ * Original Usage: npx tsx src/scripts/complete-event-settings-migration.ts
  */
 
 import { Client, Databases } from 'node-appwrite';

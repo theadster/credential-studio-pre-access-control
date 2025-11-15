@@ -9,6 +9,7 @@
 
 import { config } from 'dotenv';
 import { Client, Databases } from 'node-appwrite';
+import { hasSizeProperty } from '../src/lib/appwriteTypeHelpers';
 
 // Load environment variables from .env.local
 config({ path: '.env.local' });
@@ -38,7 +39,9 @@ async function addNotesField() {
         console.log('✅ notes attribute already exists');
         console.log('   Type:', existingAttribute.type);
         console.log('   Required:', existingAttribute.required);
-        console.log('   Size:', existingAttribute.size);
+        if (hasSizeProperty(existingAttribute)) {
+          console.log('   Size:', existingAttribute.size);
+        }
         console.log('\n✨ Migration complete - no changes needed');
         return;
       }

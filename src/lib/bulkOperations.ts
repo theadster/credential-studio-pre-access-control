@@ -222,6 +222,7 @@ export async function bulkDeleteWithFallback(
 ): Promise<{
   deletedCount: number;
   usedTransactions: boolean;
+  batchCount?: number;
 }> {
   console.log(`[bulkDeleteWithFallback] Starting atomic bulk delete of ${config.rowIds.length} items using TablesDB`);
 
@@ -257,7 +258,8 @@ export async function bulkDeleteWithFallback(
 
     return {
       deletedCount: config.rowIds.length,
-      usedTransactions: true
+      usedTransactions: true,
+      batchCount: 1
     };
 
   } catch (error: any) {
@@ -303,7 +305,8 @@ export async function bulkDeleteWithFallback(
 
     return {
       deletedCount,
-      usedTransactions: false
+      usedTransactions: false,
+      batchCount: undefined
     };
   }
 }
@@ -333,6 +336,7 @@ export async function bulkImportWithFallback(
 ): Promise<{
   createdCount: number;
   usedTransactions: boolean;
+  batchCount?: number;
 }> {
   console.log(`[bulkImportWithFallback] Starting atomic bulk import of ${config.items.length} items using TablesDB`);
 
@@ -373,7 +377,8 @@ export async function bulkImportWithFallback(
 
     return {
       createdCount: config.items.length,
-      usedTransactions: true
+      usedTransactions: true,
+      batchCount: 1
     };
 
   } catch (error: any) {
@@ -421,7 +426,8 @@ export async function bulkImportWithFallback(
 
     return {
       createdCount,
-      usedTransactions: false
+      usedTransactions: false,
+      batchCount: undefined
     };
   }
 }

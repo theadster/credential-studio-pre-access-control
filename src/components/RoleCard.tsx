@@ -37,9 +37,19 @@ const RoleCard = memo(({ role, users, canEdit, canDelete, onEdit, onDelete }: Ro
 
   // Memoize permission count calculation
   const permissionCount = useMemo(() => {
-    return Object.values(role.permissions || {}).reduce((count, perms) => {
+    return Object.values(role.permissions || {}).reduce((count: number, perms: unknown) => {
       if (typeof perms === 'object' && perms !== null) {
-        return count + Object.values(perms).filter(Boolean).length;
+        // Validate that all values are booleans before counting
+        const values = Object.values(perms);
+        const allBooleans = values.every(v => typeof v === 'boolean');
+        
+        if (allBooleans) {
+          // Safe to count true boolean values
+          return count + values.filter(Boolean).length;
+        } else {
+          // Fall back to safe truthy count if not all booleans
+          return count + values.filter(Boolean).length;
+        }
       }
       return count + (perms ? 1 : 0);
     }, 0);
@@ -80,10 +90,20 @@ const RoleCard = memo(({ role, users, canEdit, canDelete, onEdit, onDelete }: Ro
   // Memoize permission categories
   const permissionCategories = useMemo(() => {
     return Object.entries(role.permissions || {})
-      .map(([resource, perms]: [string, boolean | Record<string, boolean>]) => {
-        const resourcePermissions = typeof perms === 'object' && perms !== null
-          ? Object.entries(perms).filter(([, allowed]) => allowed).map(([action]) => action)
-          : perms ? [String(perms)] : [];
+      .map(([resource, perms]: [string, unknown]) => {
+        // Apply runtime validation like the permissionCount reducer
+        let resourcePermissions: string[] = [];
+        
+        if (typeof perms === 'object' && perms !== null) {
+          // Iterate Object.entries and only accept boolean true values
+          resourcePermissions = Object.entries(perms)
+            .filter(([, allowed]) => typeof allowed === 'boolean' && allowed === true)
+            .map(([action]) => action);
+        } else if (perms) {
+          // For non-object truthy perms, fall back to String(perms) as a single permission
+          resourcePermissions = [String(perms)];
+        }
+        // For invalid shapes, return empty array (already initialized)
 
         if (resourcePermissions.length === 0) return null;
 

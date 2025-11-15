@@ -1,4 +1,16 @@
+// @ts-nocheck
 /**
+ * ARCHIVED MIGRATION SCRIPT
+ * 
+ * This is an archived schema migration script that was used during the Appwrite migration.
+ * It is kept for historical reference and should NOT be run again.
+ * 
+ * TypeScript checking is disabled because:
+ * - This script was written for an older version of the Appwrite SDK
+ * - SDK methods and type signatures may have changed since this migration was run
+ * - The script is no longer actively maintained as the migration is complete
+ * 
+ * Original Purpose:
  * Migration Script: Add deletedAt attribute to custom_fields collection
  * 
  * This script adds the deletedAt datetime attribute required for soft delete functionality.

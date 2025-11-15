@@ -1,7 +1,6 @@
 // SortableCustomField Component
 // Displays a single custom field in the sortable list with drag-and-drop functionality
 
-import React from 'react';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -9,6 +8,7 @@ import { GripVertical, Edit, Trash2, Eye, Printer } from "lucide-react";
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { CustomField } from './types';
+import { hasProperty } from '@/lib/typeGuards';
 
 interface SortableCustomFieldProps {
   field: CustomField;
@@ -93,7 +93,7 @@ export function SortableCustomField({ field, onEdit, onDelete }: SortableCustomF
             <span className="font-medium">{field.fieldName}</span>
             <Badge variant="outline">{field.fieldType}</Badge>
             {field.required && <Badge variant="secondary">Required</Badge>}
-            {field.fieldType === "text" && field.fieldOptions?.uppercase && (
+            {field.fieldType === "text" && hasProperty(field.fieldOptions, 'uppercase') && field.fieldOptions.uppercase && (
               <Badge variant="outline" className="text-xs">
                 UPPERCASE
               </Badge>

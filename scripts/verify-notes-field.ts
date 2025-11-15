@@ -1,5 +1,6 @@
 import { Client, Databases } from 'node-appwrite';
 import * as dotenv from 'dotenv';
+import { hasSizeProperty } from '../src/lib/appwriteTypeHelpers';
 
 dotenv.config({ path: '.env.local' });
 
@@ -26,7 +27,9 @@ async function verifyNotesField() {
     if (notesAttribute) {
       console.log('✅ Notes field exists!');
       console.log('   Type:', notesAttribute.type);
-      console.log('   Size:', notesAttribute.size, 'characters');
+      if (hasSizeProperty(notesAttribute)) {
+        console.log('   Size:', notesAttribute.size, 'characters');
+      }
       console.log('   Required:', notesAttribute.required);
       console.log('   Status:', notesAttribute.status);
       console.log('\n✨ The notes field is ready to use!');

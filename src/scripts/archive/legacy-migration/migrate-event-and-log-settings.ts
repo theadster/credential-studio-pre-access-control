@@ -1,20 +1,28 @@
+// @ts-nocheck
 /**
- * Selective Migration Script: Event Settings and Log Settings
+ * ARCHIVED LEGACY MIGRATION SCRIPT
  * 
- * This script migrates only Event Settings and Log Settings collections
- * with the correct attribute mappings for Appwrite.
+ * This script is archived and no longer maintained. It was used during the
+ * migration from Prisma/Supabase to Appwrite and imports @prisma/client
+ * which is no longer part of this project.
  * 
- * SCHEMA: Uses the same consolidated schema as complete-event-settings-migration.ts
+ * DO NOT USE THIS SCRIPT. It is kept for historical reference only.
+ * 
+ * Original Purpose: Selective Migration Script for Event Settings and Log Settings
+ * - Migrated only Event Settings and Log Settings collections
+ *   with the correct attribute mappings for Appwrite
+ * 
+ * Original SCHEMA: Uses the same consolidated schema as complete-event-settings-migration.ts
  * - 16 total attributes for Event Settings
  * - Core fields: eventName, eventDate, eventTime, eventLocation, timeZone, eventLogo
  * - Barcode: barcodeType, barcodeLength, barcodeUnique
  * - Switchboard: enableSwitchboard, switchboardApiKey, switchboardTemplateId, switchboardFieldMappings
  * - Consolidated JSON: cloudinaryConfig, oneSimpleApiConfig, additionalSettings
  * 
- * NOTE: This script assumes all attributes already exist in the collection.
+ * Original NOTE: This script assumes all attributes already exist in the collection.
  * If attributes are missing, run complete-event-settings-migration.ts first.
  * 
- * Usage: npx tsx src/scripts/migrate-event-and-log-settings.ts
+ * Original Usage: npx tsx src/scripts/migrate-event-and-log-settings.ts
  */
 
 import { Client, Databases, ID, Query } from 'node-appwrite';

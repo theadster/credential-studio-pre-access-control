@@ -6,6 +6,7 @@
 
 import { config } from 'dotenv';
 import { Client, Databases } from 'node-appwrite';
+import { hasDefaultProperty } from '../src/lib/appwriteTypeHelpers';
 
 // Load environment variables from .env.local
 config({ path: '.env.local' });
@@ -37,7 +38,9 @@ async function checkAttribute() {
       console.log('✅ showOnMainPage attribute EXISTS');
       console.log('   Type:', showOnMainPageAttr.type);
       console.log('   Required:', showOnMainPageAttr.required);
-      console.log('   Default:', showOnMainPageAttr.default);
+      if (hasDefaultProperty(showOnMainPageAttr)) {
+        console.log('   Default:', showOnMainPageAttr.default);
+      }
       console.log('   Status:', showOnMainPageAttr.status);
     } else {
       console.log('❌ showOnMainPage attribute DOES NOT EXIST');

@@ -13,7 +13,7 @@ export default function PrivatePage({ user }: { user: User }) {
 
 export async function getServerSideProps(context: GetServerSidePropsContext) {
   try {
-    const { account } = createSessionClient(context.req);
+    const { account } = createSessionClient(context.req as any);
     const user = await account.get();
 
     return {

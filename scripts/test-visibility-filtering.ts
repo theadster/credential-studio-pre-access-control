@@ -16,6 +16,7 @@
 import { Client, Databases, ID, Query } from 'node-appwrite';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
+import { hasDefaultProperty } from '../src/lib/appwriteTypeHelpers';
 
 // Load environment variables
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
@@ -71,10 +72,11 @@ async function main() {
       const showOnMainPageAttr = collection.attributes.find((attr: any) => attr.key === 'showOnMainPage');
       
       if (showOnMainPageAttr) {
+        const defaultValue = hasDefaultProperty(showOnMainPageAttr) ? showOnMainPageAttr.default : 'N/A';
         logTest(
           'Schema Verification',
           true,
-          `showOnMainPage attribute exists (type: ${showOnMainPageAttr.type}, default: ${showOnMainPageAttr.default})`
+          `showOnMainPage attribute exists (type: ${showOnMainPageAttr.type}, default: ${defaultValue})`
         );
       } else {
         logTest('Schema Verification', false, 'showOnMainPage attribute not found');

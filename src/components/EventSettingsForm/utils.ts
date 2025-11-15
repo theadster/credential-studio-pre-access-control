@@ -162,6 +162,7 @@ export function validateCustomField(field: CustomField): { valid: boolean; error
 
   if (field.fieldType === 'select') {
     if (!field.fieldOptions ||
+      !('options' in field.fieldOptions) ||
       !Array.isArray(field.fieldOptions.options) ||
       field.fieldOptions.options.length === 0) {
       return { valid: false, error: "Select fields must have at least one option" };

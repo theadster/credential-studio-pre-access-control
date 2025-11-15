@@ -1,9 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  typescript: {
-    ignoreBuildErrors: true,
-  },
+  // TypeScript type checking is now enabled during builds
+  // All TypeScript errors must be resolved before deployment
   
   // Exclude test files from pages directory
   pageExtensions: ['tsx', 'ts', 'jsx', 'js'].map(ext => ext),

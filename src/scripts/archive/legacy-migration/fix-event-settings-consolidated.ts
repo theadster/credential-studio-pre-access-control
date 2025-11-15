@@ -1,17 +1,25 @@
+// @ts-nocheck
 /**
- * Event Settings Migration with Consolidated JSON Fields
+ * ARCHIVED LEGACY MIGRATION SCRIPT
  * 
- * This script consolidates related settings into JSON fields to work around
- * Appwrite's attribute limit per collection.
+ * This script is archived and no longer maintained. It was used during the
+ * migration from Prisma/Supabase to Appwrite and imports @prisma/client
+ * which is no longer part of this project.
  * 
- * Strategy:
+ * DO NOT USE THIS SCRIPT. It is kept for historical reference only.
+ * 
+ * Original Purpose: Event Settings Migration with Consolidated JSON Fields
+ * - Consolidated related settings into JSON fields to work around
+ *   Appwrite's attribute limit per collection
+ * 
+ * Original Strategy:
  * - Core fields remain separate (eventName, eventDate, etc.)
  * - Cloudinary settings -> cloudinaryConfig (JSON)
  * - Switchboard settings -> switchboardConfig (JSON)
  * - OneSimpleAPI settings -> oneSimpleApiConfig (JSON)
  * - Other settings -> additionalSettings (JSON)
  * 
- * Usage: npx tsx src/scripts/fix-event-settings-consolidated.ts
+ * Original Usage: npx tsx src/scripts/fix-event-settings-consolidated.ts
  */
 
 import { Client, Databases } from 'node-appwrite';
