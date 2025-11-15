@@ -11,7 +11,7 @@ import {
   validateFieldMapping,
   isValidURL,
   isValidEmail
-} from '../validation';
+} from '@/lib/validation';
 
 describe('validateJSON', () => {
   it('should validate correct JSON', () => {
@@ -132,6 +132,68 @@ describe('validateEventSettings', () => {
     };
     const result = validateEventSettings(settings);
     expect(result.valid).toBe(true);
+  });
+
+  it('should require webhook URL when OneSimpleAPI is enabled', () => {
+    const settings = {
+      eventName: 'Test',
+      eventDate: '2024-12-31',
+      eventLocation: 'Test Location',
+      oneSimpleApiEnabled: true
+    };
+    const result = validateEventSettings(settings);
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain('Webhook URL is required');
+  });
+
+  it('should validate webhook URL format when OneSimpleAPI is enabled', () => {
+    const settings = {
+      eventName: 'Test',
+      eventDate: '2024-12-31',
+      eventLocation: 'Test Location',
+      oneSimpleApiEnabled: true,
+      oneSimpleApiUrl: 'not-a-valid-url'
+    };
+    const result = validateEventSettings(settings);
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain('valid URL');
+  });
+
+  it('should accept valid webhook URL when OneSimpleAPI is enabled', () => {
+    const settings = {
+      eventName: 'Test',
+      eventDate: '2024-12-31',
+      eventLocation: 'Test Location',
+      oneSimpleApiEnabled: true,
+      oneSimpleApiUrl: 'https://api.example.com/webhook'
+    };
+    const result = validateEventSettings(settings);
+    expect(result.valid).toBe(true);
+  });
+
+  it('should not validate webhook URL when OneSimpleAPI is disabled', () => {
+    const settings = {
+      eventName: 'Test',
+      eventDate: '2024-12-31',
+      eventLocation: 'Test Location',
+      oneSimpleApiEnabled: false,
+      oneSimpleApiUrl: 'not-a-valid-url'
+    };
+    const result = validateEventSettings(settings);
+    expect(result.valid).toBe(true);
+  });
+
+  it('should reject empty webhook URL when OneSimpleAPI is enabled', () => {
+    const settings = {
+      eventName: 'Test',
+      eventDate: '2024-12-31',
+      eventLocation: 'Test Location',
+      oneSimpleApiEnabled: true,
+      oneSimpleApiUrl: '   '
+    };
+    const result = validateEventSettings(settings);
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain('Webhook URL is required');
   });
 });
 

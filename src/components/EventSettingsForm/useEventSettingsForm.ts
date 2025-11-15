@@ -112,15 +112,11 @@ export function useEventSettingsForm({
         return;
       }
 
-      // Sanitize HTML templates for OneSimpleAPI
-      if (settingsData.oneSimpleApiEnabled) {
-        if (settingsData.oneSimpleApiFormDataValue) {
-          settingsData.oneSimpleApiFormDataValue = sanitizeHTMLTemplate(settingsData.oneSimpleApiFormDataValue);
-        }
-        if (settingsData.oneSimpleApiRecordTemplate) {
-          settingsData.oneSimpleApiRecordTemplate = sanitizeHTMLTemplate(settingsData.oneSimpleApiRecordTemplate);
-        }
-      }
+      // Note: OneSimpleAPI templates are NOT sanitized because:
+      // 1. They are sent to an external webhook, not rendered in our application
+      // 2. They need to support full HTML including <style> tags and <!DOCTYPE>
+      // 3. The external API is responsible for handling the HTML safely
+      // 4. Sanitization would break legitimate use cases (CSS styling, full HTML documents)
 
       // Validate Switchboard JSON request body
       if (settingsData.switchboardEnabled && settingsData.switchboardRequestBody) {

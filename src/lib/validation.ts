@@ -116,6 +116,25 @@ export function validateEventSettings(settings: any): { valid: boolean; error?: 
     }
   }
 
+  // Validate OneSimpleAPI configuration
+  if (settings.oneSimpleApiEnabled) {
+    // Webhook URL is required when OneSimpleAPI is enabled
+    if (!settings.oneSimpleApiUrl || settings.oneSimpleApiUrl.trim() === '') {
+      return {
+        valid: false,
+        error: 'Webhook URL is required when OneSimpleAPI integration is enabled'
+      };
+    }
+
+    // Validate URL format
+    if (!isValidURL(settings.oneSimpleApiUrl)) {
+      return {
+        valid: false,
+        error: 'Webhook URL must be a valid URL (e.g., https://api.example.com/webhook)'
+      };
+    }
+  }
+
   return { valid: true };
 }
 

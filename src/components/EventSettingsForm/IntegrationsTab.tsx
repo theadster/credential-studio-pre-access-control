@@ -509,14 +509,4 @@ export const IntegrationsTab = memo(function IntegrationsTab({
       </IntegrationSection>
     </div>
   );
-}, (prevProps, nextProps) => {
-  // Custom comparison for optimization
-  return (
-    prevProps.formData.cloudinaryEnabled === nextProps.formData.cloudinaryEnabled &&
-    prevProps.formData.switchboardEnabled === nextProps.formData.switchboardEnabled &&
-    prevProps.formData.oneSimpleApiEnabled === nextProps.formData.oneSimpleApiEnabled &&
-    prevProps.integrationStatus?.cloudinary === nextProps.integrationStatus?.cloudinary &&
-    prevProps.integrationStatus?.switchboard === nextProps.integrationStatus?.switchboard &&
-    prevProps.fieldMappings.length === nextProps.fieldMappings.length
-  );
 });

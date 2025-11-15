@@ -1461,15 +1461,11 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
       });
     }
 
-    // PHASE 1 SECURITY: Sanitize HTML templates
-    if (req.body.oneSimpleApiEnabled) {
-      if (req.body.oneSimpleApiFormDataValue) {
-        req.body.oneSimpleApiFormDataValue = sanitizeHTMLTemplate(req.body.oneSimpleApiFormDataValue);
-      }
-      if (req.body.oneSimpleApiRecordTemplate) {
-        req.body.oneSimpleApiRecordTemplate = sanitizeHTMLTemplate(req.body.oneSimpleApiRecordTemplate);
-      }
-    }
+    // Note: OneSimpleAPI templates are NOT sanitized because:
+    // 1. They are sent to an external webhook, not rendered in our application
+    // 2. They need to support full HTML including <style> tags and <!DOCTYPE>
+    // 3. The external API is responsible for handling the HTML safely
+    // 4. Sanitization would break legitimate use cases (CSS styling, full HTML documents)
 
     // PHASE 1 SECURITY: Validate Switchboard JSON
     if (req.body.switchboardEnabled && req.body.switchboardRequestBody) {
@@ -1636,15 +1632,11 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
     });
   }
 
-  // PHASE 1 SECURITY: Sanitize HTML templates
-  if (updateData.oneSimpleApiEnabled) {
-    if (updateData.oneSimpleApiFormDataValue) {
-      updateData.oneSimpleApiFormDataValue = sanitizeHTMLTemplate(updateData.oneSimpleApiFormDataValue);
-    }
-    if (updateData.oneSimpleApiRecordTemplate) {
-      updateData.oneSimpleApiRecordTemplate = sanitizeHTMLTemplate(updateData.oneSimpleApiRecordTemplate);
-    }
-  }
+  // Note: OneSimpleAPI templates are NOT sanitized because:
+  // 1. They are sent to an external webhook, not rendered in our application
+  // 2. They need to support full HTML including <style> tags and <!DOCTYPE>
+  // 3. The external API is responsible for handling the HTML safely
+  // 4. Sanitization would break legitimate use cases (CSS styling, full HTML documents)
 
   // PHASE 1 SECURITY: Validate Switchboard JSON
   if (updateData.switchboardEnabled && updateData.switchboardRequestBody) {
