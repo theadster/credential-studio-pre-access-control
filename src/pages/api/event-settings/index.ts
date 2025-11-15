@@ -1968,22 +1968,23 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
   } catch (error: unknown) {
     // Handle IntegrationConflictError with 409 response
     if (error instanceof IntegrationConflictError) {
+      const conflictError = error as IntegrationConflictError;
       console.error('Integration optimistic locking conflict detected:', {
-        integrationType: error.integrationType,
-        eventSettingsId: error.eventSettingsId,
-        expectedVersion: error.expectedVersion,
-        actualVersion: error.actualVersion,
+        integrationType: conflictError.integrationType,
+        eventSettingsId: conflictError.eventSettingsId,
+        expectedVersion: conflictError.expectedVersion,
+        actualVersion: conflictError.actualVersion,
         timestamp: new Date().toISOString(),
         resolution: 'Client should refetch event settings and retry the update'
       });
 
       return res.status(409).json({
         error: 'Conflict',
-        message: error.message,
-        integrationType: error.integrationType,
-        eventSettingsId: error.eventSettingsId,
-        expectedVersion: error.expectedVersion,
-        actualVersion: error.actualVersion,
+        message: conflictError.message,
+        integrationType: conflictError.integrationType,
+        eventSettingsId: conflictError.eventSettingsId,
+        expectedVersion: conflictError.expectedVersion,
+        actualVersion: conflictError.actualVersion,
         resolution: 'Please refresh the page and try again. Another user may have modified these settings.'
       });
     }

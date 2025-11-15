@@ -93,7 +93,7 @@ export function SortableCustomField({ field, onEdit, onDelete }: SortableCustomF
             <span className="font-medium">{field.fieldName}</span>
             <Badge variant="outline">{field.fieldType}</Badge>
             {field.required && <Badge variant="secondary">Required</Badge>}
-            {field.fieldType === "text" && hasProperty(field.fieldOptions, 'uppercase') && field.fieldOptions.uppercase && (
+            {field.fieldType === "text" && hasProperty(field.fieldOptions, 'uppercase') && Boolean(field.fieldOptions.uppercase) && (
               <Badge variant="outline" className="text-xs">
                 UPPERCASE
               </Badge>
