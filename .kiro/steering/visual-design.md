@@ -1,10 +1,10 @@
 # Visual Design System
 
-This document describes the complete visual design system for CredentialStudio, including color palettes, typography, spacing, components, and design patterns.
+This document describes the complete visual design system for credential.studio, including color palettes, typography, spacing, components, and design patterns.
 
 ## Design Philosophy
 
-CredentialStudio uses a modern, professional design system built on:
+credential.studio uses a modern, professional design system built on:
 - **shadcn/ui** component library (New York style)
 - **Tailwind CSS** for utility-first styling
 - **Radix UI** primitives for accessibility
@@ -729,6 +729,6 @@ Always test both light and dark modes to ensure:
 
 ## Conclusion
 
-This design system provides a comprehensive foundation for building consistent, accessible, and beautiful interfaces in CredentialStudio. Always refer to this document when creating new components or modifying existing ones to maintain visual consistency across the application.
+This design system provides a comprehensive foundation for building consistent, accessible, and beautiful interfaces in credential.studio. Always refer to this document when creating new components or modifying existing ones to maintain visual consistency across the application.
 
 For component-specific implementations, refer to the shadcn/ui documentation and the existing codebase for examples.

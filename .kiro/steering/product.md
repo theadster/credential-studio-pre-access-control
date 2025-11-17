@@ -1,6 +1,6 @@
-# CredentialStudio Product Overview
+# credential.studio Product Overview
 
-CredentialStudio is a comprehensive event credential management application designed for professional event organizers and administrators. Built with Next.js and powered by Appwrite for backend services.
+credential.studio is a comprehensive event credential management application designed for professional event organizers and administrators. Built with Next.js and powered by Appwrite for backend services.
 
 ## Core Features
 

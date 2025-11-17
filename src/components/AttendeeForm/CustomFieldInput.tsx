@@ -144,6 +144,8 @@ export const CustomFieldInput = memo(function CustomFieldInput({
           required={field.required}
           aria-label={field.fieldName}
           aria-required={field.required}
+          autoComplete="off"
+          data-form-type="other"
         />
       );
 
@@ -159,6 +161,8 @@ export const CustomFieldInput = memo(function CustomFieldInput({
           required={field.required}
           aria-label={field.fieldName}
           aria-required={field.required}
+          autoComplete="off"
+          data-form-type="other"
         />
       );
 
@@ -175,6 +179,8 @@ export const CustomFieldInput = memo(function CustomFieldInput({
           required={field.required}
           aria-label={field.fieldName}
           aria-required={field.required}
+          autoComplete="off"
+          data-form-type="other"
         />
       );
 
@@ -191,6 +197,8 @@ export const CustomFieldInput = memo(function CustomFieldInput({
           required={field.required}
           aria-label={field.fieldName}
           aria-required={field.required}
+          autoComplete="off"
+          data-form-type="other"
         />
       );
 
@@ -228,6 +236,8 @@ export const CustomFieldInput = memo(function CustomFieldInput({
           required={field.required}
           aria-label={field.fieldName}
           aria-required={field.required}
+          autoComplete="off"
+          data-form-type="other"
         />
       );
 
@@ -301,6 +311,8 @@ export const CustomFieldInput = memo(function CustomFieldInput({
           required={field.required}
           aria-label={field.fieldName}
           aria-required={field.required}
+          autoComplete="off"
+          data-form-type="other"
         />
       );
   }

@@ -1,7 +1,7 @@
 # Feature Integration Guidelines
 
 ## Overview
-When adding new features to CredentialStudio, ensure proper integration with the application's role-based access control (RBAC) and comprehensive logging systems. This maintains security, auditability, and consistent user experience across the application.
+When adding new features to credential.studio, ensure proper integration with the application's role-based access control (RBAC) and comprehensive logging systems. This maintains security, auditability, and consistent user experience across the application.
 
 ## Integration Checklist
 

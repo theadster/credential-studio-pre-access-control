@@ -293,7 +293,7 @@ export default function UserForm({ isOpen, onClose, onSave, user, roles, mode = 
           )}
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off" data-form-type="other" data-lpignore="true">
           {mode === 'link' ? (
             <>
               {/* Auth User Search and Selection */}
@@ -418,6 +418,8 @@ export default function UserForm({ isOpen, onClose, onSave, user, roles, mode = 
                   placeholder="user@example.com"
                   disabled={!!user} // Don't allow email changes for existing users
                   required
+                  autoComplete="off"
+                  data-form-type="other"
                 />
               </div>
 
@@ -430,6 +432,8 @@ export default function UserForm({ isOpen, onClose, onSave, user, roles, mode = 
                   onChange={(e) => handleChange('name', e.target.value)}
                   placeholder="John Doe"
                   required
+                  autoComplete="off"
+                  data-form-type="other"
                 />
               </div>
 
