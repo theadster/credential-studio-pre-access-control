@@ -1,119 +1,156 @@
-# Scripts
+# Scripts Directory
 
-This directory contains utility scripts for database migrations, testing, and maintenance.
+This directory contains utility scripts for project maintenance and setup.
 
-## Migration Scripts
+## Available Scripts
 
-### Add Printable Attribute
+### Setup & Configuration
 
-Adds the `printable` boolean attribute to the `custom_fields` collection. This attribute controls whether changes to a custom field should mark an attendee's credential as OUTDATED and require reprinting.
-
-**Usage:**
-```bash
-npx tsx scripts/add-printable-attribute.ts
-```
-
-**What it does:**
-- Adds `printable` boolean attribute to `custom_fields` collection
-- Sets default value to `false` (non-printable) for backward compatibility
-- Waits for attribute to become available in Appwrite
-- All existing custom fields will default to non-printable
-
-**Prerequisites:**
-- Appwrite project with existing `custom_fields` collection
-- Environment variables configured in `.env.local`
-
-**Related:**
-- See `.kiro/specs/printable-field-outdated-tracking/` for full feature documentation
-- Part of the printable field tracking feature implementation
-
----
-
-# Test Scripts
-
-## Inject Test Logs
-
-This script creates 1000 test log entries for testing the delete logs functionality.
-
-### Prerequisites
-
-1. Make sure you have the required environment variables in your `.env.local`:
-   ```
-   NEXT_PUBLIC_APPWRITE_ENDPOINT=https://cloud.appwrite.io/v1
-   NEXT_PUBLIC_APPWRITE_PROJECT_ID=your-project-id
-   NEXT_PUBLIC_APPWRITE_DATABASE_ID=your-database-id
-   NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID=your-logs-collection-id
-   NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID=your-users-collection-id
-   NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID=your-attendees-collection-id
-   APPWRITE_API_KEY=your-api-key
-   ```
-
-2. Install `tsx` if you haven't already:
-   ```bash
-   npm install -D tsx
-   ```
-
-### Usage
-
-Run the script from the project root:
+#### `setup-appwrite.ts`
+Creates Appwrite collections and configures the database schema.
 
 ```bash
-npx tsx scripts/inject-test-logs.ts
+npm run setup:appwrite
 ```
 
-### What It Does
+#### `verify-appwrite-setup.ts`
+Verifies Appwrite configuration and database setup.
 
-- Creates 1000 log entries with random actions
-- Uses random dates between October 1, 2025 and October 6, 2025
-- Randomly assigns logs to existing users
-- Randomly assigns some logs to existing attendees
-- **Uses enhanced log formatting** with proper capitalization and detailed descriptions
-- Creates realistic log details based on action type
-- Processes in batches of 10 with delays to avoid rate limiting
+```bash
+npm run verify:appwrite
+```
 
-### Log Actions Generated
+#### `verify-transactions-config.ts`
+Verifies transaction configuration for Appwrite.
 
-All logs use the enhanced formatting utility for consistent, detailed descriptions:
+```bash
+npm run verify:transactions
+```
 
-- `create` - "Created attendee John Doe (EVT12345)" or "Created user John Doe (john@example.com) with role \"Administrator\""
-- `update` - "Updated attendee Jane Smith (firstName, email, company and 2 more)"
-- `delete` - "Deleted attendee Bob Johnson (EVT67890)"
-- `view` - "Viewed attendee Alice Williams"
-- `print` - "Printed badge for Charlie Brown (EVT24680)"
-- `login` - "User logged in"
-- `logout` - "User logged out"
-- `export` - "Exported 150 attendees as CSV (attendees_export_2025-10-09.csv)"
-- `import` - "Imported 100 attendees from attendees_2025.csv including John Doe, Jane Smith, Bob Johnson and 97 more"
-- `delete_logs` - "Deleted 500 logs"
+### Version Management
 
-### Testing Delete Logs
+#### `sync-versions-to-docs.ts` 🆕
+Automatically syncs package versions to documentation files.
 
-After running this script:
+```bash
+npm run sync:versions
+```
 
-1. Go to the Activity Logs tab in your dashboard
-2. Click "Delete Logs"
-3. Select a date range (e.g., before October 5, 2025)
-4. Optionally filter by action type or user
-5. Click "Delete Logs" and observe:
-   - Progress indicator shows "Processing..."
-   - No rate limit errors in console
-   - Completion shows actual count deleted
-   - Page refreshes after 3 seconds
+**Features:**
+- Reads actual installed package versions
+- Updates documentation files automatically
+- Reports which files were changed
+- Runs automatically via Kiro hook when package.json changes
 
-### Note
+**See:** [Version Sync Automation Guide](../docs/guides/VERSION_SYNC_AUTOMATION.md)
 
-⚠️ **Important**: Appwrite doesn't allow setting custom `$createdAt` timestamps via the API. The logs will be created with the current timestamp, but the intended test dates are stored in the `details` field for reference.
+### Migration Scripts
 
-If you need logs with actual past dates for testing, you would need to:
-1. Use the Appwrite Console to manually adjust timestamps, or
-2. Use a database migration script with direct database access, or
-3. Test with "before today's date" as the deletion criteria
+#### `migrate-to-appwrite.ts`
+Migrates data from Supabase to Appwrite.
 
-### Cleanup
+```bash
+npm run migrate:appwrite
+```
 
-To remove all test logs:
+#### Event Settings Migration Scripts
+Various scripts for migrating event settings:
 
-1. Go to Activity Logs tab
-2. Click "Delete Logs"
-3. Select "before" today's date
-4. Click "Delete Logs"
+```bash
+npm run migrate:appwrite:settings
+npm run migrate:appwrite:event-settings
+npm run migrate:appwrite:event-settings-v2
+npm run migrate:event-settings-complete
+npm run migrate:event-settings-normalized
+```
+
+#### `clear-event-settings.ts`
+Clears event settings data.
+
+```bash
+npm run clear:event-settings
+```
+
+#### `inspect-event-settings.ts`
+Inspects current event settings configuration.
+
+```bash
+npm run inspect:event-settings
+```
+
+### Testing & Debugging
+
+#### `inject-test-logs.ts`
+Injects test log data for development.
+
+```bash
+npm run test:inject-logs
+```
+
+### Archived Scripts
+
+Legacy migration scripts are located in `scripts/archive/schema-migrations/`.
+
+## Script Organization
+
+```
+scripts/
+├── README.md                           # This file
+├── setup-appwrite.ts                   # Database setup
+├── verify-appwrite-setup.ts            # Setup verification
+├── verify-transactions-config.ts       # Transaction verification
+├── sync-versions-to-docs.ts           # 🆕 Version sync automation
+├── inject-test-logs.ts                # Test data injection
+└── archive/                           # Archived legacy scripts
+    └── schema-migrations/
+        └── remove-api-key-attributes.ts
+```
+
+## Adding New Scripts
+
+When adding new scripts:
+
+1. **Create the script** in `scripts/` directory
+2. **Add npm script** in `package.json`:
+   ```json
+   "script-name": "tsx scripts/your-script.ts"
+   ```
+3. **Document it** in this README
+4. **Add TypeScript types** for better IDE support
+5. **Include error handling** and helpful output messages
+
+## Best Practices
+
+- Use `tsx` for running TypeScript scripts
+- Include clear console output with emojis for status
+- Handle errors gracefully with helpful messages
+- Document required environment variables
+- Add comments explaining complex logic
+- Use `process.exit(1)` for error conditions
+
+## Environment Variables
+
+Most scripts require these environment variables:
+
+```env
+NEXT_PUBLIC_APPWRITE_ENDPOINT=https://cloud.appwrite.io/v1
+NEXT_PUBLIC_APPWRITE_PROJECT_ID=your-project-id
+NEXT_PUBLIC_APPWRITE_DATABASE_ID=your-database-id
+APPWRITE_API_KEY=your-api-key
+```
+
+See `.env.example` for complete list.
+
+## Automation
+
+Some scripts run automatically via Kiro hooks:
+
+- **Version Sync** - Runs when `package.json` or `package-lock.json` changes
+  - Hook: `.kiro/hooks/sync-versions-on-package-change.json`
+  - Script: `scripts/sync-versions-to-docs.ts`
+
+## Related Documentation
+
+- [Version Sync Automation Guide](../docs/guides/VERSION_SYNC_AUTOMATION.md)
+- [Appwrite Setup Guide](../docs/migration/APPWRITE_SETUP.md)
+- [Migration Documentation](../docs/migration/)

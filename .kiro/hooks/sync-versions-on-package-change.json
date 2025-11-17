@@ -1,0 +1,15 @@
+{
+  "name": "Sync Package Versions to Docs",
+  "description": "Automatically updates documentation files with current package versions when package.json or package-lock.json changes",
+  "trigger": {
+    "type": "onFileSave",
+    "filePattern": "{package.json,package-lock.json}"
+  },
+  "action": {
+    "type": "runCommand",
+    "command": "npm run sync:versions"
+  },
+  "enabled": true,
+  "showNotification": true,
+  "notificationMessage": "Documentation versions synced with package.json"
+}

@@ -114,6 +114,13 @@ docs/
 #### Performance & Optimization
 - [**Memory Optimization Guide**](./guides/MEMORY_OPTIMIZATION_GUIDE.md) - 🚀 Best practices for preventing memory leaks and optimizing performance
 
+#### Automation & Maintenance
+- [**Version Sync Quick Start**](./guides/VERSION_SYNC_QUICK_START.md) - ⚡ Quick reference for automatic version sync
+- [**Version Sync Automation**](./guides/VERSION_SYNC_AUTOMATION.md) - 🤖 Complete guide to automatic documentation version updates
+- [**Version Sync Setup Summary**](./guides/VERSION_SYNC_SETUP_SUMMARY.md) - 📋 What was created and how it works
+- [**Package Update Summary**](./guides/PACKAGE_UPDATE_SUMMARY.md) - 📦 Recent package updates and what was skipped
+- [**Package Update Analysis**](./guides/PACKAGE_UPDATE_ANALYSIS.md) - 🔍 Detailed analysis of available package updates
+
 #### Other Guides
 - [**Printable Fields User Guide**](./guides/PRINTABLE_FIELDS_USER_GUIDE.md) - 🎯 Complete guide to configuring printable fields and managing credential status
 - [**Custom Field Columns Quick Reference**](./guides/CUSTOM_FIELD_COLUMNS_QUICK_REFERENCE.md) - ⚡ Quick reference for custom field column configuration

@@ -165,7 +165,7 @@ Choose the appropriate rollback method based on your situation:
 6. **Verify installation**
    ```bash
    npm list next react react-dom
-   # Should show Next.js 15.5.2, React 19.1.1
+   # Should show Next.js 16.0.3, React 19.2.0
    ```
 
 **Advantages:**

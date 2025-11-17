@@ -1,9 +1,9 @@
 # Technology Stack & Build System
 
 ## Core Framework & Runtime
-- **Next.js 15.5.2** with Pages Router (not App Router)
-- **React 19.1.1** with TypeScript 5.x
-- **Node.js 20.x** (specified in engines)
+- **Next.js 16.0.3** with Pages Router (not App Router)
+- **React 19.2.0** with TypeScript 5.9.3
+- **Node.js >=20.x** (specified in engines)
 
 ## Backend Services
 - **Appwrite** as backend platform (Auth, Database, Realtime, Storage)
@@ -12,7 +12,7 @@
 - Database schema managed through Appwrite collections and attributes
 
 ## Styling & UI
-- **Tailwind CSS 3.4.13** for styling
+- **Tailwind CSS 3.4.18** for styling
 - **shadcn/ui** component library (New York style)
 - **Radix UI** primitives for accessible components
 - **Framer Motion** for animations

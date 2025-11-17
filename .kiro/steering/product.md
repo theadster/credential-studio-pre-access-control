@@ -30,9 +30,9 @@ CredentialStudio is a comprehensive event credential management application desi
 
 ## Technology Stack
 
-- **Frontend**: Next.js 15.5.2 with React 19.1.1 and TypeScript
+- **Frontend**: Next.js 16.0.3 with React 19.2.0 and TypeScript 5.9.3
 - **Backend**: Appwrite (Authentication, Database, Realtime, Storage)
-- **Styling**: Tailwind CSS with shadcn/ui component library
+- **Styling**: Tailwind CSS 3.4.18 with shadcn/ui component library
 - **Image Management**: Cloudinary
 - **Printing**: Switchboard Canvas API
 - **State Management**: React Context API

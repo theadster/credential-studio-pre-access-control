@@ -92,9 +92,9 @@ src/components/RoleForm.tsx
 
 ## Technology Stack
 
-- **Framework:** Next.js 15.5.2 with React 19.1.1
-- **Language:** TypeScript 5.x
-- **Styling:** Tailwind CSS 3.4.13
+- **Framework:** Next.js 16.0.3 with React 19.2.0
+- **Language:** TypeScript 5.9.3
+- **Styling:** Tailwind CSS 3.4.18
 - **Components:** shadcn/ui (New York style)
 - **UI Primitives:** Radix UI
 - **Testing:** Vitest

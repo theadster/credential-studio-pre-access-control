@@ -157,10 +157,10 @@ The roles page redesign specification has been successfully completed. All tasks
 - Various UI components from shadcn/ui
 
 ### Technology Stack
-- React 19.1.1
-- TypeScript 5.x
-- Next.js 15.5.2
-- Tailwind CSS 3.4.13
+- React 19.2.0
+- TypeScript 5.9.3
+- Next.js 16.0.3
+- Tailwind CSS 3.4.18
 - shadcn/ui components
 - Radix UI primitives
 - Vitest for testing
