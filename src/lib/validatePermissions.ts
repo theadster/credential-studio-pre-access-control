@@ -21,6 +21,7 @@ const ALLOWED_PERMISSION_KEYS = [
   'customFields',
   'logs',
   'system',
+  'monitoring',
   'all'
 ];
 

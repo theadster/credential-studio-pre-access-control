@@ -1,107 +1,41 @@
 /**
- * Configurable Logger Utility
- * 
- * Provides structured logging with log levels that can be controlled
- * via environment variables to reduce verbosity in production.
+ * Simple leveled logger for API routes
+ * Respects NODE_ENV and DEBUG environment variables
  */
 
-export enum LogLevel {
-  DEBUG = 0,
-  INFO = 1,
-  WARN = 2,
-  ERROR = 3,
-  NONE = 4
+type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+
+const isDebugEnabled = process.env.NODE_ENV === 'development' || process.env.DEBUG === 'true';
+
+function shouldLog(level: LogLevel): boolean {
+  if (level === 'error') return true; // Always log errors
+  if (level === 'warn') return true; // Always log warnings
+  if (level === 'info') return true; // Always log info
+  if (level === 'debug') return isDebugEnabled; // Only log debug in development
+  return false;
 }
 
-interface LogContext {
-  [key: string]: any;
-}
+function formatMessage(prefix: string, level: LogLevel, data?: any): void {
+  if (!shouldLog(level)) return;
 
-class Logger {
-  private level: LogLevel;
-
-  constructor() {
-    // Default to INFO in production, DEBUG in development
-    const envLevel = process.env.LOG_LEVEL?.toUpperCase();
-    const isDevelopment = process.env.NODE_ENV !== 'production';
-
-    if (envLevel) {
-      this.level = LogLevel[envLevel as keyof typeof LogLevel] ?? LogLevel.INFO;
-    } else {
-      this.level = isDevelopment ? LogLevel.DEBUG : LogLevel.INFO;
-    }
-  }
-
-  /**
-   * Check if a log level should be emitted
-   */
-  private shouldLog(level: LogLevel): boolean {
-    return level >= this.level;
-  }
-
-  /**
-   * Format log message with context
-   */
-  private formatMessage(prefix: string, message: string, context?: LogContext): string {
-    if (context && Object.keys(context).length > 0) {
-      return `${prefix} ${message} ${JSON.stringify(context)}`;
-    }
-    return `${prefix} ${message}`;
-  }
-
-  /**
-   * Log debug messages (verbose, development only)
-   */
-  debug(message: string, context?: LogContext): void {
-    if (this.shouldLog(LogLevel.DEBUG)) {
-      console.log(this.formatMessage('[DEBUG]', message, context));
-    }
-  }
-
-  /**
-   * Log informational messages
-   */
-  info(message: string, context?: LogContext): void {
-    if (this.shouldLog(LogLevel.INFO)) {
-      console.log(this.formatMessage('[INFO]', message, context));
-    }
-  }
-
-  /**
-   * Log warning messages
-   */
-  warn(message: string, context?: LogContext): void {
-    if (this.shouldLog(LogLevel.WARN)) {
-      console.warn(this.formatMessage('[WARN]', message, context));
-    }
-  }
-
-  /**
-   * Log error messages (always logged unless NONE)
-   */
-  error(message: string, context?: LogContext): void {
-    if (this.shouldLog(LogLevel.ERROR)) {
-      console.error(this.formatMessage('[ERROR]', message, context));
-    }
-  }
-
-  /**
-   * Set log level dynamically
-   */
-  setLevel(level: LogLevel): void {
-    this.level = level;
-  }
-
-  /**
-   * Get current log level
-   */
-  getLevel(): LogLevel {
-    return this.level;
+  const timestamp = new Date().toISOString();
+  const levelUpper = level.toUpperCase();
+  
+  if (data) {
+    console[level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'log'](
+      `[${timestamp}] [${levelUpper}] ${prefix}`,
+      data
+    );
+  } else {
+    console[level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'log'](
+      `[${timestamp}] [${levelUpper}] ${prefix}`
+    );
   }
 }
 
-// Export singleton instance
-export const logger = new Logger();
-
-// Export factory for testing
-export const createLogger = () => new Logger();
+export const logger = {
+  debug: (prefix: string, data?: any) => formatMessage(prefix, 'debug', data),
+  info: (prefix: string, data?: any) => formatMessage(prefix, 'info', data),
+  warn: (prefix: string, data?: any) => formatMessage(prefix, 'warn', data),
+  error: (prefix: string, data?: any) => formatMessage(prefix, 'error', data),
+};

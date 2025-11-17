@@ -36,6 +36,32 @@ const COLLECTIONS = {
   LOG_SETTINGS: 'log_settings',
 };
 
+/**
+ * Wait for an attribute to be available (polling mechanism)
+ * Appwrite creates attributes asynchronously, so we need to wait for them to be ready
+ */
+async function waitForAttribute(
+  databaseId: string,
+  collectionId: string,
+  attributeKey: string,
+  maxAttempts: number = 30,
+  delayMs: number = 1000
+): Promise<void> {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await databases.getAttribute(databaseId, collectionId, attributeKey);
+      console.log(`  ✓ Attribute '${attributeKey}' is ready`);
+      return;
+    } catch (error: any) {
+      if (attempt === maxAttempts) {
+        throw new Error(`Timeout waiting for attribute '${attributeKey}' to be ready`);
+      }
+      // Attribute not ready yet, wait and retry
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+}
+
 async function createDatabase() {
   try {
     console.log('Creating database...');
@@ -124,41 +150,135 @@ async function createRolesCollection(databaseId: string) {
 async function createAttendeesCollection(databaseId: string) {
   try {
     console.log('\nCreating attendees collection...');
-    await databases.createCollection(
-      databaseId,
-      COLLECTIONS.ATTENDEES,
-      'Attendees',
-      [
-        Permission.read(Role.any()),
-        Permission.create(Role.users()),
-        Permission.update(Role.users()),
-        Permission.delete(Role.users()),
-      ]
+    let collectionExists = false;
+
+    try {
+      await databases.createCollection(
+        databaseId,
+        COLLECTIONS.ATTENDEES,
+        'Attendees',
+        [
+          Permission.read(Role.any()),
+          Permission.create(Role.users()),
+          Permission.update(Role.users()),
+          Permission.delete(Role.users()),
+        ]
+      );
+    } catch (error: any) {
+      if (error.code === 409) {
+        console.log('✓ Attendees collection already exists');
+        collectionExists = true;
+      } else {
+        throw error;
+      }
+    }
+
+    // Get existing attributes if collection exists
+    let existingAttributes: string[] = [];
+    if (collectionExists) {
+      try {
+        const collection = await databases.getCollection(databaseId, COLLECTIONS.ATTENDEES);
+        existingAttributes = collection.attributes.map((attr: any) => attr.key);
+        console.log(`  Found ${existingAttributes.length} existing attributes`);
+      } catch (error) {
+        console.log('  Could not fetch existing attributes, will attempt to create all');
+      }
+    }
+
+    // Helper to create attribute if it doesn't exist
+    async function createAttributeIfMissing(
+      key: string,
+      createFn: () => Promise<any>
+    ) {
+      if (existingAttributes.includes(key)) {
+        console.log(`  ✓ Attribute '${key}' already exists`);
+        return;
+      }
+
+      try {
+        console.log(`  Creating attribute '${key}'...`);
+        await createFn();
+        await waitForAttribute(databaseId, COLLECTIONS.ATTENDEES, key);
+      } catch (error: any) {
+        if (error.code === 409) {
+          console.log(`  ✓ Attribute '${key}' already exists`);
+        } else {
+          console.error(`  ✗ Error creating attribute '${key}':`, error.message);
+        }
+      }
+    }
+
+    // Add all required attributes
+    await createAttributeIfMissing('firstName', () =>
+      databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'firstName', 255, true)
+    );
+    await createAttributeIfMissing('lastName', () =>
+      databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'lastName', 255, true)
+    );
+    await createAttributeIfMissing('barcodeNumber', () =>
+      databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'barcodeNumber', 255, true)
+    );
+    await createAttributeIfMissing('notes', () =>
+      databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'notes', 5000, false)
+    );
+    await createAttributeIfMissing('photoUrl', () =>
+      databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'photoUrl', 1000, false)
+    );
+    await createAttributeIfMissing('credentialUrl', () =>
+      databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'credentialUrl', 1000, false)
+    );
+    await createAttributeIfMissing('credentialGeneratedAt', () =>
+      databases.createDatetimeAttribute(databaseId, COLLECTIONS.ATTENDEES, 'credentialGeneratedAt', false)
+    );
+    await createAttributeIfMissing('customFieldValues', () =>
+      databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'customFieldValues', 10000, false)
+    );
+    await createAttributeIfMissing('lastSignificantUpdate', () =>
+      databases.createDatetimeAttribute(databaseId, COLLECTIONS.ATTENDEES, 'lastSignificantUpdate', false)
     );
 
-    // Add attributes
-    await databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'firstName', 255, true);
-    await databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'lastName', 255, true);
-    await databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'barcodeNumber', 255, true);
-    await databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'notes', 5000, false);
-    await databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'photoUrl', 1000, false);
-    await databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'credentialUrl', 1000, false);
-    await databases.createDatetimeAttribute(databaseId, COLLECTIONS.ATTENDEES, 'credentialGeneratedAt', false);
-    await databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'customFieldValues', 10000, false);
-    await databases.createDatetimeAttribute(databaseId, COLLECTIONS.ATTENDEES, 'lastSignificantUpdate', false);
+    // Operator-managed fields for atomic operations
+    console.log('  Checking operator-managed fields...');
+    await createAttributeIfMissing('credentialCount', () =>
+      databases.createIntegerAttribute(databaseId, COLLECTIONS.ATTENDEES, 'credentialCount', false, 0)
+    );
+    await createAttributeIfMissing('photoUploadCount', () =>
+      databases.createIntegerAttribute(databaseId, COLLECTIONS.ATTENDEES, 'photoUploadCount', false, 0)
+    );
+    await createAttributeIfMissing('viewCount', () =>
+      databases.createIntegerAttribute(databaseId, COLLECTIONS.ATTENDEES, 'viewCount', false, 0)
+    );
+    await createAttributeIfMissing('lastCredentialGenerated', () =>
+      databases.createDatetimeAttribute(databaseId, COLLECTIONS.ATTENDEES, 'lastCredentialGenerated', false)
+    );
+    await createAttributeIfMissing('lastPhotoUploaded', () =>
+      databases.createDatetimeAttribute(databaseId, COLLECTIONS.ATTENDEES, 'lastPhotoUploaded', false)
+    );
 
-    // Create indexes
-    await databases.createIndex(databaseId, COLLECTIONS.ATTENDEES, 'barcodeNumber_idx', IndexType.Unique, ['barcodeNumber']);
-    await databases.createIndex(databaseId, COLLECTIONS.ATTENDEES, 'lastName_idx', IndexType.Key, ['lastName']);
-    await databases.createIndex(databaseId, COLLECTIONS.ATTENDEES, 'firstName_idx', IndexType.Key, ['firstName']);
-
-    console.log('✓ Attendees collection created');
-  } catch (error: any) {
-    if (error.code === 409) {
-      console.log('✓ Attendees collection already exists');
-    } else {
-      throw error;
+    // Create indexes if they don't exist
+    if (!collectionExists) {
+      console.log('  Creating indexes...');
+      try {
+        await databases.createIndex(databaseId, COLLECTIONS.ATTENDEES, 'barcodeNumber_idx', IndexType.Unique, ['barcodeNumber']);
+      } catch (error: any) {
+        if (error.code !== 409) console.error('  ✗ Error creating barcodeNumber index:', error.message);
+      }
+      try {
+        await databases.createIndex(databaseId, COLLECTIONS.ATTENDEES, 'lastName_idx', IndexType.Key, ['lastName']);
+      } catch (error: any) {
+        if (error.code !== 409) console.error('  ✗ Error creating lastName index:', error.message);
+      }
+      try {
+        await databases.createIndex(databaseId, COLLECTIONS.ATTENDEES, 'firstName_idx', IndexType.Key, ['firstName']);
+      } catch (error: any) {
+        if (error.code !== 409) console.error('  ✗ Error creating firstName index:', error.message);
+      }
     }
+
+    console.log('✓ Attendees collection setup complete');
+  } catch (error: any) {
+    console.error('✗ Error setting up attendees collection:', error);
+    throw error;
   }
 }
 
@@ -259,10 +379,12 @@ async function createLogsCollection(databaseId: string) {
     await databases.createStringAttribute(databaseId, COLLECTIONS.LOGS, 'attendeeId', 255, false);
     await databases.createStringAttribute(databaseId, COLLECTIONS.LOGS, 'action', 255, true);
     await databases.createStringAttribute(databaseId, COLLECTIONS.LOGS, 'details', 10000, false);
+    await databases.createDatetimeAttribute(databaseId, COLLECTIONS.LOGS, 'timestamp', false);
 
     // Create indexes
     await databases.createIndex(databaseId, COLLECTIONS.LOGS, 'userId_idx', IndexType.Key, ['userId']);
     await databases.createIndex(databaseId, COLLECTIONS.LOGS, 'attendeeId_idx', IndexType.Key, ['attendeeId']);
+    await databases.createIndex(databaseId, COLLECTIONS.LOGS, 'timestamp_idx', IndexType.Key, ['timestamp']);
 
     console.log('✓ Logs collection created');
   } catch (error: any) {

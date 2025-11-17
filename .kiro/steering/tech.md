@@ -28,7 +28,10 @@
 ## Development Tools
 - **ESLint** with Next.js config
 - **TypeScript** with strict mode enabled
+  - Main config: `tsconfig.json` (excludes test files)
+  - Test config: `tsconfig.test.json` (separate config for test files)
 - **PostCSS** with Autoprefixer
+- **Vitest** for testing (see testing.md for details)
 
 ## Common Commands
 

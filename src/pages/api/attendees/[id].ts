@@ -348,6 +348,35 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           photoUrl: photoUrl !== undefined ? photoUrl : existingAttendee.photoUrl,
         };
 
+        // Handle photo upload count tracking with operators
+        if (photoUrl !== undefined) {
+          const hadPhoto = existingAttendee.photoUrl && existingAttendee.photoUrl !== '';
+          const hasPhoto = photoUrl && photoUrl !== '';
+
+          try {
+            const { createIncrement, createDecrement, dateOperators } = await import('@/lib/operators');
+
+            if (hasPhoto && !hadPhoto) {
+              // Photo was added - increment count
+              updateData.photoUploadCount = createIncrement(1);
+              updateData.lastPhotoUploaded = dateOperators.setNow();
+            } else if (!hasPhoto && hadPhoto) {
+              // Photo was removed - decrement count (with min bound of 0)
+              updateData.photoUploadCount = createDecrement(1, { min: 0 });
+            }
+            // If both had photo and still has photo (URL changed), don't modify count
+          } catch (operatorError) {
+            console.error('[Photo Count] Operator import failed, using fallback:', operatorError);
+            // Fallback: manual count update
+            if (hasPhoto && !hadPhoto) {
+              updateData.photoUploadCount = (existingAttendee.photoUploadCount || 0) + 1;
+              updateData.lastPhotoUploaded = new Date().toISOString();
+            } else if (!hasPhoto && hadPhoto) {
+              updateData.photoUploadCount = Math.max(0, (existingAttendee.photoUploadCount || 0) - 1);
+            }
+          }
+        }
+
         /**
          * lastSignificantUpdate Timestamp Management
          * 

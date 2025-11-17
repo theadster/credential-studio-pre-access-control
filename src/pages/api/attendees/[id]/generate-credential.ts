@@ -4,6 +4,7 @@ import { Query, ID } from 'appwrite';
 import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
 import { getSwitchboardIntegration } from '@/lib/appwrite-integrations';
 import { shouldLog } from '@/lib/logSettings';
+import { createIncrement, dateOperators } from '@/lib/operators';
 
 // Helper function to escape regex special characters
 const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -375,17 +376,52 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       }
 
       // Update the attendee record with the credential URL and timestamp
-      // Use the same timestamp for both to ensure they match
-      const now = new Date().toISOString();
-      const updatedAttendee = await databases.updateDocument(
-        dbId,
-        attendeesCollectionId,
-        id,
-        {
-          credentialUrl,
-          credentialGeneratedAt: now
+      // Use atomic operators for count and timestamp
+      let updatedAttendee;
+      try {
+        updatedAttendee = await databases.updateDocument(
+          dbId,
+          attendeesCollectionId,
+          id,
+          {
+            credentialUrl,
+            credentialGeneratedAt: dateOperators.setNow(),
+            credentialCount: createIncrement(1),
+            lastCredentialGenerated: dateOperators.setNow()
+          }
+        );
+      } catch (operatorError) {
+        // Only fall back for operator-specific errors
+        // Check if error is operator-related (e.g., unsupported operator)
+        const isOperatorError = operatorError instanceof Error &&
+          (operatorError.message.includes('operator') ||
+           operatorError.message.includes('Increment'));
+        
+        if (isOperatorError) {
+          console.error('Operator not supported, falling back to traditional update:', operatorError);
+          const now = new Date().toISOString();
+          
+          // Use the already-fetched attendee from line 43 to avoid race condition
+          const currentCount = typeof attendee.credentialCount === 'number'
+            ? attendee.credentialCount
+            : 0;
+          
+          updatedAttendee = await databases.updateDocument(
+            dbId,
+            attendeesCollectionId,
+            id,
+            {
+              credentialUrl,
+              credentialGeneratedAt: now,
+              credentialCount: currentCount + 1,
+              lastCredentialGenerated: now
+            }
+          );
+        } else {
+          // Re-throw non-operator errors
+          throw operatorError;
         }
-      );
+      }
 
       // Log the activity if enabled
       if (await shouldLog('credentialGenerate')) {
@@ -415,7 +451,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       return res.status(200).json({
         success: true,
         credentialUrl,
-        generatedAt: now,
+        generatedAt: updatedAttendee.credentialGeneratedAt,
         updatedAt: updatedAttendee.$updatedAt, // Include Appwrite's actual update timestamp
         attendee: updatedAttendee
       });

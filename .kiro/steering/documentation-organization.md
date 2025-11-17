@@ -266,6 +266,7 @@ The project uses a **mixed convention** depending on file type and location:
 - ✅ **ALWAYS** place test files in `src/__tests__/` directory
 - ✅ **ALWAYS** mirror the source structure in `__tests__/`
 - ✅ Use `.test.ts` or `.test.tsx` extension (not `.spec.ts`)
+- ✅ Test files use `tsconfig.test.json` for TypeScript configuration
 
 **Why This Matters:**
 - Next.js treats files in `src/pages/` as routes
@@ -273,6 +274,7 @@ The project uses a **mixed convention** depending on file type and location:
 - Separate test directory prevents route pollution
 - Cleaner builds and faster compilation
 - Better IDE support and organization
+- Separate TypeScript config (`tsconfig.test.json`) provides proper type checking for tests
 
 ### Quick Reference Table
 
@@ -386,6 +388,17 @@ If you find test files in the wrong location:
   - Source: `src/pages/api/users/index.ts` → Test: `src/__tests__/api/users/index.test.ts`
   - Source: `src/lib/permissions.ts` → Test: `src/__tests__/lib/permissions.test.ts`
   - Source: `src/components/UserForm.tsx` → Test: `src/__tests__/components/UserForm.test.tsx`
+
+### Test TypeScript Configuration
+
+- **Config file:** `tsconfig.test.json` (separate from main `tsconfig.json`)
+- **Purpose:** Provides proper TypeScript support for test files
+- **Features:**
+  - Extends main `tsconfig.json` configuration
+  - Includes test directories (`src/__tests__/**`, `src/test/**`)
+  - Enables proper path alias resolution (`@/`) in tests
+  - Adds Vitest type definitions
+- **Why separate?** Main `tsconfig.json` excludes test files to keep application config clean
 
 ### Test Types
 

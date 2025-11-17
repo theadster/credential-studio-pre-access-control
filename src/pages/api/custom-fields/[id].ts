@@ -6,6 +6,7 @@ import { getAppwriteCollectionIds } from '@/lib/envValidation';
 import { logger } from '@/lib/logger';
 import { shouldLog } from '@/lib/logSettings';
 import { executeTransactionWithRetry, handleTransactionError, type TransactionOperation } from '@/lib/transactions';
+import { isArrayField } from '@/lib/customFieldArrayOperators';
 
 export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   try {

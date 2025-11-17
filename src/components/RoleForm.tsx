@@ -50,6 +50,7 @@ interface UserPermissions {
   customFields?: Permission;
   logs?: Permission;
   system?: Permission;
+  monitoring?: Permission;
 }
 
 const defaultPermissions: UserPermissions = {
@@ -98,8 +99,13 @@ const defaultPermissions: UserPermissions = {
     configure: false
   },
   system: {
+    read: false,
     backup: false,
     restore: false,
+    configure: false
+  },
+  monitoring: {
+    read: false,
     configure: false
   }
 };
@@ -186,7 +192,17 @@ const permissionLabels = {
     actions: {
       backup: "Create system backups",
       restore: "Restore from backups",
-      configure: "System configuration"
+      configure: "System configuration",
+      read: "View system information"
+    }
+  },
+  monitoring: {
+    title: "Operator Monitoring",
+    description: "Monitor database operator performance and feature flags",
+    icon: Activity,
+    actions: {
+      read: "View operator metrics and performance data",
+      configure: "Manage feature flags and operator settings"
     }
   }
 };

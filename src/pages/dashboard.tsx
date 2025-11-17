@@ -77,6 +77,7 @@ import ImportDialog from "@/components/ImportDialog";
 import LogsExportDialog from "@/components/LogsExportDialog";
 import LogsDeleteDialog from "@/components/LogsDeleteDialog";
 import LogSettingsDialog from "@/components/LogSettingsDialog";
+import OperatorMonitoringDashboard from "@/components/OperatorMonitoringDashboard";
 import { hasPermission, canAccessTab, canManageUser } from "@/lib/permissions";
 import { CLEAR_SENTINEL } from "@/lib/constants";
 
@@ -116,6 +117,11 @@ interface Attendee {
   photoUrl: string | null;
   credentialUrl?: string | null;
   credentialGeneratedAt?: string | null;
+  credentialCount?: number;
+  photoUploadCount?: number;
+  viewCount?: number;
+  lastCredentialGenerated?: string | null;
+  lastPhotoUploaded?: string | null;
   createdAt: string;
   updatedAt: string;
   customFieldValues: CustomFieldValue[];
@@ -373,13 +379,34 @@ export default function Dashboard() {
   const getCustomFieldsWithValues = useCallback((attendee: Attendee, customFields: any[]) => {
     if (!customFields) return [];
 
+    // Parse customFieldValues if it's a string
+    let parsedCustomFieldValues: any = attendee.customFieldValues;
+    if (typeof parsedCustomFieldValues === 'string') {
+      try {
+        parsedCustomFieldValues = JSON.parse(parsedCustomFieldValues);
+      } catch (e) {
+        console.error('Failed to parse customFieldValues:', e);
+        parsedCustomFieldValues = {};
+      }
+    }
+
     return customFields
       .filter((field: any) => field.showOnMainPage !== false) // Only show visible fields
       .sort((a: any, b: any) => a.order - b.order)
       .map((field: any) => {
-        const value = Array.isArray(attendee.customFieldValues)
-          ? attendee.customFieldValues.find((cfv: any) => cfv.customFieldId === field.id)
-          : null;
+        // Handle both array format (legacy) and object format (current)
+        let value = null;
+        if (Array.isArray(parsedCustomFieldValues)) {
+          // Legacy array format: [{ customFieldId: 'id', value: 'value' }]
+          value = parsedCustomFieldValues.find((cfv: any) => cfv.customFieldId === field.id);
+        } else if (parsedCustomFieldValues && typeof parsedCustomFieldValues === 'object') {
+          // Current object format: { 'fieldId': 'value' } or { 'fieldId': ['val1', 'val2'] }
+          const fieldValue = parsedCustomFieldValues[field.id];
+          if (fieldValue !== undefined) {
+            value = { value: fieldValue };
+          }
+        }
+        
         let displayValue = value?.value || null;
 
         // Format display value based on field type
@@ -463,6 +490,7 @@ export default function Dashboard() {
     if (canAccessTab(currentUser?.role, 'roles')) tabs.push('roles');
     if (canAccessTab(currentUser?.role, 'settings')) tabs.push('settings');
     if (canAccessTab(currentUser?.role, 'logs')) tabs.push('logs');
+    if (canAccessTab(currentUser?.role, 'monitoring')) tabs.push('monitoring');
     return tabs;
   };
 
@@ -955,10 +983,32 @@ export default function Dashboard() {
 
         // Custom fields filter
         const customFieldsMatch = Object.entries(advancedSearchFilters.customFields).every(([fieldId, filter]) => {
-          const attendeeValueObj = Array.isArray(attendee.customFieldValues)
-            ? attendee.customFieldValues.find((cfv: any) => cfv.customFieldId === fieldId)
-            : null;
-          const attendeeValue = attendeeValueObj?.value || '';
+          // Parse customFieldValues if it's a string
+          let parsedCustomFieldValues: any = attendee.customFieldValues;
+          if (typeof parsedCustomFieldValues === 'string') {
+            try {
+              parsedCustomFieldValues = JSON.parse(parsedCustomFieldValues);
+            } catch (e) {
+              parsedCustomFieldValues = {};
+            }
+          }
+
+          // Handle both array format (legacy) and object format (current)
+          let attendeeValue = '';
+          if (Array.isArray(parsedCustomFieldValues)) {
+            // Legacy array format
+            const attendeeValueObj = parsedCustomFieldValues.find((cfv: any) => cfv.customFieldId === fieldId);
+            attendeeValue = attendeeValueObj?.value || '';
+          } else if (parsedCustomFieldValues && typeof parsedCustomFieldValues === 'object') {
+            // Current object format
+            const fieldValue = parsedCustomFieldValues[fieldId];
+            if (Array.isArray(fieldValue)) {
+              attendeeValue = fieldValue.join(', ');
+            } else {
+              attendeeValue = fieldValue || '';
+            }
+          }
+          
           const hasValue = !!attendeeValue;
 
           // If no operator or value (for operators that need it), match all
@@ -992,11 +1042,30 @@ export default function Dashboard() {
           attendee.barcodeNumber.toLowerCase().includes(searchTerm.toLowerCase());
 
         // Search in custom field values
-        const customFieldMatch = Array.isArray(attendee.customFieldValues)
-          ? attendee.customFieldValues.some((cfv: any) =>
+        let customFieldMatch = false;
+        let parsedCustomFieldValues: any = attendee.customFieldValues;
+        if (typeof parsedCustomFieldValues === 'string') {
+          try {
+            parsedCustomFieldValues = JSON.parse(parsedCustomFieldValues);
+          } catch (e) {
+            parsedCustomFieldValues = {};
+          }
+        }
+
+        if (Array.isArray(parsedCustomFieldValues)) {
+          // Legacy array format
+          customFieldMatch = parsedCustomFieldValues.some((cfv: any) =>
             cfv.value && cfv.value.toLowerCase().includes(searchTerm.toLowerCase())
-          )
-          : false;
+          );
+        } else if (parsedCustomFieldValues && typeof parsedCustomFieldValues === 'object') {
+          // Current object format
+          customFieldMatch = Object.values(parsedCustomFieldValues).some((value: any) => {
+            if (Array.isArray(value)) {
+              return value.some(v => String(v).toLowerCase().includes(searchTerm.toLowerCase()));
+            }
+            return value && String(value).toLowerCase().includes(searchTerm.toLowerCase());
+          });
+        }
 
         // Photo filter
         const photoMatch = photoFilter === 'all' ||
@@ -2601,6 +2670,16 @@ export default function Dashboard() {
                   Activity Logs
                 </Button>
               )}
+              {canAccessTab(currentUser?.role, 'monitoring') && (
+                <Button
+                  variant={activeTab === "monitoring" ? "default" : "ghost"}
+                  className="w-full justify-start text-base"
+                  onClick={() => setActiveTab("monitoring")}
+                >
+                  <BarChart3 className="mr-2 h-4 w-4" />
+                  Operator Monitoring
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 className="w-full justify-start text-base"
@@ -2657,6 +2736,7 @@ export default function Dashboard() {
                 {activeTab === "roles" && "Role Management"}
                 {activeTab === "settings" && "Event Settings"}
                 {activeTab === "logs" && "Activity Logs"}
+                {activeTab === "monitoring" && "Operator Monitoring"}
               </h1>
               <p className="text-muted-foreground">
                 {activeTab === "attendees" && "Manage event attendees and their credentials"}
@@ -2664,6 +2744,7 @@ export default function Dashboard() {
                 {activeTab === "roles" && "Configure user roles and permissions"}
                 {activeTab === "settings" && "Configure event settings and integrations"}
                 {activeTab === "logs" && "View system activity and audit trail"}
+                {activeTab === "monitoring" && "Monitor database operator performance and manage feature flags"}
               </p>
             </div>
             <div className="flex items-center space-x-2">
@@ -2746,8 +2827,19 @@ export default function Dashboard() {
                       <IdCard className="h-8 w-8 text-purple-600 dark:text-purple-400" />
                     </div>
                     <div className="ml-4">
-                      <p className="text-sm font-medium text-purple-700 dark:text-purple-300">Credentials Printed</p>
-                      <p className="text-4xl font-bold text-purple-900 dark:text-purple-100">{attendees.filter(attendee => attendee.credentialUrl).length}</p>
+                      <p className="text-sm font-medium text-purple-700 dark:text-purple-300">Credentials Generated</p>
+                      <p className="text-4xl font-bold text-purple-900 dark:text-purple-100">
+                        {(() => {
+                          // Hybrid per-attendee sum: use credentialCount when available, fall back to credentialUrl presence
+                          return attendees.reduce((sum, a) => {
+                            const count = Number(a.credentialCount);
+                            if (!isNaN(count) && count >= 0) {
+                              return sum + count;
+                            }
+                            return sum + (a.credentialUrl ? 1 : 0);
+                          }, 0);
+                        })()}
+                      </p>
                     </div>
                   </CardContent>
                 </Card>
@@ -2758,7 +2850,27 @@ export default function Dashboard() {
                     </div>
                     <div className="ml-4">
                       <p className="text-sm font-medium text-amber-700 dark:text-amber-300">Photos Uploaded</p>
-                      <p className="text-4xl font-bold text-amber-900 dark:text-amber-100">{attendees.filter(a => a.photoUrl).length}</p>
+                      {(() => {
+                        // Compute all values once for deterministic rendering
+                        const hasAtomicCounts = attendees.some(a => typeof a.photoUploadCount === 'number');
+                        const totalUploads = attendees.reduce((sum, a) => {
+                          const count = Number(a.photoUploadCount);
+                          if (!isNaN(count) && count >= 0) {
+                            return sum + count;
+                          }
+                          return sum + (a.photoUrl ? 1 : 0);
+                        }, 0);
+                        const attendeesWithPhotos = attendees.filter(a => a.photoUrl).length;
+                        const percentage = attendees.length > 0 ? Math.round((attendeesWithPhotos / attendees.length) * 100) : 0;
+                        const displayCount = hasAtomicCounts ? totalUploads : attendeesWithPhotos;
+                        
+                        return (
+                          <>
+                            <p className="text-4xl font-bold text-amber-900 dark:text-amber-100">{displayCount}</p>
+                            <p className="text-xs font-normal text-amber-700 dark:text-amber-300">{percentage}% have photos</p>
+                          </>
+                        );
+                      })()}
                     </div>
                   </CardContent>
                 </Card>
@@ -5077,6 +5189,12 @@ export default function Dashboard() {
                   )}
                 </CardContent>
               </Card>
+            </div>
+          )}
+
+          {activeTab === "monitoring" && (
+            <div className="space-y-6">
+              <OperatorMonitoringDashboard />
             </div>
           )}
         </div>

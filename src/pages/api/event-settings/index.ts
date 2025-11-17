@@ -850,10 +850,71 @@ async function buildEventSettingsTransactionOperations(
     data: updatePayload
   });
 
-  // 6. Add audit log operation
-  const changedFields = detectChanges(updatedUpdateData, currentSettings);
+  // 6. Add audit log operation (only if there are actual changes)
+  // Fetch current integration data to get accurate comparison (in parallel)
+  const switchboardCollectionId = process.env.NEXT_PUBLIC_APPWRITE_SWITCHBOARD_COLLECTION_ID!;
+  const cloudinaryCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CLOUDINARY_COLLECTION_ID!;
+  const oneSimpleApiCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ONESIMPLEAPI_COLLECTION_ID!;
+
+  let currentSwitchboardData = null;
+  let currentCloudinaryData = null;
+  let currentOneSimpleApiData = null;
+
+  // Fetch all integrations in parallel using Promise.allSettled
+  const [switchboardResult, cloudinaryResult, oneSimpleApiResult] = await Promise.allSettled([
+    databases.listDocuments(
+      dbId,
+      switchboardCollectionId,
+      [Query.equal('eventSettingsId', currentSettings.$id), Query.limit(1)]
+    ),
+    databases.listDocuments(
+      dbId,
+      cloudinaryCollectionId,
+      [Query.equal('eventSettingsId', currentSettings.$id), Query.limit(1)]
+    ),
+    databases.listDocuments(
+      dbId,
+      oneSimpleApiCollectionId,
+      [Query.equal('eventSettingsId', currentSettings.$id), Query.limit(1)]
+    )
+  ]);
+
+  // Extract Switchboard data
+  if (switchboardResult.status === 'fulfilled' && switchboardResult.value.documents.length > 0) {
+    currentSwitchboardData = switchboardResult.value.documents[0];
+  } else if (switchboardResult.status === 'rejected') {
+    console.error('[Event Settings] Failed to fetch Switchboard data for comparison:', switchboardResult.reason);
+  }
+
+  // Extract Cloudinary data
+  if (cloudinaryResult.status === 'fulfilled' && cloudinaryResult.value.documents.length > 0) {
+    currentCloudinaryData = cloudinaryResult.value.documents[0];
+  } else if (cloudinaryResult.status === 'rejected') {
+    console.error('[Event Settings] Failed to fetch Cloudinary data for comparison:', cloudinaryResult.reason);
+  }
+
+  // Extract OneSimpleAPI data
+  if (oneSimpleApiResult.status === 'fulfilled' && oneSimpleApiResult.value.documents.length > 0) {
+    currentOneSimpleApiData = oneSimpleApiResult.value.documents[0];
+  } else if (oneSimpleApiResult.status === 'rejected') {
+    console.error('[Event Settings] Failed to fetch OneSimpleAPI data for comparison:', oneSimpleApiResult.reason);
+  }
+
+  // Flatten current settings with integrations for accurate comparison
+  const currentSettingsWithIntegrations = {
+    ...currentSettings,
+    cloudinary: currentCloudinaryData || undefined,
+    switchboard: currentSwitchboardData || undefined,
+    oneSimpleApi: currentOneSimpleApiData || undefined
+  } as any;
+
+  const flattenedCurrentSettings = flattenEventSettings(currentSettingsWithIntegrations);
+
+  const changedFields = detectChanges(updatedUpdateData, flattenedCurrentSettings);
   const shouldLogUpdate = await shouldLog('eventSettingsUpdate');
-  if (shouldLogUpdate) {
+  
+  // Only log if there are actual changes AND logging is enabled
+  if (shouldLogUpdate && changedFields.length > 0) {
     const { createSettingsLogDetails } = await import('@/lib/logFormatting');
     operations.push({
       action: 'create',
@@ -881,69 +942,127 @@ async function buildEventSettingsTransactionOperations(
 }
 
 /**
+ * Normalize value for comparison
+ * Handles type coercion issues (string vs number, null vs undefined, etc.)
+ */
+function normalizeValue(value: any): any {
+  // Handle null/undefined
+  if (value === null || value === undefined) return null;
+  
+  // Handle booleans stored as strings
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  
+  // Handle numbers stored as strings
+  if (typeof value === 'string' && !isNaN(Number(value)) && value.trim() !== '') {
+    return Number(value);
+  }
+  
+  // Handle empty strings as null
+  if (value === '') return null;
+  
+  // For strings, normalize whitespace for comparison
+  // This handles cases where HTML/JSON might have different formatting
+  if (typeof value === 'string') {
+    // Trim leading/trailing whitespace
+    let normalized = value.trim();
+    
+    // Normalize line endings (CRLF -> LF)
+    normalized = normalized.replace(/\r\n/g, '\n');
+    
+    // Normalize multiple spaces/tabs to single space (but preserve newlines)
+    normalized = normalized.replace(/[ \t]+/g, ' ');
+    
+    return normalized;
+  }
+  
+  return value;
+}
+
+/**
  * Detect changes between update data and current settings
- * Returns array of human-readable field labels that changed
+ * Returns a structured object with changes grouped by section
+ * Only includes fields that have ACTUALLY changed (not just present in update)
  */
 function detectChanges(updateData: any, currentSettings: any): string[] {
-  const changedFields: string[] = [];
-
-  // Field mapping: key -> label, with optional comparison function
+  // Field mapping: key -> label and section, with optional comparison function
   const fieldMappings: Array<{
     key: string;
     label: string;
+    section: string;
     compare?: (updateVal: any, currentVal: any) => boolean;
   }> = [
-      { key: 'eventName', label: 'Event Name' },
+      // General Settings
+      { key: 'eventName', label: 'Event Name', section: 'General' },
       {
         key: 'eventDate',
         label: 'Event Date',
+        section: 'General',
         compare: (updateVal, currentVal) => {
           if (!updateVal) return false;
-          return new Date(updateVal).getTime() !== new Date(currentVal).getTime();
+          if (!currentVal) return true;
+          
+          // Compare only the date part (YYYY-MM-DD) to avoid timezone issues
+          // Frontend sends '2026-05-30', database has '2026-05-30T04:00:00.000+00:00'
+          const updateDate = new Date(updateVal).toISOString().split('T')[0];
+          const currentDate = new Date(currentVal).toISOString().split('T')[0];
+          
+          return updateDate !== currentDate;
         },
       },
-      { key: 'eventTime', label: 'Event Time' },
-      { key: 'eventLocation', label: 'Event Location' },
-      { key: 'timeZone', label: 'Time Zone' },
-      { key: 'barcodeType', label: 'Barcode Type' },
-      { key: 'barcodeLength', label: 'Barcode Length' },
-      { key: 'barcodeUnique', label: 'Barcode Unique Setting' },
-      { key: 'forceFirstNameUppercase', label: 'Force First Name Uppercase' },
-      { key: 'forceLastNameUppercase', label: 'Force Last Name Uppercase' },
-      { key: 'bannerImageUrl', label: 'Banner Image' },
-      { key: 'signInBannerUrl', label: 'Sign In Banner Image' },
-      // Cloudinary fields
-      { key: 'cloudinaryEnabled', label: 'Cloudinary Integration' },
-      { key: 'cloudinaryCloudName', label: 'Cloudinary Cloud Name' },
-      { key: 'cloudinaryUploadPreset', label: 'Cloudinary Upload Preset' },
-      { key: 'cloudinaryAutoOptimize', label: 'Cloudinary Auto-optimize' },
-      { key: 'cloudinaryGenerateThumbnails', label: 'Cloudinary Generate Thumbnails' },
-      { key: 'cloudinaryDisableSkipCrop', label: 'Cloudinary Disable Skip Crop' },
-      { key: 'cloudinaryCropAspectRatio', label: 'Cloudinary Crop Aspect Ratio' },
-      // Switchboard fields
-      { key: 'switchboardEnabled', label: 'Switchboard Canvas Integration' },
-      { key: 'switchboardApiEndpoint', label: 'Switchboard API Endpoint' },
-      { key: 'switchboardAuthHeaderType', label: 'Switchboard Auth Header Type' },
-      { key: 'switchboardRequestBody', label: 'Switchboard Request Body' },
-      { key: 'switchboardTemplateId', label: 'Switchboard Template ID' },
+      { key: 'eventTime', label: 'Event Time', section: 'General' },
+      { key: 'eventLocation', label: 'Event Location', section: 'General' },
+      { key: 'timeZone', label: 'Time Zone', section: 'General' },
+      { key: 'bannerImageUrl', label: 'Banner Image', section: 'General' },
+      { key: 'signInBannerUrl', label: 'Sign In Banner', section: 'General' },
+      
+      // Barcode Settings
+      { key: 'barcodeType', label: 'Barcode Type', section: 'Barcode' },
+      { key: 'barcodeLength', label: 'Barcode Length', section: 'Barcode' },
+      { key: 'barcodeUnique', label: 'Unique Barcodes', section: 'Barcode' },
+      
+      // Name Formatting
+      { key: 'forceFirstNameUppercase', label: 'First Name Uppercase', section: 'Name Formatting' },
+      { key: 'forceLastNameUppercase', label: 'Last Name Uppercase', section: 'Name Formatting' },
+      
+      // Cloudinary Integration
+      { key: 'cloudinaryEnabled', label: 'Enabled', section: 'Cloudinary' },
+      { key: 'cloudinaryCloudName', label: 'Cloud Name', section: 'Cloudinary' },
+      { key: 'cloudinaryUploadPreset', label: 'Upload Preset', section: 'Cloudinary' },
+      { key: 'cloudinaryAutoOptimize', label: 'Auto-optimize', section: 'Cloudinary' },
+      { key: 'cloudinaryGenerateThumbnails', label: 'Generate Thumbnails', section: 'Cloudinary' },
+      { key: 'cloudinaryDisableSkipCrop', label: 'Disable Skip Crop', section: 'Cloudinary' },
+      { key: 'cloudinaryCropAspectRatio', label: 'Crop Aspect Ratio', section: 'Cloudinary' },
+      
+      // Switchboard Canvas Integration
+      { key: 'switchboardEnabled', label: 'Enabled', section: 'Switchboard Canvas' },
+      { key: 'switchboardApiEndpoint', label: 'API Endpoint', section: 'Switchboard Canvas' },
+      { key: 'switchboardAuthHeaderType', label: 'Auth Header Type', section: 'Switchboard Canvas' },
+      { key: 'switchboardRequestBody', label: 'Request Body', section: 'Switchboard Canvas' },
+      { key: 'switchboardTemplateId', label: 'Template ID', section: 'Switchboard Canvas' },
       {
         key: 'switchboardFieldMappings',
-        label: 'Switchboard Field Mappings',
+        label: 'Field Mappings',
+        section: 'Switchboard Canvas',
         compare: (updateVal, currentVal) => {
           if (!updateVal) return false;
           return JSON.stringify(updateVal) !== JSON.stringify(currentVal);
         },
       },
-      // OneSimpleAPI fields
-      { key: 'oneSimpleApiEnabled', label: 'OneSimpleAPI Integration' },
-      { key: 'oneSimpleApiUrl', label: 'OneSimpleAPI URL' },
-      { key: 'oneSimpleApiFormDataKey', label: 'OneSimpleAPI Form Data Key' },
-      { key: 'oneSimpleApiFormDataValue', label: 'OneSimpleAPI Form Data Value' },
-      { key: 'oneSimpleApiRecordTemplate', label: 'OneSimpleAPI Record Template' },
+      
+      // OneSimpleAPI Integration
+      { key: 'oneSimpleApiEnabled', label: 'Enabled', section: 'OneSimpleAPI' },
+      { key: 'oneSimpleApiUrl', label: 'URL', section: 'OneSimpleAPI' },
+      { key: 'oneSimpleApiFormDataKey', label: 'Form Data Key', section: 'OneSimpleAPI' },
+      { key: 'oneSimpleApiFormDataValue', label: 'Form Data Value', section: 'OneSimpleAPI' },
+      { key: 'oneSimpleApiRecordTemplate', label: 'Record Template', section: 'OneSimpleAPI' },
     ];
 
+  // Group changes by section
+  const changesBySection: Record<string, string[]> = {};
+
   // Check each field for changes
-  for (const { key, label, compare } of fieldMappings) {
+  for (const { key, label, section, compare } of fieldMappings) {
     const updateVal = updateData[key];
 
     // Skip if not in update data
@@ -951,30 +1070,55 @@ function detectChanges(updateData: any, currentSettings: any): string[] {
 
     const currentVal = currentSettings[key];
 
+    let hasChanged = false;
+
     // Use custom comparison if provided
     if (compare) {
-      if (compare(updateVal, currentVal)) {
-        changedFields.push(label);
-      }
+      hasChanged = compare(updateVal, currentVal);
     } else {
-      // Default strict equality comparison
-      if (updateVal !== currentVal) {
-        changedFields.push(label);
+      // Normalize both values before comparison to handle type coercion
+      const normalizedUpdateVal = normalizeValue(updateVal);
+      const normalizedCurrentVal = normalizeValue(currentVal);
+      
+      // Only mark as changed if normalized values are different
+      hasChanged = normalizedUpdateVal !== normalizedCurrentVal;
+    }
+
+    if (hasChanged) {
+      if (!changesBySection[section]) {
+        changesBySection[section] = [];
       }
+      changesBySection[section].push(label);
     }
   }
 
-  // Handle custom fields specially
-  if (updateData.customFields) {
-    changedFields.push('Custom Fields');
+  // Handle custom fields specially - but only if they actually changed
+  // The frontend always sends customFields array, so we need to check if anything actually changed
+  // This is handled by the transaction builder which compares fields, so we should NOT
+  // automatically add "Custom Fields" to the log unless we detect actual changes
+  // For now, we'll skip logging custom field changes in the summary since they're
+  // tracked separately in the transaction operations
+  // TODO: Implement proper custom field change detection if needed
+
+  // Format the changes into a readable string array
+  const formattedChanges: string[] = [];
+  
+  for (const [section, fields] of Object.entries(changesBySection)) {
+    if (fields.length === 1) {
+      // Single field: "Section: Field"
+      formattedChanges.push(`${section}: ${fields[0]}`);
+    } else if (fields.length <= 3) {
+      // Few fields: "Section: Field1, Field2, Field3"
+      formattedChanges.push(`${section}: ${fields.join(', ')}`);
+    } else {
+      // Many fields: "Section: Field1, Field2, and 3 more"
+      const firstTwo = fields.slice(0, 2).join(', ');
+      const remaining = fields.length - 2;
+      formattedChanges.push(`${section}: ${firstTwo}, and ${remaining} more`);
+    }
   }
 
-  // If no specific changes detected, fall back to generic message
-  if (changedFields.length === 0) {
-    changedFields.push('Event Settings');
-  }
-
-  return changedFields;
+  return formattedChanges;
 }
 
 /**

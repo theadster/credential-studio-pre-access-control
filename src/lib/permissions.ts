@@ -23,6 +23,7 @@ interface UserPermissions {
   customFields?: Permission;
   logs?: Permission;
   system?: Permission;
+  monitoring?: Permission;
 }
 
 export function hasPermission(
@@ -56,6 +57,9 @@ export function canAccessTab(userRole: any, tab: string): boolean {
       return hasPermission(userRole, 'eventSettings', 'read');
     case 'logs':
       return hasPermission(userRole, 'logs', 'read');
+    case 'monitoring':
+      // Operator monitoring requires monitoring read access
+      return hasPermission(userRole, 'monitoring', 'read');
     default:
       return false;
   }

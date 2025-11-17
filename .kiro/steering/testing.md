@@ -21,6 +21,7 @@ npx vitest --run --reporter=verbose  # Run with detailed output
 - Test files: `*.test.ts`, `*.test.tsx`
 - Located in `__tests__` directories or alongside source files
 - Configuration: `vitest.config.ts` at project root
+- TypeScript configuration: `tsconfig.test.json` (separate config for test files)
 
 ## Common Test Commands
 ```bash
@@ -37,7 +38,14 @@ npx vitest --run attendee
 npx vitest --run --coverage
 ```
 
+## TypeScript Configuration for Tests
+- Test files use a separate TypeScript config: `tsconfig.test.json`
+- This config extends the main `tsconfig.json` and includes test directories
+- Provides proper type checking and path alias resolution (`@/`) for test files
+- Main `tsconfig.json` excludes test files to keep the application config clean
+
 ## Important Notes
 - When validating implementations, ALWAYS use `npx vitest --run` to avoid blocking watch mode
 - Check `vitest.config.ts` for test configuration and setup files
 - Tests use Vitest's API (describe, it, expect, vi.mock, etc.)
+- If you encounter path alias issues in tests, ensure `tsconfig.test.json` exists and is properly configured

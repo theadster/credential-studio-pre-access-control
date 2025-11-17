@@ -30,6 +30,8 @@
     "migrate:event-settings-normalized": "tsx src/scripts/migrate-with-integration-collections.ts",
     "remove-api-keys": "tsx scripts/archive/schema-migrations/remove-api-key-attributes.ts",
     "test:inject-logs": "tsx scripts/inject-test-logs.ts",
+    "test:logs-timestamp-fix": "tsx scripts/test-logs-timestamp-fix.ts",
+    "migrate:logs-timestamp": "tsx scripts/migrate-log-timestamps.ts",
     "sync:versions": "tsx scripts/sync-versions-to-docs.ts"
   },
   "dependencies": {

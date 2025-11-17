@@ -412,7 +412,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const logAuthEvent = async (action: string, userId: string, details?: any) => {
     try {
-      await fetch('/api/logs', {
+      console.log('[AuthContext] Logging auth event', {
+        action,
+        userId,
+        details,
+        timestamp: new Date().toISOString()
+      });
+
+      const response = await fetch('/api/logs', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -423,8 +430,28 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           details: details || {},
         }),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('[AuthContext] Failed to log auth event - server error', {
+          action,
+          userId,
+          status: response.status,
+          statusText: response.statusText,
+          errorData
+        });
+      } else {
+        console.log('[AuthContext] Auth event logged successfully', {
+          action,
+          userId
+        });
+      }
     } catch (error) {
-      console.error('Failed to log authentication event:', error);
+      console.error('[AuthContext] Failed to log authentication event:', {
+        action,
+        userId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
   };
 

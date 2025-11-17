@@ -5,6 +5,14 @@ import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
 import { bulkEditWithFallback } from '@/lib/bulkOperations';
 import { handleTransactionError } from '@/lib/transactions';
 import { CLEAR_SENTINEL } from '@/lib/constants';
+import { 
+  isArrayField
+} from '@/lib/customFieldArrayOperators';
+import { 
+  createPerformanceTracker, 
+  trackTraditionalUpdate, 
+  logPerformanceMetrics 
+} from '@/lib/operatorPerformance';
 
 export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   if (req.method !== 'POST') {
@@ -14,6 +22,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
   }
 
   try {
+    // Start performance monitoring
+    const performanceMetrics = createPerformanceTracker('bulk_edit_attendees');
+
     // User and userProfile are already attached by middleware
     const { user, userProfile } = req;
     const { databases } = createSessionClient(req);
@@ -36,6 +47,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       return;
     }
 
+    const totalRequested = attendeeIds.length;
     const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
     const attendeesCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID!;
     const logsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!;
@@ -78,6 +90,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       customFields.map((cf: any) => [cf.$id, {
         fieldType: cf.fieldType,
         fieldName: cf.fieldName,
+        fieldOptions: cf.fieldOptions,
         printable: cf.printable === true
       }])
     );
@@ -119,7 +132,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         let hasPrintableCustomFieldChanges = false;
 
         // Create a map for easier lookup and updates
-        const customFieldMap = new Map(
+        const customFieldMap = new Map<string, string | string[]>(
           currentCustomFieldValues.map(cfv => [cfv.customFieldId, cfv.value])
         );
 
@@ -134,19 +147,70 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             continue;
           }
 
+          // Check if this is an array field (multi-select)
+          const isArray = isArrayField(customField.fieldType, customField.fieldOptions);
+
           // Handle special CLEAR_SENTINEL value to empty the field
           let processedValue = value;
           if (value === CLEAR_SENTINEL) {
-            processedValue = '';
+            processedValue = isArray ? [] : '';
           } else if (customField.fieldType === 'uppercase' && typeof processedValue === 'string') {
             processedValue = processedValue.toUpperCase();
           }
 
           // Update the custom field value in the map
           const currentValue = customFieldMap.get(fieldId);
-          if (currentValue !== String(processedValue)) {
-            customFieldMap.set(fieldId, String(processedValue));
+          
+          // For array fields, compare arrays; for single values, compare strings
+          let valueChanged = false;
+          if (isArray) {
+            // Parse current value - handle both array and string formats
+            let currentArray: string[] = [];
+            if (Array.isArray(currentValue)) {
+              currentArray = currentValue;
+            } else if (currentValue) {
+              try {
+                // Try parsing as JSON array first (preferred format)
+                const parsed = JSON.parse(String(currentValue));
+                currentArray = Array.isArray(parsed) ? parsed : [String(currentValue)];
+              } catch {
+                // Fallback: treat as single value if not valid JSON
+                currentArray = [String(currentValue)];
+              }
+            }
+
+            // Parse new value - handle both array and string formats
+            let newArray: string[] = [];
+            if (Array.isArray(processedValue)) {
+              newArray = processedValue;
+            } else if (processedValue) {
+              try {
+                // Try parsing as JSON array first (preferred format)
+                const parsed = JSON.parse(String(processedValue));
+                newArray = Array.isArray(parsed) ? parsed : [String(processedValue)];
+              } catch {
+                // Fallback: treat as single value if not valid JSON
+                newArray = [String(processedValue)];
+              }
+            }
+            
+            // Compare arrays (order-independent)
+            valueChanged = JSON.stringify(currentArray.sort()) !== JSON.stringify(newArray.sort());
+            
+            if (valueChanged) {
+              customFieldMap.set(fieldId, newArray);
+            }
+          } else {
+            valueChanged = currentValue !== String(processedValue);
+            
+            if (valueChanged) {
+              customFieldMap.set(fieldId, String(processedValue));
+            }
+          }
+
+          if (valueChanged) {
             hasChanges = true;
+            trackTraditionalUpdate(performanceMetrics);
 
             // Check if this is a printable field
             if (customField.printable) {
@@ -157,11 +221,21 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
         // Add to updates array if there are changes
         if (hasChanges) {
-          // Convert map back to array format
-          const updatedCustomFieldValues = Array.from(customFieldMap.entries()).map(([customFieldId, value]) => ({
-            customFieldId,
-            value
-          }));
+          // Convert map back to object format (not array)
+          // This maintains the structure: { "fieldId": "value" } or { "fieldId": ["val1", "val2"] }
+          const updatedCustomFieldValues: Record<string, any> = {};
+          
+          for (const [customFieldId, value] of customFieldMap.entries()) {
+            const fieldMeta = customFieldsMap.get(customFieldId);
+            if (fieldMeta) {
+              const isArray = isArrayField(fieldMeta.fieldType, fieldMeta.fieldOptions);
+              // Store arrays as arrays, single values as strings
+              updatedCustomFieldValues[customFieldId] = isArray ? value : String(value);
+            } else {
+              // Fallback for unknown fields
+              updatedCustomFieldValues[customFieldId] = value;
+            }
+          }
 
           const updateData: any = {
             customFieldValues: JSON.stringify(updatedCustomFieldValues)
@@ -240,10 +314,14 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       }
     });
 
+    // Finalize and log performance metrics
+    performanceMetrics.usedTransactions = result.usedTransactions;
+    performanceMetrics.batchCount = result.batchCount;
+    logPerformanceMetrics(performanceMetrics);
+
     // Determine appropriate status code and message
     const hasFailures = errors.length > 0;
     const successCount = result.updatedCount;
-    const totalRequested = attendeeIds.length;
 
     let statusCode = 200;
     let message = 'Attendees updated successfully';
@@ -264,7 +342,13 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       errors,
       totalRequested,
       successCount,
-      failureCount: errors.length
+      failureCount: errors.length,
+      performance: {
+        duration: performanceMetrics.duration,
+        operationsPerSecond: performanceMetrics.operationsPerSecond,
+        operatorUsageCount: performanceMetrics.operatorUsageCount,
+        traditionalUpdateCount: performanceMetrics.traditionalUpdateCount
+      }
     });
 
   } catch (error: any) {

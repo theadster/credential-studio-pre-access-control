@@ -475,34 +475,74 @@ export const IntegrationsTab = memo(function IntegrationsTab({
 
             <div className="space-y-2">
               <Label htmlFor="oneSimpleApiFormDataValue" className="text-sm font-medium">
-                Form Data Value Template (HTML)
+                Form Data Value Template (HTML) *
               </Label>
               <Textarea
                 id="oneSimpleApiFormDataValue"
                 value={formData.oneSimpleApiFormDataValue || ""}
                 onChange={(e) => onInputChange("oneSimpleApiFormDataValue", e.target.value)}
-                placeholder="<div>{{firstName}} {{lastName}}</div>"
-                className="min-h-[100px] font-mono text-sm"
+                placeholder={`<html>
+  <body>
+    <h1>{{eventName}}</h1>
+    <p>Date: {{eventDate}}</p>
+    {{credentialRecords}}
+  </body>
+</html>`}
+                className="min-h-[150px] font-mono text-sm"
               />
-              <p className="text-xs text-muted-foreground">
-                HTML template with placeholders for dynamic data
+              <p className="text-xs text-muted-foreground mb-3">
+                The main HTML wrapper template that contains all attendee records. This template is sent to the webhook endpoint.
               </p>
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                <div className="text-xs space-y-2">
+                  <p className="font-medium text-amber-900 dark:text-amber-100 mb-2">Available Placeholders:</p>
+                  <ul className="space-y-1 text-amber-800 dark:text-amber-200">
+                    <li><code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">{'{{credentialRecords}}'}</code> - All attendee records (required)</li>
+                    <li><code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">{'{{eventName}}'}</code> - Event name</li>
+                    <li><code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">{'{{eventDate}}'}</code> - Event date</li>
+                    <li><code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">{'{{eventTime}}'}</code> - Event time</li>
+                    <li><code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">{'{{eventLocation}}'}</code> - Event location</li>
+                  </ul>
+                </div>
+              </div>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="oneSimpleApiRecordTemplate" className="text-sm font-medium">
-                Record Template (HTML)
+                Record Template (HTML) *
               </Label>
               <Textarea
                 id="oneSimpleApiRecordTemplate"
                 value={formData.oneSimpleApiRecordTemplate || ""}
                 onChange={(e) => onInputChange("oneSimpleApiRecordTemplate", e.target.value)}
-                placeholder="<div>Record: {{barcodeNumber}}</div>"
-                className="min-h-[100px] font-mono text-sm"
+                placeholder={`<div class="record">
+  <h3>{{firstName}} {{lastName}}</h3>
+  <p>Barcode: {{barcodeNumber}}</p>
+  <img src="{{photoUrl}}" alt="Photo" />
+  <a href="{{credentialUrl}}">View Credential</a>
+</div>`}
+                className="min-h-[150px] font-mono text-sm"
               />
-              <p className="text-xs text-muted-foreground">
-                HTML template for individual record formatting
+              <p className="text-xs text-muted-foreground mb-3">
+                The HTML template for each individual attendee record. This template is repeated for every attendee and inserted into the Form Data Value Template where <code className="bg-muted px-1 rounded">{'{{credentialRecords}}'}</code> appears.
               </p>
+              <div className="p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <div className="text-xs space-y-2">
+                  <p className="font-medium text-blue-900 dark:text-blue-100 mb-2">Available Placeholders:</p>
+                  <ul className="space-y-1 text-blue-800 dark:text-blue-200">
+                    <li><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{'{{firstName}}'}</code> - Attendee first name</li>
+                    <li><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{'{{lastName}}'}</code> - Attendee last name</li>
+                    <li><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{'{{barcodeNumber}}'}</code> - Attendee barcode</li>
+                    <li><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{'{{photoUrl}}'}</code> - Attendee photo URL</li>
+                    <li><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{'{{credentialUrl}}'}</code> - Attendee credential URL</li>
+                    <li><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{'{{eventName}}'}</code> - Event name</li>
+                    <li><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{'{{eventDate}}'}</code> - Event date</li>
+                    <li><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{'{{eventTime}}'}</code> - Event time</li>
+                    <li><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{'{{eventLocation}}'}</code> - Event location</li>
+                    <li><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{'{{customFieldName}}'}</code> - Any custom field (use internal field name)</li>
+                  </ul>
+                </div>
+              </div>
             </div>
           </div>
         </div>
