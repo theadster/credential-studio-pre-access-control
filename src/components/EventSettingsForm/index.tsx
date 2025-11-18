@@ -11,6 +11,11 @@ export { BarcodeTab } from './BarcodeTab';
 export { CustomFieldsTab } from './CustomFieldsTab';
 export { IntegrationsTab } from './IntegrationsTab';
 
+// Integration sub-tab components
+export { CloudinaryTab } from './CloudinaryTab';
+export { SwitchboardTab } from './SwitchboardTab';
+export { OneSimpleApiTab } from './OneSimpleApiTab';
+
 // Reusable components
 export { IntegrationSection } from './IntegrationSection';
 export { SortableCustomField } from './SortableCustomField';

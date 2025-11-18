@@ -1,7 +1,7 @@
 // BarcodeTab Component
 // Handles barcode generation configuration
 
-import React, { memo } from 'react';
+import { memo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +12,7 @@ import { EventSettings } from './types';
 
 interface BarcodeTabProps {
   formData: EventSettings;
-  onInputChange: (field: keyof EventSettings, value: any) => void;
+  onInputChange: <K extends keyof EventSettings>(field: K, value: EventSettings[K]) => void;
 }
 
 export const BarcodeTab = memo(function BarcodeTab({ formData, onInputChange }: BarcodeTabProps) {

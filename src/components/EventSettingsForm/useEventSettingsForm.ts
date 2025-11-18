@@ -85,7 +85,7 @@ export function useEventSettingsForm({
   }, [eventSettings, isOpen]);
 
   // Memoized handlers
-  const handleInputChange = useCallback((field: keyof EventSettings, value: any) => {
+  const handleInputChange = useCallback(<K extends keyof EventSettings>(field: K, value: EventSettings[K]) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
