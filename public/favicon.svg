@@ -1,7 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <rect width="20" height="14" x="2" y="5" rx="2"/>
-  <path d="M2 10h20"/>
-  <circle cx="8" cy="14" r="2"/>
-  <path d="M15 13h3"/>
-  <path d="M15 16h3"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <rect width="20" height="14" x="2" y="5" rx="2"></rect>
+  <path d="M2 10h20"></path>
+  <circle cx="8" cy="14" r="2"></circle>
+  <path d="M15 13h3"></path>
+  <path d="M15 16h3"></path>
+</svg><style>@media (prefers-color-scheme: light) { :root { filter: none; } }
+@media (prefers-color-scheme: dark) { :root { filter: none; } }
+</style></svg>
