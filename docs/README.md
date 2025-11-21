@@ -121,6 +121,105 @@ docs/
 - [**Package Update Summary**](./guides/PACKAGE_UPDATE_SUMMARY.md) - 📦 Recent package updates and what was skipped
 - [**Package Update Analysis**](./guides/PACKAGE_UPDATE_ANALYSIS.md) - 🔍 Detailed analysis of available package updates
 
+#### Integration System
+
+**Quick Start:**
+- [**Adding New Integration Guide**](./guides/ADDING_NEW_INTEGRATION_GUIDE.md) - 🚀 **START HERE:** Step-by-step procedure for adding new integrations
+  - Complete checklist from database setup to testing
+  - Phase-by-phase implementation guide
+  - Code examples for each step
+  - Common pitfalls and verification queries
+
+**Architecture & Patterns:**
+- [**Integration Architecture Guide**](./guides/INTEGRATION_ARCHITECTURE_GUIDE.md) - 🏗️ Complete architecture overview of the integration system
+  - Normalized database design with separate collections
+  - Data flow from UI to database with Mermaid diagrams
+  - Optimistic locking mechanism for concurrency control
+  - Security patterns for API credentials
+  - File organization and responsibilities
+  - Examples from Cloudinary, Switchboard, and OneSimpleAPI
+- [**Integration Patterns Reference**](./guides/INTEGRATION_PATTERNS_REFERENCE.md) - 📋 Reusable code templates and patterns
+  - TypeScript interface templates
+  - Getter and update function patterns
+  - UI component templates
+  - Database collection creation patterns
+  - Helper function patterns (flattenEventSettings, extractIntegrationFields)
+- [**Integration Data Flow**](./guides/INTEGRATION_DATA_FLOW.md) - 🔄 Comprehensive data flow documentation
+  - Complete request/response lifecycle from UI to database
+  - Form data collection in EventSettingsForm
+  - extractIntegrationFields function and field separation
+  - Parallel integration fetching with Promise.allSettled
+  - Cache usage and invalidation patterns
+  - flattenEventSettings helper and backward compatibility
+  - Transaction handling for core settings vs integrations
+  - Performance optimization strategies
+
+**Integration Types & Examples:**
+- [**Integration Type Examples**](./guides/INTEGRATION_TYPE_EXAMPLES.md) - 💡 Detailed examples of different integration types
+  - Photo integration pattern (Cloudinary)
+  - Printing integration pattern (Switchboard)
+  - Webhook integration pattern (OneSimpleAPI)
+  - Comparison table and use case guidance
+- [**Photo Service Integration Guide**](./guides/PHOTO_SERVICE_INTEGRATION_GUIDE.md) - 📸 Specific guidance for photo upload services
+  - Replacing Cloudinary walkthrough
+  - Minimum required configuration fields
+  - Photo URL handling patterns
+  - Testing checklist for photo integrations
+  - Migration strategy for existing photo URLs
+
+**UI & User Experience:**
+- [**Integration UI Patterns**](./guides/INTEGRATION_UI_PATTERNS.md) - 🎨 UI component patterns and best practices
+  - IntegrationsTab component structure
+  - Enable/disable toggle implementation
+  - IntegrationStatusIndicator usage
+  - Section grouping and form organization
+  - Tab state management with localStorage
+  - Responsive design and accessibility
+
+**Security & Best Practices:**
+- [**Integration Security Guide**](./guides/INTEGRATION_SECURITY_GUIDE.md) - 🔒 Security best practices for integrations
+  - Environment variable management for API credentials
+  - Security audit checklist
+  - Secure vs insecure implementation examples
+  - Logging best practices (what not to log)
+  - Permission boundary considerations
+
+**Migration & Maintenance:**
+- [**Integration Migration Patterns**](./guides/INTEGRATION_MIGRATION_PATTERNS.md) - 🔄 Migration and maintenance strategies
+  - Migrating integration data between services
+  - Safe integration removal process
+  - Version migration for schema changes
+  - Script templates for data transformation
+  - Photo URL migration patterns
+  - Validation queries and rollback strategies
+
+**Troubleshooting:**
+- [**Integration Troubleshooting Guide**](./guides/INTEGRATION_TROUBLESHOOTING_GUIDE.md) - 🔧 Common issues and solutions
+  - Optimistic locking conflict resolution
+  - Concurrent create conflict handling
+  - Integration fetch failures with Promise.allSettled
+  - Environment variable verification
+  - Debugging checklist and error message reference
+  - Performance optimization tips
+
+**Common Tasks:**
+- **Adding a new integration** → [Adding New Integration Guide](./guides/ADDING_NEW_INTEGRATION_GUIDE.md)
+- **Replacing Cloudinary** → [Photo Service Integration Guide](./guides/PHOTO_SERVICE_INTEGRATION_GUIDE.md)
+- **Understanding data flow** → [Integration Data Flow](./guides/INTEGRATION_DATA_FLOW.md)
+- **Fixing optimistic locking errors** → [Integration Troubleshooting Guide](./guides/INTEGRATION_TROUBLESHOOTING_GUIDE.md)
+- **Securing API credentials** → [Integration Security Guide](./guides/INTEGRATION_SECURITY_GUIDE.md)
+- **Creating UI components** → [Integration UI Patterns](./guides/INTEGRATION_UI_PATTERNS.md)
+- **Migrating integration data** → [Integration Migration Patterns](./guides/INTEGRATION_MIGRATION_PATTERNS.md)
+
+**Related Documentation:**
+- [Integration Architecture Fix](../fixes/INTEGRATION_ARCHITECTURE_FIX.md) - Historical context on the normalized design
+- [Integration Collections Migration](../migration/INTEGRATION_COLLECTIONS_MIGRATION.md) - Migration to separate collections
+- [Integration Interfaces Verification](./INTEGRATION_INTERFACES_VERIFICATION.md) - Interface consistency verification
+- [Switchboard Configuration Guide](./SWITCHBOARD_CONFIGURATION_GUIDE.md) - Specific Switchboard setup
+- [Error Handling Guide](./ERROR_HANDLING_GUIDE.md) - General error handling patterns
+
+**Search Keywords:** integration, third-party, API, Cloudinary, Switchboard, OneSimpleAPI, photo upload, printing, webhook, optimistic locking, environment variables, security, migration
+
 #### Other Guides
 - [**Printable Fields User Guide**](./guides/PRINTABLE_FIELDS_USER_GUIDE.md) - 🎯 Complete guide to configuring printable fields and managing credential status
 - [**Custom Field Columns Quick Reference**](./guides/CUSTOM_FIELD_COLUMNS_QUICK_REFERENCE.md) - ⚡ Quick reference for custom field column configuration
@@ -143,6 +242,13 @@ docs/
 ## Spec-Related Documentation
 
 Documentation related to specific specs is located in `.kiro/specs/[spec-name]/`:
+
+### Integration System Documentation
+`.kiro/specs/integration-system-documentation/`
+- requirements.md - Documentation requirements
+- design.md - Documentation design and structure
+- tasks.md - Documentation creation tasks
+- **Output:** 10 comprehensive integration guides in `docs/guides/` (see Integration System section above)
 
 ### Auth User Linking System
 `.kiro/specs/auth-user-linking-system/`
@@ -202,6 +308,18 @@ Documentation related to specific specs is located in `.kiro/specs/[spec-name]/`
 **Database & Migration:**
 - Migration documentation folder
 - Appwrite Configuration (migration/)
+
+**Integration System:**
+- Integration Architecture Guide (guides/)
+- Adding New Integration Guide (guides/)
+- Integration Patterns Reference (guides/)
+- Integration Security Guide (guides/)
+- Integration Troubleshooting Guide (guides/)
+- Photo Service Integration Guide (guides/)
+- Integration Type Examples (guides/)
+- Integration UI Patterns (guides/)
+- Integration Data Flow (guides/)
+- Integration Migration Patterns (guides/)
 
 **Testing:**
 - Testing documentation folder
