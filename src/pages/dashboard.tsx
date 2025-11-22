@@ -2531,7 +2531,7 @@ export default function Dashboard() {
       <aside className="w-64 border-r glass-effect flex flex-col h-screen bg-gradient-to-br from-background via-surface to-surface-variant">
         <div className="flex-1 overflow-y-auto">
           <div className="p-6">
-            <div className="flex items-center space-x-2 mb-8">
+            <div className="flex items-center space-x-2 mb-3">
               <IdCard className="h-8 w-8 text-primary" />
               <span className="text-xl font-bold">credential.studio</span>
             </div>
