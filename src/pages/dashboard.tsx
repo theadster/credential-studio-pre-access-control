@@ -2943,24 +2943,24 @@ export default function Dashboard() {
                             )}
                           </Button>
                         </DialogTrigger>
-                        <DialogContent className="max-w-5xl max-h-[80vh] overflow-y-auto">
-                          <DialogHeader>
-                            <DialogTitle className="flex items-center justify-between">
-                              <span>Advanced Search</span>
-                              <Button variant="ghost" size="sm" onClick={clearAdvancedSearch}>
-                                Clear All
-                              </Button>
+                        <DialogContent className="max-w-5xl max-h-[80vh] overflow-y-auto bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 shadow-2xl p-0">
+                          <DialogHeader className="border-b border-slate-200 dark:border-slate-700 pb-4 mb-0 bg-[#F1F5F9] dark:bg-slate-800 px-6 pt-6">
+                            <DialogTitle className="text-2xl font-bold text-primary flex items-center gap-2">
+                              <Search className="w-6 h-6 text-primary" />
+                              Advanced Search
                             </DialogTitle>
-                            <DialogDescription>
+                            <DialogDescription className="text-slate-600 dark:text-slate-400 mt-2">
                               Search attendees using multiple criteria. Leave fields empty to ignore them in the search.
                             </DialogDescription>
                           </DialogHeader>
-                          <div className="space-y-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                          <div className="px-6 py-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
                               {/* Basic Fields */}
-                              <div className="space-y-2">
-                                <Label htmlFor="firstName" className="flex items-center space-x-2">
-                                  <User className="h-4 w-4 text-muted-foreground" />
+                              <div className="space-y-2 p-4 rounded-lg bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
+                                <Label htmlFor="firstName" className="flex items-center space-x-2 font-semibold text-slate-700 dark:text-slate-300">
+                                  <div className="p-1.5 rounded-md bg-blue-100 dark:bg-blue-900/30">
+                                    <User className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                  </div>
                                   <span>First Name</span>
                                 </Label>
                                 <div className="flex space-x-2">
@@ -2968,7 +2968,7 @@ export default function Dashboard() {
                                     value={advancedSearchFilters.firstName.operator}
                                     onValueChange={(operator) => handleAdvancedSearchChange('firstName', operator, 'operator')}
                                   >
-                                    <SelectTrigger className="w-[120px]">
+                                    <SelectTrigger className="w-[120px] bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600">
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -2986,13 +2986,16 @@ export default function Dashboard() {
                                     value={advancedSearchFilters.firstName.value}
                                     onChange={(e) => handleAdvancedSearchChange('firstName', e.target.value, 'value')}
                                     disabled={['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.firstName.operator)}
+                                    className="bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600"
                                   />
                                 </div>
                               </div>
 
-                              <div className="space-y-2">
-                                <Label htmlFor="lastName" className="flex items-center space-x-2">
-                                  <User className="h-4 w-4 text-muted-foreground" />
+                              <div className="space-y-2 p-4 rounded-lg bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
+                                <Label htmlFor="lastName" className="flex items-center space-x-2 font-semibold text-slate-700 dark:text-slate-300">
+                                  <div className="p-1.5 rounded-md bg-purple-100 dark:bg-purple-900/30">
+                                    <User className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                                  </div>
                                   <span>Last Name</span>
                                 </Label>
                                 <div className="flex space-x-2">
@@ -3000,7 +3003,7 @@ export default function Dashboard() {
                                     value={advancedSearchFilters.lastName.operator}
                                     onValueChange={(operator) => handleAdvancedSearchChange('lastName', operator, 'operator')}
                                   >
-                                    <SelectTrigger className="w-[120px]">
+                                    <SelectTrigger className="w-[120px] bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600">
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -3018,13 +3021,16 @@ export default function Dashboard() {
                                     value={advancedSearchFilters.lastName.value}
                                     onChange={(e) => handleAdvancedSearchChange('lastName', e.target.value, 'value')}
                                     disabled={['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.lastName.operator)}
+                                    className="bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600"
                                   />
                                 </div>
                               </div>
 
-                              <div className="space-y-2">
-                                <Label htmlFor="barcode" className="flex items-center space-x-2">
-                                  <QrCode className="h-4 w-4 text-muted-foreground" />
+                              <div className="space-y-2 p-4 rounded-lg bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
+                                <Label htmlFor="barcode" className="flex items-center space-x-2 font-semibold text-slate-700 dark:text-slate-300">
+                                  <div className="p-1.5 rounded-md bg-green-100 dark:bg-green-900/30">
+                                    <QrCode className="h-4 w-4 text-green-600 dark:text-green-400" />
+                                  </div>
                                   <span>Barcode</span>
                                 </Label>
                                 <div className="flex space-x-2">
@@ -3032,7 +3038,7 @@ export default function Dashboard() {
                                     value={advancedSearchFilters.barcode.operator}
                                     onValueChange={(operator) => handleAdvancedSearchChange('barcode', operator, 'operator')}
                                   >
-                                    <SelectTrigger className="w-[120px]">
+                                    <SelectTrigger className="w-[120px] bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600">
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -3050,20 +3056,23 @@ export default function Dashboard() {
                                     value={advancedSearchFilters.barcode.value}
                                     onChange={(e) => handleAdvancedSearchChange('barcode', e.target.value, 'value')}
                                     disabled={['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.barcode.operator)}
+                                    className="bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600"
                                   />
                                 </div>
                               </div>
 
-                              <div className="space-y-2">
-                                <Label htmlFor="photoFilter" className="flex items-center space-x-2">
-                                  <Image className="h-4 w-4 text-muted-foreground" />
+                              <div className="space-y-2 p-4 rounded-lg bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
+                                <Label htmlFor="photoFilter" className="flex items-center space-x-2 font-semibold text-slate-700 dark:text-slate-300">
+                                  <div className="p-1.5 rounded-md bg-amber-100 dark:bg-amber-900/30">
+                                    <Image className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                                  </div>
                                   <span>Photo Status</span>
                                 </Label>
                                 <Select
                                   value={advancedSearchFilters.photoFilter}
                                   onValueChange={(value) => handleAdvancedSearchChange('photoFilter', value)}
                                 >
-                                  <SelectTrigger>
+                                  <SelectTrigger className="bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600">
                                     <SelectValue placeholder="Filter by photo" />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -3075,9 +3084,11 @@ export default function Dashboard() {
                               </div>
 
                               {/* Notes Field */}
-                              <div className="space-y-2">
-                                <Label htmlFor="notes" className="flex items-center space-x-2">
-                                  <FileText className="h-4 w-4 text-muted-foreground" />
+                              <div className="space-y-2 p-4 rounded-lg bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
+                                <Label htmlFor="notes" className="flex items-center space-x-2 font-semibold text-slate-700 dark:text-slate-300">
+                                  <div className="p-1.5 rounded-md bg-yellow-100 dark:bg-yellow-900/30">
+                                    <FileText className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+                                  </div>
                                   <span>Notes</span>
                                 </Label>
                                 <div className="space-y-2">
@@ -3086,7 +3097,7 @@ export default function Dashboard() {
                                       value={advancedSearchFilters.notes.operator}
                                       onValueChange={(operator) => handleAdvancedSearchChange('notes', operator, 'operator')}
                                     >
-                                      <SelectTrigger className="w-[120px]">
+                                      <SelectTrigger className="w-[120px] bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600">
                                         <SelectValue />
                                       </SelectTrigger>
                                       <SelectContent>
@@ -3104,6 +3115,7 @@ export default function Dashboard() {
                                       value={advancedSearchFilters.notes.value}
                                       onChange={(e) => handleAdvancedSearchChange('notes', e.target.value, 'value')}
                                       disabled={['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.notes.operator)}
+                                      className="bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600"
                                     />
                                   </div>
                                   <div className="flex items-center space-x-2">
@@ -3135,32 +3147,54 @@ export default function Dashboard() {
                               {eventSettings?.customFields?.map((field: any) => {
                                 // Function to get icon based on field type
                                 const getFieldIcon = (fieldType: string) => {
+                                  const iconColors = {
+                                    'text': 'text-cyan-600 dark:text-cyan-400',
+                                    'uppercase': 'text-cyan-600 dark:text-cyan-400',
+                                    'url': 'text-pink-600 dark:text-pink-400',
+                                    'email': 'text-rose-600 dark:text-rose-400',
+                                    'number': 'text-teal-600 dark:text-teal-400',
+                                    'boolean': 'text-violet-600 dark:text-violet-400',
+                                    'select': 'text-orange-600 dark:text-orange-400'
+                                  };
+                                  const bgColors = {
+                                    'text': 'bg-cyan-100 dark:bg-cyan-900/30',
+                                    'uppercase': 'bg-cyan-100 dark:bg-cyan-900/30',
+                                    'url': 'bg-pink-100 dark:bg-pink-900/30',
+                                    'email': 'bg-rose-100 dark:bg-rose-900/30',
+                                    'number': 'bg-teal-100 dark:bg-teal-900/30',
+                                    'boolean': 'bg-violet-100 dark:bg-violet-900/30',
+                                    'select': 'bg-orange-100 dark:bg-orange-900/30'
+                                  };
+                                  
+                                  const iconClass = iconColors[fieldType as keyof typeof iconColors] || 'text-slate-600 dark:text-slate-400';
+                                  const bgClass = bgColors[fieldType as keyof typeof bgColors] || 'bg-slate-100 dark:bg-slate-900/30';
+                                  
                                   switch (fieldType) {
                                     case 'text':
                                     case 'uppercase':
-                                      return <Type className="h-4 w-4 text-muted-foreground" />;
+                                      return <div className={`p-1.5 rounded-md ${bgClass}`}><Type className={`h-4 w-4 ${iconClass}`} /></div>;
                                     case 'url':
-                                      return <Link className="h-4 w-4 text-muted-foreground" />;
+                                      return <div className={`p-1.5 rounded-md ${bgClass}`}><Link className={`h-4 w-4 ${iconClass}`} /></div>;
                                     case 'email':
-                                      return <Mail className="h-4 w-4 text-muted-foreground" />;
+                                      return <div className={`p-1.5 rounded-md ${bgClass}`}><Mail className={`h-4 w-4 ${iconClass}`} /></div>;
                                     case 'number':
-                                      return <Hash className="h-4 w-4 text-muted-foreground" />;
+                                      return <div className={`p-1.5 rounded-md ${bgClass}`}><Hash className={`h-4 w-4 ${iconClass}`} /></div>;
                                     case 'boolean':
-                                      return <ToggleLeft className="h-4 w-4 text-muted-foreground" />;
+                                      return <div className={`p-1.5 rounded-md ${bgClass}`}><ToggleLeft className={`h-4 w-4 ${iconClass}`} /></div>;
                                     case 'select':
-                                      return <ChevronDown className="h-4 w-4 text-muted-foreground" />;
+                                      return <div className={`p-1.5 rounded-md ${bgClass}`}><ChevronDown className={`h-4 w-4 ${iconClass}`} /></div>;
                                     default:
-                                      return <FileText className="h-4 w-4 text-muted-foreground" />;
+                                      return <div className="p-1.5 rounded-md bg-slate-100 dark:bg-slate-900/30"><FileText className="h-4 w-4 text-slate-600 dark:text-slate-400" /></div>;
                                   }
                                 };
 
                                 return (
-                                  <div key={field.id} className="space-y-2">
-                                    <Label htmlFor={`custom-${field.id}`} className="flex items-center space-x-2">
+                                  <div key={field.id} className="space-y-2 p-4 rounded-lg bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
+                                    <Label htmlFor={`custom-${field.id}`} className="flex items-center space-x-2 font-semibold text-slate-700 dark:text-slate-300">
                                       {getFieldIcon(field.fieldType)}
                                       <span>{field.fieldName}</span>
                                       {field.fieldType && (
-                                        <Badge variant="outline" className="ml-2 text-xs">
+                                        <Badge variant="outline" className="ml-2 text-xs bg-slate-100 dark:bg-slate-800">
                                           {field.fieldType}
                                         </Badge>
                                       )}
@@ -3172,7 +3206,7 @@ export default function Dashboard() {
                                             value={advancedSearchFilters.customFields[field.id]?.operator || 'contains'}
                                             onValueChange={(operator) => handleCustomFieldOperatorChange(field.id, operator)}
                                           >
-                                            <SelectTrigger className="w-[120px]">
+                                            <SelectTrigger className="w-[120px] bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600">
                                               <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -3190,6 +3224,7 @@ export default function Dashboard() {
                                             value={advancedSearchFilters.customFields[field.id]?.value || ''}
                                             onChange={(e) => handleCustomFieldSearchChange(field.id, e.target.value)}
                                             disabled={['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.customFields[field.id]?.operator)}
+                                            className="bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600"
                                           />
                                         </div>
                                       ) : field.fieldType === 'select' ? (
@@ -3197,7 +3232,7 @@ export default function Dashboard() {
                                           value={advancedSearchFilters.customFields[field.id]?.value || 'all'}
                                           onValueChange={(value) => handleCustomFieldSearchChange(field.id, value === 'all' ? '' : value, 'equals')}
                                         >
-                                          <SelectTrigger>
+                                          <SelectTrigger className="bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600">
                                             <SelectValue placeholder={`Select ${field.fieldName.toLowerCase()}...`} />
                                           </SelectTrigger>
                                           <SelectContent>
@@ -3214,7 +3249,7 @@ export default function Dashboard() {
                                           value={advancedSearchFilters.customFields[field.id]?.value || 'all'}
                                           onValueChange={(value) => handleCustomFieldSearchChange(field.id, value === 'all' ? '' : value, 'equals')}
                                         >
-                                          <SelectTrigger>
+                                          <SelectTrigger className="bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600">
                                             <SelectValue placeholder={`Select ${field.fieldName.toLowerCase()}...`} />
                                           </SelectTrigger>
                                           <SelectContent>
@@ -3229,6 +3264,7 @@ export default function Dashboard() {
                                           placeholder={`Search by ${field.fieldName.toLowerCase()}...`}
                                           value={advancedSearchFilters.customFields[field.id]?.value || ''}
                                           onChange={(e) => handleCustomFieldSearchChange(field.id, e.target.value)}
+                                          className="bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600"
                                         />
                                       )}
                                     </div>
@@ -3237,24 +3273,32 @@ export default function Dashboard() {
                               })}
                             </div>
 
-                            {/* Apply Search Button */}
-                            <div className="flex justify-end space-x-2 pt-4 border-t">
-                              <DialogTrigger asChild>
-                                <Button variant="outline">
-                                  Cancel
-                                </Button>
-                              </DialogTrigger>
-                              <DialogTrigger asChild>
-                                <Button onClick={() => {
-                                  if (hasAdvancedFilters()) {
-                                    setShowAdvancedSearch(true);
-                                  } else {
-                                    error("No Search Criteria", "Please enter at least one search criterion to use advanced search.");
-                                  }
-                                }}>
-                                  Apply Search
-                                </Button>
-                              </DialogTrigger>
+                            {/* Action Buttons */}
+                            <div className="flex justify-between items-center pt-6 pb-6 border-t-2 border-slate-200 dark:border-slate-700 bg-[#F1F5F9] dark:bg-slate-800 -mx-6 -mb-6 px-6">
+                              <Button variant="ghost" size="sm" onClick={clearAdvancedSearch} className="hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400 transition-colors">
+                                <X className="h-4 w-4 mr-2" />
+                                Clear All Filters
+                              </Button>
+                              <div className="flex space-x-2">
+                                <DialogTrigger asChild>
+                                  <Button variant="outline" className="border-2 hover:bg-slate-100 dark:hover:bg-slate-800">
+                                    <X className="h-4 w-4 mr-2" />
+                                    Cancel
+                                  </Button>
+                                </DialogTrigger>
+                                <DialogTrigger asChild>
+                                  <Button onClick={() => {
+                                    if (hasAdvancedFilters()) {
+                                      setShowAdvancedSearch(true);
+                                    } else {
+                                      error("No Search Criteria", "Please enter at least one search criterion to use advanced search.");
+                                    }
+                                  }}>
+                                    <Search className="h-4 w-4 mr-2" />
+                                    Apply Search
+                                  </Button>
+                                </DialogTrigger>
+                              </div>
                             </div>
                           </div>
                         </DialogContent>

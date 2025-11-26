@@ -20,7 +20,7 @@ export function FormActions({
   onSaveAndGenerate
 }: FormActionsProps) {
   return (
-    <div className="flex justify-end space-x-2 pt-4 border-t">
+    <div className="flex justify-end space-x-2 pt-6 pb-6 border-t-2 border-slate-200 dark:border-slate-700 bg-[#F1F5F9] dark:bg-slate-800 -mx-6 -mb-6 px-6">
       <Button
         type="button"
         variant="outline"
