@@ -263,13 +263,14 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             invalidateRoleUserCount(roleId);
           }
 
-          // Handle team membership if requested
+          // Handle team membership (automatic if enabled, or explicit if requested)
           let teamMembershipStatus = null;
-          if (addToTeam && process.env.APPWRITE_TEAM_MEMBERSHIP_ENABLED === 'true') {
-            const teamId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_TEAM_ID;
+          const shouldAddToTeam = addToTeam !== false && process.env.APPWRITE_TEAM_MEMBERSHIP_ENABLED === 'true';
+          if (shouldAddToTeam) {
+            const teamId = process.env.NEXT_PUBLIC_APPWRITE_TEAM_ID;
 
             if (!teamId) {
-              console.warn('Team membership requested but NEXT_PUBLIC_APPWRITE_PROJECT_TEAM_ID is not configured');
+              console.warn('Team membership requested but NEXT_PUBLIC_APPWRITE_TEAM_ID is not configured');
               teamMembershipStatus = {
                 status: 'failed',
                 error: 'Team ID not configured'
@@ -562,7 +563,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
         // Remove from team if requested
         if (removeFromTeam && process.env.APPWRITE_TEAM_MEMBERSHIP_ENABLED === 'true') {
-          const teamId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_TEAM_ID;
+          const teamId = process.env.NEXT_PUBLIC_APPWRITE_TEAM_ID;
 
           if (teamId) {
             try {

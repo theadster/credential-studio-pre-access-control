@@ -220,6 +220,15 @@ docs/
 
 **Search Keywords:** integration, third-party, API, Cloudinary, Switchboard, OneSimpleAPI, photo upload, printing, webhook, optimistic locking, environment variables, security, migration
 
+#### Deployment & Configuration
+- [**Multi-Tenancy Quick Start**](./guides/MULTI_TENANCY_QUICK_START.md) - ⚡ 5-minute setup for multi-site deployments
+- [**Multi-Tenancy Setup Guide**](./guides/MULTI_TENANCY_SETUP_GUIDE.md) - 🏢 Complete guide to deploying multiple isolated sites using one Appwrite project
+  - Team-to-database mapping configuration
+  - Automatic team membership for users
+  - Environment variable setup per deployment
+  - Scaling to dozens of sites
+  - Troubleshooting multi-tenant issues
+
 #### Other Guides
 - [**Printable Fields User Guide**](./guides/PRINTABLE_FIELDS_USER_GUIDE.md) - 🎯 Complete guide to configuring printable fields and managing credential status
 - [**Custom Field Columns Quick Reference**](./guides/CUSTOM_FIELD_COLUMNS_QUICK_REFERENCE.md) - ⚡ Quick reference for custom field column configuration

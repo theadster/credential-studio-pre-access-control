@@ -44,6 +44,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       );
 
       // Create new user profile in database
+      // NOTE: Self-signup users are NOT automatically added to teams
+      // They must be manually linked by an administrator
       await databases.createDocument(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
