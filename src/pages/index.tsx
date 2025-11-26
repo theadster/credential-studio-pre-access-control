@@ -1,6 +1,6 @@
-import React from "react";
 import Head from "next/head";
 import Link from "next/link";
+import Image from "next/image";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { 
@@ -115,9 +115,12 @@ export default function Home() {
               >
                 <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-primary/10 to-transparent rounded-3xl blur-3xl"></div>
                 <div className="relative rounded-3xl overflow-hidden border-2 border-primary/20 shadow-2xl">
-                  <img 
+                  <Image 
                     src="https://images.pexels.com/photos/29255743/pexels-photo-29255743.jpeg"
                     alt="VIP event badges - Photo by Jonathan Borba on Pexels"
+                    width={1200}
+                    height={600}
+                    priority
                     className="w-full h-[500px] lg:h-[600px] object-cover"
                   />
                 </div>
@@ -167,9 +170,11 @@ export default function Home() {
                   </p>
                 </div>
                 <div className="mt-8">
-                  <img 
+                  <Image 
                     src="https://images.pexels.com/photos/1763067/pexels-photo-1763067.jpeg"
                     alt="Live music concert - Photo by Sebastian Ervi on Pexels"
+                    width={800}
+                    height={192}
                     className="rounded-xl w-full h-48 object-cover border"
                   />
                 </div>
@@ -244,9 +249,11 @@ export default function Home() {
                   </p>
                 </div>
                 <div className="hidden lg:block">
-                  <img 
+                  <Image 
                     src="https://images.pexels.com/photos/8761297/pexels-photo-8761297.jpeg"
                     alt="Event credentials with lanyards - Photo by Pavel Danilyuk on Pexels"
+                    width={192}
+                    height={128}
                     className="rounded-xl w-48 h-32 object-cover border"
                   />
                 </div>
@@ -268,9 +275,11 @@ export default function Home() {
                 className="relative"
               >
                 <div className="absolute -inset-4 bg-gradient-to-r from-primary/20 to-primary/10 rounded-3xl blur-2xl"></div>
-                <img 
+                <Image 
                   src="https://images.pexels.com/photos/1309598/pexels-photo-1309598.jpeg"
                   alt="Concert atmosphere - Photo by Lukas on Pexels"
+                  width={1200}
+                  height={500}
                   className="relative rounded-2xl w-full h-[400px] lg:h-[500px] object-cover border-2 border-primary/20 shadow-2xl"
                 />
               </motion.div>
