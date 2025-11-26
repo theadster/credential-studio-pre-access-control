@@ -58,6 +58,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
@@ -3639,7 +3640,7 @@ export default function Dashboard() {
                               <TableCell className="align-top pt-4" rowSpan={customFieldsWithValues.length > 0 ? 2 : 1}>
                                 <div className="flex flex-col items-center gap-2">
                                   <div
-                                    className="relative w-20 h-[6.67rem] bg-gradient-to-br from-violet-50 to-violet-100 dark:from-violet-950/30 dark:to-violet-900/30 rounded-lg overflow-hidden flex-shrink-0 border border-violet-200 dark:border-violet-800/50 shadow-sm hover:shadow-md transition-all duration-200"
+                                    className="relative w-24 h-32 bg-gradient-to-br from-violet-50 to-violet-100 dark:from-violet-950/30 dark:to-violet-900/30 rounded-lg overflow-hidden flex-shrink-0 border border-violet-200 dark:border-violet-800/50 shadow-sm hover:shadow-md transition-all duration-200"
                                     role="img"
                                     aria-label={attendee.photoUrl ? `Photo of ${attendee.firstName} ${attendee.lastName}` : `Initials for ${attendee.firstName} ${attendee.lastName}`}
                                   >
@@ -3671,10 +3672,25 @@ export default function Dashboard() {
                                     )}
                                   </div>
                                   {attendee.notes && attendee.notes.trim() !== '' && (
-                                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5 bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800" aria-label="Has notes">
-                                      <FileText className="h-3 w-3 mr-1" aria-hidden="true" />
-                                      NOTES
-                                    </Badge>
+                                    <TooltipProvider delayDuration={200}>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5 bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800 cursor-help" aria-label="Has notes">
+                                            <FileText className="h-3 w-3 mr-1" aria-hidden="true" />
+                                            NOTES
+                                          </Badge>
+                                        </TooltipTrigger>
+                                        <TooltipContent
+                                          className="max-w-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 px-4 py-3 text-sm border-2 border-yellow-400 dark:border-yellow-600 shadow-xl z-[9999]"
+                                          sideOffset={8}
+                                          side="right"
+                                        >
+                                          <div className="whitespace-pre-wrap break-words font-medium">
+                                            {attendee.notes}
+                                          </div>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
                                   )}
                                 </div>
                               </TableCell>
@@ -3711,11 +3727,11 @@ export default function Dashboard() {
                                         });
                                     }
                                   }}
-                                  className="text-left group w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded"
+                                  className="text-left group w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded px-2 py-1 -mx-2 -my-1"
                                   disabled={!hasPermission(currentUser?.role, 'attendees', 'update')}
                                   aria-label={`Edit ${attendee.firstName} ${attendee.lastName}${attendee.notes && attendee.notes.trim() !== '' ? ', has notes' : ''}`}
                                 >
-                                  <span className="font-semibold text-xl text-foreground group-hover:text-primary transition-colors">{attendee.firstName} {attendee.lastName}</span>
+                                  <span className="font-bold text-2xl text-foreground group-hover:text-primary transition-colors block leading-tight">{attendee.firstName} {attendee.lastName}</span>
                                 </button>
                               </TableCell>
                               <TableCell className="align-top pt-4">
