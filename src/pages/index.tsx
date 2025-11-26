@@ -3,288 +3,357 @@ import Head from "next/head";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { 
   IdCard,
   Users, 
   Shield, 
-  Settings, 
   Camera, 
   Printer,
-  CheckCircle,
   ArrowRight,
-  Lock,
-  Cloud
+  Sparkles,
+  Zap,
+  Lock
 } from "lucide-react";
 
-const fadeInUp = {
-  initial: { opacity: 0, y: 60 },
+const fadeIn = {
+  initial: { opacity: 0, y: 20 },
   animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.6 }
+  transition: { duration: 0.6, ease: "easeOut" }
 };
 
 const staggerContainer = {
   animate: {
     transition: {
-      staggerChildren: 0.1
+      staggerChildren: 0.15
     }
   }
-};
-
-const scaleIn = {
-  initial: { opacity: 0, scale: 0.8 },
-  animate: { opacity: 1, scale: 1 },
-  transition: { duration: 0.5 }
 };
 
 export default function Home() {
   return (
     <>
       <Head>
-        <title>credential.studio - Professional Event Credential Management</title>
-        <meta name="description" content="Create, manage, and print professional event credentials with ease. Full CRUD capabilities, role-based access control, and seamless integrations." />
+        <title>credential.studio - Event Credential Management</title>
+        <meta name="description" content="Professional event credential management made simple. Create, manage, and print credentials for concerts, conferences, and events." />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
       </Head>
       
-      <div style={{ backgroundColor: '#F1F5F9' }} className="min-h-screen">
-        {/* Navigation */}
+      <div className="min-h-screen bg-background" style={{ fontFamily: 'Inter, sans-serif' }}>
+        {/* Minimal Navigation */}
         <motion.nav 
-          className="border-b glass-effect sticky top-0 z-50"
-          initial={{ opacity: 0, y: -20 }}
+          className="border-b bg-background/80 backdrop-blur-sm sticky top-0 z-50"
+          initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
+          transition={{ duration: 0.4 }}
         >
-          <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+          <div className="container mx-auto px-6 py-5 flex justify-between items-center">
             <div className="flex items-center space-x-2">
-              <IdCard className="h-8 w-8 text-primary" />
-              <span className="text-2xl font-bold text-primary">credential.studio</span>
+              <IdCard className="h-7 w-7 text-primary" />
+              <span className="text-xl font-bold text-primary">credential.studio</span>
             </div>
-            <div className="flex items-center space-x-4">
-              <Link href="/login">
-                <Button 
-                  variant="ghost"
-                  className="bg-primary hover:bg-primary/90 text-primary-foreground border-primary hover:border-primary/90 transition-all duration-300 hover:scale-105 hover:shadow-lg"
-                >
-                  Sign In
-                </Button>
-              </Link>
-            </div>
+            <Link href="/login">
+              <Button 
+                variant="default"
+                className="font-medium"
+              >
+                Sign In
+              </Button>
+            </Link>
           </div>
         </motion.nav>
 
-        {/* Hero Section */}
-        <section className="container mx-auto px-4 py-12">
-          <motion.div 
-            className="text-center max-w-4xl mx-auto"
-            variants={staggerContainer}
-            initial="initial"
-            animate="animate"
-          >
-            <motion.h1 
-              className="text-5xl md:text-7xl font-bold mb-6 gradient-text"
-              variants={fadeInUp}
-            >
-              Event Credentials
-              <br />
-              Made Simple
-            </motion.h1>
-            
-            <motion.p 
-              className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto"
-              variants={fadeInUp}
-            >
-              Create, manage, and print professional event credentials with our comprehensive platform.
-            </motion.p>
-            
-            <motion.div 
-              className="flex flex-col sm:flex-row gap-4 justify-center"
-              variants={fadeInUp}
-            >
-              <Link href="/login">
-                <Button size="lg" className="group">
-                  Access Dashboard
-                  <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
-                </Button>
-              </Link>
-            </motion.div>
-          </motion.div>
+        {/* Hero Section - Asymmetric Layout */}
+        <section className="relative overflow-hidden">
+          <div className="container mx-auto px-6 py-12 lg:py-16">
+            <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center">
+              {/* Left - Text Content */}
+              <motion.div
+                variants={staggerContainer}
+                initial="initial"
+                animate="animate"
+                className="space-y-8"
+              >
+                <motion.div variants={fadeIn} className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium">
+                  <Sparkles className="h-4 w-4" />
+                  Professional Credential Management
+                </motion.div>
+                
+                <motion.h1 
+                  variants={fadeIn}
+                  className="text-5xl lg:text-7xl font-black leading-tight tracking-tight"
+                >
+                  Event Credentials
+                  <br />
+                  <span className="text-primary">Made Simple</span>
+                </motion.h1>
+                
+                <motion.p 
+                  variants={fadeIn}
+                  className="text-xl text-muted-foreground leading-relaxed max-w-xl"
+                >
+                  Create, manage, and print professional credentials for live events, televised productions, concerts, and conferences. Everything you need in one platform.
+                </motion.p>
+                
+                <motion.div variants={fadeIn} className="flex flex-col sm:flex-row gap-4">
+                  <Link href="/login">
+                    <Button size="lg" className="group text-base font-semibold px-8 h-12">
+                      Get Started
+                      <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                    </Button>
+                  </Link>
+                </motion.div>
+              </motion.div>
+
+              {/* Right - Hero Image */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.8, delay: 0.2 }}
+                className="relative"
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-primary/10 to-transparent rounded-3xl blur-3xl"></div>
+                <div className="relative rounded-3xl overflow-hidden border-2 border-primary/20 shadow-2xl">
+                  <img 
+                    src="https://images.pexels.com/photos/29255743/pexels-photo-29255743.jpeg"
+                    alt="VIP event badges - Photo by Jonathan Borba on Pexels"
+                    className="w-full h-[500px] lg:h-[600px] object-cover"
+                  />
+                </div>
+              </motion.div>
+            </div>
+          </div>
         </section>
 
-        {/* Hero Image */}
-        <motion.section 
-          className="container mx-auto px-4 mb-20"
-          initial={{ opacity: 0, y: 40 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.3 }}
-        >
-          <div className="relative max-w-4xl mx-auto">
-            <div className="absolute inset-0 bg-gradient-to-r from-primary/20 to-secondary/20 rounded-2xl blur-3xl"></div>
-            <img 
-              src="https://images.unsplash.com/photo-1540575467063-178a50c2df87?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80"
-              alt="Event management dashboard"
-              className="relative rounded-2xl border w-full h-[400px] object-cover"
-            />
-          </div>
-        </motion.section>
-
-        {/* Features Grid */}
-        <section className="container mx-auto px-4 py-20">
-          <motion.div 
-            className="text-center mb-16"
-            variants={fadeInUp}
-            initial="initial"
-            whileInView="animate"
+        {/* Bento Box Features Grid */}
+        <section className="container mx-auto px-6 py-12 lg:py-16">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="text-center mb-16 space-y-4"
           >
-            <h2 className="text-4xl font-bold mb-4">Everything You Need</h2>
+            <h2 className="text-4xl lg:text-5xl font-black tracking-tight">
+              Everything You Need
+            </h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Comprehensive tools for managing event credentials from start to finish
+              Comprehensive tools for professional credential management
             </p>
           </motion.div>
 
           <motion.div 
-            className="grid md:grid-cols-2 lg:grid-cols-3 gap-8"
             variants={staggerContainer}
             initial="initial"
             whileInView="animate"
             viewport={{ once: true }}
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
           >
-            {[
-              {
-                icon: Users,
-                title: "Attendee Management",
-                description: "Complete CRUD operations for attendee records with custom fields and photo uploads"
-              },
-              {
-                icon: Shield,
-                title: "Role-Based Access",
-                description: "Secure user authentication with granular permissions and role management"
-              },
-              {
-                icon: Settings,
-                title: "Event Configuration",
-                description: "Comprehensive event settings including barcode generation and custom fields"
-              },
-              {
-                icon: Camera,
-                title: "Photo Integration",
-                description: "Seamless photo uploads with Cloudinary widget integration"
-              },
-              {
-                icon: Printer,
-                title: "Professional Printing",
-                description: "High-quality credential printing with Switchboard Canvas API"
-              },
-              {
-                icon: Lock,
-                title: "Complete Logging",
-                description: "Full audit trail of all user actions and system changes"
-              }
-            ].map((feature, index) => (
-              <motion.div key={index} variants={scaleIn}>
-                <Card className="h-full hover:shadow-xl hover:shadow-primary/10 transition-all duration-300 border-0 glass-effect group">
-                  <CardHeader>
-                    <div className="p-3 rounded-xl bg-primary/10 w-fit mb-4 group-hover:bg-primary/20 transition-colors">
-                      <feature.icon className="h-8 w-8 text-primary" />
-                    </div>
-                    <CardTitle className="text-xl">{feature.title}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <CardDescription className="text-base">
-                      {feature.description}
-                    </CardDescription>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
+            {/* Large Feature Card - Attendee Management */}
+            <motion.div 
+              variants={fadeIn}
+              className="md:col-span-2 lg:row-span-2 group relative overflow-hidden rounded-2xl border bg-card p-8 hover:shadow-xl transition-all duration-300"
+            >
+              <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-primary/10 to-transparent rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <div className="relative z-10 h-full flex flex-col justify-between">
+                <div>
+                  <div className="inline-flex p-3 rounded-xl bg-primary/10 mb-6">
+                    <Users className="h-8 w-8 text-primary" />
+                  </div>
+                  <h3 className="text-2xl font-bold mb-3">Complete Attendee Management</h3>
+                  <p className="text-muted-foreground text-lg leading-relaxed mb-6">
+                    Create, edit, and organize attendee records with custom fields, photo uploads, and real-time updates. Manage thousands of credentials effortlessly.
+                  </p>
+                </div>
+                <div className="mt-8">
+                  <img 
+                    src="https://images.pexels.com/photos/1763067/pexels-photo-1763067.jpeg"
+                    alt="Live music concert - Photo by Sebastian Ervi on Pexels"
+                    className="rounded-xl w-full h-48 object-cover border"
+                  />
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Security Card */}
+            <motion.div 
+              variants={fadeIn}
+              className="group relative overflow-hidden rounded-2xl border bg-card p-8 hover:shadow-xl transition-all duration-300"
+            >
+              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-primary/10 to-transparent rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <div className="relative z-10">
+                <div className="inline-flex p-3 rounded-xl bg-primary/10 mb-4">
+                  <Shield className="h-7 w-7 text-primary" />
+                </div>
+                <h3 className="text-xl font-bold mb-2">Secure Access Control</h3>
+                <p className="text-muted-foreground">
+                  Control who can view and edit credentials with customizable user roles and permissions.
+                </p>
+              </div>
+            </motion.div>
+
+            {/* Photo Integration Card */}
+            <motion.div 
+              variants={fadeIn}
+              className="group relative overflow-hidden rounded-2xl border bg-card p-8 hover:shadow-xl transition-all duration-300"
+            >
+              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-primary/10 to-transparent rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <div className="relative z-10">
+                <div className="inline-flex p-3 rounded-xl bg-primary/10 mb-4">
+                  <Camera className="h-7 w-7 text-primary" />
+                </div>
+                <h3 className="text-xl font-bold mb-2">Photo Management</h3>
+                <p className="text-muted-foreground">
+                  Upload, resize, and crop photos directly in your browser for perfect credential images.
+                </p>
+              </div>
+            </motion.div>
+
+            {/* Printing Card */}
+            <motion.div 
+              variants={fadeIn}
+              className="group relative overflow-hidden rounded-2xl border bg-card p-8 hover:shadow-xl transition-all duration-300"
+            >
+              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-primary/10 to-transparent rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <div className="relative z-10">
+                <div className="inline-flex p-3 rounded-xl bg-primary/10 mb-4">
+                  <Printer className="h-7 w-7 text-primary" />
+                </div>
+                <h3 className="text-xl font-bold mb-2">Professional Credentials</h3>
+                <p className="text-muted-foreground">
+                  Generate beautiful, print-ready credential images and PDFs with custom designs for every attendee.
+                </p>
+              </div>
+            </motion.div>
+
+            {/* Audit Trail Card */}
+            <motion.div 
+              variants={fadeIn}
+              className="md:col-span-2 group relative overflow-hidden rounded-2xl border bg-card p-8 hover:shadow-xl transition-all duration-300"
+            >
+              <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-primary/10 to-transparent rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <div className="relative z-10 flex items-center justify-between gap-8">
+                <div className="flex-1">
+                  <div className="inline-flex p-3 rounded-xl bg-primary/10 mb-4">
+                    <Lock className="h-7 w-7 text-primary" />
+                  </div>
+                  <h3 className="text-xl font-bold mb-2">Activity Tracking</h3>
+                  <p className="text-muted-foreground">
+                    Track every change and action in your event with detailed activity logs for complete peace of mind.
+                  </p>
+                </div>
+                <div className="hidden lg:block">
+                  <img 
+                    src="https://images.pexels.com/photos/8761297/pexels-photo-8761297.jpeg"
+                    alt="Event credentials with lanyards - Photo by Pavel Danilyuk on Pexels"
+                    className="rounded-xl w-48 h-32 object-cover border"
+                  />
+                </div>
+              </div>
+            </motion.div>
           </motion.div>
         </section>
 
-        {/* Benefits Section */}
-        <section className="bg-muted/30 py-20">
-          <div className="container mx-auto px-4">
-            <motion.div 
-              className="grid lg:grid-cols-2 gap-12 items-center"
-              initial={{ opacity: 0 }}
-              whileInView={{ opacity: 1 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.8 }}
-            >
-              <div>
-                <h2 className="text-4xl font-bold mb-6">Why Choose credential.studio?</h2>
-                <div className="space-y-4">
+        {/* Visual Impact Section */}
+        <section className="relative py-16 lg:py-20 overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent"></div>
+          <div className="container mx-auto px-6 relative">
+            <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center">
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.8 }}
+                className="relative"
+              >
+                <div className="absolute -inset-4 bg-gradient-to-r from-primary/20 to-primary/10 rounded-3xl blur-2xl"></div>
+                <img 
+                  src="https://images.pexels.com/photos/1309598/pexels-photo-1309598.jpeg"
+                  alt="Concert atmosphere - Photo by Lukas on Pexels"
+                  className="relative rounded-2xl w-full h-[400px] lg:h-[500px] object-cover border-2 border-primary/20 shadow-2xl"
+                />
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.8 }}
+                className="space-y-6"
+              >
+                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium">
+                  <Zap className="h-4 w-4" />
+                  Built for Events
+                </div>
+                <h2 className="text-4xl lg:text-5xl font-black tracking-tight">
+                  From Concerts to Conferences
+                </h2>
+                <p className="text-xl text-muted-foreground leading-relaxed">
+                  Whether you're managing credentials for a music festival, corporate conference, or televised event, credential.studio provides the tools you need for professional, secure credential management.
+                </p>
+                <div className="space-y-4 pt-4">
                   {[
                     "Single event focus for maximum efficiency",
-                    "Professional credential design and printing",
-                    "Secure cloud-based data management",
                     "Real-time collaboration and updates",
-                    "Comprehensive audit logging",
-                    "Easy integration with existing workflows"
+                    "Secure cloud-based data management"
                   ].map((benefit, index) => (
                     <motion.div 
                       key={index}
-                      className="flex items-center space-x-3"
-                      initial={{ opacity: 0, x: -20 }}
+                      initial={{ opacity: 0, x: -10 }}
                       whileInView={{ opacity: 1, x: 0 }}
                       viewport={{ once: true }}
                       transition={{ duration: 0.5, delay: index * 0.1 }}
+                      className="flex items-start gap-3"
                     >
-                      <CheckCircle className="h-5 w-5 text-primary flex-shrink-0" />
-                      <span className="text-lg">{benefit}</span>
+                      <div className="mt-1.5 flex-shrink-0 w-2 h-2 rounded-full bg-primary"></div>
+                      <span className="text-lg text-foreground">{benefit}</span>
                     </motion.div>
                   ))}
                 </div>
-              </div>
-              <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-secondary/10 rounded-2xl blur-2xl"></div>
-                <img 
-                  src="https://images.unsplash.com/photo-1559136555-9303baea8ebd?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80"
-                  alt="Professional event credentials"
-                  className="relative rounded-2xl border w-full h-[400px] object-cover"
-                />
-              </div>
-            </motion.div>
+              </motion.div>
+            </div>
           </div>
         </section>
 
         {/* CTA Section */}
-        <section className="relative py-20 overflow-hidden">
-          <div className="absolute inset-0 gradient-primary opacity-5"></div>
-          <div className="container mx-auto px-4 relative">
-            <motion.div 
-              className="text-center max-w-3xl mx-auto"
-              initial={{ opacity: 0, y: 40 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.8 }}
-            >
-              <h2 className="text-4xl font-bold mb-6">Ready to Get Started?</h2>
-              <p className="text-xl text-muted-foreground mb-8">
-                Join thousands of event organizers who trust credential.studio for their credential management needs.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Link href="/login">
-                  <Button size="lg" className="group shadow-lg hover:shadow-xl transition-shadow">
-                    <Cloud className="mr-2 h-4 w-4" />
-                    Access Dashboard
-                    <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
-                  </Button>
-                </Link>
+        <section className="container mx-auto px-6 py-12 lg:py-16">
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.8 }}
+            className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border-2 border-primary/20 p-12 lg:p-20 text-center"
+          >
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(139,92,246,0.1),transparent_50%)]"></div>
+            <div className="relative z-10 max-w-3xl mx-auto">
+              <div className="space-y-3 mb-8">
+                <h2 className="text-4xl lg:text-5xl font-black tracking-tight">
+                  Ready to Get Started?
+                </h2>
+                <p className="text-lg text-muted-foreground">
+                  Join event organizers who trust credential.studio for professional credential management.
+                </p>
               </div>
-            </motion.div>
-          </div>
+              <Link href="/login">
+                <Button size="lg" className="group text-base font-semibold px-8 h-12 shadow-lg hover:shadow-xl transition-shadow">
+                  Access Dashboard
+                  <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                </Button>
+              </Link>
+            </div>
+          </motion.div>
         </section>
 
-        {/* Footer */}
-        <footer className="border-t bg-background/80 backdrop-blur-sm">
-          <div className="container mx-auto px-4 py-8">
-            <div className="flex flex-col md:flex-row justify-between items-center">
-              <div className="flex items-center space-x-2 mb-4 md:mb-0">
-                <IdCard className="h-6 w-6 text-primary" />
-                <span className="text-lg font-semibold">credential.studio</span>
+        {/* Minimal Footer */}
+        <footer className="border-t bg-background/50 backdrop-blur-sm">
+          <div className="container mx-auto px-6 py-8">
+            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+              <div className="flex items-center space-x-2">
+                <IdCard className="h-5 w-5 text-primary" />
+                <span className="font-semibold text-primary">credential.studio</span>
               </div>
-              <p className="text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 © 2025 credential.studio. Professional event credential management.
               </p>
             </div>
