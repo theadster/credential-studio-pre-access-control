@@ -313,7 +313,7 @@ export default function RoleForm({ isOpen, onClose, onSave, role }: RoleFormProp
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent 
-        className="max-w-5xl max-h-[90vh] overflow-y-auto"
+        className="max-w-5xl max-h-[90vh] overflow-y-auto p-0 gap-0"
         onWheel={(e) => {
           // Prevent scroll chaining to the page behind the dialog
           const target = e.currentTarget;
@@ -325,17 +325,18 @@ export default function RoleForm({ isOpen, onClose, onSave, role }: RoleFormProp
           }
         }}
       >
-        <DialogHeader>
-          <DialogTitle className="flex items-center space-x-2">
-            <Shield className="h-5 w-5" />
+        <DialogHeader className="border-b border-slate-200 dark:border-slate-700 pb-4 bg-[#F1F5F9] dark:bg-slate-800 px-6 pt-6">
+          <DialogTitle className="text-2xl font-bold text-primary flex items-center gap-2">
+            <Shield className="h-6 w-6 text-primary" />
             <span>{role ? "Edit Role" : "Create New Role"}</span>
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-slate-600 dark:text-slate-400 mt-2">
             {role ? "Modify role permissions and settings" : "Create a new role with specific permissions"}
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6" autoComplete="off" data-form-type="other">
+        <form onSubmit={handleSubmit} className="px-6 pt-6 pb-0" autoComplete="off" data-form-type="other">
+          <div className="space-y-6">
           {/* Basic Information */}
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -473,27 +474,28 @@ export default function RoleForm({ isOpen, onClose, onSave, role }: RoleFormProp
               <AlertDescription>{errors.submit}</AlertDescription>
             </Alert>
           )}
+        </div>
 
-          {/* Actions */}
-          <div className="flex items-center justify-end space-x-2 pt-4 border-t">
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  {role ? "Updating..." : "Creating..."}
-                </>
-              ) : (
-                <>
-                  <Shield className="mr-2 h-4 w-4" />
-                  {role ? "Update Role" : "Create Role"}
-                </>
-              )}
-            </Button>
-          </div>
-        </form>
+        {/* Actions */}
+        <div className="flex items-center justify-end space-x-2 pt-6 pb-6 border-t-2 border-slate-200 dark:border-slate-700 bg-[#F1F5F9] dark:bg-slate-800 -mx-6 px-6 mt-6">
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={loading}>
+            {loading ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                {role ? "Updating..." : "Creating..."}
+              </>
+            ) : (
+              <>
+                <Shield className="mr-2 h-4 w-4" />
+                {role ? "Update Role" : "Create Role"}
+              </>
+            )}
+          </Button>
+        </div>
+      </form>
       </DialogContent>
     </Dialog>
   );

@@ -146,29 +146,32 @@ export default function LinkUserDialog({ isOpen, onClose, onLink, roles }: LinkU
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <LinkIcon className="h-5 w-5" />
+      <DialogContent className="sm:max-w-[500px] p-0 gap-0">
+        <DialogHeader className="border-b border-slate-200 dark:border-slate-700 pb-4 bg-[#F1F5F9] dark:bg-slate-800 px-6 pt-6">
+          <DialogTitle className="text-2xl font-bold text-primary flex items-center gap-2">
+            <LinkIcon className="h-6 w-6 text-primary" />
             Link Existing User
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-slate-600 dark:text-slate-400 mt-2">
             Link an existing Appwrite Auth user to the database and assign them a role.
           </DialogDescription>
         </DialogHeader>
 
         {loadingUsers ? (
-          <div className="flex items-center justify-center py-8">
+          <div className="flex items-center justify-center py-8 px-6">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
         ) : availableUsers.length === 0 ? (
-          <Alert>
-            <AlertDescription>
-              No unlinked users found. All Appwrite Auth users are already linked to the database.
-            </AlertDescription>
-          </Alert>
+          <div className="px-6 py-6">
+            <Alert>
+              <AlertDescription>
+                No unlinked users found. All Appwrite Auth users are already linked to the database.
+              </AlertDescription>
+            </Alert>
+          </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="px-6 pt-6 pb-0">
+            <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="user">Select User *</Label>
               <Select value={selectedUserId} onValueChange={setSelectedUserId}>
@@ -285,8 +288,9 @@ export default function LinkUserDialog({ isOpen, onClose, onLink, roles }: LinkU
                 </AlertDescription>
               </Alert>
             )}
+          </div>
 
-            <div className="flex justify-end space-x-2 pt-4">
+          <div className="flex justify-end space-x-2 pt-6 pb-6 border-t-2 border-slate-200 dark:border-slate-700 bg-[#F1F5F9] dark:bg-slate-800 -mx-6 px-6 mt-6">
               <Button
                 type="button"
                 variant="outline"
@@ -295,13 +299,13 @@ export default function LinkUserDialog({ isOpen, onClose, onLink, roles }: LinkU
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={loading || !selectedUserId || !selectedRoleId}>
-                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                <LinkIcon className="mr-2 h-4 w-4" />
-                Link User
-              </Button>
-            </div>
-          </form>
+            <Button type="submit" disabled={loading || !selectedUserId || !selectedRoleId}>
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <LinkIcon className="mr-2 h-4 w-4" />
+              Link User
+            </Button>
+          </div>
+        </form>
         )}
       </DialogContent>
     </Dialog>

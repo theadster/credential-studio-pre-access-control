@@ -256,7 +256,7 @@ export default function UserForm({ isOpen, onClose, onSave, user, roles, mode = 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent
-        className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto"
+        className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto p-0 gap-0"
         onWheel={(e) => {
           // Prevent scroll chaining to the page behind the dialog
           const target = e.currentTarget;
@@ -268,33 +268,34 @@ export default function UserForm({ isOpen, onClose, onSave, user, roles, mode = 
           }
         }}
       >
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+        <DialogHeader className="border-b border-slate-200 dark:border-slate-700 pb-4 bg-[#F1F5F9] dark:bg-slate-800 px-6 pt-6">
+          <DialogTitle className="text-2xl font-bold text-primary flex items-center gap-2">
             {mode === 'link' ? (
               <>
-                <LinkIcon className="h-5 w-5" />
+                <LinkIcon className="h-6 w-6 text-primary" />
                 Link Existing User
               </>
             ) : (
               <>
-                {user?.isInvited ? <LinkIcon className="h-5 w-5" /> : <UserCheck className="h-5 w-5" />}
+                {user?.isInvited ? <LinkIcon className="h-6 w-6 text-primary" /> : <UserCheck className="h-6 w-6 text-primary" />}
                 Edit User
               </>
             )}
           </DialogTitle>
           {mode === 'link' ? (
-            <DialogDescription>
+            <DialogDescription className="text-slate-600 dark:text-slate-400 mt-2">
               Search for and select an existing Appwrite auth user to link to your application.
             </DialogDescription>
           ) : (
-            <DialogDescription>
+            <DialogDescription className="text-slate-600 dark:text-slate-400 mt-2">
               Update user information and role assignment.
             </DialogDescription>
           )}
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off" data-form-type="other" data-lpignore="true">
-          {mode === 'link' ? (
+        <form onSubmit={handleSubmit} className="px-6 pt-6 pb-0" autoComplete="off" data-form-type="other" data-lpignore="true">
+          <div className="space-y-4">
+            {mode === 'link' ? (
             <>
               {/* Auth User Search and Selection */}
               <div className="space-y-4">
@@ -531,8 +532,9 @@ export default function UserForm({ isOpen, onClose, onSave, user, roles, mode = 
               )}
             </>
           )}
+          </div>
 
-          <div className="flex justify-end space-x-2 pt-4">
+          <div className="flex justify-end space-x-2 pt-6 pb-6 border-t-2 border-slate-200 dark:border-slate-700 bg-[#F1F5F9] dark:bg-slate-800 -mx-6 px-6 mt-6">
             <Button
               type="button"
               variant="outline"

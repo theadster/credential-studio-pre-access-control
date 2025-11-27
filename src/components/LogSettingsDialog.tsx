@@ -239,7 +239,7 @@ const LogSettingsDialog: React.FC<LogSettingsDialogProps> = ({ children, onSetti
         {children}
       </DialogTrigger>
       <DialogContent 
-        className="max-w-4xl max-h-[90vh] overflow-y-auto"
+        className="max-w-4xl max-h-[90vh] overflow-y-auto p-0 gap-0"
         onWheel={(e) => {
           // Prevent scroll chaining to the page behind the dialog
           const target = e.currentTarget;
@@ -251,23 +251,24 @@ const LogSettingsDialog: React.FC<LogSettingsDialogProps> = ({ children, onSetti
           }
         }}
       >
-        <DialogHeader>
-          <DialogTitle className="flex items-center space-x-2">
-            <Settings className="h-5 w-5" />
+        <DialogHeader className="border-b border-slate-200 dark:border-slate-700 pb-4 bg-[#F1F5F9] dark:bg-slate-800 px-6 pt-6">
+          <DialogTitle className="text-2xl font-bold text-primary flex items-center gap-2">
+            <Settings className="h-6 w-6 text-primary" />
             <span>Log Settings</span>
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-slate-600 dark:text-slate-400 mt-2">
             Configure which activities should be logged in the system. Disabled activities will not create log entries.
           </DialogDescription>
         </DialogHeader>
 
         {loading ? (
-          <div className="flex items-center justify-center py-8">
+          <div className="flex items-center justify-center py-8 px-6">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             <span className="ml-2 text-muted-foreground">Loading log settings...</span>
           </div>
         ) : settings ? (
-          <div className="space-y-6">
+          <>
+            <div className="space-y-6 px-6 pt-6 pb-0">
             {/* Attendee Management */}
             <Card>
               <CardHeader>
@@ -806,48 +807,46 @@ const LogSettingsDialog: React.FC<LogSettingsDialogProps> = ({ children, onSetti
                 </CardContent>
               </Card>
             </div>
+          </div>
 
-            <Separator />
-
-            {/* Action Buttons */}
-            <div className="flex items-center justify-between pt-4">
-              <div className="text-sm text-muted-foreground">
-                {hasChanges() ? (
-                  <span className="text-amber-600 font-medium">You have unsaved changes</span>
+          <div className="flex items-center justify-between pt-6 pb-6 border-t-2 border-slate-200 dark:border-slate-700 bg-[#F1F5F9] dark:bg-slate-800 px-6 mt-6">
+            <div className="text-sm text-muted-foreground">
+              {hasChanges() ? (
+                <span className="text-amber-600 font-medium">You have unsaved changes</span>
+              ) : (
+                <span>All changes saved</span>
+              )}
+            </div>
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="outline"
+                onClick={handleReset}
+                disabled={!hasChanges() || saving}
+              >
+                <RotateCcw className="mr-2 h-4 w-4" />
+                Reset
+              </Button>
+              <Button
+                onClick={handleSave}
+                disabled={!hasChanges() || saving}
+              >
+                {saving ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Saving...
+                  </>
                 ) : (
-                  <span>All changes saved</span>
+                  <>
+                    <Save className="mr-2 h-4 w-4" />
+                    Save Settings
+                  </>
                 )}
-              </div>
-              <div className="flex items-center space-x-2">
-                <Button
-                  variant="outline"
-                  onClick={handleReset}
-                  disabled={!hasChanges() || saving}
-                >
-                  <RotateCcw className="mr-2 h-4 w-4" />
-                  Reset
-                </Button>
-                <Button
-                  onClick={handleSave}
-                  disabled={!hasChanges() || saving}
-                >
-                  {saving ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="mr-2 h-4 w-4" />
-                      Save Settings
-                    </>
-                  )}
-                </Button>
-              </div>
+              </Button>
             </div>
           </div>
+        </>
         ) : (
-          <div className="text-center py-8">
+          <div className="text-center py-8 px-6">
             <Activity className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-medium text-muted-foreground mb-2">Failed to Load Settings</h3>
             <p className="text-sm text-muted-foreground">

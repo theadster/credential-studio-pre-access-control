@@ -249,7 +249,7 @@ export default function LogsExportDialog({
         {children}
       </DialogTrigger>
       <DialogContent 
-        className="max-w-5xl max-h-[90vh] overflow-y-auto"
+        className="max-w-5xl max-h-[90vh] overflow-y-auto p-0 gap-0"
         onWheel={(e) => {
           // Prevent scroll chaining to the page behind the dialog
           const target = e.currentTarget;
@@ -261,17 +261,17 @@ export default function LogsExportDialog({
           }
         }}
       >
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FileSpreadsheet className="h-5 w-5" />
+        <DialogHeader className="border-b border-slate-200 dark:border-slate-700 pb-4 bg-[#F1F5F9] dark:bg-slate-800 px-6 pt-6">
+          <DialogTitle className="text-2xl font-bold text-primary flex items-center gap-2">
+            <FileSpreadsheet className="h-6 w-6 text-primary" />
             Export Activity Logs
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-slate-600 dark:text-slate-400 mt-2">
             Export activity logs to CSV format with comprehensive filtering and field selection options.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6">
+        <div className="space-y-6 px-6 pt-6 pb-0">
           {/* Export Scope Selection */}
           <Card>
             <CardHeader>
@@ -753,28 +753,29 @@ export default function LogsExportDialog({
             </CardContent>
           </Card>
 
-          {/* Action Buttons */}
-          <div className="flex justify-end space-x-2 pt-4 border-t">
-            <Button variant="outline" onClick={() => setOpen(false)}>
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleExport} 
-              disabled={isExporting || selectedFields.length === 0}
-            >
-              {isExporting ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Exporting...
-                </>
-              ) : (
-                <>
-                  <Download className="mr-2 h-4 w-4" />
-                  Export CSV
-                </>
-              )}
-            </Button>
-          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex justify-end space-x-2 pt-6 pb-6 border-t-2 border-slate-200 dark:border-slate-700 bg-[#F1F5F9] dark:bg-slate-800 px-6 mt-6">
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleExport} 
+            disabled={isExporting || selectedFields.length === 0}
+          >
+            {isExporting ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                Exporting...
+              </>
+            ) : (
+              <>
+                <Download className="mr-2 h-4 w-4" />
+                Export CSV
+              </>
+            )}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

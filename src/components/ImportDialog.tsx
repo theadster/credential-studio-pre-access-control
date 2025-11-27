@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { useSweetAlert } from '@/hooks/useSweetAlert';
 import { useDropzone } from 'react-dropzone';
-import { Upload, FileText, AlertCircle } from 'lucide-react';
+import { Upload, FileText, AlertCircle, Download } from 'lucide-react';
 
 interface CustomField {
   id: string;
@@ -115,11 +115,41 @@ export default function ImportDialog({ children, onImportSuccess, customFields }
     return sampleRow;
   };
 
+  // Download sample CSV file
+  const handleDownloadSample = () => {
+    // Create CSV content
+    const headers = allColumns.map(col => col.internalName).join(',');
+    const sampleData = generateSampleData().map(value => {
+      // Escape values that contain commas or quotes
+      if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
+        return `"${value.replace(/"/g, '""')}"`;
+      }
+      return value;
+    }).join(',');
+    
+    const csvContent = `${headers}\n${sampleData}`;
+    
+    // Create blob and download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'attendee_import_sample.csv');
+    link.style.visibility = 'hidden';
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent 
-        className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto"
+        className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto p-0 gap-0"
         onWheel={(e) => {
           // Prevent scroll chaining to the page behind the dialog
           const target = e.currentTarget;
@@ -131,14 +161,17 @@ export default function ImportDialog({ children, onImportSuccess, customFields }
           }
         }}
       >
-        <DialogHeader>
-          <DialogTitle>Import Attendees</DialogTitle>
-          <DialogDescription>
+        <DialogHeader className="border-b border-slate-200 dark:border-slate-700 pb-4 bg-[#F1F5F9] dark:bg-slate-800 px-6 pt-6">
+          <DialogTitle className="text-2xl font-bold text-primary flex items-center gap-2">
+            <Upload className="h-6 w-6 text-primary" />
+            Import Attendees
+          </DialogTitle>
+          <DialogDescription className="text-slate-600 dark:text-slate-400 mt-2">
             Upload a CSV file to import attendee data into your event.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6">
+        <div className="space-y-6 px-6 pt-6 pb-0">
           {/* File Upload Area */}
           <div
             {...getRootProps()}
@@ -193,7 +226,18 @@ export default function ImportDialog({ children, onImportSuccess, customFields }
 
           {/* Sample CSV Format */}
           <div className="space-y-3">
-            <h3 className="font-medium text-sm">Sample CSV Format</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="font-medium text-sm">Sample CSV Format</h3>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleDownloadSample}
+                className="h-8"
+              >
+                <Download className="h-3 w-3 mr-2" />
+                Download Sample
+              </Button>
+            </div>
             
             <div className="bg-gray-50 rounded-lg p-4">
               <div className="font-mono text-xs space-y-2">
@@ -218,32 +262,32 @@ export default function ImportDialog({ children, onImportSuccess, customFields }
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex justify-end space-x-2 pt-4 border-t">
-            <Button variant="outline" onClick={() => setIsOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleImport} disabled={!file || isUploading}>
-              {isUploading ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Importing...
-                </>
-              ) : (
-                <>
-                  <Upload className="h-4 w-4 mr-2" />
-                  Import
-                </>
-              )}
-            </Button>
-          </div>
-
           {isUploading && (
             <div className="flex items-center justify-center py-4">
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
               <span className="ml-2 text-sm">Processing your file...</span>
             </div>
           )}
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex justify-end space-x-2 pt-6 pb-6 border-t-2 border-slate-200 dark:border-slate-700 bg-[#F1F5F9] dark:bg-slate-800 px-6 mt-6">
+          <Button variant="outline" onClick={() => setIsOpen(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleImport} disabled={!file || isUploading}>
+            {isUploading ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                Importing...
+              </>
+            ) : (
+              <>
+                <Upload className="h-4 w-4 mr-2" />
+                Import
+              </>
+            )}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

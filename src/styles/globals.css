@@ -134,4 +134,11 @@
   tr.attendee-row-hover {
     background-color: hsl(var(--muted) / 0.5);
   }
+  
+  /* Safari tooltip positioning fix */
+  /* Force Safari to use proper positioning context for Radix tooltips */
+  [data-radix-popper-content-wrapper] {
+    transform: translate3d(0, 0, 0);
+    will-change: transform;
+  }
 }

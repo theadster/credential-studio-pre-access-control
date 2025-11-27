@@ -140,18 +140,18 @@ export default function LogsDeleteDialog({ users, onDeleteSuccess, onDeleteStart
       <DialogTrigger asChild>
         {children}
       </DialogTrigger>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Trash2 className="h-5 w-5 text-destructive" />
+      <DialogContent className="max-w-md p-0 gap-0">
+        <DialogHeader className="border-b border-slate-200 dark:border-slate-700 pb-4 bg-[#F1F5F9] dark:bg-slate-800 px-6 pt-6">
+          <DialogTitle className="text-2xl font-bold text-primary flex items-center gap-2">
+            <Trash2 className="h-6 w-6 text-destructive" />
             Delete Activity Logs
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-slate-600 dark:text-slate-400 mt-2">
             Delete logs based on the criteria below. This action cannot be undone.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-4 px-6 pt-6 pb-0">
           {/* Warning Alert */}
           <Alert className="border-destructive/50 text-destructive dark:border-destructive [&>svg]:text-destructive">
             <AlertTriangle className="h-4 w-4" />
@@ -255,7 +255,7 @@ export default function LogsDeleteDialog({ users, onDeleteSuccess, onDeleteStart
           )}
         </div>
 
-        <DialogFooter>
+        <div className="flex justify-end space-x-2 pt-6 pb-6 border-t-2 border-slate-200 dark:border-slate-700 bg-[#F1F5F9] dark:bg-slate-800 px-6 mt-6">
           <Button
             variant="outline"
             onClick={() => setIsOpen(false)}
@@ -280,7 +280,7 @@ export default function LogsDeleteDialog({ users, onDeleteSuccess, onDeleteStart
               </>
             )}
           </Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );

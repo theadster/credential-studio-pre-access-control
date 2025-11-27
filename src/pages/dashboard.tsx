@@ -58,7 +58,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, TooltipPortal } from "@/components/ui/tooltip";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
@@ -2935,7 +2935,7 @@ export default function Dashboard() {
                             }}
                           >
                             <Filter className="h-4 w-4" />
-                            <span>Advanced Search</span>
+                            <span>Advanced Filters</span>
                             {hasAdvancedFilters() && (
                               <Badge variant="secondary" className="ml-1 h-5 w-5 p-0 flex items-center justify-center">
                                 <span className="text-xs">!</span>
@@ -2947,7 +2947,7 @@ export default function Dashboard() {
                           <DialogHeader className="border-b border-slate-200 dark:border-slate-700 pb-4 mb-0 bg-[#F1F5F9] dark:bg-slate-800 px-6 pt-6">
                             <DialogTitle className="text-2xl font-bold text-primary flex items-center gap-2">
                               <Search className="w-6 h-6 text-primary" />
-                              Advanced Search
+                              Advanced Filters
                             </DialogTitle>
                             <DialogDescription className="text-slate-600 dark:text-slate-400 mt-2">
                               Search attendees using multiple criteria. Leave fields empty to ignore them in the search.
@@ -3291,7 +3291,7 @@ export default function Dashboard() {
                                     if (hasAdvancedFilters()) {
                                       setShowAdvancedSearch(true);
                                     } else {
-                                      error("No Search Criteria", "Please enter at least one search criterion to use advanced search.");
+                                      error("No Search Criteria", "Please enter at least one search criterion to use advanced filters.");
                                     }
                                   }}>
                                     <Search className="h-4 w-4 mr-2" />
@@ -3310,7 +3310,7 @@ export default function Dashboard() {
                         <Filter className="h-5 w-5 text-primary" />
                         <AlertDescription className="flex items-center justify-between w-full ml-2">
                           <div className="flex items-center space-x-3">
-                            <span className="font-semibold text-primary text-base">Advanced Search Active</span>
+                            <span className="font-semibold text-primary text-base">Advanced Filters Active</span>
                             <Badge variant="default" className="bg-primary text-primary-foreground">
                               {(() => {
                                 let count = 0;
@@ -3338,7 +3338,7 @@ export default function Dashboard() {
                               onClick={() => {
                                 // Turn off advanced search mode to show the dialog
                                 setShowAdvancedSearch(false);
-                                // Trigger the dialog to open by clicking the Advanced Search button
+                                // Trigger the dialog to open by clicking the Advanced Filters button
                                 setTimeout(() => {
                                   const advancedSearchButton = document.querySelector('[data-advanced-search-trigger]') as HTMLButtonElement;
                                   if (advancedSearchButton) {
@@ -3716,25 +3716,18 @@ export default function Dashboard() {
                                     )}
                                   </div>
                                   {attendee.notes && attendee.notes.trim() !== '' && (
-                                    <TooltipProvider delayDuration={200}>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5 bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800 cursor-help" aria-label="Has notes">
-                                            <FileText className="h-3 w-3 mr-1" aria-hidden="true" />
-                                            NOTES
-                                          </Badge>
-                                        </TooltipTrigger>
-                                        <TooltipContent
-                                          className="max-w-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 px-4 py-3 text-sm border-2 border-yellow-400 dark:border-yellow-600 shadow-xl z-[9999]"
-                                          sideOffset={8}
-                                          side="right"
-                                        >
-                                          <div className="whitespace-pre-wrap break-words font-medium">
-                                            {attendee.notes}
-                                          </div>
-                                        </TooltipContent>
-                                      </Tooltip>
-                                    </TooltipProvider>
+                                    <div className="relative inline-block group">
+                                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5 bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800 cursor-help" aria-label="Has notes">
+                                        <FileText className="h-3 w-3 mr-1" aria-hidden="true" />
+                                        NOTES
+                                      </Badge>
+                                      <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity duration-200 absolute bottom-full left-0 mb-2 px-4 py-3 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 text-sm border-2 border-yellow-400 dark:border-yellow-600 rounded-md shadow-xl z-[9999] min-w-64 max-w-md pointer-events-none">
+                                        <div className="whitespace-pre-wrap break-words font-normal leading-relaxed">
+                                          {attendee.notes}
+                                        </div>
+                                        <div className="absolute top-full left-6 -mt-1 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-yellow-400 dark:border-t-yellow-600"></div>
+                                      </div>
+                                    </div>
                                   )}
                                 </div>
                               </TableCell>
