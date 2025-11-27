@@ -37,7 +37,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       );
     }
     // Parse request body
-    const { q = '', page = 1, limit = 25 } = req.body;
+    const { q = '', page = 1, limit = 25, skipLogging = false } = req.body;
 
     // Validate and sanitize pagination parameters (Requirement 7.3)
     const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
@@ -121,7 +121,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     const totalPages = Math.ceil(authUsersResponse.total / limitNum);
 
     // Log the search action (Requirement 9.7)
-    if (user) {
+    // Skip logging for internal fetches (e.g., UserForm dialog initialization)
+    if (user && !skipLogging) {
       try {
         await databases.createDocument(
           process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,

@@ -55,6 +55,7 @@ export default function UserFormContainer({
           q: '',
           page: 1,
           limit: 25,
+          skipLogging: true, // Internal fetch, don't log
         }),
       });
       setAuthUsers(data.users);
