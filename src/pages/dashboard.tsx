@@ -67,7 +67,7 @@ import { showProgressModal, closeProgressModal } from "@/lib/sweetalert-progress
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import AttendeeForm from "@/components/AttendeeForm";
-import UserForm from "@/components/UserForm";
+import UserForm from "@/components/UserForm/index";
 import EventSettingsForm from "@/components/EventSettingsForm";
 import RoleForm from "@/components/RoleForm";
 import RoleCard from "@/components/RoleCard";

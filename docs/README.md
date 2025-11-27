@@ -68,6 +68,7 @@ docs/
 - [Debug Tools Moved](./fixes/DEBUG_TOOLS_MOVED.md) - Debug tools reorganization
 
 ### Migration Documentation
+- [**UserForm Modular Migration**](./migration/USERFORM_MODULAR_MIGRATION.md) - ✅ Migrated from monolithic to modular UserForm architecture
 - [**Event Settings Migration Schema**](./migration/EVENT_SETTINGS_MIGRATION_SCHEMA.md) - 📋 Canonical schema for Event Settings migration
 - [**Migration Scripts Alignment**](./migration/MIGRATION_SCRIPTS_ALIGNMENT_SUMMARY.md) - ✅ Verification that both migration scripts use identical schemas
 - [Migration Status](./migration/MIGRATION_STATUS.md) - Overall migration progress
