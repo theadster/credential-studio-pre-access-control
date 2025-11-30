@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -27,6 +27,39 @@ interface BasicInformationSectionProps {
   onGenerateBarcode: () => void;
   firstNameRef?: React.RefObject<HTMLInputElement>;
   hasErrors?: boolean;
+}
+
+/**
+ * Auto-expanding textarea component
+ * Automatically adjusts height based on content
+ */
+function AutoExpandTextarea({
+  value,
+  onChange,
+  ...props
+}: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    // Reset height to auto to get the correct scrollHeight
+    textarea.style.height = 'auto';
+    
+    // Set height to scrollHeight to fit content
+    textarea.style.height = `${textarea.scrollHeight}px`;
+  }, [value]);
+
+  return (
+    <Textarea
+      ref={textareaRef}
+      value={value}
+      onChange={onChange}
+      className="resize-none overflow-hidden min-h-[60px]"
+      {...props}
+    />
+  );
 }
 
 export function BasicInformationSection({
@@ -73,8 +106,8 @@ export function BasicInformationSection({
       <CardContent>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="firstName" className="flex items-center gap-2">
-              <User className="h-4 w-4 text-muted-foreground" />
+            <Label htmlFor="firstName" className="flex items-center gap-2 font-semibold text-primary uppercase">
+              <User className="h-4 w-4" />
               First Name *
             </Label>
             <Input
@@ -92,11 +125,12 @@ export function BasicInformationSection({
               aria-label="First name"
               aria-required="true"
               aria-invalid={hasErrors && !firstName ? 'true' : 'false'}
+              className="h-12 text-base font-medium bg-slate-50 dark:bg-slate-800/50 border-2 border-primary/20 focus-visible:ring-2 focus-visible:ring-primary"
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="lastName" className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-muted-foreground" />
+            <Label htmlFor="lastName" className="flex items-center gap-2 font-semibold text-primary uppercase">
+              <Users className="h-4 w-4" />
               Last Name *
             </Label>
             <Input
@@ -113,6 +147,7 @@ export function BasicInformationSection({
               aria-label="Last name"
               aria-required="true"
               aria-invalid={hasErrors && !lastName ? 'true' : 'false'}
+              className="h-12 text-base font-medium bg-slate-50 dark:bg-slate-800/50 border-2 border-primary/20 focus-visible:ring-2 focus-visible:ring-primary"
             />
           </div>
 
@@ -121,7 +156,7 @@ export function BasicInformationSection({
               <FileText className="h-4 w-4 text-muted-foreground" />
               Notes
             </Label>
-            <Textarea
+            <AutoExpandTextarea
               id="notes"
               value={notes}
               onChange={(e) => {
@@ -129,8 +164,6 @@ export function BasicInformationSection({
                 onNotesChange(sanitized);
               }}
               placeholder="Add any additional notes about this attendee..."
-              rows={2}
-              className="resize-y"
               maxLength={FORM_LIMITS.NOTES_MAX_LENGTH}
               autoComplete="off"
               data-form-type="other"

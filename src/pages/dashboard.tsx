@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRealtimeSubscription } from "@/hooks/useRealtimeSubscription";
 import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
@@ -81,6 +81,47 @@ import LogSettingsDialog from "@/components/LogSettingsDialog";
 import OperatorMonitoringDashboard from "@/components/OperatorMonitoringDashboard";
 import { hasPermission, canAccessTab, canManageUser } from "@/lib/permissions";
 import { CLEAR_SENTINEL } from "@/lib/constants";
+
+/**
+ * NotesTooltip component with overflow indicator
+ * Shows a visual indicator when content is truncated
+ */
+function NotesTooltip({ notes }: { notes: string }) {
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [isOverflowing, setIsOverflowing] = useState(false);
+
+  useEffect(() => {
+    const checkHeight = () => {
+      if (contentRef.current) {
+        // Check if scrollHeight exceeds the visible height
+        const hasOverflow = contentRef.current.scrollHeight > contentRef.current.clientHeight;
+        setIsOverflowing(hasOverflow);
+      }
+    };
+
+    // Small delay to ensure content is rendered and measured
+    const timer = setTimeout(checkHeight, 100);
+    return () => clearTimeout(timer);
+  }, [notes]);
+
+  return (
+    <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity duration-200 absolute bottom-full left-0 mb-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 text-sm border-2 border-yellow-400 dark:border-yellow-600 rounded-md shadow-xl z-[9999] min-w-96 max-w-2xl pointer-events-none">
+      <div 
+        ref={contentRef}
+        className="px-4 py-3 whitespace-pre-wrap break-words font-normal leading-relaxed overflow-hidden max-h-32"
+      >
+        {notes}
+      </div>
+      {isOverflowing && (
+        <div className="px-4 py-2 border-t border-yellow-300 dark:border-yellow-700 bg-yellow-50 dark:bg-yellow-900/20 flex items-center justify-center gap-2 text-xs font-medium text-yellow-700 dark:text-yellow-400">
+          <ChevronDown className="h-3 w-3" />
+          <span>View full note in attendee record</span>
+        </div>
+      )}
+      <div className="absolute top-full left-6 -mt-1 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-yellow-400 dark:border-t-yellow-600"></div>
+    </div>
+  );
+}
 
 interface User {
   id: string;
@@ -3721,12 +3762,7 @@ export default function Dashboard() {
                                         <FileText className="h-3 w-3 mr-1" aria-hidden="true" />
                                         NOTES
                                       </Badge>
-                                      <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity duration-200 absolute bottom-full left-0 mb-2 px-4 py-3 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 text-sm border-2 border-yellow-400 dark:border-yellow-600 rounded-md shadow-xl z-[9999] min-w-64 max-w-md pointer-events-none">
-                                        <div className="whitespace-pre-wrap break-words font-normal leading-relaxed">
-                                          {attendee.notes}
-                                        </div>
-                                        <div className="absolute top-full left-6 -mt-1 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-yellow-400 dark:border-t-yellow-600"></div>
-                                      </div>
+                                      <NotesTooltip notes={attendee.notes} />
                                     </div>
                                   )}
                                 </div>
