@@ -443,12 +443,7 @@ async function handleEventSettingsUpdateWithTransactions(
   const integrationFields = extractIntegrationFields(updatedUpdateData);
   let integrationWarnings: any[] = [];
 
-  // DEBUG: Log what's being sent for Switchboard
-  console.log('[Event Settings] Integration fields extracted:', {
-    switchboard: integrationFields.switchboard,
-    switchboardFieldMappings: updatedUpdateData.switchboardFieldMappings,
-    originalFieldMappings: updateData.switchboardFieldMappings
-  });
+
 
   const integrationUpdates = [];
 
@@ -1793,16 +1788,7 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
     }
   }
 
-  // DEBUG: Log incoming switchboard field mappings
-  console.log('[Event Settings PUT] Request body analysis:', {
-    hasSwitchboardFieldMappings: 'switchboardFieldMappings' in updateData,
-    switchboardFieldMappingsType: typeof updateData.switchboardFieldMappings,
-    switchboardFieldMappingsIsArray: Array.isArray(updateData.switchboardFieldMappings),
-    switchboardFieldMappingsLength: Array.isArray(updateData.switchboardFieldMappings)
-      ? updateData.switchboardFieldMappings.length
-      : 'N/A',
-    switchboardFieldMappingsValue: updateData.switchboardFieldMappings
-  });
+
 
   // Invalidate cache immediately to prevent serving stale data during update
   // This ensures concurrent GET requests won't receive outdated cached data

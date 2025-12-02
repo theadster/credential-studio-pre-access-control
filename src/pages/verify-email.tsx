@@ -49,8 +49,6 @@ export default function VerifyEmail() {
           router.push('/login?verified=true');
         }, 3000);
       } catch (error: any) {
-        console.error('Email verification error:', error);
-
         let message = 'Failed to verify email. The verification link may be invalid or expired.';
 
         if (error.code === 401) {

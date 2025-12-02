@@ -71,18 +71,17 @@ export async function bulkEditWithFallback(
   usedTransactions: boolean;
   batchCount?: number;
 }> {
-  console.log(`[bulkEditWithFallback] Starting atomic bulk edit of ${config.updates.length} items using TablesDB`);
-  console.log(`[bulkEditWithFallback] Database ID: ${config.databaseId}`);
-  console.log(`[bulkEditWithFallback] Table ID: ${config.tableId}`);
+  // Starting atomic bulk edit operation
 
   try {
     // TablesDB.upsertRows() requires ALL required fields to be present
     // We need to fetch existing documents first and merge changes
-    console.log(`[bulkEditWithFallback] Fetching existing documents for merge...`);
+
 
     const existingDocs = await Promise.all(
       config.updates.map(update =>
         databases.getDocument(config.databaseId, config.tableId, update.rowId)
+          .catch(() => null) // Handle missing documents gracefully
       )
     );
 
@@ -90,6 +89,14 @@ export async function bulkEditWithFallback(
     // Merge existing document data with updates
     const rows = config.updates.map((update, index) => {
       const existingDoc = existingDocs[index];
+      if (!existingDoc) {
+        // Document doesn't exist, just use the update data
+        return {
+          ...update.data,
+          $id: update.rowId
+        };
+      }
+
       // Remove Appwrite metadata fields that shouldn't be in the upsert
       const { $permissions, $createdAt, $updatedAt, $collectionId, $databaseId, $sequence, ...docData } = existingDoc as any;
 
@@ -100,7 +107,7 @@ export async function bulkEditWithFallback(
       };
     });
 
-    console.log(`[bulkEditWithFallback] Prepared ${rows.length} rows for upsert`);
+
 
     // Use TablesDB's atomic upsertRows operation
     // This is atomic by default - all updates succeed or all fail
@@ -111,7 +118,7 @@ export async function bulkEditWithFallback(
       rows
     );
 
-    console.log(`[bulkEditWithFallback] Atomic bulk update completed successfully`);
+
 
     // Create audit log separately (not part of the atomic operation)
     try {
@@ -128,8 +135,7 @@ export async function bulkEditWithFallback(
         data
       );
     } catch (logError: any) {
-      console.error('[bulkEditWithFallback] Failed to create audit log:', logError.message);
-      // Don't fail the operation if audit log fails
+      // Audit log creation failed, but operation succeeded - don't fail
     }
 
     return {
@@ -139,10 +145,7 @@ export async function bulkEditWithFallback(
     };
 
   } catch (error: any) {
-    console.error('[bulkEditWithFallback] Atomic bulk update failed:', error);
-
-    // If atomic operation fails, fall back to sequential updates
-    console.log('[bulkEditWithFallback] Falling back to sequential updates');
+    // Atomic operation failed, falling back to sequential updates
 
     let updatedCount = 0;
     const errors: Array<{ id: string; error: string }> = [];
@@ -160,7 +163,7 @@ export async function bulkEditWithFallback(
         // Delay to avoid rate limiting
         await new Promise(resolve => setTimeout(resolve, 50));
       } catch (updateError: any) {
-        console.error(`[bulkEditWithFallback] Failed to update ${update.rowId}:`, updateError.message);
+
         errors.push({ id: update.rowId, error: updateError.message });
       }
     }
@@ -184,10 +187,10 @@ export async function bulkEditWithFallback(
         data
       );
     } catch (logError: any) {
-      console.error('[bulkEditWithFallback] Failed to create audit log:', logError.message);
+      // Audit log creation failed
     }
 
-    console.log(`[bulkEditWithFallback] Sequential fallback complete: ${updatedCount}/${config.updates.length} updated`);
+
 
     return {
       updatedCount,
@@ -224,7 +227,7 @@ export async function bulkDeleteWithFallback(
   usedTransactions: boolean;
   batchCount?: number;
 }> {
-  console.log(`[bulkDeleteWithFallback] Starting atomic bulk delete of ${config.rowIds.length} items using TablesDB`);
+  // Starting atomic bulk delete operation
 
   try {
     // Use TablesDB's atomic deleteRows operation
@@ -236,7 +239,7 @@ export async function bulkDeleteWithFallback(
       [Query.equal('$id', config.rowIds)]
     );
 
-    console.log(`[bulkDeleteWithFallback] Atomic bulk delete completed successfully`);
+
 
     // Create audit log
     try {
@@ -253,7 +256,7 @@ export async function bulkDeleteWithFallback(
         data
       );
     } catch (logError: any) {
-      console.error('[bulkDeleteWithFallback] Failed to create audit log:', logError.message);
+      // Audit log creation failed, but operation succeeded - don't fail
     }
 
     return {
@@ -263,8 +266,7 @@ export async function bulkDeleteWithFallback(
     };
 
   } catch (error: any) {
-    console.error('[bulkDeleteWithFallback] Atomic bulk delete failed:', error);
-    console.log('[bulkDeleteWithFallback] Falling back to sequential deletes');
+    // Atomic delete failed, falling back to sequential deletes
 
     let deletedCount = 0;
 
@@ -278,7 +280,7 @@ export async function bulkDeleteWithFallback(
         deletedCount++;
         await new Promise(resolve => setTimeout(resolve, 50));
       } catch (deleteError: any) {
-        console.error(`[bulkDeleteWithFallback] Failed to delete ${rowId}:`, deleteError.message);
+  
       }
     }
 
@@ -300,7 +302,7 @@ export async function bulkDeleteWithFallback(
         data
       );
     } catch (logError: any) {
-      console.error('[bulkDeleteWithFallback] Failed to create audit log:', logError.message);
+      // Audit log creation failed
     }
 
     return {
@@ -338,7 +340,7 @@ export async function bulkImportWithFallback(
   usedTransactions: boolean;
   batchCount?: number;
 }> {
-  console.log(`[bulkImportWithFallback] Starting atomic bulk import of ${config.items.length} items using TablesDB`);
+  // Starting atomic bulk import operation
 
   try {
     // Prepare rows for TablesDB.createRows()
@@ -355,7 +357,7 @@ export async function bulkImportWithFallback(
       rows
     );
 
-    console.log(`[bulkImportWithFallback] Atomic bulk import completed successfully`);
+
 
     // Create audit log
     try {
@@ -372,7 +374,7 @@ export async function bulkImportWithFallback(
         data
       );
     } catch (logError: any) {
-      console.error('[bulkImportWithFallback] Failed to create audit log:', logError.message);
+      // Audit log creation failed, but operation succeeded - don't fail
     }
 
     return {
@@ -382,8 +384,7 @@ export async function bulkImportWithFallback(
     };
 
   } catch (error: any) {
-    console.error('[bulkImportWithFallback] Atomic bulk import failed:', error);
-    console.log('[bulkImportWithFallback] Falling back to sequential creates');
+    // Atomic import failed, falling back to sequential creates
 
     let createdCount = 0;
 
@@ -399,7 +400,7 @@ export async function bulkImportWithFallback(
         createdCount++;
         await new Promise(resolve => setTimeout(resolve, 50));
       } catch (createError: any) {
-        console.error(`[bulkImportWithFallback] Failed to create item:`, createError.message);
+
       }
     }
 
@@ -421,7 +422,7 @@ export async function bulkImportWithFallback(
         data
       );
     } catch (logError: any) {
-      console.error('[bulkImportWithFallback] Failed to create audit log:', logError.message);
+      // Audit log creation failed
     }
 
     return {

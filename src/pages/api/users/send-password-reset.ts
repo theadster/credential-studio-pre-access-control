@@ -113,7 +113,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
                       (process.env.NEXT_PUBLIC_APP_URL ? process.env.NEXT_PUBLIC_APP_URL + '/reset-password' : null) || 
                       'http://localhost:3000/reset-password';
       
-      console.log('Password reset URL:', resetUrl); // Debug log
+
       
       // Create password recovery token
       // Note: Appwrite's Users API (admin) doesn't have a password recovery method

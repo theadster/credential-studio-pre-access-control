@@ -23,7 +23,7 @@ const MagicLinkLoginPage = () => {
     try {
       await signInWithMagicLink(values.email);
     } catch (error) {
-      console.error(error);
+      // Error handled by signInWithMagicLink
     } finally {
       setIsLoading(false);
     }

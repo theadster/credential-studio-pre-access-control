@@ -86,10 +86,6 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     
     try {
       // Parse custom field values
-      console.log('=== Attendee Custom Fields Debug ===');
-      console.log('Raw customFieldValues:', attendee.customFieldValues);
-      console.log('Type:', typeof attendee.customFieldValues);
-      
       let customFieldValues: Record<string, string> = {};
       
       if (attendee.customFieldValues) {
@@ -99,7 +95,6 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         
         // Convert array format to object format
         if (Array.isArray(parsed)) {
-          console.log('Converting array format to object format');
           parsed.forEach((item: any) => {
             if (item.customFieldId && item.value !== undefined) {
               customFieldValues[item.customFieldId] = String(item.value);
@@ -107,7 +102,6 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           });
         } else if (typeof parsed === 'object') {
           // Already in object format
-          console.log('Already in object format');
           customFieldValues = parsed;
         }
       }
@@ -265,14 +259,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         });
       }
 
-      // Log the processed template for debugging
-      console.log('=== Switchboard Template Processing ===');
-      console.log('Original template length:', requestBody.length);
-      console.log('Processed template length:', bodyString.length);
-      console.log('Placeholders replaced:', Object.keys(placeholders).length);
-      console.log('Numeric placeholders replaced:', Object.keys(numericPlaceholders).length);
-      console.log('Processed template:', bodyString);
-      console.log('=======================================');
+      // Template processing complete
 
       let finalRequestBody;
       try {
@@ -280,9 +267,6 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       } catch (jsonParseError) {
         // Add debugging information to help identify the issue
         const errorMessage = jsonParseError instanceof Error ? jsonParseError.message : String(jsonParseError);
-        
-        console.error('JSON Parse Error:', errorMessage);
-        console.error('Processed template:', bodyString);
         
         // Try to identify the problematic part of the JSON
         let debugInfo = '';

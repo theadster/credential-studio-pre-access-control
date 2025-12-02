@@ -363,8 +363,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         // Step 4: Check if we need to fetch additional batches
         // If total > 5000, we have more attendees than fit in a single request
         if (firstBatch.total > 5000) {
-          // Log warning for monitoring and debugging large events
-          console.warn(`Large event detected: ${firstBatch.total} attendees. Fetching in batches...`);
+          // Large event detected - fetching in batches
           
           // Start with documents from first batch
           let allDocuments = [...firstBatch.documents];
