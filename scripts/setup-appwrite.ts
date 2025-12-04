@@ -34,6 +34,9 @@ const COLLECTIONS = {
   EVENT_SETTINGS: 'event_settings',
   LOGS: 'logs',
   LOG_SETTINGS: 'log_settings',
+  ACCESS_CONTROL: 'access_control',
+  APPROVAL_PROFILES: 'approval_profiles',
+  SCAN_LOGS: 'scan_logs',
 };
 
 /**
@@ -431,12 +434,127 @@ async function createLogSettingsCollection(databaseId: string) {
 
 
 
+async function createAccessControlCollection(databaseId: string) {
+  try {
+    console.log('\nCreating access_control collection...');
+    await databases.createCollection(
+      databaseId,
+      COLLECTIONS.ACCESS_CONTROL,
+      'Access Control',
+      [
+        Permission.read(Role.any()),
+        Permission.create(Role.users()),
+        Permission.update(Role.users()),
+        Permission.delete(Role.users()),
+      ]
+    );
+
+    // Add attributes
+    await databases.createStringAttribute(databaseId, COLLECTIONS.ACCESS_CONTROL, 'attendeeId', 255, true);
+    await databases.createBooleanAttribute(databaseId, COLLECTIONS.ACCESS_CONTROL, 'accessEnabled', false, true);
+    await databases.createDatetimeAttribute(databaseId, COLLECTIONS.ACCESS_CONTROL, 'validFrom', false);
+    await databases.createDatetimeAttribute(databaseId, COLLECTIONS.ACCESS_CONTROL, 'validUntil', false);
+
+    // Create indexes
+    await databases.createIndex(databaseId, COLLECTIONS.ACCESS_CONTROL, 'attendeeId_idx', IndexType.Key, ['attendeeId']);
+
+    console.log('✓ Access control collection created');
+  } catch (error: any) {
+    if (error.code === 409) {
+      console.log('✓ Access control collection already exists');
+    } else {
+      throw error;
+    }
+  }
+}
+
+async function createApprovalProfilesCollection(databaseId: string) {
+  try {
+    console.log('\nCreating approval_profiles collection...');
+    await databases.createCollection(
+      databaseId,
+      COLLECTIONS.APPROVAL_PROFILES,
+      'Approval Profiles',
+      [
+        Permission.read(Role.any()),
+        Permission.create(Role.users()),
+        Permission.update(Role.users()),
+        Permission.delete(Role.users()),
+      ]
+    );
+  } catch (error: any) {
+    if (error.code === 409) {
+      console.log('✓ Approval profiles collection already exists');
+      return;
+    } else {
+      throw error;
+    }
+  }
+
+  // Add attributes
+  await databases.createStringAttribute(databaseId, COLLECTIONS.APPROVAL_PROFILES, 'name', 255, true);
+  await databases.createStringAttribute(databaseId, COLLECTIONS.APPROVAL_PROFILES, 'description', 1000, false);
+  await databases.createIntegerAttribute(databaseId, COLLECTIONS.APPROVAL_PROFILES, 'version', true, 1);
+  await databases.createStringAttribute(databaseId, COLLECTIONS.APPROVAL_PROFILES, 'rules', 10000, true);
+  await databases.createBooleanAttribute(databaseId, COLLECTIONS.APPROVAL_PROFILES, 'isDeleted', false, false);
+
+  // Create indexes
+  await databases.createIndex(databaseId, COLLECTIONS.APPROVAL_PROFILES, 'name_idx', IndexType.Unique, ['name']);
+
+  console.log('✓ Approval profiles collection created');
+}
+
+async function createScanLogsCollection(databaseId: string) {
+  try {
+    console.log('\nCreating scan_logs collection...');
+    await databases.createCollection(
+      databaseId,
+      COLLECTIONS.SCAN_LOGS,
+      'Scan Logs',
+      [
+        Permission.read(Role.any()),
+        Permission.create(Role.any()),
+        Permission.update(Role.users()),
+        Permission.delete(Role.users()),
+      ]
+    );
+  } catch (error: any) {
+    if (error.code === 409) {
+      console.log('✓ Scan logs collection already exists');
+      return;
+    } else {
+      throw error;
+    }
+  }
+
+  // Add attributes
+  await databases.createStringAttribute(databaseId, COLLECTIONS.SCAN_LOGS, 'attendeeId', 255, false);
+  await databases.createStringAttribute(databaseId, COLLECTIONS.SCAN_LOGS, 'barcodeScanned', 255, true);
+  await databases.createStringAttribute(databaseId, COLLECTIONS.SCAN_LOGS, 'result', 50, true);
+  await databases.createStringAttribute(databaseId, COLLECTIONS.SCAN_LOGS, 'denialReason', 500, false);
+  await databases.createStringAttribute(databaseId, COLLECTIONS.SCAN_LOGS, 'profileId', 255, false);
+  await databases.createIntegerAttribute(databaseId, COLLECTIONS.SCAN_LOGS, 'profileVersion', false);
+  await databases.createStringAttribute(databaseId, COLLECTIONS.SCAN_LOGS, 'deviceId', 255, true);
+  await databases.createStringAttribute(databaseId, COLLECTIONS.SCAN_LOGS, 'operatorId', 255, true);
+  await databases.createDatetimeAttribute(databaseId, COLLECTIONS.SCAN_LOGS, 'scannedAt', true);
+  await databases.createDatetimeAttribute(databaseId, COLLECTIONS.SCAN_LOGS, 'uploadedAt', false);
+  await databases.createStringAttribute(databaseId, COLLECTIONS.SCAN_LOGS, 'localId', 255, true);
+
+  // Create indexes
+  await databases.createIndex(databaseId, COLLECTIONS.SCAN_LOGS, 'scannedAt_idx', IndexType.Key, ['scannedAt']);
+  await databases.createIndex(databaseId, COLLECTIONS.SCAN_LOGS, 'deviceId_idx', IndexType.Key, ['deviceId']);
+  await databases.createIndex(databaseId, COLLECTIONS.SCAN_LOGS, 'operatorId_idx', IndexType.Key, ['operatorId']);
+  await databases.createIndex(databaseId, COLLECTIONS.SCAN_LOGS, 'localId_idx', IndexType.Unique, ['localId']);
+
+  console.log('✓ Scan logs collection created');
+}
+
 async function printEnvironmentVariables(databaseId: string) {
   console.log('\n' + '='.repeat(80));
   console.log('SETUP COMPLETE! Add these environment variables to your .env.local:');
   console.log('='.repeat(80));
-  console.log(`
-# Appwrite Database IDs
+  console.log(
+    `# Appwrite Database IDs
 NEXT_PUBLIC_APPWRITE_DATABASE_ID=${databaseId}
 NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID=${COLLECTIONS.USERS}
 NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID=${COLLECTIONS.ROLES}
@@ -445,7 +563,10 @@ NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID=${COLLECTIONS.CUSTOM_FIELDS}
 NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID=${COLLECTIONS.EVENT_SETTINGS}
 NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID=${COLLECTIONS.LOGS}
 NEXT_PUBLIC_APPWRITE_LOG_SETTINGS_COLLECTION_ID=${COLLECTIONS.LOG_SETTINGS}
-  `);
+NEXT_PUBLIC_APPWRITE_ACCESS_CONTROL_COLLECTION_ID=${COLLECTIONS.ACCESS_CONTROL}
+NEXT_PUBLIC_APPWRITE_APPROVAL_PROFILES_COLLECTION_ID=${COLLECTIONS.APPROVAL_PROFILES}
+NEXT_PUBLIC_APPWRITE_SCAN_LOGS_COLLECTION_ID=${COLLECTIONS.SCAN_LOGS}`
+  );
   console.log('='.repeat(80));
 }
 
@@ -483,6 +604,9 @@ async function main() {
     await createEventSettingsCollection(databaseId);
     await createLogsCollection(databaseId);
     await createLogSettingsCollection(databaseId);
+    await createAccessControlCollection(databaseId);
+    await createApprovalProfilesCollection(databaseId);
+    await createScanLogsCollection(databaseId);
 
     // Print environment variables
     await printEnvironmentVariables(databaseId);

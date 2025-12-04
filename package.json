@@ -122,6 +122,7 @@
     "dotenv": "^17.2.3",
     "eslint": "^9",
     "eslint-config-next": "^16.0.7",
+    "fast-check": "^4.3.0",
     "happy-dom": "^20.0.10",
     "node-appwrite": "^20.2.1",
     "postcss": "^8.4.47",
