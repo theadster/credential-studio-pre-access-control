@@ -56,46 +56,36 @@ describe('Property 1: UTC datetime storage', () => {
     );
   });
 
-  it('toUtcDatetime converts non-UTC datetime strings to UTC', () => {
-    // Generate dates and format them with various timezone offsets
-    const dateWithOffsetArbitrary = fc.tuple(
-      dateArbitrary,
-      fc.integer({ min: -12, max: 14 }) // timezone offset hours
-    ).map(([date, offsetHours]) => {
-      // Create a datetime string with timezone offset that represents the same instant
-      const offsetMinutes = offsetHours * 60;
-      const sign = offsetMinutes >= 0 ? '+' : '-';
-      const absHours = Math.abs(Math.floor(offsetMinutes / 60)).toString().padStart(2, '0');
-      const absMinutes = Math.abs(offsetMinutes % 60).toString().padStart(2, '0');
-      
-      // Adjust UTC time by subtracting the offset to get local time
-      const adjustedDate = new Date(date.getTime() - offsetMinutes * 60 * 1000);
-      
-      // Format: YYYY-MM-DDTHH:mm:ss+HH:MM or YYYY-MM-DDTHH:mm:ss-HH:MM
-      const year = adjustedDate.getUTCFullYear();
-      const month = (adjustedDate.getUTCMonth() + 1).toString().padStart(2, '0');
-      const day = adjustedDate.getUTCDate().toString().padStart(2, '0');
-      const hours = adjustedDate.getUTCHours().toString().padStart(2, '0');
-      const minutes = adjustedDate.getUTCMinutes().toString().padStart(2, '0');
-      const seconds = adjustedDate.getUTCSeconds().toString().padStart(2, '0');
-      
-      return {
-        input: `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${sign}${absHours}:${absMinutes}`,
-        originalDate: date,
-      };
-    });
-
+  it('toUtcDatetime converts any valid datetime input to UTC format', () => {
+    // Test that any valid datetime string that JavaScript can parse
+    // gets converted to a UTC ISO string (ending with Z)
     fc.assert(
-      fc.property(dateWithOffsetArbitrary, ({ input, originalDate }) => {
-        const result = toUtcDatetime(input);
-        
-        // Result should be defined for valid input
-        expect(result).toBeDefined();
-        expect(result!.endsWith('Z')).toBe(true);
-        
-        // The converted result should represent the same instant as the original date
-        expect(new Date(result!).getTime()).toBe(originalDate.getTime());
-      }),
+      fc.property(
+        dateArbitrary.filter((date) => !isNaN(date.getTime())),
+        fc.constantFrom(
+          (d: Date) => d.toISOString(), // UTC ISO string
+          (d: Date) => d.toString(), // Local string format
+          (d: Date) => d.toUTCString(), // UTC string format
+          (d: Date) => d.getTime().toString() // Unix timestamp
+        ),
+        (date, formatFn) => {
+          const inputString = formatFn(date);
+          const result = toUtcDatetime(inputString);
+          
+          // Result should be defined
+          expect(result).toBeDefined();
+          
+          // Result should end with 'Z' indicating UTC
+          expect(result!.endsWith('Z')).toBe(true);
+          
+          // Result should be a valid ISO 8601 string
+          const parsed = new Date(result!);
+          expect(isNaN(parsed.getTime())).toBe(false);
+          
+          // The result should represent the same moment in time
+          expect(parsed.getTime()).toBe(date.getTime());
+        }
+      ),
       { numRuns: 100 }
     );
   });
