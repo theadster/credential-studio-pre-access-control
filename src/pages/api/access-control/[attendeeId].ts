@@ -15,6 +15,7 @@ import { NextApiResponse } from 'next';
 import { createSessionClient } from '@/lib/appwrite';
 import { Query, ID } from 'node-appwrite';
 import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
+import { shouldLog } from '@/lib/logSettings';
 import {
   AccessControl,
   accessControlUpdateSchema,
@@ -154,6 +155,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         }
 
         let result;
+        const isCreate = !existingDocId;
+        
         if (existingDocId) {
           // Update existing record
           result = await databases.updateDocument(
@@ -175,6 +178,39 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
               validUntil: utcValidUntil ?? null,
             }
           );
+        }
+
+        // Log the access control update if enabled
+        if (await shouldLog('accessControlUpdate')) {
+          try {
+            const logsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!;
+            await databases.createDocument(
+              dbId,
+              logsCollectionId,
+              ID.unique(),
+              {
+                userId: req.user?.$id || 'unknown',
+                action: isCreate ? 'create' : 'update',
+                details: JSON.stringify({
+                  type: 'access_control_update',
+                  attendeeId,
+                  changes: {
+                    accessEnabled: accessEnabled !== undefined ? accessEnabled : undefined,
+                    validFrom: utcValidFrom !== undefined ? utcValidFrom : undefined,
+                    validUntil: utcValidUntil !== undefined ? utcValidUntil : undefined,
+                  },
+                  previousValues: existingDocId ? {
+                    accessEnabled: existingDocs.documents[0]?.accessEnabled,
+                    validFrom: existingValidFrom,
+                    validUntil: existingValidUntil,
+                  } : null,
+                }),
+              }
+            );
+          } catch (logError) {
+            console.error('[Access Control API] Error creating audit log:', logError);
+            // Continue even if logging fails
+          }
         }
 
         return res.status(200).json({

@@ -78,6 +78,8 @@ import ImportDialog from "@/components/ImportDialog";
 import LogsExportDialog from "@/components/LogsExportDialog";
 import LogsDeleteDialog from "@/components/LogsDeleteDialog";
 import LogSettingsDialog from "@/components/LogSettingsDialog";
+import ApprovalProfileManager from "@/components/ApprovalProfileManager";
+import ScanLogsViewer from "@/components/ScanLogsViewer";
 import OperatorMonitoringDashboard from "@/components/OperatorMonitoringDashboard";
 import { hasPermission, canAccessTab, canManageUser } from "@/lib/permissions";
 import { CLEAR_SENTINEL } from "@/lib/constants";
@@ -533,6 +535,7 @@ export default function Dashboard() {
     if (canAccessTab(currentUser?.role, 'settings')) tabs.push('settings');
     if (canAccessTab(currentUser?.role, 'logs')) tabs.push('logs');
     if (canAccessTab(currentUser?.role, 'monitoring')) tabs.push('monitoring');
+    if (canAccessTab(currentUser?.role, 'accessControl')) tabs.push('accessControl');
     return tabs;
   };
 
@@ -2664,6 +2667,7 @@ export default function Dashboard() {
             <nav className="space-y-2">
               {canAccessTab(currentUser?.role, 'attendees') && (
                 <Button
+                  type="button"
                   variant={activeTab === "attendees" ? "default" : "ghost"}
                   className="w-full justify-start text-base"
                   onClick={() => setActiveTab("attendees")}
@@ -2674,6 +2678,7 @@ export default function Dashboard() {
               )}
               {canAccessTab(currentUser?.role, 'settings') && (
                 <Button
+                  type="button"
                   variant={activeTab === "settings" ? "default" : "ghost"}
                   className="w-full justify-start text-base"
                   onClick={() => setActiveTab("settings")}
@@ -2684,6 +2689,7 @@ export default function Dashboard() {
               )}
               {canAccessTab(currentUser?.role, 'users') && (
                 <Button
+                  type="button"
                   variant={activeTab === "users" ? "default" : "ghost"}
                   className="w-full justify-start text-base"
                   onClick={() => setActiveTab("users")}
@@ -2694,6 +2700,7 @@ export default function Dashboard() {
               )}
               {canAccessTab(currentUser?.role, 'roles') && (
                 <Button
+                  type="button"
                   variant={activeTab === "roles" ? "default" : "ghost"}
                   className="w-full justify-start text-base"
                   onClick={() => setActiveTab("roles")}
@@ -2704,6 +2711,7 @@ export default function Dashboard() {
               )}
               {canAccessTab(currentUser?.role, 'logs') && (
                 <Button
+                  type="button"
                   variant={activeTab === "logs" ? "default" : "ghost"}
                   className="w-full justify-start text-base"
                   onClick={() => setActiveTab("logs")}
@@ -2714,6 +2722,7 @@ export default function Dashboard() {
               )}
               {canAccessTab(currentUser?.role, 'monitoring') && (
                 <Button
+                  type="button"
                   variant={activeTab === "monitoring" ? "default" : "ghost"}
                   className="w-full justify-start text-base"
                   onClick={() => setActiveTab("monitoring")}
@@ -2722,7 +2731,19 @@ export default function Dashboard() {
                   Operator Monitoring
                 </Button>
               )}
+              {canAccessTab(currentUser?.role, 'accessControl') && (
+                <Button
+                  type="button"
+                  variant={activeTab === "accessControl" ? "default" : "ghost"}
+                  className="w-full justify-start text-base"
+                  onClick={() => setActiveTab("accessControl")}
+                >
+                  <QrCode className="mr-2 h-4 w-4" />
+                  Access Control
+                </Button>
+              )}
               <Button
+                type="button"
                 variant="ghost"
                 className="w-full justify-start text-base"
                 onClick={() => window.open('https://help.credential.studio', '_blank')}
@@ -2779,6 +2800,7 @@ export default function Dashboard() {
                 {activeTab === "settings" && "Event Settings"}
                 {activeTab === "logs" && "Activity Logs"}
                 {activeTab === "monitoring" && "Operator Monitoring"}
+                {activeTab === "accessControl" && "Access Control"}
               </h1>
               <p className="text-muted-foreground">
                 {activeTab === "attendees" && "Manage event attendees and their credentials"}
@@ -2787,6 +2809,7 @@ export default function Dashboard() {
                 {activeTab === "settings" && "Configure event settings and integrations"}
                 {activeTab === "logs" && "View system activity and audit trail"}
                 {activeTab === "monitoring" && "Monitor database operator performance and manage feature flags"}
+                {activeTab === "accessControl" && "Manage approval profiles and view scan logs"}
               </p>
             </div>
             <div className="flex items-center space-x-2">
@@ -2812,12 +2835,15 @@ export default function Dashboard() {
                 </>
               )}
               {activeTab === "roles" && hasPermission(currentUser?.role, 'roles', 'create') && (
-                <Button onClick={() => setShowRoleForm(true)}>
+                <Button onClick={() => {
+                  setEditingRole(null);
+                  setShowRoleForm(true);
+                }}>
                   <Plus className="mr-2 h-4 w-4" />
                   Add Role
                 </Button>
               )}
-              {activeTab === "settings" && hasPermission(currentUser?.role, 'eventSettings', 'update') && (
+              {activeTab === "settings" && (hasPermission(currentUser?.role, 'eventSettings', 'create') || hasPermission(currentUser?.role, 'eventSettings', 'update')) && (
                 <Button onClick={() => setShowEventSettingsForm(true)}>
                   <Settings className="mr-2 h-4 w-4" />
                   {eventSettings ? "Edit Settings" : "Create Settings"}
@@ -5284,6 +5310,13 @@ export default function Dashboard() {
           {activeTab === "monitoring" && (
             <div className="space-y-6">
               <OperatorMonitoringDashboard />
+            </div>
+          )}
+
+          {activeTab === "accessControl" && (
+            <div className="space-y-6">
+              <ApprovalProfileManager />
+              <ScanLogsViewer />
             </div>
           )}
         </div>

@@ -8,7 +8,7 @@
  */
 
 import { CachedAttendee, evaluateRuleGroup } from './ruleEngine';
-import { ApprovalProfileWithRules } from '@/types/approvalProfile';
+import { ApprovalProfile } from '@/types/approvalProfile';
 
 /**
  * Result of a scan evaluation
@@ -112,7 +112,7 @@ export function checkValidityWindow(
 export function evaluateScan(
   barcode: string,
   attendees: Map<string, CachedAttendee>,
-  profile: ApprovalProfileWithRules | null
+  profile: ApprovalProfile | null
 ): EvaluationResult {
   // Requirement 7.3: Find attendee by barcode
   const attendee = attendees.get(barcode);

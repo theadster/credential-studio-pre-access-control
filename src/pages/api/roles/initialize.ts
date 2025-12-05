@@ -34,7 +34,10 @@ const DEFAULT_ROLES = [
       eventSettings: { create: true, read: true, update: true, delete: true },
       customFields: { create: true, read: true, update: true, delete: true },
       logs: { read: true, delete: true, export: true, configure: true },
-      system: { configure: true, backup: true, restore: true }
+      system: { configure: true, backup: true, restore: true },
+      accessControl: { read: true, write: true },
+      approvalProfiles: { read: true, write: true, delete: true },
+      scanLogs: { read: true, export: true }
     }
   },
   {
@@ -47,7 +50,10 @@ const DEFAULT_ROLES = [
       eventSettings: { create: true, read: true, update: true, delete: false },
       customFields: { create: true, read: true, update: true, delete: true },
       logs: { read: true, export: true, configure: false },
-      system: { configure: false, backup: false, restore: false }
+      system: { configure: false, backup: false, restore: false },
+      accessControl: { read: true, write: true },
+      approvalProfiles: { read: true, write: true, delete: true },
+      scanLogs: { read: true, export: true }
     }
   },
   {
@@ -60,7 +66,10 @@ const DEFAULT_ROLES = [
       eventSettings: { create: false, read: true, update: false, delete: false },
       customFields: { create: false, read: true, update: false, delete: false },
       logs: { read: false, export: false, configure: false },
-      system: { configure: false, backup: false, restore: false }
+      system: { configure: false, backup: false, restore: false },
+      accessControl: { read: true, write: true },
+      approvalProfiles: { read: true, write: false, delete: false },
+      scanLogs: { read: true, export: false }
     }
   },
   {
@@ -73,7 +82,10 @@ const DEFAULT_ROLES = [
       eventSettings: { create: false, read: true, update: false, delete: false },
       customFields: { create: false, read: true, update: false, delete: false },
       logs: { read: false, export: false, configure: false },
-      system: { configure: false, backup: false, restore: false }
+      system: { configure: false, backup: false, restore: false },
+      accessControl: { read: true, write: false },
+      approvalProfiles: { read: true, write: false, delete: false },
+      scanLogs: { read: true, export: false }
     }
   }
 ];

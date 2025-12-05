@@ -24,7 +24,8 @@ import {
   LogOut,
   IdCard,
   Save,
-  RotateCcw
+  RotateCcw,
+  QrCode
 } from 'lucide-react';
 
 interface LogSettings {
@@ -61,6 +62,12 @@ interface LogSettings {
   systemViewAttendeeList: boolean;
   systemViewRolesList: boolean;
   systemViewUsersList: boolean;
+  // Access control logging settings
+  accessControlUpdate: boolean;
+  approvalProfileCreate: boolean;
+  approvalProfileUpdate: boolean;
+  approvalProfileDelete: boolean;
+  scanLogsExport: boolean;
 }
 
 interface LogSettingsDialogProps {
@@ -166,7 +173,7 @@ const LogSettingsDialog: React.FC<LogSettingsDialogProps> = ({ children, onSetti
         settings.attendeeCreate,
         settings.attendeeUpdate,
         settings.attendeeDelete,
-        settings.attendeeView,
+        // attendeeView is disabled/inoperable, excluded from count
         settings.attendeeBulkDelete,
         settings.attendeeImport,
         settings.attendeeExport
@@ -208,18 +215,25 @@ const LogSettingsDialog: React.FC<LogSettingsDialogProps> = ({ children, onSetti
       ],
       system: [
         settings.systemViewEventSettings,
-        settings.systemViewAttendeeList,
+        // systemViewAttendeeList is disabled/inoperable, excluded from count
         settings.systemViewRolesList,
         settings.systemViewUsersList
+      ],
+      accessControl: [
+        settings.accessControlUpdate,
+        settings.approvalProfileCreate,
+        settings.approvalProfileUpdate,
+        settings.approvalProfileDelete,
+        settings.scanLogsExport
       ]
     };
 
-    return categorySettings[category as keyof typeof categorySettings]?.filter(Boolean).length || 0;
+    return categorySettings[category as keyof typeof categorySettings]?.filter(Boolean)?.length || 0;
   };
 
   const getTotalCount = (category: string) => {
     const categoryCounts = {
-      attendees: 7,
+      attendees: 6, // Excluding attendeeView (disabled/inoperable)
       credentials: 2,
       users: 5,
       roles: 4,
@@ -227,7 +241,8 @@ const LogSettingsDialog: React.FC<LogSettingsDialogProps> = ({ children, onSetti
       customFields: 4,
       auth: 2,
       logs: 3,
-      system: 4
+      system: 3, // Excluding systemViewAttendeeList (disabled/inoperable)
+      accessControl: 5
     };
 
     return categoryCounts[category as keyof typeof categoryCounts] || 0;
@@ -807,6 +822,83 @@ const LogSettingsDialog: React.FC<LogSettingsDialogProps> = ({ children, onSetti
                 </CardContent>
               </Card>
             </div>
+
+            {/* Access Control */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <QrCode className="h-5 w-5 text-violet-600" />
+                    <span>Access Control</span>
+                  </div>
+                  <Badge variant="outline">
+                    {getEnabledCount('accessControl')}/{getTotalCount('accessControl')} enabled
+                  </Badge>
+                </CardTitle>
+                <CardDescription>
+                  Control logging for mobile access control and approval profile activities
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <Edit className="h-4 w-4 text-blue-600" />
+                      <Label htmlFor="accessControlUpdate">Update Access Control</Label>
+                    </div>
+                    <Switch
+                      id="accessControlUpdate"
+                      checked={settings.accessControlUpdate}
+                      onCheckedChange={(checked) => updateSetting('accessControlUpdate', checked)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <Plus className="h-4 w-4 text-green-600" />
+                      <Label htmlFor="approvalProfileCreate">Create Approval Profile</Label>
+                    </div>
+                    <Switch
+                      id="approvalProfileCreate"
+                      checked={settings.approvalProfileCreate}
+                      onCheckedChange={(checked) => updateSetting('approvalProfileCreate', checked)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <Edit className="h-4 w-4 text-blue-600" />
+                      <Label htmlFor="approvalProfileUpdate">Update Approval Profile</Label>
+                    </div>
+                    <Switch
+                      id="approvalProfileUpdate"
+                      checked={settings.approvalProfileUpdate}
+                      onCheckedChange={(checked) => updateSetting('approvalProfileUpdate', checked)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <Trash2 className="h-4 w-4 text-red-600" />
+                      <Label htmlFor="approvalProfileDelete">Delete Approval Profile</Label>
+                    </div>
+                    <Switch
+                      id="approvalProfileDelete"
+                      checked={settings.approvalProfileDelete}
+                      onCheckedChange={(checked) => updateSetting('approvalProfileDelete', checked)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <Download className="h-4 w-4 text-orange-600" />
+                      <Label htmlFor="scanLogsExport">Export Scan Logs</Label>
+                    </div>
+                    <Switch
+                      id="scanLogsExport"
+                      checked={settings.scanLogsExport}
+                      onCheckedChange={(checked) => updateSetting('scanLogsExport', checked)}
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           <div className="flex items-center justify-between pt-6 pb-6 border-t-2 border-slate-200 dark:border-slate-700 bg-[#F1F5F9] dark:bg-slate-800 px-6 mt-6">

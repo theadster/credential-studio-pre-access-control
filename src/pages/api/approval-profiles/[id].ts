@@ -1,11 +1,12 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { databases } from '@/lib/appwrite';
-import { Query } from 'appwrite';
+import { databases, createSessionClient } from '@/lib/appwrite';
+import { Query, ID } from 'appwrite';
 import {
   ApprovalProfile,
   UpdateApprovalProfileSchema,
   UpdateApprovalProfileInput,
 } from '@/types/approvalProfile';
+import { shouldLog } from '@/lib/logSettings';
 
 const databaseId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
 const collectionId = process.env.NEXT_PUBLIC_APPWRITE_APPROVAL_PROFILES_COLLECTION_ID!;
@@ -65,9 +66,28 @@ async function handleGet(
       });
     }
 
+    // Parse rules JSON string to object for consistent API response
+    let parsedRules = profile.rules;
+    if (typeof profile.rules === 'string') {
+      try {
+        parsedRules = JSON.parse(profile.rules);
+      } catch (parseError) {
+        console.error('Error parsing profile rules JSON:', parseError);
+        return res.status(500).json({
+          success: false,
+          error: 'Invalid profile data: rules JSON is malformed',
+        });
+      }
+    }
+
+    const responseProfile = {
+      ...profile,
+      rules: parsedRules,
+    };
+
     return res.status(200).json({
       success: true,
-      data: profile,
+      data: responseProfile,
     });
   } catch (error: any) {
     if (error.code === 404) {
@@ -167,9 +187,56 @@ async function handlePut(
       updateData
     );
 
+    // Log the profile update if enabled
+    if (await shouldLog('approvalProfileUpdate')) {
+      try {
+        const logsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!;
+        // Try to get user ID from session if available
+        let userId = 'unknown';
+        try {
+          const { account } = createSessionClient(req);
+          const user = await account.get();
+          userId = user.$id;
+        } catch {
+          // Session not available, use unknown
+        }
+        
+        await databases.createDocument(
+          databaseId,
+          logsCollectionId,
+          ID.unique(),
+          {
+            userId,
+            action: 'update',
+            details: JSON.stringify({
+              type: 'approval_profile_update',
+              profileId: id,
+              profileName: updatedProfile.name,
+              previousVersion: currentProfile.version,
+              newVersion: updatedProfile.version,
+              changes: {
+                name: input.name !== undefined ? { from: currentProfile.name, to: input.name } : undefined,
+                description: input.description !== undefined ? { from: currentProfile.description, to: input.description } : undefined,
+                rulesUpdated: input.rules !== undefined,
+              },
+            }),
+          }
+        );
+      } catch (logError) {
+        console.error('[Approval Profiles API] Error creating audit log:', logError);
+        // Continue even if logging fails
+      }
+    }
+
+    // Parse rules JSON string to object for consistent API response
+    const responseProfile = {
+      ...updatedProfile,
+      rules: typeof updatedProfile.rules === 'string' ? JSON.parse(updatedProfile.rules) : updatedProfile.rules,
+    };
+
     return res.status(200).json({
       success: true,
-      data: updatedProfile,
+      data: responseProfile,
     });
   } catch (error: any) {
     if (error.code === 404) {
@@ -220,9 +287,50 @@ async function handleDelete(
       }
     );
 
+    // Log the profile deletion if enabled
+    if (await shouldLog('approvalProfileDelete')) {
+      try {
+        const logsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!;
+        // Try to get user ID from session if available
+        let userId = 'unknown';
+        try {
+          const { account } = createSessionClient(req);
+          const user = await account.get();
+          userId = user.$id;
+        } catch {
+          // Session not available, use unknown
+        }
+        
+        await databases.createDocument(
+          databaseId,
+          logsCollectionId,
+          ID.unique(),
+          {
+            userId,
+            action: 'delete',
+            details: JSON.stringify({
+              type: 'approval_profile_delete',
+              profileId: id,
+              profileName: currentProfile.name,
+              profileVersion: currentProfile.version,
+            }),
+          }
+        );
+      } catch (logError) {
+        console.error('[Approval Profiles API] Error creating audit log:', logError);
+        // Continue even if logging fails
+      }
+    }
+
+    // Parse rules JSON string to object for consistent API response
+    const responseProfile = {
+      ...deletedProfile,
+      rules: typeof deletedProfile.rules === 'string' ? JSON.parse(deletedProfile.rules) : deletedProfile.rules,
+    };
+
     return res.status(200).json({
       success: true,
-      data: deletedProfile,
+      data: responseProfile,
     });
   } catch (error: any) {
     if (error.code === 404) {

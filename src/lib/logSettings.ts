@@ -64,7 +64,13 @@ export async function getLogSettings() {
           systemViewEventSettings: false,
           systemViewAttendeeList: false,
           systemViewRolesList: false,
-          systemViewUsersList: false
+          systemViewUsersList: false,
+          // Access control logging settings
+          accessControlUpdate: true,
+          approvalProfileCreate: true,
+          approvalProfileUpdate: true,
+          approvalProfileDelete: true,
+          scanLogsExport: true
         }
       );
     } else {
@@ -111,7 +117,13 @@ export async function getLogSettings() {
       systemViewEventSettings: false,
       systemViewAttendeeList: false,
       systemViewRolesList: false,
-      systemViewUsersList: false
+      systemViewUsersList: false,
+      // Access control logging settings
+      accessControlUpdate: true,
+      approvalProfileCreate: true,
+      approvalProfileUpdate: true,
+      approvalProfileDelete: true,
+      scanLogsExport: true
     };
   }
 }

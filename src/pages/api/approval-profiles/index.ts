@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { databases } from '@/lib/appwrite';
+import { databases, createSessionClient } from '@/lib/appwrite';
 import { Query } from 'appwrite';
 import {
   ApprovalProfile,
@@ -8,6 +8,7 @@ import {
   RuleGroup,
 } from '@/types/approvalProfile';
 import { ID } from 'appwrite';
+import { shouldLog } from '@/lib/logSettings';
 
 const databaseId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
 const collectionId = process.env.NEXT_PUBLIC_APPWRITE_APPROVAL_PROFILES_COLLECTION_ID!;
@@ -46,9 +47,27 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse) {
       ]
     );
 
+    // Parse rules JSON strings to objects for consistent API response
+    const profilesWithParsedRules = response.documents.map(profile => {
+      let parsedRules = profile.rules;
+      if (typeof profile.rules === 'string') {
+        try {
+          parsedRules = JSON.parse(profile.rules);
+        } catch (parseError) {
+          console.error(`Error parsing profile ${profile.$id} rules JSON:`, parseError);
+          // Return profile with rules as empty object on parse error
+          parsedRules = { logic: 'AND', conditions: [] };
+        }
+      }
+      return {
+        ...profile,
+        rules: parsedRules,
+      };
+    });
+
     return res.status(200).json({
       success: true,
-      data: response.documents,
+      data: profilesWithParsedRules,
     });
   } catch (error: any) {
     console.error('Error listing approval profiles:', error);
@@ -107,14 +126,56 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse) {
         name: input.name,
         description: input.description || null,
         version: 1,
-        rules: rulesJson,
+        rules: rulesJson as any, // Stored as JSON string in DB, parsed on retrieval
         isDeleted: false,
       }
     );
 
+    // Log the profile creation if enabled
+    if (await shouldLog('approvalProfileCreate')) {
+      try {
+        const logsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!;
+        // Try to get user ID from session if available
+        let userId = 'unknown';
+        try {
+          const { account } = createSessionClient(req);
+          const user = await account.get();
+          userId = user.$id;
+        } catch {
+          // Session not available, use unknown
+        }
+        
+        await databases.createDocument(
+          databaseId,
+          logsCollectionId,
+          ID.unique(),
+          {
+            userId,
+            action: 'create',
+            details: JSON.stringify({
+              type: 'approval_profile_create',
+              profileId: profile.$id,
+              profileName: input.name,
+              description: input.description || null,
+              ruleCount: input.rules?.conditions?.length || 0,
+            }),
+          }
+        );
+      } catch (logError) {
+        console.error('[Approval Profiles API] Error creating audit log:', logError);
+        // Continue even if logging fails
+      }
+    }
+
+    // Parse rules JSON string to object for consistent API response
+    const responseProfile = {
+      ...profile,
+      rules: typeof profile.rules === 'string' ? JSON.parse(profile.rules) : profile.rules,
+    };
+
     return res.status(201).json({
       success: true,
-      data: profile,
+      data: responseProfile,
     });
   } catch (error: any) {
     console.error('Error creating approval profile:', error);

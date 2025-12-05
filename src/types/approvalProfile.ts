@@ -34,28 +34,25 @@ export interface RuleGroup {
 }
 
 /**
- * Approval profile stored in Appwrite database
+ * Approval profile as returned by the API
  * 
  * Note: The `rules` field is stored as a JSON string in the database,
- * but the API accepts/returns RuleGroup objects. The API layer handles
- * serialization/deserialization.
+ * but the API layer parses it and returns it as a RuleGroup object
+ * for consistent typing across the application.
  */
 export interface ApprovalProfile {
   $id: string;
+  $createdAt: string;
+  $updatedAt: string;
+  $permissions: string[];
+  $collectionId: string;
+  $databaseId: string;
+  $sequence: number;
   name: string;              // Unique name
   description: string | null;
   version: number;           // Increments on each save
-  rules: string;             // JSON-serialized RuleGroup (stored as string in DB)
+  rules: RuleGroup;          // Parsed RuleGroup object (API normalizes this)
   isDeleted: boolean;        // Soft delete flag
-  $createdAt: string;
-  $updatedAt: string;
-}
-
-/**
- * Approval profile with parsed rules (for use in application)
- */
-export interface ApprovalProfileWithRules extends Omit<ApprovalProfile, 'rules'> {
-  rules: RuleGroup;
 }
 
 // Zod Schemas for validation
@@ -80,11 +77,11 @@ export const RuleOperatorSchema = z.enum([
 /**
  * Schema for Rule
  */
-export const RuleSchema: z.ZodType<Rule> = z.object({
+export const RuleSchema = z.object({
   field: z.string().min(1, 'Field is required'),
   operator: RuleOperatorSchema,
   value: z.any(),
-});
+}) as z.ZodType<Rule>;
 
 /**
  * Schema for RuleGroup (recursive)

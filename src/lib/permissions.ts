@@ -13,6 +13,7 @@ interface Permission {
   configure?: boolean;
   backup?: boolean;
   restore?: boolean;
+  write?: boolean;
 }
 
 interface UserPermissions {
@@ -24,6 +25,9 @@ interface UserPermissions {
   logs?: Permission;
   system?: Permission;
   monitoring?: Permission;
+  accessControl?: Permission;
+  approvalProfiles?: Permission;
+  scanLogs?: Permission;
 }
 
 export function hasPermission(
@@ -60,6 +64,11 @@ export function canAccessTab(userRole: any, tab: string): boolean {
     case 'monitoring':
       // Operator monitoring requires monitoring read access
       return hasPermission(userRole, 'monitoring', 'read');
+    case 'accessControl':
+      // Access control tab requires accessControl, approvalProfiles, or scanLogs read permission
+      return hasPermission(userRole, 'accessControl', 'read') || 
+             hasPermission(userRole, 'approvalProfiles', 'read') ||
+             hasPermission(userRole, 'scanLogs', 'read');
     default:
       return false;
   }
