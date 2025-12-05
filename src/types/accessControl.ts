@@ -134,13 +134,18 @@ export type AccessControlUpdateType = z.infer<typeof accessControlUpdateSchema>;
  * If the input is already in UTC (ends with Z), returns as-is
  * Otherwise, parses and converts to UTC ISO string
  * 
- * @param datetime - The datetime string to convert
+ * @param datetime - The datetime string to convert (can be ISO string, Unix timestamp string, or other parseable format)
  * @returns UTC ISO datetime string or null
  */
 export function toUtcDatetime(datetime: string | null | undefined): string | null {
   if (!datetime) return null;
   
-  const date = new Date(datetime);
+  // Check if it's a numeric timestamp string
+  const numericTimestamp = Number(datetime);
+  const date = !isNaN(numericTimestamp) && /^\d+$/.test(datetime)
+    ? new Date(numericTimestamp)
+    : new Date(datetime);
+    
   if (isNaN(date.getTime())) {
     throw new Error(`Invalid datetime: ${datetime}`);
   }

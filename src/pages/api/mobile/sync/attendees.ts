@@ -1,0 +1,200 @@
+/**
+ * Mobile Sync Attendees API
+ * 
+ * GET /api/mobile/sync/attendees
+ * 
+ * Downloads attendee data including access control fields for mobile app caching.
+ * Supports full sync and delta sync with pagination.
+ * 
+ * Query Parameters:
+ * - since: ISO 8601 datetime - Only return records modified after this timestamp (delta sync)
+ * - limit: number - Max records to return (default: 1000, max: 5000)
+ * - offset: number - Pagination offset (default: 0)
+ * 
+ * @see .kiro/specs/mobile-access-control/design.md - Mobile Integration Guide
+ */
+
+import { NextApiResponse } from 'next';
+import { createSessionClient } from '@/lib/appwrite';
+import { Query } from 'appwrite';
+import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
+
+export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
+  if (req.method !== 'GET') {
+    res.setHeader('Allow', ['GET']);
+    return res.status(405).json({ 
+      success: false,
+      error: { code: 'METHOD_NOT_ALLOWED', message: `Method ${req.method} not allowed` }
+    });
+  }
+
+  const { user, userProfile } = req;
+  const { databases } = createSessionClient(req);
+
+  // Check permissions - scanner operators need attendee read permission
+  const permissions = userProfile.role ? userProfile.role.permissions : {};
+  const hasReadPermission = permissions?.attendees?.read === true || permissions?.all === true;
+
+  if (!hasReadPermission) {
+    return res.status(403).json({ 
+      success: false,
+      error: { code: 'FORBIDDEN', message: 'Insufficient permissions to access attendee data' }
+    });
+  }
+
+  const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
+  const attendeesCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID!;
+  const accessControlCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ACCESS_CONTROL_COLLECTION_ID!;
+
+  try {
+    // Parse query parameters
+    const { since, limit: limitParam, offset: offsetParam } = req.query;
+    
+    // Parse and validate pagination parameters
+    const parsedLimit = parseInt(limitParam as string);
+    const parsedOffset = parseInt(offsetParam as string);
+    
+    // Clamp limit to [1, 5000] range (Appwrite max is 5000)
+    const limit = Math.max(1, Math.min(
+      !isNaN(parsedLimit) ? parsedLimit : 1000,
+      5000
+    ));
+    
+    // Clamp offset to non-negative values
+    const offset = Math.max(0, !isNaN(parsedOffset) ? parsedOffset : 0);
+
+    // Build queries
+    const queries: string[] = [];
+
+    // Delta sync: only fetch records modified after 'since' timestamp
+    if (since && typeof since === 'string') {
+      try {
+        const sinceDate = new Date(since);
+        if (isNaN(sinceDate.getTime())) {
+          return res.status(400).json({
+            success: false,
+            error: { code: 'VALIDATION_ERROR', message: 'Invalid since parameter. Must be ISO 8601 datetime.' }
+          });
+        }
+        queries.push(Query.greaterThan('$updatedAt', since));
+      } catch (error) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'VALIDATION_ERROR', message: 'Invalid since parameter format' }
+        });
+      }
+    }
+
+    // Add pagination
+    queries.push(Query.limit(limit));
+    queries.push(Query.offset(offset));
+    
+    // Order by update time for consistent pagination
+    queries.push(Query.orderDesc('$updatedAt'));
+
+    // Fetch attendees
+    const attendeesResult = await databases.listDocuments(
+      dbId,
+      attendeesCollectionId,
+      queries
+    );
+
+    // Fetch access control records for all attendees in this batch
+    const attendeeIds = attendeesResult.documents.map((doc: any) => doc.$id);
+    
+    // Fetch access control data in batches (Appwrite limit for 'in' queries)
+    const accessControlMap = new Map<string, any>();
+    
+    if (attendeeIds.length > 0) {
+      // Split into chunks of 100 (Appwrite's limit for 'in' queries)
+      const chunkSize = 100;
+      for (let i = 0; i < attendeeIds.length; i += chunkSize) {
+        const chunk = attendeeIds.slice(i, i + chunkSize);
+        // Query.equal with an array performs an IN query in Appwrite
+        const accessControlResult = await databases.listDocuments(
+          dbId,
+          accessControlCollectionId,
+          [Query.equal('attendeeId', chunk), Query.limit(chunkSize)]
+        );
+        
+        // Map access control records by attendeeId
+        accessControlResult.documents.forEach((ac: any) => {
+          accessControlMap.set(ac.attendeeId, {
+            accessEnabled: ac.accessEnabled,
+            validFrom: ac.validFrom,
+            validUntil: ac.validUntil
+          });
+        });
+      }
+    }
+
+    // Map attendees with access control data
+    const attendees = attendeesResult.documents.map((attendee: any) => {
+      // Get access control for this attendee (default to enabled if not found)
+      const accessControl = accessControlMap.get(attendee.$id) || {
+        accessEnabled: true,
+        validFrom: null,
+        validUntil: null
+      };
+
+      // Parse custom field values
+      let customFieldValues: Record<string, any> = {};
+      if (attendee.customFieldValues) {
+        try {
+          customFieldValues = typeof attendee.customFieldValues === 'string'
+            ? JSON.parse(attendee.customFieldValues)
+            : attendee.customFieldValues;
+        } catch (error) {
+          console.error(`Failed to parse customFieldValues for attendee ${attendee.$id}:`, error);
+          customFieldValues = {};
+        }
+      }
+
+      return {
+        id: attendee.$id,
+        firstName: attendee.firstName,
+        lastName: attendee.lastName,
+        barcodeNumber: attendee.barcodeNumber,
+        photoUrl: attendee.photoUrl || null,
+        customFieldValues,
+        accessControl,
+        updatedAt: attendee.$updatedAt
+      };
+    });
+
+    // Calculate pagination metadata
+    const hasMore = offset + attendees.length < attendeesResult.total;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        attendees,
+        pagination: {
+          total: attendeesResult.total,
+          limit,
+          offset,
+          hasMore
+        },
+        syncTimestamp: new Date().toISOString()
+      }
+    });
+
+  } catch (error: any) {
+    console.error('[Mobile Sync Attendees] Error:', error);
+    
+    const errorResponse: any = {
+      success: false,
+      error: {
+        code: 'SERVER_ERROR',
+        message: 'Failed to sync attendees'
+      }
+    };
+    
+    // Only include error details in non-production environments
+    if (process.env.NODE_ENV !== 'production') {
+      errorResponse.error.details = error.message;
+    }
+    
+    return res.status(500).json(errorResponse);
+  }
+});
