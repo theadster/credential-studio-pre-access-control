@@ -50,7 +50,8 @@ import {
   Smartphone,
   User,
   Calendar,
-  QrCode
+  QrCode,
+  Shield
 } from 'lucide-react';
 import { useSweetAlert } from '@/hooks/useSweetAlert';
 
@@ -340,16 +341,19 @@ export default function ScanLogsViewer() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="filter-profile">Profile</Label>
+                <Label htmlFor="filter-profile" className="flex items-center gap-1">
+                  <Shield className="h-3 w-3" />
+                  Profile
+                </Label>
                 <Select
-                  value={filters.profileId}
-                  onValueChange={(value) => handleFilterChange('profileId', value)}
+                  value={filters.profileId || 'all'}
+                  onValueChange={(value) => handleFilterChange('profileId', value === 'all' ? '' : value)}
                 >
                   <SelectTrigger id="filter-profile">
                     <SelectValue placeholder="All Profiles" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Profiles</SelectItem>
+                    <SelectItem value="all">All Profiles</SelectItem>
                     {profiles.map(p => (
                       <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                     ))}

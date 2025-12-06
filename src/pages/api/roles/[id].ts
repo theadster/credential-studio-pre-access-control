@@ -7,6 +7,7 @@ import { invalidateRoleUserCount } from '@/lib/roleUserCountCache';
 import { validatePermissions } from '@/lib/validatePermissions';
 import { executeTransactionWithRetry, handleTransactionError } from '@/lib/transactions';
 import type { TransactionOperation } from '@/lib/transactions';
+import { userProfileCache } from '@/lib/userProfileCache';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -218,6 +219,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         // Invalidate cache for this role since it was updated
         invalidateRoleUserCount(id);
+        
+        // Invalidate user profile cache for all users with this role
+        // This ensures they get fresh permissions on next API call
+        userProfileCache.invalidateByRole(id);
 
         // Get updated role and user count
         const updatedRole = await databases.getDocument(
@@ -316,6 +321,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         // Invalidate cache for deleted role
         invalidateRoleUserCount(roleToDelete.$id);
+        
+        // Invalidate user profile cache for all users with this role
+        userProfileCache.invalidateByRole(roleToDelete.$id);
 
         return res.status(200).json({ message: 'Role deleted successfully' });
 

@@ -6,6 +6,7 @@ import { shouldLog } from '@/lib/logSettings';
 import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
 import { ApiError, ErrorCode, handleApiError, validateInput, withRetry } from '@/lib/errorHandling';
 import { invalidateRoleUserCount } from '@/lib/roleUserCountCache';
+import { userProfileCache } from '@/lib/userProfileCache';
 
 /**
  * Safely parse role permissions from string or return as-is if already an object
@@ -477,6 +478,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           if (rolesToInvalidate.length > 0) {
             invalidateRoleUserCount(rolesToInvalidate);
           }
+        }
+        
+        // Invalidate user profile cache so next API call gets fresh data
+        if (updatedUserDoc.userId) {
+          userProfileCache.invalidate(updatedUserDoc.userId);
         }
 
         // Log the update action if enabled

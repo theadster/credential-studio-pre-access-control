@@ -618,76 +618,119 @@ export default function Dashboard() {
   useEffect(() => {
     const loadData = async () => {
       // Wait for currentUser to be loaded before fetching data
+      // Don't set loading to false here - keep showing loading animation
+      // until currentUser is available and data is loaded
       if (!currentUser) {
-        setLoading(false);
         return;
       }
 
       try {
-        // Only load data for tabs the user has access to
-        // Load users (only if user has permission)
-        if (canAccessTab(currentUser.role, 'users')) {
-          const usersResponse = await fetch('/api/users');
-          if (usersResponse.ok) {
-            const usersData = await usersResponse.json();
-            // API returns { users: [...], pagination: {...} } or plain array
-            if (Array.isArray(usersData)) {
-              setUsers(usersData);
-            } else {
-              setUsers((usersData && usersData.users) || []);
-            }
-          } else {
-            setUsers([]);
-          }
-        }
-
-        // Load roles (only if user has permission)
-        if (canAccessTab(currentUser.role, 'roles')) {
-          const rolesResponse = await fetch('/api/roles');
-          if (rolesResponse.ok) {
-            const rolesData = await rolesResponse.json();
-            // API returns { roles: [...], total: ... } or plain array
-            if (Array.isArray(rolesData)) {
-              setRoles(rolesData);
-            } else {
-              setRoles((rolesData && rolesData.roles) || []);
-            }
-          } else {
-            setRoles([]);
-          }
-        }
-
-        // Load attendees (only if user has permission)
-        if (canAccessTab(currentUser.role, 'attendees')) {
-          const attendeesResponse = await fetch('/api/attendees');
-          if (attendeesResponse.ok) {
-            const attendeesData = await attendeesResponse.json();
-            // API returns { attendees: [...], total: ... } or plain array
-            if (Array.isArray(attendeesData)) {
-              setAttendees(attendeesData);
-            } else {
-              setAttendees((attendeesData && attendeesData.attendees) || []);
-            }
-          } else {
-            setAttendees([]);
-          }
-        }
-
-        // Load event settings (only if user has permission)
+        // Load event settings FIRST so the loading screen can show the event name
+        // This provides a better user experience during the loading animation
         if (canAccessTab(currentUser.role, 'settings')) {
-          const settingsResponse = await fetch('/api/event-settings');
-          if (settingsResponse.ok) {
-            const settingsData = await settingsResponse.json();
-            setEventSettings(settingsData);
-          } else {
+          try {
+            const settingsResponse = await fetch('/api/event-settings');
+            if (settingsResponse.ok) {
+              const settingsData = await settingsResponse.json();
+              setEventSettings(settingsData);
+            } else {
+              setEventSettings(null);
+            }
+          } catch (err) {
+            console.error('Error loading event settings:', err);
             setEventSettings(null);
           }
         }
 
+        // Load remaining data in parallel for faster loading
+        const loadPromises: Promise<void>[] = [];
+
+        // Load users (only if user has permission)
+        if (canAccessTab(currentUser.role, 'users')) {
+          loadPromises.push(
+            fetch('/api/users').then(async (usersResponse) => {
+              try {
+                if (usersResponse.ok) {
+                  const contentLength = usersResponse.headers.get('content-length');
+                  if (contentLength === '0' || usersResponse.status === 204) {
+                    setUsers([]);
+                  } else {
+                    const usersData = await usersResponse.json();
+                    if (Array.isArray(usersData)) {
+                      setUsers(usersData);
+                    } else {
+                      setUsers((usersData && usersData.users) || []);
+                    }
+                  }
+                } else {
+                  setUsers([]);
+                }
+              } catch (err) {
+                console.error('Error parsing users response:', err);
+                setUsers([]);
+              }
+            })
+          );
+        }
+
+        // Load roles (only if user has permission)
+        if (canAccessTab(currentUser.role, 'roles')) {
+          loadPromises.push(
+            fetch('/api/roles').then(async (rolesResponse) => {
+              try {
+                if (rolesResponse.ok) {
+                  const contentLength = rolesResponse.headers.get('content-length');
+                  if (contentLength === '0' || rolesResponse.status === 204) {
+                    setRoles([]);
+                  } else {
+                    const rolesData = await rolesResponse.json();
+                    if (Array.isArray(rolesData)) {
+                      setRoles(rolesData);
+                    } else {
+                      setRoles((rolesData && rolesData.roles) || []);
+                    }
+                  }
+                } else {
+                  setRoles([]);
+                }
+              } catch (err) {
+                console.error('Error parsing roles response:', err);
+                setRoles([]);
+              }
+            })
+          );
+        }
+
+        // Load attendees (only if user has permission)
+        if (canAccessTab(currentUser.role, 'attendees')) {
+          loadPromises.push(
+            fetch('/api/attendees').then(async (attendeesResponse) => {
+              try {
+                if (attendeesResponse.ok) {
+                  const attendeesData = await attendeesResponse.json();
+                  if (Array.isArray(attendeesData)) {
+                    setAttendees(attendeesData);
+                  } else {
+                    setAttendees((attendeesData && attendeesData.attendees) || []);
+                  }
+                } else {
+                  setAttendees([]);
+                }
+              } catch (err) {
+                console.error('Error parsing attendees response:', err);
+                setAttendees([]);
+              }
+            })
+          );
+        }
+
         // Load logs with pagination (only if user has permission)
         if (canAccessTab(currentUser.role, 'logs')) {
-          await loadLogs();
+          loadPromises.push(loadLogs());
         }
+
+        // Wait for all parallel requests to complete
+        await Promise.all(loadPromises);
       } catch (err) {
         console.error('Error loading data:', err);
         error("Loading Failed", "Failed to load dashboard data. Using fallback data.");

@@ -2,6 +2,7 @@ import { NextApiRequest, NextApiResponse, NextApiHandler } from 'next';
 import { Models, Query } from 'node-appwrite';
 import { createSessionClient, createAdminClient } from '@/lib/appwrite';
 import { handleApiError } from '@/lib/apiErrorHandler';
+import { userProfileCache, CachedUserProfile } from '@/lib/userProfileCache';
 
 /**
  * Validates required environment variables for API middleware
@@ -163,88 +164,96 @@ export function withAuth(handler: AuthenticatedApiHandler): NextApiHandler {
         });
       }
       
-      // Fetch user profile from database
-      const userDocs = await databases.listDocuments(
-        envVars.databaseId,
-        envVars.usersCollectionId,
-        [Query.equal('userId', user.$id)]
-      );
+      // Check cache first for user profile
+      let userProfile: UserProfile | null = userProfileCache.get(user.$id);
+      let cacheHit = !!userProfile;
       
-      if (userDocs.documents.length === 0) {
-        console.error('[API Middleware] ✗ User profile not found', {
-          timestamp: new Date().toISOString(),
-          userId: user.$id,
-          endpoint,
-          method,
-        });
+      if (!userProfile) {
+        // Fetch user profile from database
+        const userDocs = await databases.listDocuments(
+          envVars.databaseId,
+          envVars.usersCollectionId,
+          [Query.equal('userId', user.$id)]
+        );
         
-        return res.status(404).json({ 
-          error: 'User profile not found',
-          code: 404,
-          type: 'profile_not_found',
-          message: 'User profile does not exist in the database'
-        });
-      }
-      
-      const userProfileDoc = userDocs.documents[0];
-      
-      // Fetch role information if user has a role assigned
-      let role = null;
-      if (userProfileDoc.roleId) {
-        try {
-          // Use admin client to fetch role (user may not have permission to read roles yet)
-          const { databases: adminDatabases } = createAdminClient();
-          const roleDoc = await adminDatabases.getDocument(
-            envVars.databaseId,
-            envVars.rolesCollectionId,
-            userProfileDoc.roleId
-          );
-          
-          // Parse permissions if stored as string
-          // Parse permissions if stored as string
-          let permissions = roleDoc.permissions;
-          if (typeof roleDoc.permissions === 'string') {
-            try {
-              permissions = JSON.parse(roleDoc.permissions);
-            } catch (parseError) {
-              console.error('[API Middleware] Failed to parse role permissions', {
-                timestamp: new Date().toISOString(),
-                roleId: roleDoc.$id,
-                error: parseError instanceof Error ? parseError.message : 'Unknown error',
-              });
-              permissions = {}; // Fallback to empty permissions
-            }
-          }
-          
-          role = {
-            id: roleDoc.$id,
-            name: roleDoc.name,
-            description: roleDoc.description,
-            permissions: permissions
-          };
-        } catch (roleError) {
-          // Log warning but continue - role fetch is not critical
-          console.warn('[API Middleware] Failed to fetch role', {
+        if (userDocs.documents.length === 0) {
+          console.error('[API Middleware] ✗ User profile not found', {
             timestamp: new Date().toISOString(),
             userId: user.$id,
-            roleId: userProfileDoc.roleId,
-            error: roleError instanceof Error ? roleError.message : 'Unknown error',
+            endpoint,
+            method,
+          });
+          
+          return res.status(404).json({ 
+            error: 'User profile not found',
+            code: 404,
+            type: 'profile_not_found',
+            message: 'User profile does not exist in the database'
           });
         }
+        
+        const userProfileDoc = userDocs.documents[0];
+        
+        // Fetch role information if user has a role assigned
+        let role = null;
+        if (userProfileDoc.roleId) {
+          try {
+            // Use admin client to fetch role (user may not have permission to read roles yet)
+            const { databases: adminDatabases } = createAdminClient();
+            const roleDoc = await adminDatabases.getDocument(
+              envVars.databaseId,
+              envVars.rolesCollectionId,
+              userProfileDoc.roleId
+            );
+            
+            // Parse permissions if stored as string
+            let permissions = roleDoc.permissions;
+            if (typeof roleDoc.permissions === 'string') {
+              try {
+                permissions = JSON.parse(roleDoc.permissions);
+              } catch (parseError) {
+                console.error('[API Middleware] Failed to parse role permissions', {
+                  timestamp: new Date().toISOString(),
+                  roleId: roleDoc.$id,
+                  error: parseError instanceof Error ? parseError.message : 'Unknown error',
+                });
+                permissions = {}; // Fallback to empty permissions
+              }
+            }
+            
+            role = {
+              id: roleDoc.$id,
+              name: roleDoc.name,
+              description: roleDoc.description,
+              permissions: permissions
+            };
+          } catch (roleError) {
+            // Log warning but continue - role fetch is not critical
+            console.warn('[API Middleware] Failed to fetch role', {
+              timestamp: new Date().toISOString(),
+              userId: user.$id,
+              roleId: userProfileDoc.roleId,
+              error: roleError instanceof Error ? roleError.message : 'Unknown error',
+            });
+          }
+        }
+        
+        // Build user profile object
+        userProfile = {
+          id: userProfileDoc.$id,
+          userId: userProfileDoc.userId,
+          email: userProfileDoc.email,
+          name: userProfileDoc.name,
+          roleId: userProfileDoc.roleId,
+          isInvited: userProfileDoc.isInvited,
+          createdAt: userProfileDoc.$createdAt,
+          updatedAt: userProfileDoc.$updatedAt,
+          role: role
+        };
+        
+        // Cache the profile for subsequent requests
+        userProfileCache.set(user.$id, userProfile);
       }
-      
-      // Build user profile object
-      const userProfile: UserProfile = {
-        id: userProfileDoc.$id,
-        userId: userProfileDoc.userId,
-        email: userProfileDoc.email,
-        name: userProfileDoc.name,
-        roleId: userProfileDoc.roleId,
-        isInvited: userProfileDoc.isInvited,
-        createdAt: userProfileDoc.$createdAt,
-        updatedAt: userProfileDoc.$updatedAt,
-        role: role
-      };
       
       // Attach user and profile to request object
       (req as AuthenticatedRequest).user = user;
@@ -257,7 +266,8 @@ export function withAuth(handler: AuthenticatedApiHandler): NextApiHandler {
         endpoint,
         method,
         authDurationMs: authDuration,
-        hasRole: !!role,
+        hasRole: !!userProfile.role,
+        cacheHit,
       });
       
       // Call the actual handler with authenticated request
