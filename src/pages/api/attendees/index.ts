@@ -506,7 +506,10 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         //   // Log view action with deduplication
         // }
 
-        return res.status(200).json(attendees);
+        return res.status(200).json({
+          attendees,
+          total: attendeesResult.total
+        });
 
       case 'POST':
         // Check permissions using role from middleware

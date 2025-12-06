@@ -203,18 +203,12 @@ export default function RuleBuilder({ rules, onChange }: RuleBuilderProps) {
             <SelectValue placeholder="Select field" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="" disabled>Core Fields</SelectItem>
             {CORE_FIELDS.map(f => (
               <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
             ))}
-            {customFields.length > 0 && (
-              <>
-                <SelectItem value="" disabled>Custom Fields</SelectItem>
-                {customFields.map(f => (
-                  <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
-                ))}
-              </>
-            )}
+            {customFields.length > 0 && customFields.map(f => (
+              <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
 

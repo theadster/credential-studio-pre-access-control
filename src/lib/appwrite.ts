@@ -27,17 +27,33 @@ export const createBrowserClient = () => {
 
 /**
  * Creates a session client for API routes with user session
- * Uses JWT stored in custom cookie for authentication
+ * Supports JWT from both cookie (web) and Authorization header (mobile)
  * @param req - Next.js API request object
  */
 export const createSessionClient = (req: NextApiRequest) => {
+  const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
+  if (!projectId) {
+    throw new Error('NEXT_PUBLIC_APPWRITE_PROJECT_ID environment variable is required');
+  }
+
   const client = new AdminClient()
     .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || 'https://nyc.cloud.appwrite.io/v1')
-    .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID || '');
+    .setProject(projectId);
 
-  // Get JWT from our custom cookie
-  // Each session has its own JWT, so multiple sessions can coexist
-  const jwt = req.cookies?.['appwrite-session'];
+  // Try to get JWT from multiple sources:
+  // 1. Custom cookie (web client)
+  // 2. Authorization header (mobile client)
+  const sessionCookieName = process.env.APPWRITE_SESSION_COOKIE_NAME || 'appwrite-session';
+  let jwt = req.cookies?.[sessionCookieName];
+  
+  if (!jwt) {
+    // Check Authorization header for Bearer token (mobile client)
+    const authHeader = req.headers.authorization;
+    const headerValue = Array.isArray(authHeader) ? authHeader[0] : authHeader;
+    if (headerValue?.toLowerCase().startsWith('bearer ')) {
+      jwt = headerValue.substring(7); // Remove 'Bearer ' prefix (case-insensitive)
+    }
+  }
   
   if (jwt) {
     // Use the JWT with setJWT()

@@ -94,7 +94,10 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           }
         }
 
-        return res.status(200).json(rolesWithCount);
+        return res.status(200).json({
+          roles: rolesWithCount,
+          total: rolesWithCount.length
+        });
 
       case 'POST':
         // Check permission to create roles

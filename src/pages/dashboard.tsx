@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRealtimeSubscription } from "@/hooks/useRealtimeSubscription";
 import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
@@ -292,18 +293,34 @@ export default function Dashboard() {
   const [showSelectAllDialog, setShowSelectAllDialog] = useState(false);
   const [showPageJumpDialog, setShowPageJumpDialog] = useState(false);
   const [pageJumpInput, setPageJumpInput] = useState("");
+  const [qrModalOpen, setQrModalOpen] = useState(false);
+  const [qrBarcodeNumber, setQrBarcodeNumber] = useState<string | null>(null);
 
   const refreshAttendees = useCallback(async () => {
     try {
       const attendeesResponse = await fetch('/api/attendees');
       if (attendeesResponse.ok) {
+        // Check if response has content before parsing JSON
+        const contentLength = attendeesResponse.headers.get('content-length');
+        if (contentLength === '0' || attendeesResponse.status === 204) {
+          setAttendees([]);
+          return;
+        }
+        
         const attendeesData = await attendeesResponse.json();
-        setAttendees(Array.isArray(attendeesData) ? attendeesData : []);
+        if (Array.isArray(attendeesData)) {
+          setAttendees(attendeesData);
+        } else if (attendeesData && typeof attendeesData === 'object' && Array.isArray(attendeesData.attendees)) {
+          setAttendees(attendeesData.attendees);
+        } else {
+          setAttendees([]);
+        }
       } else {
         setAttendees([]);
       }
     } catch (error) {
       console.error('Error refreshing attendees:', error);
+      setAttendees([]);
     }
   }, []);
 
@@ -601,7 +618,10 @@ export default function Dashboard() {
   useEffect(() => {
     const loadData = async () => {
       // Wait for currentUser to be loaded before fetching data
-      if (!currentUser) return;
+      if (!currentUser) {
+        setLoading(false);
+        return;
+      }
 
       try {
         // Only load data for tabs the user has access to
@@ -610,8 +630,12 @@ export default function Dashboard() {
           const usersResponse = await fetch('/api/users');
           if (usersResponse.ok) {
             const usersData = await usersResponse.json();
-            // API returns { users: [...], pagination: {...} }
-            setUsers(usersData.users || []);
+            // API returns { users: [...], pagination: {...} } or plain array
+            if (Array.isArray(usersData)) {
+              setUsers(usersData);
+            } else {
+              setUsers((usersData && usersData.users) || []);
+            }
           } else {
             setUsers([]);
           }
@@ -622,7 +646,12 @@ export default function Dashboard() {
           const rolesResponse = await fetch('/api/roles');
           if (rolesResponse.ok) {
             const rolesData = await rolesResponse.json();
-            setRoles(Array.isArray(rolesData) ? rolesData : []);
+            // API returns { roles: [...], total: ... } or plain array
+            if (Array.isArray(rolesData)) {
+              setRoles(rolesData);
+            } else {
+              setRoles((rolesData && rolesData.roles) || []);
+            }
           } else {
             setRoles([]);
           }
@@ -633,7 +662,12 @@ export default function Dashboard() {
           const attendeesResponse = await fetch('/api/attendees');
           if (attendeesResponse.ok) {
             const attendeesData = await attendeesResponse.json();
-            setAttendees(Array.isArray(attendeesData) ? attendeesData : []);
+            // API returns { attendees: [...], total: ... } or plain array
+            if (Array.isArray(attendeesData)) {
+              setAttendees(attendeesData);
+            } else {
+              setAttendees((attendeesData && attendeesData.attendees) || []);
+            }
           } else {
             setAttendees([]);
           }
@@ -3834,10 +3868,23 @@ export default function Dashboard() {
                                 </button>
                               </TableCell>
                               <TableCell className="align-top pt-4">
-                                <div className="flex items-center gap-2" role="group" aria-label={`Barcode: ${attendee.barcodeNumber}`}>
-                                  <QrCode className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                                <div className="flex items-center gap-2" role="group" aria-label={`Barcode: ${attendee.barcodeNumber || 'Not assigned'}`}>
+                                  <button
+                                    type="button"
+                                    disabled={!attendee.barcodeNumber}
+                                    onClick={() => {
+                                      if (attendee.barcodeNumber) {
+                                        setQrBarcodeNumber(attendee.barcodeNumber);
+                                        setQrModalOpen(true);
+                                      }
+                                    }}
+                                    className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                                    aria-label={`View QR code for barcode ${attendee.barcodeNumber || 'Not assigned'}`}
+                                  >
+                                    <QrCode className={`h-4 w-4 transition-colors ${attendee.barcodeNumber ? 'text-muted-foreground hover:text-primary' : 'text-muted-foreground'}`} aria-hidden="true" />
+                                  </button>
                                   <Badge variant="outline" className="font-mono text-sm px-3 py-1.5 bg-background">
-                                    {attendee.barcodeNumber}
+                                    {attendee.barcodeNumber || 'Not assigned'}
                                   </Badge>
                                 </div>
                               </TableCell>
@@ -5434,7 +5481,37 @@ export default function Dashboard() {
         role={editingRole}
       />
 
-
+      {/* QR Code Modal */}
+      <Dialog open={qrModalOpen} onOpenChange={(open) => setQrModalOpen(open)}>
+        <DialogContent className="max-w-sm bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 shadow-2xl p-0">
+          <DialogHeader className="border-b border-slate-200 dark:border-slate-700 pb-4 mb-0 bg-[#F1F5F9] dark:bg-slate-800 px-6 pt-6">
+            <DialogTitle className="text-xl font-bold text-primary flex items-center gap-2">
+              <QrCode className="w-5 h-5" />
+              Barcode QR Code
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center justify-center py-8 px-6">
+            {qrBarcodeNumber && (
+              <>
+                <div className="bg-white p-4 rounded-lg border-2 border-slate-200 dark:border-slate-700 mb-6">
+                  <QRCodeSVG
+                    value={qrBarcodeNumber}
+                    size={256}
+                    level="H"
+                    includeMargin={true}
+                    fgColor="#000000"
+                    bgColor="#ffffff"
+                  />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm text-muted-foreground mb-2">Barcode Number</p>
+                  <p className="text-lg font-mono font-bold text-foreground">{qrBarcodeNumber}</p>
+                </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );
