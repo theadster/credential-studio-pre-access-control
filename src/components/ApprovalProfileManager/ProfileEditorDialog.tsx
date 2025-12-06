@@ -13,8 +13,7 @@ import {
   DialogContent, 
   DialogDescription, 
   DialogHeader, 
-  DialogTitle,
-  DialogFooter 
+  DialogTitle
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -162,20 +161,20 @@ export default function ProfileEditorDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5" />
-            {profile ? 'Edit Profile' : 'Create Profile'}
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 shadow-2xl p-0">
+        <DialogHeader className="border-b border-slate-200 dark:border-slate-700 pb-4 mb-0 bg-[#F1F5F9] dark:bg-slate-800 px-6 pt-6">
+          <DialogTitle className="text-2xl font-bold text-primary flex items-center gap-2">
+            <Shield className="h-6 w-6" />
+            {profile ? 'Edit Approval Profile' : 'Create Approval Profile'}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-slate-600 dark:text-slate-400 mt-2">
             {profile 
-              ? 'Update the profile settings and rules' 
-              : 'Create a new approval profile with custom rules'}
+              ? 'Update the profile settings and rules for access control' 
+              : 'Create a new approval profile with custom rules for access control'}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
+        <div className="space-y-6 px-6 py-6">
           {/* Basic Info */}
           <div className="grid grid-cols-1 gap-4">
             <div className="space-y-2">
@@ -219,7 +218,7 @@ export default function ProfileEditorDialog({
           </div>
         </div>
 
-        <DialogFooter>
+        <div className="border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-6 py-4 flex items-center justify-end gap-3">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancel
           </Button>
@@ -236,7 +235,7 @@ export default function ProfileEditorDialog({
               </>
             )}
           </Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );

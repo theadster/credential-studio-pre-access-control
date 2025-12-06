@@ -162,7 +162,7 @@ export default function ApprovalProfileManager({ onProfileChange }: ApprovalProf
 
   // Format date
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    return new Date(dateString).toLocaleString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -292,16 +292,16 @@ export default function ApprovalProfileManager({ onProfileChange }: ApprovalProf
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={Boolean(deleteProfile)} onOpenChange={(open) => !open && setDeleteProfile(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Profile</AlertDialogTitle>
-            <AlertDialogDescription>
+        <AlertDialogContent className="bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 shadow-2xl">
+          <AlertDialogHeader className="border-b border-slate-200 dark:border-slate-700 pb-4 mb-4">
+            <AlertDialogTitle className="text-xl font-bold text-destructive">Delete Approval Profile</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-600 dark:text-slate-400 mt-2">
               Are you sure you want to delete &quot;{deleteProfile?.name}&quot;? 
               This action cannot be undone. Scan logs will retain references to this profile.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+          <div className="border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 -mx-6 -mb-6 px-6 py-4 flex items-center justify-end gap-3">
+            <AlertDialogCancel disabled={deleting} className="border-slate-200 dark:border-slate-700">Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               disabled={deleting}
@@ -316,7 +316,7 @@ export default function ApprovalProfileManager({ onProfileChange }: ApprovalProf
                 'Delete'
               )}
             </AlertDialogAction>
-          </AlertDialogFooter>
+          </div>
         </AlertDialogContent>
       </AlertDialog>
     </>

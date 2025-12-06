@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { databases, createSessionClient } from '@/lib/appwrite';
+import { createSessionClient } from '@/lib/appwrite';
 import { Query } from 'appwrite';
 import {
   ApprovalProfile,
@@ -38,6 +38,7 @@ export default async function handler(
  */
 async function handleGet(req: NextApiRequest, res: NextApiResponse) {
   try {
+    const { databases } = createSessionClient(req);
     const response = await databases.listDocuments<ApprovalProfile>(
       databaseId,
       collectionId,
@@ -83,6 +84,8 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse) {
  */
 async function handlePost(req: NextApiRequest, res: NextApiResponse) {
   try {
+    const { databases } = createSessionClient(req);
+    
     // Validate request body
     const validation = CreateApprovalProfileSchema.safeParse(req.body);
     

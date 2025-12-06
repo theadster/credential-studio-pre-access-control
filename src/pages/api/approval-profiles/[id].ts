@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { databases, createSessionClient } from '@/lib/appwrite';
+import { createSessionClient } from '@/lib/appwrite';
 import { Query, ID } from 'appwrite';
 import {
   ApprovalProfile,
@@ -52,6 +52,7 @@ async function handleGet(
   res: NextApiResponse
 ) {
   try {
+    const { databases } = createSessionClient(req);
     const profile = await databases.getDocument<ApprovalProfile>(
       databaseId,
       collectionId,
@@ -114,6 +115,8 @@ async function handlePut(
   res: NextApiResponse
 ) {
   try {
+    const { databases } = createSessionClient(req);
+    
     // Validate request body
     const validation = UpdateApprovalProfileSchema.safeParse(req.body);
     
@@ -263,6 +266,8 @@ async function handleDelete(
   res: NextApiResponse
 ) {
   try {
+    const { databases } = createSessionClient(req);
+    
     // Get current profile
     const currentProfile = await databases.getDocument<ApprovalProfile>(
       databaseId,
