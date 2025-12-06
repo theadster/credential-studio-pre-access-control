@@ -40,6 +40,7 @@ interface Permission {
   configure?: boolean;
   backup?: boolean;
   restore?: boolean;
+  write?: boolean;
 }
 
 interface UserPermissions {
@@ -51,6 +52,9 @@ interface UserPermissions {
   logs?: Permission;
   system?: Permission;
   monitoring?: Permission;
+  accessControl?: Permission;
+  approvalProfiles?: Permission;
+  scanLogs?: Permission;
 }
 
 const defaultPermissions: UserPermissions = {
@@ -107,6 +111,19 @@ const defaultPermissions: UserPermissions = {
   monitoring: {
     read: false,
     configure: false
+  },
+  accessControl: {
+    read: false,
+    write: false
+  },
+  approvalProfiles: {
+    read: false,
+    write: false,
+    delete: false
+  },
+  scanLogs: {
+    read: false,
+    export: false
   }
 };
 
@@ -203,6 +220,34 @@ const permissionLabels = {
     actions: {
       read: "View operator metrics and performance data",
       configure: "Manage feature flags and operator settings"
+    }
+  },
+  accessControl: {
+    title: "Access Control",
+    description: "Manage mobile access control and approval profiles",
+    icon: Shield,
+    actions: {
+      read: "View access control settings",
+      write: "Manage access control settings"
+    }
+  },
+  approvalProfiles: {
+    title: "Approval Profiles",
+    description: "Manage approval profiles for mobile scanning",
+    icon: Shield,
+    actions: {
+      read: "View approval profiles",
+      write: "Create and edit approval profiles",
+      delete: "Delete approval profiles"
+    }
+  },
+  scanLogs: {
+    title: "Scan Logs",
+    description: "View and manage mobile scan logs",
+    icon: Activity,
+    actions: {
+      read: "View scan logs",
+      export: "Export scan logs"
     }
   }
 };
