@@ -467,7 +467,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
            * - Edit/create forms will still fetch and display all fields
            */
           // Parse customFieldValues from JSON string to object
-          let parsedCustomFieldValues = [];
+          let parsedCustomFieldValues: Array<{ customFieldId: string; value: unknown }> = [];
           if (attendee.customFieldValues) {
             try {
               const parsed = typeof attendee.customFieldValues === 'string' 
