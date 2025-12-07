@@ -1,4 +1,4 @@
-import { useReducer, useEffect, useMemo, useCallback } from 'react';
+import { useCallback, useEffect, useReducer } from 'react';
 import { useSweetAlert } from '@/hooks/useSweetAlert';
 import { FORM_LIMITS } from '@/constants/formLimits';
 
@@ -25,11 +25,25 @@ interface Attendee {
   notes?: string;
   photoUrl?: string | null;
   customFieldValues?: CustomFieldValue[];
+  // Access control fields
+  validFrom?: string | null;
+  validUntil?: string | null;
+  accessEnabled?: boolean;
 }
 
 interface EventSettings {
   barcodeType?: string;
   barcodeLength?: number;
+  // Access control settings
+  accessControlEnabled?: boolean;
+  accessControlTimeMode?: 'date_only' | 'date_time';
+  timeZone?: string;
+  accessControlDefaults?: {
+    accessEnabled?: boolean;
+    validFrom?: string | null;
+    validUntil?: string | null;
+    validFromUseToday?: boolean;
+  };
 }
 
 interface FormData {
@@ -39,6 +53,10 @@ interface FormData {
   notes: string;
   photoUrl: string;
   customFieldValues: Record<string, string>;
+  // Access control fields
+  validFrom: string;
+  validUntil: string;
+  accessEnabled: boolean;
 }
 
 interface UseAttendeeFormProps {
@@ -49,21 +67,77 @@ interface UseAttendeeFormProps {
 
 // Action types for the reducer
 type FormAction =
-  | { type: 'SET_FIELD'; field: keyof Omit<FormData, 'customFieldValues'>; value: string }
+  | { type: 'SET_FIELD'; field: keyof Omit<FormData, 'customFieldValues'>; value: string | boolean }
   | { type: 'SET_CUSTOM_FIELD'; fieldId: string; value: string }
   | { type: 'SET_PHOTO_URL'; url: string }
   | { type: 'REMOVE_PHOTO' }
-  | { type: 'RESET_FORM' }
+  | { type: 'RESET_FORM'; eventSettings?: EventSettings; customFields?: CustomField[] }
   | { type: 'INITIALIZE_FORM'; data: FormData }
   | { type: 'PRUNE_CUSTOM_FIELDS'; validFieldIds: Set<string> };
 
-const initialFormState: FormData = {
-  firstName: '',
-  lastName: '',
-  barcodeNumber: '',
-  notes: '',
-  photoUrl: '',
-  customFieldValues: {}
+const getInitialFormState = (eventSettings?: EventSettings, customFields: CustomField[] = []): FormData => {
+  // Apply access control defaults if enabled
+  let accessEnabled = true; // Default to active
+  let validFrom = '';
+  let validUntil = '';
+
+  // Check if access control is enabled and defaults are available
+  const defaults = eventSettings?.accessControlDefaults;
+  const shouldApplyDefaults = !!(eventSettings?.accessControlEnabled && defaults);
+
+  if (shouldApplyDefaults) {
+    // Apply default access status
+    if (defaults.accessEnabled !== undefined) {
+      accessEnabled = defaults.accessEnabled;
+    }
+
+    // Apply default validFrom
+    if (defaults.validFromUseToday) {
+      // Use today's date in local timezone
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+      
+      if (eventSettings.accessControlTimeMode === 'date_time') {
+        // For date_time mode, use current date and time in local timezone
+        const hours = String(today.getHours()).padStart(2, '0');
+        const minutes = String(today.getMinutes()).padStart(2, '0');
+        validFrom = `${dateStr}T${hours}:${minutes}`; // Format: YYYY-MM-DDTHH:mm
+      } else {
+        // For date_only mode, use just the date
+        validFrom = dateStr; // Format: YYYY-MM-DD
+      }
+    } else if (defaults.validFrom) {
+      validFrom = defaults.validFrom;
+    }
+
+    // Apply default validUntil
+    if (defaults.validUntil) {
+      validUntil = defaults.validUntil;
+    }
+  }
+
+  // Initialize custom field values with boolean defaults
+  const customFieldValues: Record<string, string> = {};
+  customFields.forEach(field => {
+    if (field.fieldType === 'boolean') {
+      customFieldValues[field.id] = 'no';
+    }
+  });
+
+  return {
+    firstName: '',
+    lastName: '',
+    barcodeNumber: '',
+    notes: '',
+    photoUrl: '',
+    customFieldValues,
+    validFrom,
+    validUntil,
+    accessEnabled,
+  };
 };
 
 function formReducer(state: FormData, action: FormAction): FormData {
@@ -76,8 +150,8 @@ function formReducer(state: FormData, action: FormAction): FormData {
         ...state,
         customFieldValues: {
           ...state.customFieldValues,
-          [action.fieldId]: action.value
-        }
+          [action.fieldId]: action.value,
+        },
       };
 
     case 'SET_PHOTO_URL':
@@ -87,7 +161,7 @@ function formReducer(state: FormData, action: FormAction): FormData {
       return { ...state, photoUrl: '' };
 
     case 'RESET_FORM':
-      return initialFormState;
+      return getInitialFormState(action.eventSettings, action.customFields);
 
     case 'INITIALIZE_FORM':
       return action.data;
@@ -104,7 +178,7 @@ function formReducer(state: FormData, action: FormAction): FormData {
       if (Object.keys(filteredCustomFieldValues).length !== Object.keys(state.customFieldValues).length) {
         return {
           ...state,
-          customFieldValues: filteredCustomFieldValues
+          customFieldValues: filteredCustomFieldValues,
         };
       }
       return state;
@@ -149,7 +223,7 @@ function formReducer(state: FormData, action: FormAction): FormData {
  */
 export function useAttendeeForm({ attendee, customFields, eventSettings }: UseAttendeeFormProps) {
   const { error } = useSweetAlert();
-  const [formData, dispatch] = useReducer(formReducer, initialFormState);
+  const [formData, dispatch] = useReducer(formReducer, getInitialFormState(eventSettings, customFields));
 
   // Memoized initialization logic
   const initializeFormData = useCallback(() => {
@@ -182,15 +256,20 @@ export function useAttendeeForm({ attendee, customFields, eventSettings }: UseAt
           barcodeNumber: attendee.barcodeNumber || '',
           notes: attendee.notes || '',
           photoUrl: attendee.photoUrl || '',
-          customFieldValues: initialCustomFieldValues
-        }
+          customFieldValues: initialCustomFieldValues,
+          // Access control fields from existing attendee
+          validFrom: attendee.validFrom || '',
+          validUntil: attendee.validUntil || '',
+          accessEnabled: attendee.accessEnabled !== undefined ? attendee.accessEnabled : true,
+        },
       });
     } else {
-      dispatch({ type: 'RESET_FORM' });
+      // New attendee - apply defaults from event settings
+      dispatch({ type: 'RESET_FORM', eventSettings, customFields });
     }
-  }, [attendee, customFields]);
+  }, [attendee, customFields, eventSettings]);
 
-  // Initialize/reset form when attendee or customFields changes
+  // Initialize/reset form when attendee, customFields, or eventSettings changes
   useEffect(() => {
     initializeFormData();
   }, [initializeFormData]);
@@ -242,13 +321,13 @@ export function useAttendeeForm({ attendee, customFields, eventSettings }: UseAt
       if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
         // Browser environment
         window.crypto.getRandomValues(randomBytes);
-      } else if (typeof global !== 'undefined' && global.crypto && global.crypto.getRandomValues) {
+      } else if (typeof globalThis !== 'undefined' && globalThis.crypto && globalThis.crypto.getRandomValues) {
         // Node.js 15+ with Web Crypto API
-        global.crypto.getRandomValues(randomBytes);
+        globalThis.crypto.getRandomValues(randomBytes);
       } else {
         // Fallback to Math.random (should not happen in modern environments)
         console.warn('Crypto API not available, falling back to Math.random');
-        for (let i = 0; i < barcodeLength; i++) {
+        for (let i = 0; i < barcodeLength; i+=1) {
           barcode += charset.charAt(Math.floor(Math.random() * charsetLength));
         }
         return barcode;
@@ -256,13 +335,17 @@ export function useAttendeeForm({ attendee, customFields, eventSettings }: UseAt
 
       // Use rejection sampling to avoid modulo bias
       let byteIndex = 0;
-      for (let i = 0; i < barcodeLength; i++) {
+      for (let i = 0; i < barcodeLength; i+=1) {
         // Find a random byte that doesn't cause modulo bias
         let randomValue;
         do {
           if (byteIndex >= randomBytes.length) {
             // Need more random bytes
-            window.crypto?.getRandomValues(randomBytes) || global.crypto?.getRandomValues(randomBytes);
+            if (typeof window !== 'undefined' && window.crypto?.getRandomValues) {
+              window.crypto.getRandomValues(randomBytes);
+            } else if (typeof globalThis !== 'undefined' && globalThis.crypto?.getRandomValues) {
+              globalThis.crypto.getRandomValues(randomBytes);
+            }
             byteIndex = 0;
           }
           randomValue = randomBytes[byteIndex++];
@@ -292,7 +375,7 @@ export function useAttendeeForm({ attendee, customFields, eventSettings }: UseAt
       }
     };
 
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
+    for (let attempt = 0; attempt < maxRetries; attempt+=1) {
       const barcode = generateRandomBarcode();
       const isUnique = await checkBarcodeUniqueness(barcode);
 
@@ -304,7 +387,7 @@ export function useAttendeeForm({ attendee, customFields, eventSettings }: UseAt
 
     error(
       "Barcode Generation Failed",
-      `Unable to generate a unique barcode after ${maxRetries} attempts. Please try again or enter a barcode manually.`
+      `Unable to generate a unique barcode after ${maxRetries} attempts. Please try again or enter a barcode manually.`,
     );
   }, [eventSettings, error]);
 
@@ -384,7 +467,7 @@ export function useAttendeeForm({ attendee, customFields, eventSettings }: UseAt
     const customFieldValues = Object.entries(formData.customFieldValues)
       .map(([customFieldId, value]) => ({
         customFieldId,
-        value: value || ''
+        value: value || '',
       }));
 
     return {
@@ -393,16 +476,20 @@ export function useAttendeeForm({ attendee, customFields, eventSettings }: UseAt
       barcodeNumber: formData.barcodeNumber,
       notes: formData.notes || '',
       photoUrl: formData.photoUrl || null,
-      customFieldValues
+      customFieldValues,
+      // Access control fields
+      validFrom: formData.validFrom || null,
+      validUntil: formData.validUntil || null,
+      accessEnabled: formData.accessEnabled,
     };
   };
 
-  const resetForm = () => {
-    dispatch({ type: 'RESET_FORM' });
-  };
+  const resetForm = useCallback(() => {
+    dispatch({ type: 'RESET_FORM', eventSettings, customFields });
+  }, [eventSettings, customFields]);
 
   // Expose dispatch with typed actions for component use
-  const updateField = useCallback((field: keyof Omit<FormData, 'customFieldValues'>, value: string) => {
+  const updateField = useCallback((field: keyof Omit<FormData, 'customFieldValues'>, value: string | boolean) => {
     dispatch({ type: 'SET_FIELD', field, value });
   }, []);
 
@@ -427,6 +514,6 @@ export function useAttendeeForm({ attendee, customFields, eventSettings }: UseAt
     generateBarcode,
     validateForm,
     prepareAttendeeData,
-    resetForm
+    resetForm,
   };
 }

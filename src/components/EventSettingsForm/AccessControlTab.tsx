@@ -106,12 +106,128 @@ export const AccessControlTab = memo(function AccessControlTab({
           )}
         </CardContent>
       </Card>
+
+      {/* Default Values Card - Only visible when access control is enabled */}
+      {accessControlEnabled && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Default Values for New Attendees</CardTitle>
+            <CardDescription>
+              Set default access control values that will be pre-filled when creating new attendees
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Default Access Status */}
+            <div className="space-y-3">
+              <Label className="text-base font-medium">Default Access Status</Label>
+              <RadioGroup
+                value={formData.accessControlDefaults?.accessEnabled === false ? 'inactive' : 'active'}
+                onValueChange={(value) => {
+                  const defaults = formData.accessControlDefaults || {};
+                  onInputChange("accessControlDefaults", {
+                    ...defaults,
+                    accessEnabled: value === 'active'
+                  });
+                }}
+                className="grid gap-3"
+              >
+                <div className="flex items-center space-x-3">
+                  <RadioGroupItem value="active" id="default_active" />
+                  <Label htmlFor="default_active" className="font-normal cursor-pointer">
+                    Active (default)
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <RadioGroupItem value="inactive" id="default_inactive" />
+                  <Label htmlFor="default_inactive" className="font-normal cursor-pointer">
+                    Inactive
+                  </Label>
+                </div>
+              </RadioGroup>
+            </div>
+
+            {/* Default Valid From */}
+            <div className="space-y-3">
+              <div className="space-y-3">
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="validFromUseToday"
+                    checked={formData.accessControlDefaults?.validFromUseToday ?? false}
+                    onCheckedChange={(checked) => {
+                      const defaults = formData.accessControlDefaults || {};
+                      onInputChange("accessControlDefaults", {
+                        ...defaults,
+                        validFromUseToday: checked,
+                        // Clear the static date if using today
+                        validFrom: checked ? null : defaults.validFrom
+                      });
+                    }}
+                  />
+                  <Label htmlFor="validFromUseToday" className="font-normal cursor-pointer">
+                    Always use today's date (updates daily)
+                  </Label>
+                </div>
+                {!formData.accessControlDefaults?.validFromUseToday && (
+                  <div className="space-y-2">
+                    <Label htmlFor="defaultValidFrom" className="text-base font-medium">
+                      Default Valid From
+                    </Label>
+                    <input
+                      type={accessControlTimeMode === 'date_time' ? 'datetime-local' : 'date'}
+                      id="defaultValidFrom"
+                      value={formData.accessControlDefaults?.validFrom || ''}
+                      onChange={(e) => {
+                        const defaults = formData.accessControlDefaults || {};
+                        onInputChange("accessControlDefaults", {
+                          ...defaults,
+                          validFrom: e.target.value || null
+                        });
+                      }}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    />
+                  </div>
+                )}
+                <p className="text-sm text-muted-foreground">
+                  {formData.accessControlDefaults?.validFromUseToday 
+                    ? "New attendees will automatically get today's date as their Valid From date"
+                    : "Leave empty for no default value"}
+                </p>
+              </div>
+            </div>
+
+            {/* Default Valid Until */}
+            <div className="space-y-3">
+              <Label htmlFor="defaultValidUntil" className="text-base font-medium">
+                Default Valid Until
+              </Label>
+              <input
+                type={accessControlTimeMode === 'date_time' ? 'datetime-local' : 'date'}
+                id="defaultValidUntil"
+                value={formData.accessControlDefaults?.validUntil || ''}
+                onChange={(e) => {
+                  const defaults = formData.accessControlDefaults || {};
+                  onInputChange("accessControlDefaults", {
+                    ...defaults,
+                    validUntil: e.target.value || null
+                  });
+                }}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              />
+              <p className="text-sm text-muted-foreground">
+                Leave empty for no default value
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }, (prevProps, nextProps) => {
   // Custom comparison for optimization
   return (
     prevProps.formData.accessControlEnabled === nextProps.formData.accessControlEnabled &&
-    prevProps.formData.accessControlTimeMode === nextProps.formData.accessControlTimeMode
+    prevProps.formData.accessControlTimeMode === nextProps.formData.accessControlTimeMode &&
+    JSON.stringify(prevProps.formData.accessControlDefaults) === JSON.stringify(nextProps.formData.accessControlDefaults) &&
+    prevProps.onInputChange === nextProps.onInputChange
   );
 });

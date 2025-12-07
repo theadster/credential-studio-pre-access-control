@@ -581,7 +581,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           return res.status(403).json({ error: 'Insufficient permissions to create attendees' });
         }
 
-        const { firstName, lastName, barcodeNumber, notes, photoUrl, customFieldValues } = req.body;
+        const { firstName, lastName, barcodeNumber, notes, photoUrl, customFieldValues, validFrom, validUntil, accessEnabled } = req.body;
 
         if (!firstName || !lastName || !barcodeNumber) {
           return res.status(400).json({ error: 'Missing required fields' });
@@ -671,6 +671,34 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
                 data: attendeeData
               }
             ];
+
+            // Add access control record if access control is enabled and fields are provided
+            if ((validFrom !== undefined || validUntil !== undefined || accessEnabled !== undefined) && accessControlCollectionId) {
+              const accessControlData: any = {
+                attendeeId: attendeeId
+              };
+              
+              if (validFrom !== undefined) {
+                accessControlData.validFrom = validFrom;
+              }
+              if (validUntil !== undefined) {
+                accessControlData.validUntil = validUntil;
+              }
+              if (accessEnabled !== undefined) {
+                accessControlData.accessEnabled = accessEnabled;
+              } else {
+                // Default to true if not specified
+                accessControlData.accessEnabled = true;
+              }
+
+              operations.push({
+                action: 'create',
+                databaseId: dbId,
+                tableId: accessControlCollectionId,
+                rowId: ID.unique(),
+                data: accessControlData
+              });
+            }
 
             // Add audit log if enabled
             if (await shouldLog('attendeeCreate')) {

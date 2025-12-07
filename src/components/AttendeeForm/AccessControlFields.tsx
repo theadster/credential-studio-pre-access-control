@@ -9,18 +9,16 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Shield, Calendar, Clock, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
+import { AlertTriangle, Calendar, CheckCircle, Clock, Shield, XCircle } from 'lucide-react';
 import {
   AccessControlTimeMode,
   extractDateOnly,
   isValidDateRange,
-  convertUtcToEventLocalForInput,
-  convertEventLocalToUtcForStorage
 } from '@/lib/accessControlDates';
 
 /**
@@ -68,7 +66,7 @@ export function AccessControlFields({
   onValidUntilChange,
   onAccessEnabledChange,
   eventTimezone,
-  readOnly = false
+  readOnly = false,
 }: AccessControlFieldsProps) {
   const [validationError, setValidationError] = useState<string | null>(null);
 
@@ -95,6 +93,9 @@ export function AccessControlFields({
 
   /**
    * Handle validFrom input change
+   * 
+   * For date-only mode: Appends T00:00 to indicate start of day
+   * For date-time mode: Stores the value as-is
    */
   const handleValidFromChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -104,18 +105,20 @@ export function AccessControlFields({
     }
 
     if (isDateOnly) {
-      // For date-only mode, store as ISO string at start of day
-      // The actual start-of-day conversion happens in the API
-      onValidFromChange(value);
+      // For date-only mode, append T00:00 to indicate start of day
+      // This ensures mobile verification knows the badge is valid from midnight
+      onValidFromChange(`${value}T00:00`);
     } else {
-      // For date-time mode, convert from event-local to UTC
-      const utcValue = convertEventLocalToUtcForStorage(value, eventTimezone);
-      onValidFromChange(utcValue);
+      // For date-time mode, store the value as-is
+      onValidFromChange(value);
     }
   };
 
   /**
    * Handle validUntil input change
+   * 
+   * For date-only mode: Appends T23:59 to indicate end of day
+   * For date-time mode: Stores the value as-is
    */
   const handleValidUntilChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -125,13 +128,12 @@ export function AccessControlFields({
     }
 
     if (isDateOnly) {
-      // For date-only mode, store as ISO string at end of day
-      // The actual end-of-day conversion happens in the API
-      onValidUntilChange(value);
+      // For date-only mode, append T23:59 to indicate end of day
+      // This ensures mobile verification knows the badge is valid until 11:59 PM
+      onValidUntilChange(`${value}T23:59`);
     } else {
-      // For date-time mode, convert from event-local to UTC
-      const utcValue = convertEventLocalToUtcForStorage(value, eventTimezone);
-      onValidUntilChange(utcValue);
+      // For date-time mode, store the value as-is
+      onValidUntilChange(value);
     }
   };
 
@@ -142,16 +144,29 @@ export function AccessControlFields({
     if (!dateValue) return '';
 
     if (isDateOnly) {
-      // For date-only mode, extract just the date portion
-      // Check if it's already a date-only string (YYYY-MM-DD)
-      if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
-        return dateValue;
+      // For date-only mode, extract just the date portion (YYYY-MM-DD)
+      // The stored value may be YYYY-MM-DDTHH:mm (with time appended)
+      const dateMatch = dateValue.match(/^(\d{4}-\d{2}-\d{2})/);
+      if (dateMatch) {
+        return dateMatch[1];
       }
-      // Otherwise extract from ISO string in event timezone
+      // Fallback: try to extract from ISO string in event timezone
       return extractDateOnly(dateValue, eventTimezone);
     } else {
-      // For date-time mode, convert UTC to event-local datetime format
-      return convertUtcToEventLocalForInput(dateValue, eventTimezone);
+      // For date-time mode, check if it's already in datetime-local format (YYYY-MM-DDTHH:mm)
+      if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(dateValue)) {
+        // Already in the correct format, return as-is
+        return dateValue;
+      }
+      // If it's an ISO string, extract the datetime-local portion
+      if (dateValue.includes('T')) {
+        const match = dateValue.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})/);
+        if (match) {
+          return match[1];
+        }
+      }
+      // Fallback: return empty string
+      return '';
     }
   };
 
@@ -221,7 +236,7 @@ export function AccessControlFields({
                 value={getInputValue(validFrom)}
                 onChange={handleValidFromChange}
                 disabled={readOnly}
-                className="bg-background"
+                className="bg-background border-violet-200 dark:border-violet-800/50 focus-visible:ring-violet-500 dark:focus-visible:ring-violet-400"
                 data-testid="valid-from-input"
                 aria-describedby="valid-from-help"
               />
@@ -245,7 +260,7 @@ export function AccessControlFields({
                 value={getInputValue(validUntil)}
                 onChange={handleValidUntilChange}
                 disabled={readOnly}
-                className="bg-background"
+                className="bg-background border-violet-200 dark:border-violet-800/50 focus-visible:ring-violet-500 dark:focus-visible:ring-violet-400"
                 data-testid="valid-until-input"
                 aria-describedby="valid-until-help"
               />
@@ -270,5 +285,3 @@ export function AccessControlFields({
     </Card>
   );
 }
-
-export default AccessControlFields;

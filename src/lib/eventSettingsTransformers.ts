@@ -60,6 +60,22 @@ export interface EventSettingsResponse {
 export function transformEventSettingsResponse(
   rawSettings: Partial<EventSettingsResponse>
 ): EventSettingsResponse {
+  // Parse accessControlDefaults if it's a string
+  let accessControlDefaults = rawSettings.accessControlDefaults;
+  if (typeof accessControlDefaults === 'string') {
+    try {
+      accessControlDefaults = JSON.parse(accessControlDefaults);
+    } catch (e) {
+      console.error('Failed to parse accessControlDefaults:', e);
+      accessControlDefaults = {
+        accessEnabled: true,
+        validFrom: null,
+        validUntil: null,
+        validFromUseToday: false
+      };
+    }
+  }
+  
   return {
     ...rawSettings,
     eventName: rawSettings.eventName || '',
@@ -69,6 +85,12 @@ export function transformEventSettingsResponse(
     // Access control fields should always be present with defaults
     accessControlEnabled: rawSettings.accessControlEnabled ?? false,
     accessControlTimeMode: rawSettings.accessControlTimeMode ?? 'date_only',
+    accessControlDefaults: accessControlDefaults || {
+      accessEnabled: true,
+      validFrom: null,
+      validUntil: null,
+      validFromUseToday: false
+    },
   };
 }
 

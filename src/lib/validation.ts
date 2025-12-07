@@ -91,13 +91,31 @@ export function validateSwitchboardRequestBody(body: string): { valid: boolean; 
  * Validates event settings required fields
  * 
  * @param settings - Event settings object to validate
+ * @param isUpdate - Whether this is an update operation (optional fields allowed)
  * @returns Validation result with error message if invalid
  */
-export function validateEventSettings(settings: any): { valid: boolean; error?: string } {
+export function validateEventSettings(settings: any, isUpdate: boolean = false): { valid: boolean; error?: string } {
+  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
+    return {
+      valid: false,
+      error: 'Settings object is required'
+    };
+  }
+
   const requiredFields = ['eventName', 'eventDate', 'eventLocation'];
 
+  // For updates, only validate required fields if they're present
+  // This allows partial updates (e.g., only updating accessControlDefaults)
   for (const field of requiredFields) {
-    if (!settings[field] || settings[field].trim() === '') {
+    const value = settings[field];
+    
+    // Skip validation if field is not present in update
+    if (isUpdate && value === undefined) {
+      continue;
+    }
+    
+    // Validate if field is present
+    if (!value || (typeof value === 'string' && value.trim() === '')) {
       return {
         valid: false,
         error: `${field} is required`
@@ -106,7 +124,7 @@ export function validateEventSettings(settings: any): { valid: boolean; error?: 
   }
 
   // Validate barcode length
-  if (settings.barcodeLength) {
+  if (settings.barcodeLength !== undefined && settings.barcodeLength !== null) {
     const length = parseInt(settings.barcodeLength);
     if (isNaN(length) || length < 4 || length > 20) {
       return {

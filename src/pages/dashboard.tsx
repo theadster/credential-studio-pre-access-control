@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { EventSettings, CustomField, AccessControlTimeMode } from "@/components/EventSettingsForm/types";
-import { formatForDisplay } from "@/lib/accessControlDates";
+import { formatForDisplay, formatDateTimeSeparate } from "@/lib/accessControlDates";
 import {
   Users,
   Settings,
@@ -263,13 +263,27 @@ export default function Dashboard() {
     notes: { value: string; operator: string; hasNotes: boolean };
     photoFilter: 'all' | 'with' | 'without';
     customFields: { [key: string]: { value: string; operator: string } };
+    accessControl: {
+      accessStatus: 'all' | 'active' | 'inactive';
+      validFromStart: string;
+      validFromEnd: string;
+      validUntilStart: string;
+      validUntilEnd: string;
+    };
   }>({
     firstName: { value: '', operator: 'contains' },
     lastName: { value: '', operator: 'contains' },
     barcode: { value: '', operator: 'contains' },
     notes: { value: '', operator: 'contains', hasNotes: false },
     photoFilter: 'all',
-    customFields: {}
+    customFields: {},
+    accessControl: {
+      accessStatus: 'all',
+      validFromStart: '',
+      validFromEnd: '',
+      validUntilStart: '',
+      validUntilEnd: ''
+    }
   });
 
   const [showAttendeeForm, setShowAttendeeForm] = useState(false);
@@ -363,6 +377,16 @@ export default function Dashboard() {
       const settingsResponse = await fetch('/api/event-settings');
       if (settingsResponse.ok) {
         const settingsData = await settingsResponse.json();
+        
+        // Parse accessControlDefaults if it's a string
+        if (typeof settingsData.accessControlDefaults === 'string') {
+          try {
+            settingsData.accessControlDefaults = JSON.parse(settingsData.accessControlDefaults);
+          } catch (e) {
+            console.error('Failed to parse accessControlDefaults:', e);
+          }
+        }
+        
         setEventSettings(settingsData);
       }
     } catch (error) {
@@ -638,6 +662,16 @@ export default function Dashboard() {
             const settingsResponse = await fetch('/api/event-settings');
             if (settingsResponse.ok) {
               const settingsData = await settingsResponse.json();
+              
+              // Parse accessControlDefaults if it's a string
+              if (typeof settingsData.accessControlDefaults === 'string') {
+                try {
+                  settingsData.accessControlDefaults = JSON.parse(settingsData.accessControlDefaults);
+                } catch (e) {
+                  console.error('Failed to parse accessControlDefaults:', e);
+                }
+              }
+              
               setEventSettings(settingsData);
             } else {
               setEventSettings(null);
@@ -1163,7 +1197,49 @@ export default function Dashboard() {
           }
         });
 
-        return firstNameMatch && lastNameMatch && barcodeMatch && notesFilterMatch && photoMatch && customFieldsMatch;
+        // Access Control filter (only if access control is enabled)
+        let accessControlMatch = true;
+        if (eventSettings?.accessControlEnabled) {
+          const { accessStatus, validFromStart, validFromEnd, validUntilStart, validUntilEnd } = advancedSearchFilters.accessControl;
+          
+          // Access status filter
+          if (accessStatus !== 'all') {
+            const isActive = attendee.accessEnabled !== false;
+            accessControlMatch = accessStatus === 'active' ? isActive : !isActive;
+          }
+          
+          // Valid From date range filter
+          if (accessControlMatch && (validFromStart || validFromEnd)) {
+            const attendeeValidFrom = attendee.validFrom ? attendee.validFrom.split('T')[0] : null;
+            if (validFromStart && attendeeValidFrom) {
+              accessControlMatch = attendeeValidFrom >= validFromStart;
+            }
+            if (accessControlMatch && validFromEnd && attendeeValidFrom) {
+              accessControlMatch = attendeeValidFrom <= validFromEnd;
+            }
+            // If attendee has no validFrom but filter is set, exclude them
+            if ((validFromStart || validFromEnd) && !attendeeValidFrom) {
+              accessControlMatch = false;
+            }
+          }
+          
+          // Valid Until date range filter
+          if (accessControlMatch && (validUntilStart || validUntilEnd)) {
+            const attendeeValidUntil = attendee.validUntil ? attendee.validUntil.split('T')[0] : null;
+            if (validUntilStart && attendeeValidUntil) {
+              accessControlMatch = attendeeValidUntil >= validUntilStart;
+            }
+            if (accessControlMatch && validUntilEnd && attendeeValidUntil) {
+              accessControlMatch = attendeeValidUntil <= validUntilEnd;
+            }
+            // If attendee has no validUntil but filter is set, exclude them
+            if ((validUntilStart || validUntilEnd) && !attendeeValidUntil) {
+              accessControlMatch = false;
+            }
+          }
+        }
+
+        return firstNameMatch && lastNameMatch && barcodeMatch && notesFilterMatch && photoMatch && customFieldsMatch && accessControlMatch;
       } else {
         // Use simple search
         const basicMatch = `${attendee.firstName} ${attendee.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -1277,19 +1353,35 @@ export default function Dashboard() {
         barcode: { value: '', operator: 'contains' },
         notes: { value: '', operator: 'contains', hasNotes: false },
         photoFilter: 'all',
-        customFields
+        customFields,
+        accessControl: {
+          accessStatus: 'all',
+          validFromStart: '',
+          validFromEnd: '',
+          validUntilStart: '',
+          validUntilEnd: ''
+        }
       });
     }
   };
 
   // Check if advanced search has any active filters
   const hasAdvancedFilters = () => {
+    const hasAccessControlFilters = eventSettings?.accessControlEnabled && (
+      advancedSearchFilters.accessControl.accessStatus !== 'all' ||
+      advancedSearchFilters.accessControl.validFromStart ||
+      advancedSearchFilters.accessControl.validFromEnd ||
+      advancedSearchFilters.accessControl.validUntilStart ||
+      advancedSearchFilters.accessControl.validUntilEnd
+    );
+    
     return advancedSearchFilters.firstName.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.firstName.operator) ||
       advancedSearchFilters.lastName.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.lastName.operator) ||
       advancedSearchFilters.barcode.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.barcode.operator) ||
       advancedSearchFilters.notes.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.notes.operator) ||
       advancedSearchFilters.notes.hasNotes ||
       advancedSearchFilters.photoFilter !== 'all' ||
+      hasAccessControlFilters ||
       Object.values(advancedSearchFilters.customFields).some(field => field.value || field.operator === 'isEmpty' || field.operator === 'isNotEmpty');
   };
 
@@ -1358,7 +1450,14 @@ export default function Dashboard() {
       barcode: { value: '', operator: 'contains' },
       notes: { value: '', operator: 'contains', hasNotes: false },
       photoFilter: 'all',
-      customFields
+      customFields,
+      accessControl: {
+        accessStatus: 'all',
+        validFromStart: '',
+        validFromEnd: '',
+        validUntilStart: '',
+        validUntilEnd: ''
+      }
     });
   };
 
@@ -3293,6 +3392,96 @@ export default function Dashboard() {
                                 </div>
                               </div>
 
+                              {/* Access Control Filters - Only show if access control is enabled */}
+                              {eventSettings?.accessControlEnabled && (
+                                <div className="space-y-2 p-4 rounded-lg bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
+                                  <Label className="flex items-center space-x-2 font-semibold text-slate-700 dark:text-slate-300">
+                                    <div className="p-1.5 rounded-md bg-emerald-100 dark:bg-emerald-900/30">
+                                      <Shield className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                                    </div>
+                                    <span>Access Control</span>
+                                  </Label>
+                                  <div className="space-y-3">
+                                    {/* Access Status */}
+                                    <div className="space-y-1">
+                                      <Label htmlFor="accessStatus" className="text-xs text-muted-foreground">Access Status</Label>
+                                      <Select
+                                        value={advancedSearchFilters.accessControl.accessStatus}
+                                        onValueChange={(value) => setAdvancedSearchFilters(prev => ({
+                                          ...prev,
+                                          accessControl: { ...prev.accessControl, accessStatus: value as 'all' | 'active' | 'inactive' }
+                                        }))}
+                                      >
+                                        <SelectTrigger className="bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600">
+                                          <SelectValue placeholder="Filter by status" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="all">All Statuses</SelectItem>
+                                          <SelectItem value="active">Active Only</SelectItem>
+                                          <SelectItem value="inactive">Inactive Only</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                    
+                                    {/* Valid From Date Range */}
+                                    <div className="space-y-1">
+                                      <Label className="text-xs text-muted-foreground">Valid From Range</Label>
+                                      <div className="flex items-center space-x-2">
+                                        <Input
+                                          type="date"
+                                          value={advancedSearchFilters.accessControl.validFromStart}
+                                          onChange={(e) => setAdvancedSearchFilters(prev => ({
+                                            ...prev,
+                                            accessControl: { ...prev.accessControl, validFromStart: e.target.value }
+                                          }))}
+                                          className="bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600 flex-1"
+                                          placeholder="From"
+                                        />
+                                        <span className="text-muted-foreground text-sm">to</span>
+                                        <Input
+                                          type="date"
+                                          value={advancedSearchFilters.accessControl.validFromEnd}
+                                          onChange={(e) => setAdvancedSearchFilters(prev => ({
+                                            ...prev,
+                                            accessControl: { ...prev.accessControl, validFromEnd: e.target.value }
+                                          }))}
+                                          className="bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600 flex-1"
+                                          placeholder="To"
+                                        />
+                                      </div>
+                                    </div>
+                                    
+                                    {/* Valid Until Date Range */}
+                                    <div className="space-y-1">
+                                      <Label className="text-xs text-muted-foreground">Valid Until Range</Label>
+                                      <div className="flex items-center space-x-2">
+                                        <Input
+                                          type="date"
+                                          value={advancedSearchFilters.accessControl.validUntilStart}
+                                          onChange={(e) => setAdvancedSearchFilters(prev => ({
+                                            ...prev,
+                                            accessControl: { ...prev.accessControl, validUntilStart: e.target.value }
+                                          }))}
+                                          className="bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600 flex-1"
+                                          placeholder="From"
+                                        />
+                                        <span className="text-muted-foreground text-sm">to</span>
+                                        <Input
+                                          type="date"
+                                          value={advancedSearchFilters.accessControl.validUntilEnd}
+                                          onChange={(e) => setAdvancedSearchFilters(prev => ({
+                                            ...prev,
+                                            accessControl: { ...prev.accessControl, validUntilEnd: e.target.value }
+                                          }))}
+                                          className="bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600 flex-1"
+                                          placeholder="To"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
                               {/* Custom Fields */}
                               {eventSettings?.customFields?.map((field: any) => {
                                 // Function to get icon based on field type
@@ -3469,6 +3658,12 @@ export default function Dashboard() {
                                 if (advancedSearchFilters.barcode.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.barcode.operator)) count++;
                                 if (advancedSearchFilters.notes.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.notes.operator) || advancedSearchFilters.notes.hasNotes) count++;
                                 if (advancedSearchFilters.photoFilter !== 'all') count++;
+                                // Count access control filters
+                                if (eventSettings?.accessControlEnabled) {
+                                  if (advancedSearchFilters.accessControl.accessStatus !== 'all') count++;
+                                  if (advancedSearchFilters.accessControl.validFromStart || advancedSearchFilters.accessControl.validFromEnd) count++;
+                                  if (advancedSearchFilters.accessControl.validUntilStart || advancedSearchFilters.accessControl.validUntilEnd) count++;
+                                }
                                 count += Object.values(advancedSearchFilters.customFields).filter(field => field.value || field.operator === 'isEmpty' || field.operator === 'isNotEmpty').length;
                                 return `${count} ${count === 1 ? 'filter' : 'filters'}`;
                               })()}
@@ -3680,6 +3875,99 @@ export default function Dashboard() {
                                       )}
                                     </div>
                                   ))}
+
+                                {/* Access Control Fields - Only show when access control is enabled */}
+                                {eventSettings?.accessControlEnabled && (
+                                  <div className="border-t pt-4 mt-4 space-y-4">
+                                    <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                                      <Shield className="h-4 w-4" />
+                                      Access Control
+                                    </div>
+
+                                    {/* Access Status */}
+                                    <div className="space-y-2">
+                                      <Label htmlFor="bulk-edit-accessEnabled">Access Status</Label>
+                                      <Select
+                                        onValueChange={(value) => setBulkEditChanges(prev => ({ ...prev, accessEnabled: value }))}
+                                      >
+                                        <SelectTrigger>
+                                          <SelectValue placeholder="No Change" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="no-change">No Change</SelectItem>
+                                          <SelectItem value="active">Active</SelectItem>
+                                          <SelectItem value="inactive">Inactive</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+
+                                    {/* Valid From */}
+                                    <div className="space-y-2">
+                                      <Label htmlFor="bulk-edit-validFrom">Valid From</Label>
+                                      <div className="space-y-2">
+                                        <Input
+                                          id="bulk-edit-validFrom"
+                                          type={eventSettings?.accessControlTimeMode === 'date_time' ? 'datetime-local' : 'date'}
+                                          value={bulkEditChanges.validFrom === CLEAR_SENTINEL ? '' : bulkEditChanges.validFrom || ''}
+                                          onChange={(e) => setBulkEditChanges(prev => ({ ...prev, validFrom: e.target.value }))}
+                                          disabled={bulkEditChanges.validFrom === CLEAR_SENTINEL}
+                                          placeholder="Leave empty for no change"
+                                        />
+                                        <div className="flex items-center space-x-2">
+                                          <Checkbox
+                                            id="clear-validFrom"
+                                            checked={bulkEditChanges.validFrom === CLEAR_SENTINEL}
+                                            onCheckedChange={(checked) => {
+                                              setBulkEditChanges(prev => ({
+                                                ...prev,
+                                                validFrom: checked ? CLEAR_SENTINEL : ''
+                                              }));
+                                            }}
+                                          />
+                                          <Label
+                                            htmlFor="clear-validFrom"
+                                            className="text-sm text-muted-foreground cursor-pointer"
+                                          >
+                                            Clear this field for all selected attendees
+                                          </Label>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Valid Until */}
+                                    <div className="space-y-2">
+                                      <Label htmlFor="bulk-edit-validUntil">Valid Until</Label>
+                                      <div className="space-y-2">
+                                        <Input
+                                          id="bulk-edit-validUntil"
+                                          type={eventSettings?.accessControlTimeMode === 'date_time' ? 'datetime-local' : 'date'}
+                                          value={bulkEditChanges.validUntil === CLEAR_SENTINEL ? '' : bulkEditChanges.validUntil || ''}
+                                          onChange={(e) => setBulkEditChanges(prev => ({ ...prev, validUntil: e.target.value }))}
+                                          disabled={bulkEditChanges.validUntil === CLEAR_SENTINEL}
+                                          placeholder="Leave empty for no change"
+                                        />
+                                        <div className="flex items-center space-x-2">
+                                          <Checkbox
+                                            id="clear-validUntil"
+                                            checked={bulkEditChanges.validUntil === CLEAR_SENTINEL}
+                                            onCheckedChange={(checked) => {
+                                              setBulkEditChanges(prev => ({
+                                                ...prev,
+                                                validUntil: checked ? CLEAR_SENTINEL : ''
+                                              }));
+                                            }}
+                                          />
+                                          <Label
+                                            htmlFor="clear-validUntil"
+                                            className="text-sm text-muted-foreground cursor-pointer"
+                                          >
+                                            Clear this field for all selected attendees
+                                          </Label>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                               <div className="flex justify-end space-x-2">
                                 <Button variant="outline" onClick={() => setShowBulkEdit(false)}>Cancel</Button>
@@ -3702,6 +3990,10 @@ export default function Dashboard() {
                             id: field.id!, // Assert non-null since we filtered
                             internalFieldName: field.internalFieldName || field.fieldName.toLowerCase().replace(/\s+/g, '_')
                           }))}
+                        accessControlSettings={{
+                          accessControlEnabled: eventSettings?.accessControlEnabled,
+                          accessControlTimeMode: eventSettings?.accessControlTimeMode
+                        }}
                       >
                         <Button variant="outline">
                           <Upload className="mr-2 h-4 w-4" />
@@ -3736,7 +4028,9 @@ export default function Dashboard() {
                               fieldName: field.fieldName,
                               fieldType: field.fieldType,
                               required: field.required
-                            }))
+                            })),
+                          accessControlEnabled: eventSettings.accessControlEnabled,
+                          accessControlTimeMode: eventSettings.accessControlTimeMode
                         } : undefined}
                       >
                         <Button variant="outline">
@@ -3786,20 +4080,20 @@ export default function Dashboard() {
                             aria-label="Select all on this page"
                           />
                         </TableHead>
-                        <TableHead className="w-24">Photo</TableHead>
+                        <TableHead className="w-20">Photo</TableHead>
                         <TableHead className="w-auto">Name</TableHead>
-                        <TableHead className="w-32 text-center">Barcode</TableHead>
-                        <TableHead className="w-24 text-center">Credential</TableHead>
-                        <TableHead className="w-32 text-center">Status</TableHead>
+                        <TableHead className="w-24 text-center">Barcode</TableHead>
+                        <TableHead className="w-20 text-center">Credential</TableHead>
+                        <TableHead className="w-24 text-center">Status</TableHead>
                         {/* Access Control Columns - Requirements 6.1, 6.2 */}
                         {eventSettings?.accessControlEnabled && (
                           <>
-                            <TableHead className="w-32 text-center">Valid From</TableHead>
-                            <TableHead className="w-32 text-center">Valid Until</TableHead>
-                            <TableHead className="w-28 text-center">Access</TableHead>
+                            <TableHead className="w-24 text-center">Valid From</TableHead>
+                            <TableHead className="w-24 text-center">Valid Until</TableHead>
+                            <TableHead className="w-20 text-center">Access</TableHead>
                           </>
                         )}
-                        <TableHead className="w-24 text-center">Actions</TableHead>
+                        <TableHead className="w-20 text-center">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -3995,31 +4289,59 @@ export default function Dashboard() {
                               {eventSettings?.accessControlEnabled && (
                                 <>
                                   {/* Valid From Column - Requirement 6.3 */}
-                                  <TableCell className="align-top pt-4">
-                                    <div className="flex justify-center">
-                                      <span className="text-sm text-muted-foreground">
-                                        {attendee.validFrom 
-                                          ? formatForDisplay(
+                                  <TableCell className={`align-top ${eventSettings.accessControlTimeMode === 'date_time' ? 'pt-2' : 'pt-4'}`}>
+                                    <div className="flex flex-col items-center justify-center">
+                                      {attendee.validFrom ? (
+                                        eventSettings.accessControlTimeMode === 'date_time' ? (
+                                          <>
+                                            <span className="text-sm font-medium text-foreground">
+                                              {formatDateTimeSeparate(attendee.validFrom).date}
+                                            </span>
+                                            {formatDateTimeSeparate(attendee.validFrom).time && (
+                                              <span className="text-xs text-muted-foreground">
+                                                {formatDateTimeSeparate(attendee.validFrom).time}
+                                              </span>
+                                            )}
+                                          </>
+                                        ) : (
+                                          <span className="text-sm font-medium text-foreground">
+                                            {formatForDisplay(
                                               attendee.validFrom, 
-                                              eventSettings.accessControlTimeMode || 'date_only',
-                                              eventSettings.timeZone || 'UTC'
-                                            )
-                                          : '—'}
-                                      </span>
+                                              eventSettings.accessControlTimeMode || 'date_only'
+                                            )}
+                                          </span>
+                                        )
+                                      ) : (
+                                        <span className="text-sm font-medium text-foreground">—</span>
+                                      )}
                                     </div>
                                   </TableCell>
                                   {/* Valid Until Column - Requirement 6.3 */}
-                                  <TableCell className="align-top pt-4">
-                                    <div className="flex justify-center">
-                                      <span className="text-sm text-muted-foreground">
-                                        {attendee.validUntil 
-                                          ? formatForDisplay(
+                                  <TableCell className={`align-top ${eventSettings.accessControlTimeMode === 'date_time' ? 'pt-2' : 'pt-4'}`}>
+                                    <div className="flex flex-col items-center justify-center">
+                                      {attendee.validUntil ? (
+                                        eventSettings.accessControlTimeMode === 'date_time' ? (
+                                          <>
+                                            <span className="text-sm font-medium text-foreground">
+                                              {formatDateTimeSeparate(attendee.validUntil).date}
+                                            </span>
+                                            {formatDateTimeSeparate(attendee.validUntil).time && (
+                                              <span className="text-xs text-muted-foreground">
+                                                {formatDateTimeSeparate(attendee.validUntil).time}
+                                              </span>
+                                            )}
+                                          </>
+                                        ) : (
+                                          <span className="text-sm font-medium text-foreground">
+                                            {formatForDisplay(
                                               attendee.validUntil, 
-                                              eventSettings.accessControlTimeMode || 'date_only',
-                                              eventSettings.timeZone || 'UTC'
-                                            )
-                                          : '—'}
-                                      </span>
+                                              eventSettings.accessControlTimeMode || 'date_only'
+                                            )}
+                                          </span>
+                                        )
+                                      ) : (
+                                        <span className="text-sm font-medium text-foreground">—</span>
+                                      )}
                                     </div>
                                   </TableCell>
                                   {/* Access Status Column - Requirement 6.4 */}
@@ -4027,7 +4349,7 @@ export default function Dashboard() {
                                     <div className="flex justify-center">
                                       {attendee.accessEnabled !== false ? (
                                         <Badge 
-                                          className="bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800 font-semibold px-3 py-1"
+                                          className="bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-200 hover:border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800 dark:hover:bg-emerald-900/40 dark:hover:border-emerald-700 font-semibold px-3 py-1 transition-colors"
                                           role="status"
                                           aria-label="Access status: Active"
                                         >
@@ -4036,7 +4358,7 @@ export default function Dashboard() {
                                         </Badge>
                                       ) : (
                                         <Badge 
-                                          className="bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800 font-semibold px-3 py-1"
+                                          className="bg-red-100 text-red-800 border-red-200 hover:bg-red-200 hover:border-red-300 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800 dark:hover:bg-red-900/40 dark:hover:border-red-700 font-semibold px-3 py-1 transition-colors"
                                           role="status"
                                           aria-label="Access status: Inactive"
                                         >
@@ -5511,7 +5833,11 @@ export default function Dashboard() {
           cloudinaryCropAspectRatio: eventSettings.cloudinaryCropAspectRatio,
           cloudinaryDisableSkipCrop: eventSettings.cloudinaryDisableSkipCrop,
           forceFirstNameUppercase: eventSettings.forceFirstNameUppercase,
-          forceLastNameUppercase: eventSettings.forceLastNameUppercase
+          forceLastNameUppercase: eventSettings.forceLastNameUppercase,
+          accessControlEnabled: eventSettings.accessControlEnabled,
+          accessControlTimeMode: eventSettings.accessControlTimeMode,
+          timeZone: eventSettings.timeZone,
+          accessControlDefaults: eventSettings.accessControlDefaults
         } : undefined}
       />
 

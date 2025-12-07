@@ -351,6 +351,9 @@ async function createEventSettingsCollection(databaseId: string) {
     await databases.createStringAttribute(databaseId, COLLECTIONS.EVENT_SETTINGS, 'switchboardTemplateId', 255, false);
     await databases.createStringAttribute(databaseId, COLLECTIONS.EVENT_SETTINGS, 'switchboardFieldMappings', 10000, false);
     await databases.createIntegerAttribute(databaseId, COLLECTIONS.EVENT_SETTINGS, 'customFieldColumns', false, 0, 10, 7);
+    
+    // Access Control default values (stored as JSON string)
+    await databases.createStringAttribute(databaseId, COLLECTIONS.EVENT_SETTINGS, 'accessControlDefaults', 1000, false);
 
     console.log('✓ Event settings collection created');
   } catch (error: any) {
@@ -452,8 +455,10 @@ async function createAccessControlCollection(databaseId: string) {
     // Add attributes
     await databases.createStringAttribute(databaseId, COLLECTIONS.ACCESS_CONTROL, 'attendeeId', 255, true);
     await databases.createBooleanAttribute(databaseId, COLLECTIONS.ACCESS_CONTROL, 'accessEnabled', false, true);
-    await databases.createDatetimeAttribute(databaseId, COLLECTIONS.ACCESS_CONTROL, 'validFrom', false);
-    await databases.createDatetimeAttribute(databaseId, COLLECTIONS.ACCESS_CONTROL, 'validUntil', false);
+    // Store validFrom and validUntil as strings to preserve exact user input without timezone conversion
+    // Format: YYYY-MM-DD (date-only mode) or YYYY-MM-DDTHH:mm (date-time mode)
+    await databases.createStringAttribute(databaseId, COLLECTIONS.ACCESS_CONTROL, 'validFrom', 255, false);
+    await databases.createStringAttribute(databaseId, COLLECTIONS.ACCESS_CONTROL, 'validUntil', 255, false);
 
     // Create indexes
     await databases.createIndex(databaseId, COLLECTIONS.ACCESS_CONTROL, 'attendeeId_idx', IndexType.Key, ['attendeeId']);

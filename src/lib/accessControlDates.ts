@@ -139,7 +139,7 @@ function findUtcTimeForLocalTime(dateStr: string, timeStr: string, timezone: str
   let utcGuess = new Date(Date.UTC(year, month - 1, day, hours, minutes, seconds, milliseconds));
   
   // Iterate to find the correct UTC time (usually converges in 1-2 iterations)
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 3; i+=1) {
     const local = getLocalComponents(utcGuess);
     
     // Calculate the difference between target and actual local time (in ms)
@@ -171,47 +171,146 @@ function findUtcTimeForLocalTime(dateStr: string, timeStr: string, timezone: str
 /**
  * Formats a date for display based on the time mode setting.
  * 
- * @param date - ISO date string or null
+ * Since dates are now stored as simple strings (YYYY-MM-DD or YYYY-MM-DDTHH:mm)
+ * without timezone information, we parse them directly without any timezone conversion.
+ * 
+ * Uses compact format: M/D/YY for date-only, M/D/YY h:mm AM for date-time
+ * 
+ * @param date - Date string in YYYY-MM-DD or YYYY-MM-DDTHH:mm format, or null
  * @param mode - 'date_only' or 'date_time'
- * @param timezone - IANA timezone string for display
  * @returns Formatted date string or empty string if null
  * 
  * @example
- * formatForDisplay('2024-03-15T10:30:00.000Z', 'date_only', 'America/New_York')
- * // Returns: 'Mar 15, 2024'
+ * formatForDisplay('2024-03-15', 'date_only')
+ * // Returns: '3/15/24'
  * 
- * formatForDisplay('2024-03-15T10:30:00.000Z', 'date_time', 'America/New_York')
- * // Returns: 'Mar 15, 2024, 6:30 AM'
+ * formatForDisplay('2024-03-15T10:30', 'date_time')
+ * // Returns: '3/15/24 10:30 AM'
  */
 export function formatForDisplay(
   date: string | null,
   mode: AccessControlTimeMode,
-  timezone: string
 ): string {
-  if (!date) {
+  if (!date || typeof date !== 'string') {
     return '';
   }
   
+  // Check if it's a date-only string (YYYY-MM-DD)
+  const dateOnlyMatch = date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dateOnlyMatch) {
+    const [, year, month, day] = dateOnlyMatch;
+    // Format as M/D/YY (compact format)
+    const shortYear = year.slice(-2);
+    return `${parseInt(month, 10)}/${parseInt(day, 10)}/${shortYear}`;
+  }
+  
+  // Check if it's a datetime-local string (YYYY-MM-DDTHH:mm)
+  const dateTimeMatch = date.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
+  if (dateTimeMatch) {
+    const [, year, month, day, hours, minutes] = dateTimeMatch;
+    // Format as M/D/YY (compact format)
+    const shortYear = year.slice(-2);
+    const dateStr = `${parseInt(month, 10)}/${parseInt(day, 10)}/${shortYear}`;
+    
+    if (mode === 'date_time') {
+      // Add time in h:mm AM/PM format
+      const hour = parseInt(hours, 10);
+      const ampm = hour >= 12 ? 'PM' : 'AM';
+      const hour12 = hour % 12 || 12;
+      return `${dateStr} ${hour12}:${minutes} ${ampm}`;
+    }
+    
+    return dateStr;
+  }
+  
+  // Fallback: try to parse as a regular date (for backward compatibility with ISO strings)
   const dateObj = new Date(date);
   
   if (isNaN(dateObj.getTime())) {
     return '';
   }
   
-  const options: Intl.DateTimeFormatOptions = {
-    timeZone: timezone,
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  };
+  // Use compact format for fallback too
+  const month = dateObj.getMonth() + 1;
+  const day = dateObj.getDate();
+  const shortYear = String(dateObj.getFullYear()).slice(-2);
+  const dateStr = `${month}/${day}/${shortYear}`;
   
   if (mode === 'date_time') {
-    options.hour = 'numeric';
-    options.minute = '2-digit';
-    options.hour12 = true;
+    const hour = dateObj.getHours();
+    const minutes = String(dateObj.getMinutes()).padStart(2, '0');
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const hour12 = hour % 12 || 12;
+    return `${dateStr} ${hour12}:${minutes} ${ampm}`;
   }
   
-  return new Intl.DateTimeFormat('en-US', options).format(dateObj);
+  return dateStr;
+}
+
+/**
+ * Formats a date for display, returning date and time as separate strings.
+ * Used when displaying date on one line and time on another.
+ * 
+ * @param date - Date string in YYYY-MM-DD or YYYY-MM-DDTHH:mm format, or null
+ * @returns Object with date string (M/D/YY) and optional time string (h:mm AM/PM)
+ * 
+ * @example
+ * formatDateTimeSeparate('2024-03-15T10:30')
+ * // Returns: { date: '3/15/24', time: '10:30 AM' }
+ * 
+ * formatDateTimeSeparate('2024-03-15')
+ * // Returns: { date: '3/15/24', time: null }
+ */
+export function formatDateTimeSeparate(
+  date: string | null,
+): { date: string; time: string | null } {
+  if (!date || typeof date !== 'string') {
+    return { date: '', time: null };
+  }
+  
+  // Check if it's a datetime-local string (YYYY-MM-DDTHH:mm)
+  const dateTimeMatch = date.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
+  if (dateTimeMatch) {
+    const [, year, month, day, hours, minutes] = dateTimeMatch;
+    // Format date as M/D/YY
+    const shortYear = year.slice(-2);
+    const dateStr = `${parseInt(month, 10)}/${parseInt(day, 10)}/${shortYear}`;
+    
+    // Format time as h:mm AM/PM
+    const hour = parseInt(hours, 10);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const hour12 = hour % 12 || 12;
+    const timeStr = `${hour12}:${minutes} ${ampm}`;
+    
+    return { date: dateStr, time: timeStr };
+  }
+  
+  // Check if it's a date-only string (YYYY-MM-DD)
+  const dateOnlyMatch = date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dateOnlyMatch) {
+    const [, year, month, day] = dateOnlyMatch;
+    const shortYear = year.slice(-2);
+    return { date: `${parseInt(month, 10)}/${parseInt(day, 10)}/${shortYear}`, time: null };
+  }
+  
+  // Fallback: try to parse as a regular date
+  const dateObj = new Date(date);
+  if (isNaN(dateObj.getTime())) {
+    return { date: '', time: null };
+  }
+  
+  const month = dateObj.getMonth() + 1;
+  const day = dateObj.getDate();
+  const shortYear = String(dateObj.getFullYear()).slice(-2);
+  const dateStr = `${month}/${day}/${shortYear}`;
+  
+  const hour = dateObj.getHours();
+  const minutes = String(dateObj.getMinutes()).padStart(2, '0');
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const hour12 = hour % 12 || 12;
+  const timeStr = `${hour12}:${minutes} ${ampm}`;
+  
+  return { date: dateStr, time: timeStr };
 }
 
 /**
@@ -247,7 +346,7 @@ export function parseForStorage(
   date: string | null | undefined,
   mode: AccessControlTimeMode,
   timezone: string,
-  isEndDate: boolean
+  isEndDate: boolean,
 ): string | null {
   if (!date || date.trim() === '') {
     return null;
@@ -267,9 +366,8 @@ export function parseForStorage(
   // In date-only mode, interpret as start or end of day
   if (isEndDate) {
     return endOfDay(inputDate, timezone);
-  } else {
-    return startOfDay(inputDate, timezone);
   }
+  return startOfDay(inputDate, timezone);
 }
 
 /**
@@ -310,7 +408,7 @@ export function extractDateOnly(date: string | null, timezone: string): string {
  */
 export function isValidDateRange(
   validFrom: string | null,
-  validUntil: string | null
+  validUntil: string | null,
 ): boolean {
   // If either is null, the range is valid
   if (!validFrom || !validUntil) {
@@ -344,9 +442,9 @@ export function isValidDateRange(
  */
 export function convertUtcToEventLocalForInput(
   utcString: string | null,
-  timezone: string
+  timezone: string,
 ): string {
-  if (!utcString) return '';
+  if (!utcString || typeof utcString !== 'string') return '';
   
   const date = new Date(utcString);
   if (isNaN(date.getTime())) return '';
@@ -389,7 +487,7 @@ export function convertUtcToEventLocalForInput(
  */
 export function convertEventLocalToUtcForStorage(
   localString: string,
-  timezone: string
+  timezone: string,
 ): string | null {
   if (!localString) return null;
   

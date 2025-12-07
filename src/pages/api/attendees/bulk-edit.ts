@@ -130,6 +130,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
         let hasChanges = false;
         let hasPrintableCustomFieldChanges = false;
+        
+        // Track access control field changes separately
+        const accessControlUpdates: Record<string, any> = {};
 
         // Create a map for easier lookup and updates
         const customFieldMap = new Map<string, string | string[]>(
@@ -139,6 +142,51 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         // Process changes
         for (const [fieldId, value] of Object.entries(changes)) {
           if (!value || value === 'no-change') {
+            continue;
+          }
+
+          // Handle access control fields separately
+          if (fieldId === 'accessEnabled') {
+            const newValue = value === 'active';
+            if (attendee.accessEnabled !== newValue) {
+              accessControlUpdates.accessEnabled = newValue;
+              hasChanges = true;
+              trackTraditionalUpdate(performanceMetrics);
+            }
+            continue;
+          }
+
+          if (fieldId === 'validFrom') {
+            let newValue: string | null = null;
+            if (value === CLEAR_SENTINEL) {
+              newValue = null;
+            } else if (typeof value === 'string' && value) {
+              // For date-only mode, append T00:00 to indicate start of day
+              // For date-time mode, store as-is
+              newValue = value.includes('T') ? value : `${value}T00:00`;
+            }
+            if (attendee.validFrom !== newValue) {
+              accessControlUpdates.validFrom = newValue;
+              hasChanges = true;
+              trackTraditionalUpdate(performanceMetrics);
+            }
+            continue;
+          }
+
+          if (fieldId === 'validUntil') {
+            let newValue: string | null = null;
+            if (value === CLEAR_SENTINEL) {
+              newValue = null;
+            } else if (typeof value === 'string' && value) {
+              // For date-only mode, append T23:59 to indicate end of day
+              // For date-time mode, store as-is
+              newValue = value.includes('T') ? value : `${value}T23:59`;
+            }
+            if (attendee.validUntil !== newValue) {
+              accessControlUpdates.validUntil = newValue;
+              hasChanges = true;
+              trackTraditionalUpdate(performanceMetrics);
+            }
             continue;
           }
 
@@ -249,9 +297,20 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           // Do NOT initialize lastSignificantUpdate for non-printable changes
           // If the field doesn't exist, leave it undefined so credentialGeneratedAt remains authoritative
 
+          // Add access control field updates
+          if (Object.keys(accessControlUpdates).length > 0) {
+            Object.assign(updateData, accessControlUpdates);
+          }
+
           updates.push({
             rowId: attendeeId,
             data: updateData
+          });
+        } else if (Object.keys(accessControlUpdates).length > 0) {
+          // Only access control fields changed, no custom field changes
+          updates.push({
+            rowId: attendeeId,
+            data: accessControlUpdates
           });
         }
       } catch (error: any) {
@@ -285,9 +344,19 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     }
 
     // Get field names for logging
+    const accessControlFieldLabels: Record<string, string> = {
+      accessEnabled: 'Access Status',
+      validFrom: 'Valid From',
+      validUntil: 'Valid Until'
+    };
+    
     const changedFieldNames = Object.keys(changes)
       .filter(fieldId => changes[fieldId] && changes[fieldId] !== 'no-change')
       .map(fieldId => {
+        // Check if it's an access control field first
+        if (accessControlFieldLabels[fieldId]) {
+          return accessControlFieldLabels[fieldId];
+        }
         const field = customFieldsMap.get(fieldId);
         return field?.fieldName || fieldId;
       });

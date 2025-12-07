@@ -1,13 +1,13 @@
 // useEventSettingsForm Hook
 // Custom hook containing all form logic for EventSettingsForm
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSweetAlert } from '@/hooks/useSweetAlert';
 import { sanitizeHTMLTemplate } from '@/lib/sanitization';
-import { validateSwitchboardRequestBody, validateEventSettings } from '@/lib/validation';
+import { validateEventSettings, validateSwitchboardRequestBody } from '@/lib/validation';
 import { validateCustomFieldDeletion } from '@/lib/customFieldValidation';
-import { EventSettings, CustomField, FieldMapping, IntegrationStatus } from './types';
-import { getInitialFormData, parseEventSettings, extractPrintableFlags, checkPrintableFlagChanges } from './utils';
+import { CustomField, EventSettings, FieldMapping, IntegrationStatus } from './types';
+import { checkPrintableFlagChanges, extractPrintableFlags, getInitialFormData, parseEventSettings } from './utils';
 
 interface UseEventSettingsFormProps {
   eventSettings: EventSettings | null;
@@ -20,7 +20,7 @@ export function useEventSettingsForm({
   eventSettings,
   isOpen,
   onSave,
-  onClose
+  onClose,
 }: UseEventSettingsFormProps) {
   const { success, error, info } = useSweetAlert();
 
@@ -67,7 +67,14 @@ export function useEventSettingsForm({
   // Initialize form data when eventSettings changes
   useEffect(() => {
     if (eventSettings) {
+      console.log('[EventSettingsForm] Raw eventSettings:', eventSettings);
+      console.log('[EventSettingsForm] accessControlDefaults type:', typeof eventSettings.accessControlDefaults);
+      console.log('[EventSettingsForm] accessControlDefaults value:', eventSettings.accessControlDefaults);
+      
       const parsed = parseEventSettings(eventSettings);
+      console.log('[EventSettingsForm] Parsed eventSettings:', parsed);
+      console.log('[EventSettingsForm] Parsed accessControlDefaults:', parsed.accessControlDefaults);
+      
       setFormData(parsed);
       setCustomFields(eventSettings.customFields || []);
       setOriginalPrintableFlags(extractPrintableFlags(eventSettings.customFields || []));
@@ -88,7 +95,7 @@ export function useEventSettingsForm({
   const handleInputChange = useCallback(<K extends keyof EventSettings>(field: K, value: EventSettings[K]) => {
     setFormData(prev => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }));
   }, []);
 
@@ -101,11 +108,12 @@ export function useEventSettingsForm({
       const settingsData = {
         ...formData,
         customFields,
-        switchboardFieldMappings: fieldMappings
+        switchboardFieldMappings: fieldMappings,
       };
 
-      // Validate required fields
-      const settingsValidation = validateEventSettings(settingsData);
+      // Validate required fields (isUpdate=true for existing settings, false for new)
+      const isUpdate = Boolean(eventSettings);
+      const settingsValidation = validateEventSettings(settingsData, isUpdate);
       if (!settingsValidation.valid) {
         error("Validation Error", settingsValidation.error || "Please fill in all required fields");
         setLoading(false);
@@ -137,7 +145,7 @@ export function useEventSettingsForm({
       if (hasPrintableFlagChanges) {
         info(
           "Printable Field Configuration Updated",
-          "Existing credential statuses will not be affected until attendee records are updated. Only future changes to these fields will impact credential status."
+          "Existing credential statuses will not be affected until attendee records are updated. Only future changes to these fields will impact credential status.",
         );
       }
 
@@ -146,12 +154,12 @@ export function useEventSettingsForm({
       console.error('Failed to save event settings:', err);
       error(
         'Save Failed',
-        err?.message || 'An error occurred while saving event settings. Please try again.'
+        err?.message || 'An error occurred while saving event settings. Please try again.',
       );
     } finally {
       setLoading(false);
     }
-  }, [customFields, fieldMappings, formData, onClose, onSave, originalPrintableFlags, error, info]);
+  }, [customFields, eventSettings, fieldMappings, formData, onClose, onSave, originalPrintableFlags, error, info]);
 
   // Memoized custom field handlers
   const handleAddCustomField = useCallback(() => {
@@ -159,7 +167,7 @@ export function useEventSettingsForm({
       fieldName: "",
       fieldType: "text",
       required: false,
-      order: customFields.length + 1
+      order: customFields.length + 1,
     });
     setShowFieldForm(true);
   }, [customFields.length]);
@@ -172,13 +180,13 @@ export function useEventSettingsForm({
   const handleSaveCustomField = useCallback((fieldData: CustomField) => {
     if (editingField?.id) {
       // Update existing field
-      setCustomFields(prev => prev.map(f => f.id === editingField.id ? fieldData : f));
+      setCustomFields(prev => prev.map(f => (f.id === editingField.id ? fieldData : f)));
     } else {
       // Add new field
       const newField = {
         ...fieldData,
         id: `temp_${Date.now()}`,
-        order: customFields.length + 1
+        order: customFields.length + 1,
       };
       setCustomFields(prev => [...prev, newField]);
     }
@@ -195,7 +203,7 @@ export function useEventSettingsForm({
       fieldId,
       field.fieldName,
       field.internalFieldName || '',
-      formData
+      formData,
     );
 
     if (!validation.canDelete) {
@@ -227,11 +235,11 @@ export function useEventSettingsForm({
   const handleSaveFieldMapping = useCallback((mapping: FieldMapping) => {
     if (editingFieldMapping) {
       // Update existing mapping
-      setFieldMappings(prev => prev.map(m =>
+      setFieldMappings(prev => prev.map(m => (
         m.fieldId === editingFieldMapping.fieldId && m.jsonVariable === editingFieldMapping.jsonVariable
           ? mapping
           : m
-      ));
+      )));
     } else {
       // Add new mapping
       setFieldMappings(prev => [...prev, mapping]);
@@ -242,7 +250,7 @@ export function useEventSettingsForm({
 
   const handleDeleteFieldMapping = useCallback((fieldId: string, jsonVariable: string) => {
     setFieldMappings(prev => prev.filter(m =>
-      !(m.fieldId === fieldId && m.jsonVariable === jsonVariable)
+      !(m.fieldId === fieldId && m.jsonVariable === jsonVariable),
     ));
   }, []);
 

@@ -95,7 +95,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     queries.push(Query.orderDesc('$updatedAt'));
 
     // Fetch custom fields for field name mapping
-    let customFieldMap = new Map<string, string>(); // Maps internalFieldName -> fieldName
+    let customFieldMap = new Map<string, string>(); // Maps fieldId -> fieldName
     try {
       const customFieldsResult = await databases.listDocuments(
         dbId,
@@ -103,10 +103,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         [Query.limit(1000)] // Reasonable limit for custom fields
       );
       
-      // Build mapping from internal field names to display names
+      // Build mapping from field IDs to display names
+      // Custom field values are stored with field ID as key, not internalFieldName
       customFieldsResult.documents.forEach((field: any) => {
-        if (field.internalFieldName && field.fieldName) {
-          customFieldMap.set(field.internalFieldName, field.fieldName);
+        if (field.$id && field.fieldName) {
+          customFieldMap.set(field.$id, field.fieldName);
         }
       });
     } catch (error) {
@@ -170,8 +171,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             : attendee.customFieldValues;
           
           // Create mapping with display names
-          Object.entries(customFieldValues).forEach(([internalName, value]) => {
-            const displayName = customFieldMap.get(internalName) || internalName;
+          // customFieldValues keys are field IDs, map them to display names
+          Object.entries(customFieldValues).forEach(([fieldId, value]) => {
+            const displayName = customFieldMap.get(fieldId) || fieldId;
             customFieldValuesByName[displayName] = value;
           });
         } catch (error) {

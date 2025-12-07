@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useSweetAlert } from '@/hooks/useSweetAlert';
 import { useAttendeeForm } from '@/hooks/useAttendeeForm';
@@ -62,6 +62,12 @@ interface EventSettings {
   accessControlEnabled?: boolean;
   accessControlTimeMode?: AccessControlTimeMode;
   timeZone?: string;
+  accessControlDefaults?: {
+    accessEnabled?: boolean;
+    validFrom?: string | null;
+    validUntil?: string | null;
+    validFromUseToday?: boolean;
+  };
 }
 
 /**
@@ -161,11 +167,6 @@ const AttendeeForm = React.memo(function AttendeeForm({
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const isClosingRef = React.useRef(false);
 
-  // Access control state
-  const [validFrom, setValidFrom] = useState<string | null>(attendee?.validFrom ?? null);
-  const [validUntil, setValidUntil] = useState<string | null>(attendee?.validUntil ?? null);
-  const [accessEnabled, setAccessEnabled] = useState<boolean>(attendee?.accessEnabled ?? true);
-
   const {
     formData,
     updateField,
@@ -183,12 +184,8 @@ const AttendeeForm = React.memo(function AttendeeForm({
     onUploadSuccess: setPhotoUrl
   });
 
-  // Reset access control fields when attendee changes
-  useEffect(() => {
-    setValidFrom(attendee?.validFrom ?? null);
-    setValidUntil(attendee?.validUntil ?? null);
-    setAccessEnabled(attendee?.accessEnabled ?? true);
-  }, [attendee]);
+  // Access control fields are now managed by useAttendeeForm hook
+  // Defaults are automatically applied when creating a new attendee
 
   // Prevent body scroll when dialog is open (with ref counting for multiple modals)
   useScrollLock(isOpen);
@@ -302,17 +299,8 @@ const AttendeeForm = React.memo(function AttendeeForm({
         return;
       }
 
-      const baseAttendeeData = prepareAttendeeData();
-      
-      // Add access control fields if enabled
-      const attendeeData = eventSettings?.accessControlEnabled
-        ? {
-            ...baseAttendeeData,
-            validFrom,
-            validUntil,
-            accessEnabled
-          }
-        : baseAttendeeData;
+      // prepareAttendeeData now includes access control fields
+      const attendeeData = prepareAttendeeData();
 
       // Mark as closing to prevent unsaved changes dialog
       isClosingRef.current = true;
@@ -341,17 +329,8 @@ const AttendeeForm = React.memo(function AttendeeForm({
         return;
       }
 
-      const baseAttendeeData = prepareAttendeeData();
-      
-      // Add access control fields if enabled
-      const attendeeData = eventSettings?.accessControlEnabled
-        ? {
-            ...baseAttendeeData,
-            validFrom,
-            validUntil,
-            accessEnabled
-          }
-        : baseAttendeeData;
+      // prepareAttendeeData now includes access control fields
+      const attendeeData = prepareAttendeeData();
 
       if (onSaveAndGenerate) {
         // Mark as closing to prevent unsaved changes dialog
@@ -462,12 +441,12 @@ const AttendeeForm = React.memo(function AttendeeForm({
                     <AccessControlFields
                       accessControlEnabled={eventSettings.accessControlEnabled}
                       accessControlTimeMode={eventSettings.accessControlTimeMode || 'date_only'}
-                      validFrom={validFrom}
-                      validUntil={validUntil}
-                      accessEnabled={accessEnabled}
-                      onValidFromChange={setValidFrom}
-                      onValidUntilChange={setValidUntil}
-                      onAccessEnabledChange={setAccessEnabled}
+                      validFrom={formData.validFrom}
+                      validUntil={formData.validUntil}
+                      accessEnabled={formData.accessEnabled}
+                      onValidFromChange={(value) => updateField('validFrom', value || '')}
+                      onValidUntilChange={(value) => updateField('validUntil', value || '')}
+                      onAccessEnabledChange={(value) => updateField('accessEnabled', value)}
                       eventTimezone={eventSettings.timeZone || 'UTC'}
                     />
                   )}

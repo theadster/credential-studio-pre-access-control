@@ -185,7 +185,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           return res.status(403).json({ error: 'Insufficient permissions to update attendees' });
         }
 
-        const { firstName, lastName, barcodeNumber, notes, photoUrl, customFieldValues } = req.body;
+        const { firstName, lastName, barcodeNumber, notes, photoUrl, customFieldValues, validFrom, validUntil, accessEnabled } = req.body;
 
         // Check if attendee exists and get current values BEFORE making changes
         let existingAttendee;
@@ -462,6 +462,29 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         // If no significant changes AND field exists: don't set it (leave unchanged)
         // If lastSignificantUpdate exists and no significant changes, don't update it (leave it as is)
 
+        /**
+         * ACCESS CONTROL FIELDS UPDATE
+         * 
+         * Handle updates to access control fields (validFrom, validUntil, accessEnabled).
+         * These fields are stored in a separate access control collection.
+         * Requirements 4.1, 4.2, 5.1, 8.1
+         */
+        let accessControlUpdateNeeded = false;
+        const accessControlData: any = {};
+
+        if (validFrom !== undefined) {
+          accessControlData.validFrom = validFrom;
+          accessControlUpdateNeeded = true;
+        }
+        if (validUntil !== undefined) {
+          accessControlData.validUntil = validUntil;
+          accessControlUpdateNeeded = true;
+        }
+        if (accessEnabled !== undefined) {
+          accessControlData.accessEnabled = accessEnabled;
+          accessControlUpdateNeeded = true;
+        }
+
         // Update custom field values if provided
         if (customFieldValues !== undefined) {
           console.log('Received customFieldValues:', customFieldValues);
@@ -522,6 +545,23 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           }
         }
 
+        // Fetch existing Access Control data for change detection
+        let existingAccessControl: any = null;
+        if (accessControlCollectionId && accessControlUpdateNeeded) {
+          try {
+            const accessControlResult = await databases.listDocuments(
+              dbId,
+              accessControlCollectionId,
+              [Query.equal('attendeeId', id), Query.limit(1)]
+            );
+            if (accessControlResult.documents.length > 0) {
+              existingAccessControl = accessControlResult.documents[0];
+            }
+          } catch (error) {
+            console.warn('[Attendee Update] Failed to fetch existing access control for change detection:', error);
+          }
+        }
+
         // Prepare change details for logging
         const changeDetails: string[] = [];
 
@@ -544,6 +584,37 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           const oldPhoto = existingAttendee.photoUrl ? 'has photo' : 'no photo';
           const newPhoto = photoUrl ? 'has photo' : 'no photo';
           changeDetails.push(`Photo: ${oldPhoto} → ${newPhoto}`);
+        }
+
+        // Check for Access Control field changes
+        if (accessControlUpdateNeeded && existingAccessControl) {
+          if (accessEnabled !== undefined && accessEnabled !== existingAccessControl.accessEnabled) {
+            const oldStatus = existingAccessControl.accessEnabled ? 'Active' : 'Inactive';
+            const newStatus = accessEnabled ? 'Active' : 'Inactive';
+            changeDetails.push(`Access Status: ${oldStatus} → ${newStatus}`);
+          }
+          if (validFrom !== undefined && validFrom !== existingAccessControl.validFrom) {
+            const oldDate = existingAccessControl.validFrom || 'empty';
+            const newDate = validFrom || 'empty';
+            changeDetails.push(`Valid From: ${oldDate} → ${newDate}`);
+          }
+          if (validUntil !== undefined && validUntil !== existingAccessControl.validUntil) {
+            const oldDate = existingAccessControl.validUntil || 'empty';
+            const newDate = validUntil || 'empty';
+            changeDetails.push(`Valid Until: ${oldDate} → ${newDate}`);
+          }
+        } else if (accessControlUpdateNeeded && !existingAccessControl) {
+          // New Access Control record being created
+          if (accessEnabled !== undefined) {
+            const newStatus = accessEnabled ? 'Active' : 'Inactive';
+            changeDetails.push(`Access Status: (new) → ${newStatus}`);
+          }
+          if (validFrom !== undefined && validFrom) {
+            changeDetails.push(`Valid From: (new) → ${validFrom}`);
+          }
+          if (validUntil !== undefined && validUntil) {
+            changeDetails.push(`Valid Until: (new) → ${validUntil}`);
+          }
         }
 
         // Check for custom field changes with detailed before/after values
@@ -666,6 +737,37 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
               data: updateData
             }
           ];
+
+          // Add access control update if needed (reuse previously-fetched existingAccessControl)
+          if (accessControlUpdateNeeded && accessControlCollectionId) {
+            try {
+              if (existingAccessControl) {
+                // Update existing access control record
+                operations.push({
+                  action: 'update',
+                  databaseId: dbId,
+                  tableId: accessControlCollectionId,
+                  rowId: existingAccessControl.$id,
+                  data: accessControlData
+                });
+              } else {
+                // Create new access control record
+                operations.push({
+                  action: 'create',
+                  databaseId: dbId,
+                  tableId: accessControlCollectionId,
+                  rowId: ID.unique(),
+                  data: {
+                    attendeeId: id,
+                    ...accessControlData
+                  }
+                });
+              }
+            } catch (error) {
+              console.warn('[Attendee Update] Failed to handle access control update:', error);
+              // Continue with attendee update even if access control fails
+            }
+          }
 
           // Add audit log if enabled
           if (await shouldLog('attendeeUpdate')) {

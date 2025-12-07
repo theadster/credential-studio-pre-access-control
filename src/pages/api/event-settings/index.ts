@@ -1130,6 +1130,10 @@ function detectChanges(updateData: any, currentSettings: any): string[] {
  * Returns only core event settings fields
  */
 function getCoreEventSettingsFields(updateData: any) {
+  if (!updateData || typeof updateData !== 'object') {
+    return {};
+  }
+
   // First, exclude known integration and special fields
   const {
     // Exclude all Cloudinary integration fields
@@ -1156,7 +1160,52 @@ function getCoreEventSettingsFields(updateData: any) {
   const coreFields: any = {};
   for (const [key, value] of Object.entries(remainingFields)) {
     if (!key.startsWith('$') && key !== 'createdAt' && key !== 'updatedAt') {
-      coreFields[key] = value;
+      // Stringify complex objects for Appwrite storage
+      if (key === 'accessControlDefaults' && value !== null && value !== undefined) {
+        // Always stringify - even if it looks like a string, it should be a proper JSON string
+        // This handles cases where the value might be a malformed object with numeric keys
+        if (typeof value === 'object' && !Array.isArray(value)) {
+          // Check if it's a malformed stringified object (has numeric keys like "0", "1", etc.)
+          const keys = Object.keys(value);
+          const hasNumericKeys = keys.some(k => !isNaN(Number(k)));
+          
+          if (hasNumericKeys && keys.length > 10) {
+            // This is a malformed stringified JSON - reconstruct the string from numeric keys
+            const valueObj = value as Record<string, string>;
+            const reconstructed = keys
+              .filter(k => !isNaN(Number(k)))
+              .sort((a, b) => Number(a) - Number(b))
+              .map(k => valueObj[k])
+              .join('');
+            
+            // Parse it back to object and re-stringify properly
+            try {
+              const parsed = JSON.parse(reconstructed);
+              coreFields[key] = JSON.stringify(parsed);
+            } catch {
+              // If parsing fails, just stringify the original value
+              coreFields[key] = JSON.stringify(value);
+            }
+          } else {
+            // Normal object, stringify it
+            coreFields[key] = JSON.stringify(value);
+          }
+        } else if (typeof value === 'string') {
+          // Already a string - verify it's valid JSON, if not, wrap it
+          try {
+            JSON.parse(value);
+            coreFields[key] = value; // Valid JSON string, use as-is
+          } catch {
+            // Not valid JSON, stringify it
+            coreFields[key] = JSON.stringify(value);
+          }
+        } else {
+          // Primitive value or array, stringify it
+          coreFields[key] = JSON.stringify(value);
+        }
+      } else {
+        coreFields[key] = value;
+      }
     }
   }
 
@@ -1471,9 +1520,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           res.setHeader(key, value);
         });
 
-        // Cache the response data (5 minute TTL by default)
+        // Transform response to ensure access control fields are always present
+        // This parses accessControlDefaults from string to object
+        const transformedResponse = transformEventSettingsResponse(eventSettingsWithFields);
+
+        // Cache the TRANSFORMED response data (5 minute TTL by default)
+        // Important: Cache the transformed data so cached responses have parsed accessControlDefaults
         try {
-          eventSettingsCache.set(cacheKey, eventSettingsWithFields);
+          eventSettingsCache.set(cacheKey, transformedResponse);
         } catch (cacheSetError) {
           // Log cache set error but don't fail the request
           console.error('Cache set error in GET /api/event-settings:', {
@@ -1483,9 +1537,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             timestamp: new Date().toISOString()
           });
         }
-
-        // Transform response to ensure access control fields are always present
-        const transformedResponse = transformEventSettingsResponse(eventSettingsWithFields);
 
         // Send response immediately without waiting for logging
         res.status(200).json(transformedResponse);
@@ -1693,6 +1744,12 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
           // Access Control settings - disabled by default (Requirements 1.6, 3.5)
           accessControlEnabled: false,
           accessControlTimeMode: 'date_only',
+          accessControlDefaults: {
+            accessEnabled: true,
+            validFrom: null,
+            validUntil: null,
+            validFromUseToday: false
+          },
           cloudinaryCloudName: cloudinaryCloudName || null,
           // DEPRECATED: Credentials no longer stored (legacy schema only)
           cloudinaryApiKey: cloudinaryApiKey || null,
@@ -1779,8 +1836,8 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
   const updateData = req.body;
   const { customFields, ...eventSettingsData } = updateData;
 
-  // PHASE 1 SECURITY: Validate request body
-  const settingsValidation = validateEventSettings(updateData);
+  // PHASE 1 SECURITY: Validate request body (isUpdate=true allows partial updates)
+  const settingsValidation = validateEventSettings(updateData, true);
   if (!settingsValidation.valid) {
     return res.status(400).json({ 
       error: 'Validation Error', 

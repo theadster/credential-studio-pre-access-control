@@ -5,10 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { useSweetAlert } from '@/hooks/useSweetAlert';
-import { Download, FileSpreadsheet, Users, Filter } from 'lucide-react';
+import { Download, FileSpreadsheet, Users, Funnel, Calendar, Clock } from 'lucide-react';
 
 interface ExportDialogProps {
   children: React.ReactNode;
@@ -31,6 +32,8 @@ interface ExportDialogProps {
       fieldType: string;
       required?: boolean;
     }>;
+    accessControlEnabled?: boolean;
+    accessControlTimeMode?: 'date_only' | 'date_time';
   } | null;
 }
 
@@ -38,7 +41,7 @@ interface ExportField {
   id: string;
   name: string;
   description: string;
-  category: 'basic' | 'custom' | 'system';
+  category: 'basic' | 'custom' | 'system' | 'access-control';
   required?: boolean;
 }
 
@@ -63,6 +66,8 @@ export default function ExportDialog({
     'createdAt'
   ]);
   const [isExporting, setIsExporting] = useState(false);
+  const [dateFormat, setDateFormat] = useState<'iso' | 'us' | 'compact'>('compact');
+  const [timeFormat, setTimeFormat] = useState<'24h' | '12h'>('12h');
 
   // Define available export fields
   const exportFields: ExportField[] = [
@@ -72,12 +77,20 @@ export default function ExportDialog({
     { id: 'barcodeNumber', name: 'Barcode', description: 'Unique barcode identifier', category: 'basic' },
     { id: 'photoUrl', name: 'Photo URL', description: 'Link to attendee photo', category: 'basic' },
     { id: 'credentialUrl', name: 'Credential URL', description: 'Link to generated credential', category: 'basic' },
+    { id: 'notes', name: 'Notes', description: 'Additional notes or comments', category: 'basic' },
     
     // System fields
     { id: 'createdAt', name: 'Created Date', description: 'When the record was created', category: 'system' },
     { id: 'updatedAt', name: 'Updated Date', description: 'When the record was last modified', category: 'system' },
     { id: 'credentialGeneratedAt', name: 'Credential Generated', description: 'When the credential was generated', category: 'system' },
   ];
+
+  // Add Access Control fields if enabled
+  const accessControlFields: ExportField[] = eventSettings?.accessControlEnabled ? [
+    { id: 'accessEnabled', name: 'Access Status', description: 'Whether access is enabled (Active/Inactive)', category: 'access-control' },
+    { id: 'validFrom', name: 'Valid From', description: 'Access validity start date/time', category: 'access-control' },
+    { id: 'validUntil', name: 'Valid Until', description: 'Access validity end date/time', category: 'access-control' },
+  ] : [];
 
   // Get custom fields from event settings
   const customFields: ExportField[] = eventSettings?.customFields?.map(field => ({
@@ -88,7 +101,7 @@ export default function ExportDialog({
     required: field.required
   })) || [];
 
-  const allFields = [...exportFields, ...customFields];
+  const allFields = [...exportFields, ...accessControlFields, ...customFields];
 
   const handleFieldToggle = (fieldId: string, checked: boolean) => {
     const field = allFields.find(f => f.id === fieldId);
@@ -130,6 +143,8 @@ export default function ExportDialog({
       const exportParams = {
         scope: exportScope,
         fields: selectedFields,
+        dateFormat,
+        timeFormat,
         ...(exportScope === 'filtered' && isFiltered && {
           filters: {
             searchTerm,
@@ -196,14 +211,16 @@ export default function ExportDialog({
       }
       
       // Add custom field filters
-      Object.entries(advancedFilters.customFields).forEach(([fieldId, filter]) => {
-        if (filter.value) {
-          filters.push(`Custom Field: "${filter.value}"`);
-        }
-        if (filter.searchEmpty) {
-          filters.push(`Empty Custom Field`);
-        }
-      });
+      if (advancedFilters.customFields) {
+        Object.entries(advancedFilters.customFields).forEach(([fieldId, filter]) => {
+          if (filter.value) {
+            filters.push(`Custom Field: "${filter.value}"`);
+          }
+          if (filter.searchEmpty) {
+            filters.push(`Empty Custom Field`);
+          }
+        });
+      }
     }
     
     return filters;
@@ -272,7 +289,7 @@ export default function ExportDialog({
                         <div>
                           <div className="font-medium flex items-center gap-2">
                             Current Search Results
-                            <Filter className="h-3 w-3" />
+                            <Funnel className="h-3 w-3" />
                           </div>
                           <div className="text-sm text-muted-foreground">Export only filtered results</div>
                           {getActiveFiltersDescription().length > 0 && (
@@ -331,6 +348,15 @@ export default function ExportDialog({
                   >
                     Select System
                   </Button>
+                  {eventSettings?.accessControlEnabled && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleSelectAll('access-control')}
+                    >
+                      Select Access Control
+                    </Button>
+                  )}
                 </div>
 
                 <Separator />
@@ -417,6 +443,58 @@ export default function ExportDialog({
                   </div>
                 </div>
 
+                {/* Access Control Fields Section (if enabled) */}
+                {eventSettings?.accessControlEnabled && accessControlFields.length > 0 && (
+                  <>
+                    <Separator />
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-medium flex items-center gap-2">
+                          <Calendar className="h-4 w-4" />
+                          Access Control
+                        </h4>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              const acFields = accessControlFields.map(f => f.id);
+                              setSelectedFields(prev => [...new Set([...prev, ...acFields])]);
+                            }}
+                          >
+                            Select All
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              const acFields = accessControlFields.map(f => f.id);
+                              setSelectedFields(prev => prev.filter(id => !acFields.includes(id)));
+                            }}
+                          >
+                            Deselect All
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {accessControlFields.map((field) => (
+                          <div key={field.id} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={field.id}
+                              checked={selectedFields.includes(field.id)}
+                              onCheckedChange={(checked) => handleFieldToggle(field.id, checked as boolean)}
+                            />
+                            <Label htmlFor={field.id} className="flex-1">
+                              <div className="font-medium">{field.name}</div>
+                              <div className="text-sm text-muted-foreground">{field.description}</div>
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+
                 {/* Custom Fields Section (if any) */}
                 {customFields.length > 0 && (
                   <>
@@ -462,6 +540,78 @@ export default function ExportDialog({
               </div>
             </CardContent>
           </Card>
+
+          {/* Date/Time Format Options */}
+          {(selectedFields.includes('createdAt') || 
+            selectedFields.includes('updatedAt') || 
+            selectedFields.includes('credentialGeneratedAt') ||
+            selectedFields.includes('validFrom') ||
+            selectedFields.includes('validUntil')) && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  Date & Time Format
+                </CardTitle>
+                <CardDescription>
+                  Choose how dates and times should be formatted in the export
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="dateFormat">Date Format</Label>
+                    <Select value={dateFormat} onValueChange={(value: 'iso' | 'us' | 'compact') => setDateFormat(value)}>
+                      <SelectTrigger id="dateFormat" className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="compact">Compact (3/15/24)</SelectItem>
+                        <SelectItem value="us">US Format (03/15/2024)</SelectItem>
+                        <SelectItem value="iso">ISO Format (2024-03-15)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {dateFormat === 'compact' && 'Short format: M/D/YY'}
+                      {dateFormat === 'us' && 'Standard US format: MM/DD/YYYY'}
+                      {dateFormat === 'iso' && 'International standard: YYYY-MM-DD'}
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="timeFormat">Time Format</Label>
+                    <Select value={timeFormat} onValueChange={(value: '24h' | '12h') => setTimeFormat(value)}>
+                      <SelectTrigger id="timeFormat" className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="12h">12-Hour (2:30 PM)</SelectItem>
+                        <SelectItem value="24h">24-Hour (14:30)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {timeFormat === '12h' && 'With AM/PM indicator'}
+                      {timeFormat === '24h' && 'Military time format'}
+                    </p>
+                  </div>
+
+                  {eventSettings?.accessControlEnabled && eventSettings?.accessControlTimeMode && (
+                    <div className="bg-muted/50 p-3 rounded-md">
+                      <p className="text-xs text-muted-foreground">
+                        <strong>Note:</strong> Access Control is in{' '}
+                        <span className="font-medium">
+                          {eventSettings.accessControlTimeMode === 'date_only' ? 'Date Only' : 'Date & Time'}
+                        </span>{' '}
+                        mode. {eventSettings.accessControlTimeMode === 'date_only' 
+                          ? 'Only dates will be exported for Valid From/Until fields.'
+                          : 'Full date and time will be exported for Valid From/Until fields.'}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Export Summary */}
           <Card>

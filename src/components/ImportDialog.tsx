@@ -19,13 +19,19 @@ interface CustomField {
   fieldType: string;
 }
 
+interface AccessControlSettings {
+  accessControlEnabled?: boolean;
+  accessControlTimeMode?: 'date_only' | 'date_time';
+}
+
 interface ImportDialogProps {
   children: React.ReactNode;
   onImportSuccess: () => void;
   customFields: CustomField[];
+  accessControlSettings?: AccessControlSettings;
 }
 
-export default function ImportDialog({ children, onImportSuccess, customFields }: ImportDialogProps) {
+export default function ImportDialog({ children, onImportSuccess, customFields, accessControlSettings }: ImportDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -79,7 +85,7 @@ export default function ImportDialog({ children, onImportSuccess, customFields }
   };
 
   // Define all columns with their internal names and descriptions
-  const allColumns = [
+  const baseColumns = [
     { internalName: 'firstName', description: 'First Name' },
     { internalName: 'lastName', description: 'Last Name' },
     ...(customFields || []).map(field => ({
@@ -88,14 +94,30 @@ export default function ImportDialog({ children, onImportSuccess, customFields }
     }))
   ];
 
+  // Add access control columns if enabled
+  const accessControlColumns = accessControlSettings?.accessControlEnabled ? [
+    { internalName: 'validFrom', description: 'Valid From' },
+    { internalName: 'validUntil', description: 'Valid Until' },
+    { internalName: 'accessEnabled', description: 'Access Status' }
+  ] : [];
+
+  const allColumns = [...baseColumns, ...accessControlColumns];
+
   // Generate sample data
   const generateSampleData = () => {
+    const isDateTimeMode = accessControlSettings?.accessControlTimeMode === 'date_time';
     const sampleRow = allColumns.map(col => {
       switch (col.internalName) {
         case 'firstName':
           return 'John';
         case 'lastName':
           return 'Doe';
+        case 'validFrom':
+          return isDateTimeMode ? '2025-01-01T09:00' : '2025-01-01';
+        case 'validUntil':
+          return isDateTimeMode ? '2025-12-31T18:00' : '2025-12-31';
+        case 'accessEnabled':
+          return 'Yes';
         default:
           // For custom fields, provide sample based on type
           const customField = customFields?.find(f => f.internalFieldName === col.internalName);
@@ -259,6 +281,13 @@ export default function ImportDialog({ children, onImportSuccess, customFields }
               <p>• Barcode numbers will be automatically generated based on your event settings</p>
               <p>• Boolean fields accept: Yes/No, True/False, 1/0</p>
               <p>• URL fields should include full URLs (e.g., https://example.com)</p>
+              {accessControlSettings?.accessControlEnabled && (
+                <>
+                  <p>• <strong>Access Control Fields:</strong></p>
+                  <p className="ml-2">- validFrom/validUntil: {accessControlSettings.accessControlTimeMode === 'date_time' ? 'YYYY-MM-DDTHH:mm format' : 'YYYY-MM-DD format'}</p>
+                  <p className="ml-2">- accessEnabled: Yes/No (defaults to Yes if not provided)</p>
+                </>
+              )}
             </div>
           </div>
 

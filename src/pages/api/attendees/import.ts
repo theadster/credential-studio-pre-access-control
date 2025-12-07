@@ -180,7 +180,7 @@ const handler = async (req: AuthenticatedRequest, res: NextApiResponse) => {
           console.log(`[Import] Found ${existingBarcodes.size} existing barcodes`);
 
           const attendeesToCreate = results.map(row => {
-            const { firstName, lastName, barcodeNumber, ...customFieldValues } = row;
+            const { firstName, lastName, barcodeNumber, validFrom, validUntil, accessEnabled, ...customFieldValues } = row;
 
             if (!firstName || !lastName) {
               // Skip rows that are missing required fields
@@ -281,6 +281,61 @@ const handler = async (req: AuthenticatedRequest, res: NextApiResponse) => {
             // This establishes a baseline for future credential status tracking
             const now = new Date().toISOString();
 
+            // Process access control fields if access control is enabled
+            let processedValidFrom: string | null = null;
+            let processedValidUntil: string | null = null;
+            let processedAccessEnabled = true; // Default to active
+
+            if (eventSettings.accessControlEnabled) {
+              // Process validFrom
+              if (validFrom && String(validFrom).trim()) {
+                const validFromStr = String(validFrom).trim();
+                // Check if it already has time component
+                if (validFromStr.includes('T')) {
+                  processedValidFrom = validFromStr;
+                } else {
+                  // Date-only mode: append T00:00 for start of day
+                  processedValidFrom = `${validFromStr}T00:00`;
+                }
+              } else if (eventSettings.accessControlDefaults?.validFromUseToday) {
+                // Use today's date as default
+                const today = new Date().toISOString().split('T')[0];
+                processedValidFrom = `${today}T00:00`;
+              } else if (eventSettings.accessControlDefaults?.validFrom) {
+                processedValidFrom = eventSettings.accessControlDefaults.validFrom;
+              }
+
+              // Process validUntil
+              if (validUntil && String(validUntil).trim()) {
+                const validUntilStr = String(validUntil).trim();
+                // Check if it already has time component
+                if (validUntilStr.includes('T')) {
+                  processedValidUntil = validUntilStr;
+                } else {
+                  // Date-only mode: append T23:59 for end of day
+                  processedValidUntil = `${validUntilStr}T23:59`;
+                }
+              } else if (eventSettings.accessControlDefaults?.validUntil) {
+                processedValidUntil = eventSettings.accessControlDefaults.validUntil;
+              }
+
+              // Process accessEnabled
+              if (accessEnabled !== null && accessEnabled !== undefined && String(accessEnabled).trim()) {
+                const truthyValues = ['yes', 'true', '1', 'active'];
+                const falsyValues = ['no', 'false', '0', 'inactive'];
+                const lowerValue = String(accessEnabled).toLowerCase().trim();
+                
+                if (truthyValues.includes(lowerValue)) {
+                  processedAccessEnabled = true;
+                } else if (falsyValues.includes(lowerValue)) {
+                  processedAccessEnabled = false;
+                }
+                // Default remains true for unrecognized values
+              } else if (eventSettings.accessControlDefaults?.accessEnabled !== undefined) {
+                processedAccessEnabled = eventSettings.accessControlDefaults.accessEnabled;
+              }
+            }
+
             return {
               firstName: processedFirstName,
               lastName: processedLastName,
@@ -288,6 +343,12 @@ const handler = async (req: AuthenticatedRequest, res: NextApiResponse) => {
               customFieldValues: JSON.stringify(customFieldsData),
               notes: '', // Set to empty string instead of null to avoid false change detection
               lastSignificantUpdate: now, // Initialize for new records
+              // Access control fields (only included if access control is enabled)
+              ...(eventSettings.accessControlEnabled && {
+                validFrom: processedValidFrom,
+                validUntil: processedValidUntil,
+                accessEnabled: processedAccessEnabled
+              })
             };
           }).filter(Boolean) as any[];
 

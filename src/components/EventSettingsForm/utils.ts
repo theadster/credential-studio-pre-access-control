@@ -90,10 +90,22 @@ export function parseEventSettings(settings: EventSettings): EventSettings {
     parsedTime = settings.eventTime;
   }
 
+  // Parse accessControlDefaults if it's a string
+  let accessControlDefaults = settings.accessControlDefaults;
+  if (typeof accessControlDefaults === 'string') {
+    try {
+      accessControlDefaults = JSON.parse(accessControlDefaults);
+    } catch (e) {
+      console.error('Failed to parse accessControlDefaults in parseEventSettings:', e);
+      accessControlDefaults = undefined;
+    }
+  }
+
   return {
     ...settings,
     eventDate: parsedDate,
-    eventTime: parsedTime
+    eventTime: parsedTime,
+    accessControlDefaults
   };
 }
 

@@ -69,6 +69,17 @@ export interface EventSettings {
   accessControlEnabled?: boolean;
   /** Time mode for access control date interpretation */
   accessControlTimeMode?: AccessControlTimeMode;
+  /** Default access control values for new attendees */
+  accessControlDefaults?: {
+    /** Default access status (true = active, false = inactive) */
+    accessEnabled?: boolean;
+    /** Default Valid From date/datetime */
+    validFrom?: string | null;
+    /** Default Valid Until date/datetime */
+    validUntil?: string | null;
+    /** Whether to use today's date for Valid From (overrides validFrom) */
+    validFromUseToday?: boolean;
+  };
   cloudinaryEnabled?: boolean;
   cloudinaryCloudName?: string;
   cloudinaryUploadPreset?: string;

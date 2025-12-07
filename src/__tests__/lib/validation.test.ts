@@ -195,6 +195,57 @@ describe('validateEventSettings', () => {
     expect(result.valid).toBe(false);
     expect(result.error).toContain('Webhook URL is required');
   });
+
+  // Tests for isUpdate parameter
+  it('should allow partial updates when isUpdate=true', () => {
+    const settings = {
+      accessControlDefaults: {
+        accessEnabled: true,
+        validFromUseToday: true
+      }
+    };
+    const result = validateEventSettings(settings, true);
+    expect(result.valid).toBe(true);
+  });
+
+  it('should reject missing required fields when isUpdate=false', () => {
+    const settings = {
+      accessControlDefaults: {
+        accessEnabled: true
+      }
+    };
+    const result = validateEventSettings(settings, false);
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain('eventName');
+  });
+
+  it('should validate present required fields even in update mode', () => {
+    const settings = {
+      eventName: '',  // Empty string should still fail
+      accessControlDefaults: {
+        accessEnabled: true
+      }
+    };
+    const result = validateEventSettings(settings, true);
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain('eventName');
+  });
+
+  it('should allow updating only accessControlDefaults', () => {
+    const settings = {
+      eventName: 'Test Event',
+      eventDate: '2024-12-31',
+      eventLocation: 'Test Location',
+      accessControlDefaults: {
+        accessEnabled: false,
+        validFrom: '2024-01-01',
+        validUntil: '2024-12-31',
+        validFromUseToday: false
+      }
+    };
+    const result = validateEventSettings(settings, true);
+    expect(result.valid).toBe(true);
+  });
 });
 
 describe('validateCustomField', () => {
