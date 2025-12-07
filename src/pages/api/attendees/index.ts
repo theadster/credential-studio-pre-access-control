@@ -18,6 +18,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     const rolesCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!;
     const logsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!;
     const logSettingsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_LOG_SETTINGS_COLLECTION_ID!;
+    const accessControlCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ACCESS_CONTROL_COLLECTION_ID!;
 
     switch (req.method) {
       case 'GET':
@@ -403,6 +404,46 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           console.log(`Successfully fetched all ${allDocuments.length} attendees in ${totalPages} batches`);
         }
 
+        /**
+         * ACCESS CONTROL DATA FETCHING
+         * 
+         * Fetch access control records for all attendees in this batch.
+         * Access control fields (validFrom, validUntil, accessEnabled) are stored
+         * in a separate collection and need to be joined with attendee data.
+         * 
+         * Requirements 7.2, 7.3: Include access control fields in API responses
+         */
+        const accessControlMap = new Map<string, { accessEnabled: boolean; validFrom: string | null; validUntil: string | null }>();
+        
+        if (accessControlCollectionId && attendeesResult.documents.length > 0) {
+          try {
+            const attendeeIds = attendeesResult.documents.map((doc: any) => doc.$id);
+            
+            // Fetch access control data in batches (Appwrite limit for 'in' queries is 100)
+            const chunkSize = 100;
+            for (let i = 0; i < attendeeIds.length; i += chunkSize) {
+              const chunk = attendeeIds.slice(i, i + chunkSize);
+              const accessControlResult = await databases.listDocuments(
+                dbId,
+                accessControlCollectionId,
+                [Query.equal('attendeeId', chunk), Query.limit(chunkSize)]
+              );
+              
+              // Map access control records by attendeeId
+              accessControlResult.documents.forEach((ac: any) => {
+                accessControlMap.set(ac.attendeeId, {
+                  accessEnabled: ac.accessEnabled ?? true,
+                  validFrom: ac.validFrom || null,
+                  validUntil: ac.validUntil || null
+                });
+              });
+            }
+          } catch (error) {
+            // If access control collection doesn't exist or fails, continue without it
+            console.warn('[Attendees API] Failed to fetch access control data:', error);
+          }
+        }
+
         // Map attendees and filter custom field values based on visibility
         let attendees = attendeesResult.documents.map((attendee: any) => {
           /**
@@ -428,31 +469,51 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           // Parse customFieldValues from JSON string to object
           let parsedCustomFieldValues = [];
           if (attendee.customFieldValues) {
-            const parsed = typeof attendee.customFieldValues === 'string' 
-              ? JSON.parse(attendee.customFieldValues) 
-              : attendee.customFieldValues;
-            
-            // Convert object format {fieldId: value} to array format [{customFieldId, value}]
-            // Filter to only include visible fields (showOnMainPage !== false)
-            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-              parsedCustomFieldValues = Object.entries(parsed)
-                .filter(([customFieldId]) => visibleFieldIds.has(customFieldId)) // Only include visible fields
-                .map(([customFieldId, value]) => ({
-                  customFieldId,
-                  value: String(value)
-                }));
-            } else if (Array.isArray(parsed)) {
-              // Handle legacy array format (if any exists)
-              parsedCustomFieldValues = parsed.filter((cfv: any) => 
-                visibleFieldIds.has(cfv.customFieldId)
-              );
+            try {
+              const parsed = typeof attendee.customFieldValues === 'string' 
+                ? JSON.parse(attendee.customFieldValues) 
+                : attendee.customFieldValues;
+              
+              // Convert object format {fieldId: value} to array format [{customFieldId, value}]
+              // Filter to only include visible fields (showOnMainPage !== false)
+              if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                parsedCustomFieldValues = Object.entries(parsed)
+                  .filter(([customFieldId]) => visibleFieldIds.has(customFieldId)) // Only include visible fields
+                  .map(([customFieldId, value]) => ({
+                    customFieldId,
+                    value: String(value)
+                  }));
+              } else if (Array.isArray(parsed)) {
+                // Handle legacy array format (if any exists)
+                parsedCustomFieldValues = parsed
+                  .filter((cfv: any) => visibleFieldIds.has(cfv.customFieldId))
+                  .map((cfv: any) => ({
+                    customFieldId: cfv.customFieldId,
+                    value: String(cfv.value)
+                  }));
+              }
+            } catch (err) {
+              console.error(`Failed to parse customFieldValues for attendee ${attendee.$id}:`, err);
+              // Continue with empty array if parsing fails
             }
           }
+          
+          // Get access control data for this attendee (default to enabled if not found)
+          // Requirements 7.2, 7.3: Include access control fields in API responses
+          const accessControl = accessControlMap.get(attendee.$id) || {
+            accessEnabled: true,
+            validFrom: null,
+            validUntil: null
+          };
           
           return {
             ...attendee,
             id: attendee.$id, // Map $id to id for frontend compatibility
-            customFieldValues: parsedCustomFieldValues
+            customFieldValues: parsedCustomFieldValues,
+            // Access control fields (Requirements 7.2, 7.3)
+            accessEnabled: accessControl.accessEnabled,
+            validFrom: accessControl.validFrom,
+            validUntil: accessControl.validUntil
           };
         });
 

@@ -43,6 +43,13 @@ export interface FieldMapping {
   valueMapping?: { [key: string]: string };
 }
 
+/**
+ * Time mode for access control date interpretation
+ * - 'date_only': Validity interpreted as full days (12:00 AM start, 11:59 PM end)
+ * - 'date_time': Validity interpreted with exact timestamps down to the minute
+ */
+export type AccessControlTimeMode = 'date_only' | 'date_time';
+
 export interface EventSettings {
   id?: string;
   eventName: string;
@@ -58,6 +65,10 @@ export interface EventSettings {
   attendeeSortField?: string;
   attendeeSortDirection?: string;
   customFieldColumns?: number;
+  /** Whether access control is enabled for this event */
+  accessControlEnabled?: boolean;
+  /** Time mode for access control date interpretation */
+  accessControlTimeMode?: AccessControlTimeMode;
   cloudinaryEnabled?: boolean;
   cloudinaryCloudName?: string;
   cloudinaryUploadPreset?: string;

@@ -30,6 +30,10 @@ import {
   Save
 } from 'lucide-react';
 import { useSweetAlert } from '@/hooks/useSweetAlert';
+import {
+  convertUtcToEventLocalForInput,
+  convertEventLocalToUtcForStorage
+} from '@/lib/accessControlDates';
 
 interface AccessControlData {
   $id: string | null;
@@ -44,6 +48,8 @@ interface AccessControlData {
 interface AccessControlFormProps {
   /** The attendee ID to manage access control for */
   attendeeId: string;
+  /** Event timezone for date interpretation (defaults to UTC) */
+  eventTimezone?: string;
   /** Optional callback when access control is updated */
   onUpdate?: (data: AccessControlData) => void;
   /** Whether the form is in read-only mode */
@@ -52,36 +58,9 @@ interface AccessControlFormProps {
   compact?: boolean;
 }
 
-/**
- * Converts a UTC ISO string to local datetime-local input format
- */
-function utcToLocalDatetime(utcString: string | null): string {
-  if (!utcString) return '';
-  const date = new Date(utcString);
-  // Validate the date is valid before formatting
-  if (isNaN(date.getTime())) return '';
-  // Format as YYYY-MM-DDTHH:mm for datetime-local input
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  return `${year}-${month}-${day}T${hours}:${minutes}`;
-}
-
-/**
- * Converts a local datetime-local input value to UTC ISO string
- */
-function localDatetimeToUtc(localString: string): string | null {
-  if (!localString) return null;
-  const date = new Date(localString);
-  // Validate the date is valid before converting to ISO string
-  if (isNaN(date.getTime())) return null;
-  return date.toISOString();
-}
-
 export default function AccessControlForm({
   attendeeId,
+  eventTimezone = 'UTC',
   onUpdate,
   readOnly = false,
   compact = false
@@ -110,8 +89,8 @@ export default function AccessControlForm({
         const data = await response.json();
         setAccessControl(data);
         setAccessEnabled(data.accessEnabled);
-        setValidFrom(utcToLocalDatetime(data.validFrom));
-        setValidUntil(utcToLocalDatetime(data.validUntil));
+        setValidFrom(convertUtcToEventLocalForInput(data.validFrom, eventTimezone));
+        setValidUntil(convertUtcToEventLocalForInput(data.validUntil, eventTimezone));
         setHasChanges(false);
       } else {
         const errorData = await response.json();
@@ -123,7 +102,7 @@ export default function AccessControlForm({
     } finally {
       setLoading(false);
     }
-  }, [attendeeId, showError]);
+  }, [attendeeId, eventTimezone, showError]);
 
   useEffect(() => {
     loadAccessControl();
@@ -149,8 +128,8 @@ export default function AccessControlForm({
     if (!accessControl) return;
     
     const originalEnabled = accessControl.accessEnabled;
-    const originalFrom = utcToLocalDatetime(accessControl.validFrom);
-    const originalUntil = utcToLocalDatetime(accessControl.validUntil);
+    const originalFrom = convertUtcToEventLocalForInput(accessControl.validFrom, eventTimezone);
+    const originalUntil = convertUtcToEventLocalForInput(accessControl.validUntil, eventTimezone);
     
     const changed = 
       accessEnabled !== originalEnabled ||
@@ -158,7 +137,7 @@ export default function AccessControlForm({
       validUntil !== originalUntil;
     
     setHasChanges(changed);
-  }, [accessEnabled, validFrom, validUntil, accessControl]);
+  }, [accessEnabled, validFrom, validUntil, accessControl, eventTimezone]);
 
   // Handle save
   const handleSave = async () => {
@@ -174,13 +153,23 @@ export default function AccessControlForm({
 
     setSaving(true);
     try {
+      const convertedValidFrom = convertEventLocalToUtcForStorage(validFrom, eventTimezone);
+      const convertedValidUntil = convertEventLocalToUtcForStorage(validUntil, eventTimezone);
+
+      // Validate conversion results - if input was provided but conversion failed, show error
+      if ((validFrom && !convertedValidFrom) || (validUntil && !convertedValidUntil)) {
+        showError('Error', 'Invalid date format. Please check your date inputs.');
+        setSaving(false);
+        return;
+      }
+
       const response = await fetch(`/api/access-control/${attendeeId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           accessEnabled,
-          validFrom: localDatetimeToUtc(validFrom),
-          validUntil: localDatetimeToUtc(validUntil),
+          validFrom: convertedValidFrom,
+          validUntil: convertedValidUntil,
         }),
       });
 
@@ -188,8 +177,8 @@ export default function AccessControlForm({
         const data = await response.json();
         setAccessControl(data);
         setAccessEnabled(data.accessEnabled);
-        setValidFrom(utcToLocalDatetime(data.validFrom));
-        setValidUntil(utcToLocalDatetime(data.validUntil));
+        setValidFrom(convertUtcToEventLocalForInput(data.validFrom, eventTimezone));
+        setValidUntil(convertUtcToEventLocalForInput(data.validUntil, eventTimezone));
         setHasChanges(false);
         success('Success', 'Access control settings saved');
         onUpdate?.(data);
@@ -215,8 +204,8 @@ export default function AccessControlForm({
   const handleReset = () => {
     if (accessControl) {
       setAccessEnabled(accessControl.accessEnabled);
-      setValidFrom(utcToLocalDatetime(accessControl.validFrom));
-      setValidUntil(utcToLocalDatetime(accessControl.validUntil));
+      setValidFrom(convertUtcToEventLocalForInput(accessControl.validFrom, eventTimezone));
+      setValidUntil(convertUtcToEventLocalForInput(accessControl.validUntil, eventTimezone));
       setHasChanges(false);
     }
   };

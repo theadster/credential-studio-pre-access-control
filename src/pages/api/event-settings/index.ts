@@ -25,6 +25,7 @@ import {
   TransactionOperation,
   handleTransactionError
 } from '@/lib/transactions';
+import { transformEventSettingsResponse } from '@/lib/eventSettingsTransformers';
 
 /**
  * Interface for custom field structure
@@ -629,8 +630,11 @@ async function handleEventSettingsUpdateWithTransactions(
   // Add transaction indicator header
   res.setHeader('X-Transaction-Used', 'true');
 
+  // Transform response to ensure access control fields are always present
+  const transformedUpdatedSettings = transformEventSettingsResponse(updatedEventSettingsWithFields);
+
   const response: any = {
-    ...updatedEventSettingsWithFields
+    ...transformedUpdatedSettings
   };
 
   if (integrationWarnings.length > 0) {
@@ -1019,6 +1023,10 @@ function detectChanges(updateData: any, currentSettings: any): string[] {
       // Name Formatting
       { key: 'forceFirstNameUppercase', label: 'First Name Uppercase', section: 'Name Formatting' },
       { key: 'forceLastNameUppercase', label: 'Last Name Uppercase', section: 'Name Formatting' },
+      
+      // Access Control Settings
+      { key: 'accessControlEnabled', label: 'Access Control Enabled', section: 'Access Control' },
+      { key: 'accessControlTimeMode', label: 'Time Mode', section: 'Access Control' },
       
       // Cloudinary Integration
       { key: 'cloudinaryEnabled', label: 'Enabled', section: 'Cloudinary' },
@@ -1476,8 +1484,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           });
         }
 
+        // Transform response to ensure access control fields are always present
+        const transformedResponse = transformEventSettingsResponse(eventSettingsWithFields);
+
         // Send response immediately without waiting for logging
-        res.status(200).json(eventSettingsWithFields);
+        res.status(200).json(transformedResponse);
 
         // Fire-and-forget async logging after response is sent
         // This doesn't block the response and failures won't affect the user
@@ -1679,6 +1690,9 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
           barcodeUnique: barcodeUnique !== undefined ? barcodeUnique : true,
           forceFirstNameUppercase: forceFirstNameUppercase || false,
           forceLastNameUppercase: forceLastNameUppercase || false,
+          // Access Control settings - disabled by default (Requirements 1.6, 3.5)
+          accessControlEnabled: false,
+          accessControlTimeMode: 'date_only',
           cloudinaryCloudName: cloudinaryCloudName || null,
           // DEPRECATED: Credentials no longer stored (legacy schema only)
           cloudinaryApiKey: cloudinaryApiKey || null,
@@ -1755,7 +1769,10 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
       res.setHeader(key, value);
     });
 
-    return res.status(201).json(newEventSettingsWithFields);
+    // Transform response to ensure access control fields are always present
+    const transformedPostResponse = transformEventSettingsResponse(newEventSettingsWithFields);
+
+    return res.status(201).json(transformedPostResponse);
   }
 
   // PUT request - Update event settings

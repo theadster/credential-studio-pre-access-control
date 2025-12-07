@@ -9,7 +9,8 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import type { EventSettings, CustomField } from "@/components/EventSettingsForm/types";
+import type { EventSettings, CustomField, AccessControlTimeMode } from "@/components/EventSettingsForm/types";
+import { formatForDisplay } from "@/lib/accessControlDates";
 import {
   Users,
   Settings,
@@ -170,6 +171,10 @@ interface Attendee {
   createdAt: string;
   updatedAt: string;
   customFieldValues: CustomFieldValue[];
+  // Access control fields (Requirements 6.1, 6.2)
+  validFrom?: string | null;
+  validUntil?: string | null;
+  accessEnabled?: boolean;
   [key: string]: unknown;
 }
 
@@ -483,6 +488,7 @@ export default function Dashboard() {
         }
 
         return {
+          customFieldId: field.id,
           fieldName: field.fieldName,
           fieldType: field.fieldType,
           value: displayValue
@@ -3767,13 +3773,13 @@ export default function Dashboard() {
                                 // Deselect all on current page
                                 setSelectedAttendees(prev => prev.filter(id => !paginatedIds.includes(id)));
                               } else {
+                                // Select all on current page first (immediate visual feedback)
+                                setSelectedAttendees(prev => [...new Set([...prev, ...paginatedIds])]);
+                                
                                 // Check if there are more records than just the current page
                                 if (filteredAttendees.length > recordsPerPage) {
                                   // Show dialog to choose between current page or all records
                                   setShowSelectAllDialog(true);
-                                } else {
-                                  // Only one page, just select all
-                                  setSelectedAttendees(prev => [...new Set([...prev, ...paginatedIds])]);
                                 }
                               }
                             }}
@@ -3785,6 +3791,14 @@ export default function Dashboard() {
                         <TableHead className="w-32 text-center">Barcode</TableHead>
                         <TableHead className="w-24 text-center">Credential</TableHead>
                         <TableHead className="w-32 text-center">Status</TableHead>
+                        {/* Access Control Columns - Requirements 6.1, 6.2 */}
+                        {eventSettings?.accessControlEnabled && (
+                          <>
+                            <TableHead className="w-32 text-center">Valid From</TableHead>
+                            <TableHead className="w-32 text-center">Valid Until</TableHead>
+                            <TableHead className="w-28 text-center">Access</TableHead>
+                          </>
+                        )}
                         <TableHead className="w-24 text-center">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -3977,6 +3991,63 @@ export default function Dashboard() {
                                   })()}
                                 </div>
                               </TableCell>
+                              {/* Access Control Cells - Requirements 6.1, 6.2, 6.3, 6.4 */}
+                              {eventSettings?.accessControlEnabled && (
+                                <>
+                                  {/* Valid From Column - Requirement 6.3 */}
+                                  <TableCell className="align-top pt-4">
+                                    <div className="flex justify-center">
+                                      <span className="text-sm text-muted-foreground">
+                                        {attendee.validFrom 
+                                          ? formatForDisplay(
+                                              attendee.validFrom, 
+                                              eventSettings.accessControlTimeMode || 'date_only',
+                                              eventSettings.timeZone || 'UTC'
+                                            )
+                                          : '—'}
+                                      </span>
+                                    </div>
+                                  </TableCell>
+                                  {/* Valid Until Column - Requirement 6.3 */}
+                                  <TableCell className="align-top pt-4">
+                                    <div className="flex justify-center">
+                                      <span className="text-sm text-muted-foreground">
+                                        {attendee.validUntil 
+                                          ? formatForDisplay(
+                                              attendee.validUntil, 
+                                              eventSettings.accessControlTimeMode || 'date_only',
+                                              eventSettings.timeZone || 'UTC'
+                                            )
+                                          : '—'}
+                                      </span>
+                                    </div>
+                                  </TableCell>
+                                  {/* Access Status Column - Requirement 6.4 */}
+                                  <TableCell className="align-top pt-4">
+                                    <div className="flex justify-center">
+                                      {attendee.accessEnabled !== false ? (
+                                        <Badge 
+                                          className="bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800 font-semibold px-3 py-1"
+                                          role="status"
+                                          aria-label="Access status: Active"
+                                        >
+                                          <CheckCircle className="h-3 w-3 mr-1" aria-hidden="true" />
+                                          Active
+                                        </Badge>
+                                      ) : (
+                                        <Badge 
+                                          className="bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800 font-semibold px-3 py-1"
+                                          role="status"
+                                          aria-label="Access status: Inactive"
+                                        >
+                                          <X className="h-3 w-3 mr-1" aria-hidden="true" />
+                                          Inactive
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                </>
+                              )}
                               <TableCell className="align-top pt-4">
                                 <div className="flex justify-center">
                                   <DropdownMenu
@@ -4108,7 +4179,7 @@ export default function Dashboard() {
                                   rows.forEach(row => row.classList.remove('attendee-row-hover'));
                                 }}
                               >
-                                <TableCell colSpan={5} className="pt-1 pb-6">
+                                <TableCell colSpan={eventSettings?.accessControlEnabled ? 8 : 5} className="pt-1 pb-6">
                                   <div className="border-t border-border/50 pt-2">
                                     {(() => {
                                       // PERFORMANCE OPTIMIZATION: Use memoized getGridColumns function
@@ -4116,12 +4187,12 @@ export default function Dashboard() {
 
                                       return (
                                         <div className={`grid grid-cols-1 ${gridCols} gap-x-6 gap-y-2`}>
-                                          {customFieldsWithValues.map((field, index: number) => (
-                                            <div key={index} className="flex flex-col space-y-0.5 min-w-0">
-                                              <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide" id={`field-label-${attendee.id}-${index}`}>
+                                          {customFieldsWithValues.map((field) => (
+                                            <div key={field.customFieldId} className="flex flex-col space-y-0.5 min-w-0">
+                                              <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide" id={`field-label-${attendee.id}-${field.customFieldId}`}>
                                                 {field.fieldName}
                                               </span>
-                                              <div className="text-sm font-medium text-foreground min-w-0" aria-labelledby={`field-label-${attendee.id}-${index}`}>
+                                              <div className="text-sm font-medium text-foreground min-w-0" aria-labelledby={`field-label-${attendee.id}-${field.customFieldId}`}>
                                                 {field.fieldType === 'url' ? (
                                                   <a
                                                     href={field.value || ''}

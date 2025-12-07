@@ -8,6 +8,8 @@ import { PhotoUploadSection } from './PhotoUploadSection';
 import { BasicInformationSection } from './BasicInformationSection';
 import { CustomFieldsSection } from './CustomFieldsSection';
 import { FormActions } from './FormActions';
+import { AccessControlFields } from './AccessControlFields';
+import { AccessControlTimeMode } from '@/lib/accessControlDates';
 
 interface CustomFieldOptions {
   uppercase?: boolean;
@@ -38,6 +40,10 @@ interface Attendee {
   profileImageUrl?: string;
   photoUrl?: string | null;
   customFieldValues?: CustomFieldValue[];
+  // Access control fields
+  validFrom?: string | null;
+  validUntil?: string | null;
+  accessEnabled?: boolean;
 }
 
 interface EventSettings {
@@ -52,6 +58,10 @@ interface EventSettings {
   cloudinaryDisableSkipCrop?: boolean;
   forceFirstNameUppercase?: boolean;
   forceLastNameUppercase?: boolean;
+  // Access control settings
+  accessControlEnabled?: boolean;
+  accessControlTimeMode?: AccessControlTimeMode;
+  timeZone?: string;
 }
 
 /**
@@ -151,6 +161,11 @@ const AttendeeForm = React.memo(function AttendeeForm({
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const isClosingRef = React.useRef(false);
 
+  // Access control state
+  const [validFrom, setValidFrom] = useState<string | null>(attendee?.validFrom ?? null);
+  const [validUntil, setValidUntil] = useState<string | null>(attendee?.validUntil ?? null);
+  const [accessEnabled, setAccessEnabled] = useState<boolean>(attendee?.accessEnabled ?? true);
+
   const {
     formData,
     updateField,
@@ -167,6 +182,13 @@ const AttendeeForm = React.memo(function AttendeeForm({
     eventSettings,
     onUploadSuccess: setPhotoUrl
   });
+
+  // Reset access control fields when attendee changes
+  useEffect(() => {
+    setValidFrom(attendee?.validFrom ?? null);
+    setValidUntil(attendee?.validUntil ?? null);
+    setAccessEnabled(attendee?.accessEnabled ?? true);
+  }, [attendee]);
 
   // Prevent body scroll when dialog is open (with ref counting for multiple modals)
   useScrollLock(isOpen);
@@ -280,7 +302,17 @@ const AttendeeForm = React.memo(function AttendeeForm({
         return;
       }
 
-      const attendeeData = prepareAttendeeData();
+      const baseAttendeeData = prepareAttendeeData();
+      
+      // Add access control fields if enabled
+      const attendeeData = eventSettings?.accessControlEnabled
+        ? {
+            ...baseAttendeeData,
+            validFrom,
+            validUntil,
+            accessEnabled
+          }
+        : baseAttendeeData;
 
       // Mark as closing to prevent unsaved changes dialog
       isClosingRef.current = true;
@@ -309,7 +341,17 @@ const AttendeeForm = React.memo(function AttendeeForm({
         return;
       }
 
-      const attendeeData = prepareAttendeeData();
+      const baseAttendeeData = prepareAttendeeData();
+      
+      // Add access control fields if enabled
+      const attendeeData = eventSettings?.accessControlEnabled
+        ? {
+            ...baseAttendeeData,
+            validFrom,
+            validUntil,
+            accessEnabled
+          }
+        : baseAttendeeData;
 
       if (onSaveAndGenerate) {
         // Mark as closing to prevent unsaved changes dialog
@@ -414,6 +456,21 @@ const AttendeeForm = React.memo(function AttendeeForm({
                     values={formData.customFieldValues}
                     onChange={updateCustomField}
                   />
+
+                  {/* Access Control Fields - Only shown when access control is enabled */}
+                  {eventSettings?.accessControlEnabled && (
+                    <AccessControlFields
+                      accessControlEnabled={eventSettings.accessControlEnabled}
+                      accessControlTimeMode={eventSettings.accessControlTimeMode || 'date_only'}
+                      validFrom={validFrom}
+                      validUntil={validUntil}
+                      accessEnabled={accessEnabled}
+                      onValidFromChange={setValidFrom}
+                      onValidUntilChange={setValidUntil}
+                      onAccessEnabledChange={setAccessEnabled}
+                      eventTimezone={eventSettings.timeZone || 'UTC'}
+                    />
+                  )}
                 </div>
               </div>
             </div>

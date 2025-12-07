@@ -100,6 +100,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     const attendeesCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID!;
     const logsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!;
     const customFieldsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID!;
+    const accessControlCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ACCESS_CONTROL_COLLECTION_ID!;
 
     switch (req.method) {
       case 'GET':
@@ -129,10 +130,48 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         // Parse customFieldValues from JSON string to array format
         const parsedCustomFieldValues = parseCustomFieldValues(attendee.customFieldValues);
 
+        /**
+         * ACCESS CONTROL DATA FETCHING
+         * 
+         * Fetch access control record for this attendee.
+         * Requirements 7.2, 7.3: Include access control fields in API responses
+         */
+        let accessControl = {
+          accessEnabled: true,
+          validFrom: null as string | null,
+          validUntil: null as string | null
+        };
+        
+        if (accessControlCollectionId) {
+          try {
+            const accessControlResult = await databases.listDocuments(
+              dbId,
+              accessControlCollectionId,
+              [Query.equal('attendeeId', id), Query.limit(1)]
+            );
+            
+            if (accessControlResult.documents.length > 0) {
+              const ac = accessControlResult.documents[0];
+              accessControl = {
+                accessEnabled: ac.accessEnabled ?? true,
+                validFrom: ac.validFrom || null,
+                validUntil: ac.validUntil || null
+              };
+            }
+          } catch (error) {
+            // If access control collection doesn't exist or fails, continue with defaults
+            console.warn('[Attendee API] Failed to fetch access control data:', error);
+          }
+        }
+
         const attendeeWithParsedFields = {
           ...attendee,
           id: attendee.$id, // Map $id to id for frontend compatibility
-          customFieldValues: parsedCustomFieldValues
+          customFieldValues: parsedCustomFieldValues,
+          // Access control fields (Requirements 7.2, 7.3)
+          accessEnabled: accessControl.accessEnabled,
+          validFrom: accessControl.validFrom,
+          validUntil: accessControl.validUntil
         };
 
         return res.status(200).json(attendeeWithParsedFields);

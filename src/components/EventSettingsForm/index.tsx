@@ -10,6 +10,7 @@ export { GeneralTab } from './GeneralTab';
 export { BarcodeTab } from './BarcodeTab';
 export { CustomFieldsTab } from './CustomFieldsTab';
 export { IntegrationsTab } from './IntegrationsTab';
+export { AccessControlTab } from './AccessControlTab';
 
 // Integration sub-tab components
 export { CloudinaryTab } from './CloudinaryTab';

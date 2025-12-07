@@ -144,6 +144,8 @@ export function getInitialFormData(): EventSettings {
     barcodeUnique: true,
     attendeeSortField: "lastName",
     attendeeSortDirection: "asc",
+    accessControlEnabled: false,
+    accessControlTimeMode: 'date_only',
     customFields: []
   };
 }

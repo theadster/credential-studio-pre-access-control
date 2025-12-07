@@ -22,6 +22,7 @@ import {
   toUtcDatetime,
   validateDateRange,
 } from '@/types/accessControl';
+import { parseForStorage, AccessControlTimeMode } from '@/lib/accessControlDates';
 
 export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
@@ -106,9 +107,38 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
         const { accessEnabled, validFrom, validUntil } = parseResult.data;
 
-        // Convert datetimes to UTC format (Requirements 1.2, 1.3)
-        const utcValidFrom = validFrom !== undefined ? toUtcDatetime(validFrom) : undefined;
-        const utcValidUntil = validUntil !== undefined ? toUtcDatetime(validUntil) : undefined;
+        /**
+         * FETCH EVENT SETTINGS FOR DATE INTERPRETATION
+         * 
+         * Requirements 4.3, 4.4, 4.5, 4.6: Apply date interpretation based on time mode
+         * - date_only mode: validFrom = start of day (00:00:00), validUntil = end of day (23:59:59)
+         * - date_time mode: exact timestamp is preserved
+         */
+        const eventSettingsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID!;
+        let timeMode: AccessControlTimeMode = 'date_only';
+        let eventTimezone = 'UTC';
+        
+        try {
+          const eventSettingsDocs = await databases.listDocuments(dbId, eventSettingsCollectionId, [Query.limit(1)]);
+          if (eventSettingsDocs.documents.length > 0) {
+            const settings = eventSettingsDocs.documents[0];
+            timeMode = (settings.accessControlTimeMode as AccessControlTimeMode) || 'date_only';
+            eventTimezone = settings.timeZone || 'UTC';
+          }
+        } catch (error) {
+          console.warn('[Access Control API] Failed to fetch event settings, using defaults:', error);
+        }
+
+        // Convert datetimes based on time mode (Requirements 4.3, 4.4, 4.5, 4.6)
+        let utcValidFrom: string | null | undefined;
+        let utcValidUntil: string | null | undefined;
+        
+        if (validFrom !== undefined) {
+          utcValidFrom = parseForStorage(validFrom, timeMode, eventTimezone, false);
+        }
+        if (validUntil !== undefined) {
+          utcValidUntil = parseForStorage(validUntil, timeMode, eventTimezone, true);
+        }
 
         // Additional date range validation (Requirement 1.6)
         // This handles the case where only one date is being updated

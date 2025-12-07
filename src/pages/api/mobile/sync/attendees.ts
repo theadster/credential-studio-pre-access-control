@@ -45,6 +45,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
   const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
   const attendeesCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID!;
   const accessControlCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ACCESS_CONTROL_COLLECTION_ID!;
+  const customFieldsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID!;
+  const eventSettingsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID!;
 
   try {
     // Parse query parameters
@@ -64,7 +66,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     const offset = Math.max(0, !isNaN(parsedOffset) ? parsedOffset : 0);
 
     // Build queries
-    const queries: string[] = [];
+    const queries: any[] = [];
 
     // Delta sync: only fetch records modified after 'since' timestamp
     if (since && typeof since === 'string') {
@@ -91,6 +93,26 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     
     // Order by update time for consistent pagination
     queries.push(Query.orderDesc('$updatedAt'));
+
+    // Fetch custom fields for field name mapping
+    let customFieldMap = new Map<string, string>(); // Maps internalFieldName -> fieldName
+    try {
+      const customFieldsResult = await databases.listDocuments(
+        dbId,
+        customFieldsCollectionId,
+        [Query.limit(1000)] // Reasonable limit for custom fields
+      );
+      
+      // Build mapping from internal field names to display names
+      customFieldsResult.documents.forEach((field: any) => {
+        if (field.internalFieldName && field.fieldName) {
+          customFieldMap.set(field.internalFieldName, field.fieldName);
+        }
+      });
+    } catch (error) {
+      console.warn('[Mobile Sync Attendees] Failed to fetch custom fields:', error);
+      // Continue without field name mapping if custom fields fetch fails
+    }
 
     // Fetch attendees
     const attendeesResult = await databases.listDocuments(
@@ -139,14 +161,23 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
       // Parse custom field values
       let customFieldValues: Record<string, any> = {};
+      let customFieldValuesByName: Record<string, any> = {}; // Display names as keys
+      
       if (attendee.customFieldValues) {
         try {
           customFieldValues = typeof attendee.customFieldValues === 'string'
             ? JSON.parse(attendee.customFieldValues)
             : attendee.customFieldValues;
+          
+          // Create mapping with display names
+          Object.entries(customFieldValues).forEach(([internalName, value]) => {
+            const displayName = customFieldMap.get(internalName) || internalName;
+            customFieldValuesByName[displayName] = value;
+          });
         } catch (error) {
           console.error(`Failed to parse customFieldValues for attendee ${attendee.$id}:`, error);
           customFieldValues = {};
+          customFieldValuesByName = {};
         }
       }
 
@@ -156,7 +187,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         lastName: attendee.lastName,
         barcodeNumber: attendee.barcodeNumber,
         photoUrl: attendee.photoUrl || null,
-        customFieldValues,
+        customFieldValues, // Internal field names (for backward compatibility)
+        customFieldValuesByName, // Display field names (new)
         accessControl,
         updatedAt: attendee.$updatedAt
       };

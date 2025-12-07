@@ -10,6 +10,7 @@ import { GeneralTab } from './GeneralTab';
 import { BarcodeTab } from './BarcodeTab';
 import { CustomFieldsTab } from './CustomFieldsTab';
 import { IntegrationsTab } from './IntegrationsTab';
+import { AccessControlTab } from './AccessControlTab';
 import { SortableCustomField } from './SortableCustomField';
 import { CustomFieldForm } from './CustomFieldForm';
 import { FieldMappingForm } from './FieldMappingForm';
@@ -78,9 +79,10 @@ export function EventSettingsFormContainer({
 
         <form onSubmit={handleSubmit} className="px-6 pt-6 pb-0" autoComplete="off" data-form-type="other">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6 mb-6">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="general">General</TabsTrigger>
               <TabsTrigger value="barcode">Barcode</TabsTrigger>
+              <TabsTrigger value="access-control">Access Control</TabsTrigger>
               <TabsTrigger value="custom-fields">Custom Fields</TabsTrigger>
               <TabsTrigger value="integrations">Integrations</TabsTrigger>
             </TabsList>
@@ -94,6 +96,13 @@ export function EventSettingsFormContainer({
 
             <TabsContent value="barcode">
               <BarcodeTab 
+                formData={formData} 
+                onInputChange={handleInputChange} 
+              />
+            </TabsContent>
+
+            <TabsContent value="access-control">
+              <AccessControlTab 
                 formData={formData} 
                 onInputChange={handleInputChange} 
               />
