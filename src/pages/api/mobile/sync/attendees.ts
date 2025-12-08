@@ -122,32 +122,43 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       queries
     );
 
-    // Fetch access control records for all attendees in this batch
+    /**
+     * ACCESS CONTROL DATA FETCHING
+     * 
+     * PERFORMANCE: Uses batch fetching (100 attendees per query) instead of
+     * individual queries to avoid N+1 query problem.
+     * 
+     * Note: validFrom and validUntil are stored as strings to preserve exact values
+     * without Appwrite's automatic timezone conversion
+     */
     const attendeeIds = attendeesResult.documents.map((doc: any) => doc.$id);
-    
-    // Fetch access control data in batches (Appwrite limit for 'in' queries)
     const accessControlMap = new Map<string, any>();
     
     if (attendeeIds.length > 0) {
-      // Split into chunks of 100 (Appwrite's limit for 'in' queries)
+      // Fetch access control data in batches (Appwrite limit for 'in' queries is 100)
+      // This prevents N+1 query problem and dramatically improves performance
       const chunkSize = 100;
       for (let i = 0; i < attendeeIds.length; i += chunkSize) {
         const chunk = attendeeIds.slice(i, i + chunkSize);
-        // Query.equal with an array performs an IN query in Appwrite
-        const accessControlResult = await databases.listDocuments(
-          dbId,
-          accessControlCollectionId,
-          [Query.equal('attendeeId', chunk), Query.limit(chunkSize)]
-        );
-        
-        // Map access control records by attendeeId
-        accessControlResult.documents.forEach((ac: any) => {
-          accessControlMap.set(ac.attendeeId, {
-            accessEnabled: ac.accessEnabled,
-            validFrom: ac.validFrom,
-            validUntil: ac.validUntil
+        try {
+          const accessControlResult = await databases.listDocuments(
+            dbId,
+            accessControlCollectionId,
+            [Query.equal('attendeeId', chunk), Query.limit(chunkSize)]
+          );
+          
+          // Map access control records by attendeeId
+          accessControlResult.documents.forEach((ac: any) => {
+            accessControlMap.set(ac.attendeeId, {
+              accessEnabled: ac.accessEnabled,
+              validFrom: ac.validFrom || null,
+              validUntil: ac.validUntil || null
+            });
           });
-        });
+        } catch (error) {
+          console.warn(`[Mobile Sync Attendees] Failed to fetch access control batch:`, error);
+          // Continue with next batch if one fails
+        }
       }
     }
 

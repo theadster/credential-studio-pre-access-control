@@ -25,6 +25,10 @@ docs/
 - [**Bulk Delete Log Size Fix**](./fixes/BULK_DELETE_LOG_SIZE_FIX.md) - Use API key for bulk deletes and handle large log entries
 
 ### Recent Fixes
+- [**⚡ Dashboard Performance Fix**](./fixes/DASHBOARD_PERFORMANCE_FIX.md) - ✅ **FIXED:** Resolved N+1 query problem causing 100x slowdown in dashboard loading (reverted individual queries to batch fetching)
+- [**📊 Performance Issues Analysis**](./fixes/PERFORMANCE_ISSUES_ANALYSIS.md) - 🔍 **ANALYSIS:** Comprehensive analysis of all detected performance issues with prioritization and action plan
+- [**🔍 Custom Field Search Analysis**](./fixes/CUSTOM_FIELD_SEARCH_ANALYSIS.md) - 📊 **ANALYSIS:** Custom field search works correctly - email field is hidden by design (showOnMainPage = false)
+- [**🔧 Custom Field Format Permanent Fix**](./fixes/CUSTOM_FIELD_FORMAT_PERMANENT_FIX.md) - ✅ **FIXED:** Migrated 20 records from legacy array format to object format, added automatic normalization to prevent future issues
 - [**🧠 Memory Leak Fixes**](./fixes/MEMORY_LEAK_FIXES_IMPLEMENTED.md) - ✅ **FIXED:** Dashboard memory leak with conditional subscriptions and debouncing
 - [**📊 Memory Leak Analysis**](./fixes/MEMORY_LEAK_ANALYSIS.md) - 🔍 **ANALYSIS:** Root cause analysis of dashboard memory accumulation
 - [**🔧 Bulk Delete Timestamp Fix**](./fixes/BULK_DELETE_TIMESTAMP_FIX.md) - ✅ **FIXED:** Removed invalid timestamp attribute from audit logs
@@ -113,6 +117,8 @@ docs/
 - [**SweetAlert Best Practices Guide**](./guides/SWEETALERT_BEST_PRACTICES_GUIDE.md) - Best practices for notifications and user experience
 
 #### Performance & Optimization
+- [**Performance Best Practices**](./guides/PERFORMANCE_BEST_PRACTICES.md) - 📊 Comprehensive guide to avoiding N+1 queries, batch fetching, and performance patterns
+- [**Preventing Performance Regressions**](./guides/PREVENTING_PERFORMANCE_REGRESSIONS.md) - 🛡️ How to prevent performance issues before they reach production
 - [**Memory Optimization Guide**](./guides/MEMORY_OPTIMIZATION_GUIDE.md) - 🚀 Best practices for preventing memory leaks and optimizing performance
 
 #### Automation & Maintenance

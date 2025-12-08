@@ -32,7 +32,8 @@
     "test:inject-logs": "tsx scripts/inject-test-logs.ts",
     "test:logs-timestamp-fix": "tsx scripts/test-logs-timestamp-fix.ts",
     "migrate:logs-timestamp": "tsx scripts/migrate-log-timestamps.ts",
-    "sync:versions": "tsx scripts/sync-versions-to-docs.ts"
+    "sync:versions": "tsx scripts/sync-versions-to-docs.ts",
+    "check:performance": "tsx scripts/check-performance-patterns.ts"
   },
   "dependencies": {
     "@cloudinary/react": "^1.14.3",

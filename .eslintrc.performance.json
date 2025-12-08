@@ -1,0 +1,15 @@
+{
+  "extends": ["./.eslintrc.json"],
+  "rules": {
+    "no-await-in-loop": "warn",
+    "no-console": ["warn", { "allow": ["warn", "error"] }]
+  },
+  "overrides": [
+    {
+      "files": ["src/pages/api/**/*.ts", "src/pages/api/**/*.tsx"],
+      "rules": {
+        "no-await-in-loop": "error"
+      }
+    }
+  ]
+}

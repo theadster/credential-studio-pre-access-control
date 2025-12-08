@@ -13,6 +13,7 @@ import {
   trackTraditionalUpdate, 
   logPerformanceMetrics 
 } from '@/lib/operatorPerformance';
+import { normalizeCustomFieldValues, stringifyCustomFieldValues } from '@/lib/customFieldNormalization';
 
 export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   if (req.method !== 'POST') {
@@ -285,8 +286,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             }
           }
 
+          // Normalize custom field values to ensure proper format (prevents legacy array format)
+          const normalizedCustomFieldValues = normalizeCustomFieldValues(updatedCustomFieldValues);
+          
           const updateData: any = {
-            customFieldValues: JSON.stringify(updatedCustomFieldValues)
+            customFieldValues: stringifyCustomFieldValues(normalizedCustomFieldValues)
           };
 
           // Only update lastSignificantUpdate if printable fields actually changed

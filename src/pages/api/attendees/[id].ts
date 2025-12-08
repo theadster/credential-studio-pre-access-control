@@ -4,6 +4,7 @@ import { Query, ID } from 'appwrite';
 import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
 import { parseCustomFieldValues } from '@/util/customFields';
 import { shouldLog } from '@/lib/logSettings';
+import { normalizeCustomFieldValues, stringifyCustomFieldValues } from '@/lib/customFieldNormalization';
 
 /**
  * Attendee Update API Endpoint
@@ -540,7 +541,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
               }
             });
 
-            updateData.customFieldValues = JSON.stringify(customFieldValuesObj);
+            // Normalize custom field values to ensure proper format (prevents legacy array format)
+            const normalizedCustomFieldValues = normalizeCustomFieldValues(customFieldValuesObj);
+            updateData.customFieldValues = stringifyCustomFieldValues(normalizedCustomFieldValues);
             console.log('Storing customFieldValues as:', updateData.customFieldValues);
           }
         }

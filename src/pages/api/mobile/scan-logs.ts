@@ -66,13 +66,19 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     const uploadedAt = new Date().toISOString();
     const operatorId = user.$id;
 
-    // Extract all localIds for deduplication check
+    /**
+     * DEDUPLICATION CHECK
+     * 
+     * PERFORMANCE: Uses batch fetching (100 localIds per query) instead of
+     * individual queries to avoid N+1 query problem.
+     * 
+     * Checks for existing logs with the same localIds to prevent duplicates.
+     */
     const localIds = logs.map(log => log.localId);
-    
-    // Check for existing logs with these localIds (deduplication)
     const existingLocalIds = new Set<string>();
     
-    // Query in batches of 100 (Appwrite limit)
+    // Fetch existing logs in batches (Appwrite limit for 'in' queries is 100)
+    // This prevents N+1 query problem and dramatically improves performance
     const chunkSize = 100;
     for (let i = 0; i < localIds.length; i += chunkSize) {
       const chunk = localIds.slice(i, i + chunkSize);

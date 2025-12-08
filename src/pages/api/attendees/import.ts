@@ -9,6 +9,7 @@ import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
 import { shouldLog } from '@/lib/logSettings';
 import { bulkImportWithFallback } from '@/lib/bulkOperations';
 import { handleTransactionError, detectTransactionErrorType, TransactionErrorType } from '@/lib/transactions';
+import { normalizeCustomFieldValues, stringifyCustomFieldValues } from '@/lib/customFieldNormalization';
 
 export const config = {
   api: {
@@ -336,11 +337,14 @@ const handler = async (req: AuthenticatedRequest, res: NextApiResponse) => {
               }
             }
 
+            // Normalize custom field values to ensure proper format (prevents legacy array format)
+            const normalizedCustomFieldValues = normalizeCustomFieldValues(customFieldsData);
+            
             return {
               firstName: processedFirstName,
               lastName: processedLastName,
               barcodeNumber: generatedBarcode,
-              customFieldValues: JSON.stringify(customFieldsData),
+              customFieldValues: stringifyCustomFieldValues(normalizedCustomFieldValues),
               notes: '', // Set to empty string instead of null to avoid false change detection
               lastSignificantUpdate: now, // Initialize for new records
               // Access control fields (only included if access control is enabled)

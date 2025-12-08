@@ -192,7 +192,15 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     const eventSettingsDocs = await databases.listDocuments(dbId, eventSettingsCollectionId);
     const eventSettings = eventSettingsDocs.documents[0];
 
-    // Fetch Access Control data if enabled
+    /**
+     * ACCESS CONTROL DATA FETCHING
+     * 
+     * PERFORMANCE: Uses batch fetching (100 attendees per query) instead of
+     * individual queries to avoid N+1 query problem.
+     * 
+     * Note: validFrom and validUntil are stored as strings to preserve exact values
+     * without Appwrite's automatic timezone conversion
+     */
     const accessControlCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ACCESS_CONTROL_COLLECTION_ID;
     const accessControlMap = new Map<string, { accessEnabled: boolean; validFrom: string | null; validUntil: string | null }>();
     
@@ -201,23 +209,29 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         const attendeeIds = attendees.map((doc: any) => doc.$id);
         
         // Fetch access control data in batches (Appwrite limit for 'in' queries is 100)
+        // This prevents N+1 query problem and dramatically improves performance
         const chunkSize = 100;
         for (let i = 0; i < attendeeIds.length; i += chunkSize) {
           const chunk = attendeeIds.slice(i, i + chunkSize);
-          const accessControlResult = await databases.listDocuments(
-            dbId,
-            accessControlCollectionId,
-            [Query.equal('attendeeId', chunk), Query.limit(chunkSize)]
-          );
-          
-          // Map access control records by attendeeId
-          accessControlResult.documents.forEach((ac: any) => {
-            accessControlMap.set(ac.attendeeId, {
-              accessEnabled: ac.accessEnabled ?? true,
-              validFrom: ac.validFrom || null,
-              validUntil: ac.validUntil || null
+          try {
+            const accessControlResult = await databases.listDocuments(
+              dbId,
+              accessControlCollectionId,
+              [Query.equal('attendeeId', chunk), Query.limit(chunkSize)]
+            );
+            
+            // Map access control records by attendeeId
+            accessControlResult.documents.forEach((ac: any) => {
+              accessControlMap.set(ac.attendeeId, {
+                accessEnabled: ac.accessEnabled ?? true,
+                validFrom: ac.validFrom || null,
+                validUntil: ac.validUntil || null
+              });
             });
-          });
+          } catch (error) {
+            console.warn(`[Export API] Failed to fetch access control batch:`, error);
+            // Continue with next batch if one fails
+          }
         }
       } catch (error) {
         console.warn('[Export API] Failed to fetch access control data:', error);

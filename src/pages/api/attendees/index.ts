@@ -1,9 +1,10 @@
 import { NextApiResponse } from 'next';
-import { createSessionClient, createAdminClient } from '@/lib/appwrite';
-import { Query, ID } from 'appwrite';
-import { search, equal, isNull, isNotNull, orderDesc } from '@/lib/appwriteQueries';
-import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
+import { createAdminClient, createSessionClient } from '@/lib/appwrite';
+import { ID, Query } from 'appwrite';
+import { equal, isNotNull, isNull, orderDesc, search } from '@/lib/appwriteQueries';
+import { AuthenticatedRequest, withAuth } from '@/lib/apiMiddleware';
 import { shouldLog } from '@/lib/logSettings';
+import { normalizeCustomFieldValues, stringifyCustomFieldValues } from '@/lib/customFieldNormalization';
 
 
 
@@ -115,8 +116,22 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           queries.push(Query.isNull('photoUrl'));
         }
 
-        // Note: Custom field filtering is complex with denormalized JSON
-        // We'll fetch all attendees and filter in memory for custom fields
+        /**
+         * CUSTOM FIELD FILTERING
+         * 
+         * Custom fields are stored as JSON in the customFieldValues string field.
+         * 
+         * Advanced Filtering (with operators):
+         * - Complex filters with operators (isEmpty, isNotEmpty, contains, equals, etc.)
+         * - Must be done in-memory after fetching all attendees
+         * - Reason: Appwrite cannot query JSON structure with operators
+         * 
+         * Simple Search (basic text search):
+         * - Uses full-text search index on customFieldValues field
+         * - Searches within the JSON content at database level
+         * - Much more efficient than in-memory filtering
+         * - Note: Requires full-text index (see scripts/add-custom-field-values-index.ts)
+         */
         let needsCustomFieldFiltering = false;
         let customFieldFilters: any = {};
         
@@ -156,19 +171,54 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
          */
         // Fetch custom fields to determine visibility
         const customFieldsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID!;
-        const customFieldsResult = await databases.listDocuments(
-          dbId,
-          customFieldsCollectionId,
-          [Query.isNull('deletedAt'), Query.orderAsc('order'), Query.limit(100)]
-        );
+        
+        /**
+         * ⚠️  CUSTOM FIELD LIMIT: 100 FIELDS MAX
+         * 
+         * This implementation supports up to 100 custom fields per event.
+         * While this is a practical limit for most use cases, if you need to support
+         * more than 100 fields, implement pagination similar to the attendee fetching
+         * logic above (batch fetching with offset/limit).
+         * 
+         * Current behavior:
+         * - Fetches all custom fields in a single query with limit(100)
+         * - If an event has >100 fields, only the first 100 are loaded
+         * - Remaining fields would not appear in the visibility filter
+         * 
+         * To increase this limit:
+         * 1. Add pagination loop (similar to attendee batching above)
+         * 2. Fetch in batches of 100 until all fields are loaded
+         * 3. Aggregate results into a single array
+         * 4. Continue with visibility filtering as normal
+         */
+        
+        // Fetch all custom fields with pagination support
+        const allCustomFields: any[] = [];
+        let offset = 0;
+        const pageSize = 100;
+        let hasMore = true;
+        
+        while (hasMore) {
+          const customFieldsResult = await databases.listDocuments(
+            dbId,
+            customFieldsCollectionId,
+            [Query.isNull('deletedAt'), Query.orderAsc('order'), Query.limit(pageSize), Query.offset(offset)],
+          );
+          
+          allCustomFields.push(...customFieldsResult.documents);
+          
+          // Check if there are more fields to fetch
+          hasMore = customFieldsResult.documents.length === pageSize;
+          offset += pageSize;
+        }
 
         // Create set of visible field IDs (for main page view)
         // Default to visible if showOnMainPage is missing (undefined or null)
         // This ensures backward compatibility with existing fields created before this feature
         const visibleFieldIds = new Set(
-          customFieldsResult.documents
+          allCustomFields
             .filter((field: any) => field.showOnMainPage !== false) // Only exclude if explicitly false
-            .map((field: any) => field.$id)
+            .map((field: any) => field.$id),
         );
 
         /**
@@ -351,30 +401,24 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         const firstBatch = await databases.listDocuments(
           dbId,
           attendeesCollectionId,
-          queries
+          queries,
         );
 
         // Step 3: Initialize result with first batch
         // The 'total' field tells us the complete count across all potential batches
-        let attendeesResult = { 
-          documents: firstBatch.documents, 
-          total: firstBatch.total 
-        };
+        const allDocuments: any[] = [...firstBatch.documents];
 
         // Step 4: Check if we need to fetch additional batches
         // If total > 5000, we have more attendees than fit in a single request
         if (firstBatch.total > 5000) {
           // Large event detected - fetching in batches
           
-          // Start with documents from first batch
-          let allDocuments = [...firstBatch.documents];
-          
           // Calculate how many total batches we need
           // Example: 15000 attendees / 5000 per batch = 3 batches
           const totalPages = Math.ceil(firstBatch.total / 5000);
           
           // Step 5: Fetch remaining batches (starting from page 2)
-          for (let page = 2; page <= totalPages; page++) {
+          for (let page = 2; page <= totalPages; page += 1) {
             // Calculate offset for this batch
             // Page 2: offset = (2-1) * 5000 = 5000 (skip first 5000)
             // Page 3: offset = (3-1) * 5000 = 10000 (skip first 10000)
@@ -390,19 +434,21 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             const batch = await databases.listDocuments(
               dbId, 
               attendeesCollectionId, 
-              queriesWithOffset
+              queriesWithOffset,
             );
             
             // Append this batch's documents to our growing array
-            allDocuments = [...allDocuments, ...batch.documents];
+            allDocuments.push(...batch.documents);
           }
-          
-          // Step 6: Update result with complete dataset
-          attendeesResult.documents = allDocuments;
           
           // Log success for monitoring
           console.log(`Successfully fetched all ${allDocuments.length} attendees in ${totalPages} batches`);
         }
+
+        const attendeesResult = { 
+          documents: allDocuments, 
+          total: firstBatch.total, 
+        };
 
         /**
          * ACCESS CONTROL DATA FETCHING
@@ -412,6 +458,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
          * in a separate collection and need to be joined with attendee data.
          * 
          * Requirements 7.2, 7.3: Include access control fields in API responses
+         * 
+         * PERFORMANCE: Uses batch fetching (100 attendees per query) instead of
+         * individual queries to avoid N+1 query problem.
          */
         const accessControlMap = new Map<string, { accessEnabled: boolean; validFrom: string | null; validUntil: string | null }>();
         
@@ -420,13 +469,14 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             const attendeeIds = attendeesResult.documents.map((doc: any) => doc.$id);
             
             // Fetch access control data in batches (Appwrite limit for 'in' queries is 100)
+            // This prevents N+1 query problem and dramatically improves performance
             const chunkSize = 100;
             for (let i = 0; i < attendeeIds.length; i += chunkSize) {
               const chunk = attendeeIds.slice(i, i + chunkSize);
               const accessControlResult = await databases.listDocuments(
                 dbId,
                 accessControlCollectionId,
-                [Query.equal('attendeeId', chunk), Query.limit(chunkSize)]
+                [Query.equal('attendeeId', chunk), Query.limit(chunkSize)],
               );
               
               // Map access control records by attendeeId
@@ -434,7 +484,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
                 accessControlMap.set(ac.attendeeId, {
                   accessEnabled: ac.accessEnabled ?? true,
                   validFrom: ac.validFrom || null,
-                  validUntil: ac.validUntil || null
+                  validUntil: ac.validUntil || null,
                 });
               });
             }
@@ -481,7 +531,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
                   .filter(([customFieldId]) => visibleFieldIds.has(customFieldId)) // Only include visible fields
                   .map(([customFieldId, value]) => ({
                     customFieldId,
-                    value: String(value)
+                    value: String(value),
                   }));
               } else if (Array.isArray(parsed)) {
                 // Handle legacy array format (if any exists)
@@ -489,7 +539,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
                   .filter((cfv: any) => visibleFieldIds.has(cfv.customFieldId))
                   .map((cfv: any) => ({
                     customFieldId: cfv.customFieldId,
-                    value: String(cfv.value)
+                    value: String(cfv.value),
                   }));
               }
             } catch (err) {
@@ -503,7 +553,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           const accessControl = accessControlMap.get(attendee.$id) || {
             accessEnabled: true,
             validFrom: null,
-            validUntil: null
+            validUntil: null,
           };
           
           return {
@@ -511,9 +561,16 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             id: attendee.$id, // Map $id to id for frontend compatibility
             customFieldValues: parsedCustomFieldValues,
             // Access control fields (Requirements 7.2, 7.3)
+            // Flat format for backward compatibility
             accessEnabled: accessControl.accessEnabled,
             validFrom: accessControl.validFrom,
-            validUntil: accessControl.validUntil
+            validUntil: accessControl.validUntil,
+            // Nested format for mobile sync consistency
+            accessControl: {
+              accessEnabled: accessControl.accessEnabled,
+              validFrom: accessControl.validFrom,
+              validUntil: accessControl.validUntil,
+            },
           };
         });
 
@@ -569,7 +626,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
         return res.status(200).json({
           attendees,
-          total: attendeesResult.total
+          total: attendeesResult.total,
         });
 
       case 'POST':
@@ -591,7 +648,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         const existingAttendeeDocs = await databases.listDocuments(
           dbId,
           attendeesCollectionId,
-          [Query.equal('barcodeNumber', barcodeNumber)]
+          [Query.equal('barcodeNumber', barcodeNumber)],
         );
 
         if (existingAttendeeDocs.documents.length > 0) {
@@ -601,8 +658,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             existingAttendee: {
               firstName: existingAttendee.firstName,
               lastName: existingAttendee.lastName,
-              barcodeNumber: existingAttendee.barcodeNumber
-            }
+              barcodeNumber: existingAttendee.barcodeNumber,
+            },
           });
         }
 
@@ -615,7 +672,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           const customFieldsDocs = await databases.listDocuments(
             dbId,
             customFieldsCollectionId,
-            [Query.limit(100)] // Assuming not more than 100 custom fields
+            [Query.limit(100)], // Assuming not more than 100 custom fields
           );
 
           const existingCustomFieldIds = customFieldsDocs.documents.map(cf => cf.$id);
@@ -625,14 +682,14 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             console.error('Invalid custom field IDs:', invalidCustomFieldIds);
             return res.status(400).json({ 
               error: 'Some custom fields no longer exist. Please refresh the page and try again.',
-              invalidIds: invalidCustomFieldIds
+              invalidIds: invalidCustomFieldIds,
             });
           }
         }
 
         // Filter out empty custom field values and convert to JSON object
         const validCustomFieldValues = customFieldValues?.filter((cfv: any) => 
-          cfv.customFieldId && cfv.value !== null && cfv.value !== undefined && cfv.value !== ''
+          cfv.customFieldId && cfv.value !== null && cfv.value !== undefined && cfv.value !== '',
         ) || [];
 
         // Convert custom field values array to JSON object
@@ -640,6 +697,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         validCustomFieldValues.forEach((cfv: any) => {
           customFieldValuesObj[cfv.customFieldId] = String(cfv.value);
         });
+
+        // Normalize custom field values to ensure proper format (prevents legacy array format)
+        const normalizedCustomFieldValues = normalizeCustomFieldValues(customFieldValuesObj);
 
         // Generate attendee ID upfront for transaction
         const attendeeId = ID.unique();
@@ -649,7 +709,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           barcodeNumber,
           notes: notes || '',
           photoUrl: photoUrl || null,
-          customFieldValues: JSON.stringify(customFieldValuesObj)
+          customFieldValues: stringifyCustomFieldValues(normalizedCustomFieldValues),
         };
 
         let newAttendee: any;
@@ -668,14 +728,14 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
                 databaseId: dbId,
                 tableId: attendeesCollectionId,
                 rowId: attendeeId,
-                data: attendeeData
-              }
+                data: attendeeData,
+              },
             ];
 
             // Add access control record if access control is enabled and fields are provided
             if ((validFrom !== undefined || validUntil !== undefined || accessEnabled !== undefined) && accessControlCollectionId) {
               const accessControlData: any = {
-                attendeeId: attendeeId
+                attendeeId: attendeeId,
               };
               
               if (validFrom !== undefined) {
@@ -696,7 +756,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
                 databaseId: dbId,
                 tableId: accessControlCollectionId,
                 rowId: ID.unique(),
-                data: accessControlData
+                data: accessControlData,
               });
             }
 
@@ -716,11 +776,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
                     ...createAttendeeLogDetails('create', {
                       firstName: attendeeData.firstName,
                       lastName: attendeeData.lastName,
-                      barcodeNumber: attendeeData.barcodeNumber
+                      barcodeNumber: attendeeData.barcodeNumber,
                     }),
-                    timestamp: new Date().toISOString()
-                  })
-                }
+                    timestamp: new Date().toISOString(),
+                  }),
+                },
               });
             }
 
@@ -748,7 +808,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
             parsedCustomFieldValues = Object.entries(parsed).map(([customFieldId, value]) => ({
               customFieldId,
-              value: String(value)
+              value: String(value),
             }));
           } else if (Array.isArray(parsed)) {
             parsedCustomFieldValues = parsed;
@@ -758,7 +818,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         const newAttendeeWithParsedFields = {
           ...newAttendee,
           id: newAttendee.$id, // Map $id to id for frontend compatibility
-          customFieldValues: parsedCustomFieldValues
+          customFieldValues: parsedCustomFieldValues,
         };
 
         return res.status(201).json(newAttendeeWithParsedFields);

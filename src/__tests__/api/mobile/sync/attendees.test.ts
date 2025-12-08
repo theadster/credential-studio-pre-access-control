@@ -31,6 +31,47 @@ vi.mock('@/lib/appwrite', () => ({
   })),
 }));
 
+// Mock the API middleware to inject user and userProfile
+vi.mock('@/lib/apiMiddleware', async () => {
+  const actual = await vi.importActual('@/lib/apiMiddleware');
+  return {
+    ...actual,
+    withAuth: (handler: any) => {
+      return async (req: any, res: any) => {
+        // Inject mock user and userProfile into request (unless already set by test)
+        if (!req.user) {
+          req.user = {
+            $id: 'auth-user-123',
+            email: 'scanner@example.com',
+            name: 'Scanner User',
+          };
+        }
+        if (!req.userProfile) {
+          req.userProfile = {
+            $id: 'profile-123',
+            userId: 'auth-user-123',
+            email: 'scanner@example.com',
+            name: 'Scanner User',
+            roleId: 'role-scanner',
+            role: {
+              $id: 'role-scanner',
+              name: 'Scanner Operator',
+              description: 'Mobile scanner access',
+              permissions: {
+                attendees: { read: true },
+              },
+            },
+            isInvited: false,
+            $createdAt: '2024-01-01T00:00:00.000Z',
+            $updatedAt: '2024-01-01T00:00:00.000Z',
+          };
+        }
+        return handler(req, res);
+      };
+    },
+  };
+});
+
 // Import handler after mocks are set up
 import handler from '@/pages/api/mobile/sync/attendees';
 
@@ -47,24 +88,25 @@ describe('/api/mobile/sync/attendees - Mobile Sync Attendees API', () => {
     name: 'Scanner User',
   };
 
+  const mockScannerRole = {
+    $id: 'role-scanner',
+    name: 'Scanner Operator',
+    description: 'Mobile scanner access',
+    permissions: {
+      attendees: { read: true },
+    },
+  };
+
   const mockUserProfile = {
     $id: 'profile-123',
     userId: 'auth-user-123',
     email: 'scanner@example.com',
     name: 'Scanner User',
     roleId: 'role-scanner',
+    role: mockScannerRole, // Include the role object directly
     isInvited: false,
     $createdAt: '2024-01-01T00:00:00.000Z',
     $updatedAt: '2024-01-01T00:00:00.000Z',
-  };
-
-  const mockScannerRole = {
-    $id: 'role-scanner',
-    name: 'Scanner Operator',
-    description: 'Mobile scanner access',
-    permissions: JSON.stringify({
-      attendees: { read: true },
-    }),
   };
 
   const mockAttendees = [
@@ -136,16 +178,16 @@ describe('/api/mobile/sync/attendees - Mobile Sync Attendees API', () => {
 
   describe('Full Sync', () => {
     it('should return all attendees with access control data', async () => {
-      // Mock call sequence:
-      // 1) user profile lookup (via middleware)
-      // 2) custom fields list (for field name mapping)
-      // 3) attendees list
-      // 4) access control list (for first batch of attendees)
+      // Mock call sequence (middleware auth happens before handler):
+      // 1) custom fields list (for field name mapping)
+      // 2) attendees list
+      // 3) access control for att-1
+      // 4) access control for att-2
       mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
         .mockResolvedValueOnce({ documents: [], total: 0 }) // custom fields
-        .mockResolvedValueOnce({ documents: mockAttendees, total: 2 })
-        .mockResolvedValueOnce({ documents: mockAccessControl, total: 2 });
+        .mockResolvedValueOnce({ documents: mockAttendees, total: 2 }) // attendees
+        .mockResolvedValueOnce({ documents: [mockAccessControl[0]], total: 1 }) // access control for att-1
+        .mockResolvedValueOnce({ documents: [mockAccessControl[1]], total: 1 }); // access control for att-2
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -188,15 +230,13 @@ describe('/api/mobile/sync/attendees - Mobile Sync Attendees API', () => {
 
     it('should parse custom field values correctly', async () => {
       // Mock call sequence:
-      // 1) user profile lookup
-      // 2) custom fields list
-      // 3) attendees list
-      // 4) access control list
+      // 1) custom fields list
+      // 2) attendees list
+      // 3) access control for att-1
       mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
         .mockResolvedValueOnce({ documents: [], total: 0 }) // custom fields
-        .mockResolvedValueOnce({ documents: [mockAttendees[0]], total: 1 })
-        .mockResolvedValueOnce({ documents: [mockAccessControl[0]], total: 1 });
+        .mockResolvedValueOnce({ documents: [mockAttendees[0]], total: 1 }) // attendees
+        .mockResolvedValueOnce({ documents: [mockAccessControl[0]], total: 1 }); // access control for att-1
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -207,15 +247,13 @@ describe('/api/mobile/sync/attendees - Mobile Sync Attendees API', () => {
 
     it('should provide default access control when none exists', async () => {
       // Mock call sequence:
-      // 1) user profile lookup
-      // 2) custom fields list
-      // 3) attendees list
-      // 4) empty access control list
+      // 1) custom fields list
+      // 2) attendees list
+      // 3) empty access control for att-1
       mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
         .mockResolvedValueOnce({ documents: [], total: 0 }) // custom fields
-        .mockResolvedValueOnce({ documents: [mockAttendees[0]], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 }); // access control
+        .mockResolvedValueOnce({ documents: [mockAttendees[0]], total: 1 }) // attendees
+        .mockResolvedValueOnce({ documents: [], total: 0 }); // empty access control for att-1
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -234,15 +272,13 @@ describe('/api/mobile/sync/attendees - Mobile Sync Attendees API', () => {
       mockReq.query = { since: '2024-01-10T12:00:00.000Z' };
 
       // Mock call sequence:
-      // 1) user profile lookup
-      // 2) custom fields list
-      // 3) attendees list (filtered)
-      // 4) access control list
+      // 1) custom fields list
+      // 2) attendees list (filtered by since parameter)
+      // 3) access control for att-2
       mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
         .mockResolvedValueOnce({ documents: [], total: 0 }) // custom fields
-        .mockResolvedValueOnce({ documents: [mockAttendees[1]], total: 1 })
-        .mockResolvedValueOnce({ documents: [mockAccessControl[1]], total: 1 });
+        .mockResolvedValueOnce({ documents: [mockAttendees[1]], total: 1 }) // attendees (only att-2 updated after since)
+        .mockResolvedValueOnce({ documents: [mockAccessControl[1]], total: 1 }); // access control for att-2
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -255,9 +291,7 @@ describe('/api/mobile/sync/attendees - Mobile Sync Attendees API', () => {
     it('should return 400 for invalid since parameter', async () => {
       mockReq.query = { since: 'invalid-date' };
 
-      // Mock user profile lookup
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      // No database calls needed - validation happens before any queries
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -278,15 +312,13 @@ describe('/api/mobile/sync/attendees - Mobile Sync Attendees API', () => {
       mockReq.query = { limit: '1' };
 
       // Mock call sequence:
-      // 1) user profile lookup
-      // 2) custom fields list
-      // 3) attendees list (limited)
-      // 4) access control list
+      // 1) custom fields list
+      // 2) attendees list (limited to 1, but total is 2)
+      // 3) access control for att-1
       mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
         .mockResolvedValueOnce({ documents: [], total: 0 }) // custom fields
-        .mockResolvedValueOnce({ documents: [mockAttendees[0]], total: 2 })
-        .mockResolvedValueOnce({ documents: [mockAccessControl[0]], total: 1 });
+        .mockResolvedValueOnce({ documents: [mockAttendees[0]], total: 2 }) // attendees (1 returned, 2 total)
+        .mockResolvedValueOnce({ documents: [mockAccessControl[0]], total: 1 }); // access control for att-1
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -304,15 +336,13 @@ describe('/api/mobile/sync/attendees - Mobile Sync Attendees API', () => {
       mockReq.query = { offset: '1' };
 
       // Mock call sequence:
-      // 1) user profile lookup
-      // 2) custom fields list
-      // 3) attendees list (offset)
-      // 4) access control list
+      // 1) custom fields list
+      // 2) attendees list (with offset 1)
+      // 3) access control for att-2
       mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
         .mockResolvedValueOnce({ documents: [], total: 0 }) // custom fields
-        .mockResolvedValueOnce({ documents: [mockAttendees[1]], total: 2 })
-        .mockResolvedValueOnce({ documents: [mockAccessControl[1]], total: 1 });
+        .mockResolvedValueOnce({ documents: [mockAttendees[1]], total: 2 }) // attendees (offset 1, returns att-2)
+        .mockResolvedValueOnce({ documents: [mockAccessControl[1]], total: 1 }); // access control for att-2
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -325,15 +355,15 @@ describe('/api/mobile/sync/attendees - Mobile Sync Attendees API', () => {
       mockReq.query = { limit: '10000' };
 
       // Mock call sequence:
-      // 1) user profile lookup
-      // 2) custom fields list
-      // 3) attendees list
-      // 4) access control list
+      // 1) custom fields list
+      // 2) attendees list
+      // 3) access control for att-1
+      // 4) access control for att-2
       mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
         .mockResolvedValueOnce({ documents: [], total: 0 }) // custom fields
-        .mockResolvedValueOnce({ documents: mockAttendees, total: 2 })
-        .mockResolvedValueOnce({ documents: mockAccessControl, total: 2 });
+        .mockResolvedValueOnce({ documents: mockAttendees, total: 2 }) // attendees
+        .mockResolvedValueOnce({ documents: [mockAccessControl[0]], total: 1 }) // access control for att-1
+        .mockResolvedValueOnce({ documents: [mockAccessControl[1]], total: 1 }); // access control for att-2
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -346,15 +376,15 @@ describe('/api/mobile/sync/attendees - Mobile Sync Attendees API', () => {
       mockReq.query = { limit: '-10' };
 
       // Mock call sequence:
-      // 1) user profile lookup
-      // 2) custom fields list
-      // 3) attendees list
-      // 4) access control list
+      // 1) custom fields list
+      // 2) attendees list
+      // 3) access control for att-1
+      // 4) access control for att-2
       mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
         .mockResolvedValueOnce({ documents: [], total: 0 }) // custom fields
-        .mockResolvedValueOnce({ documents: mockAttendees, total: 2 })
-        .mockResolvedValueOnce({ documents: mockAccessControl, total: 2 });
+        .mockResolvedValueOnce({ documents: mockAttendees, total: 2 }) // attendees
+        .mockResolvedValueOnce({ documents: [mockAccessControl[0]], total: 1 }) // access control for att-1
+        .mockResolvedValueOnce({ documents: [mockAccessControl[1]], total: 1 }); // access control for att-2
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -367,15 +397,15 @@ describe('/api/mobile/sync/attendees - Mobile Sync Attendees API', () => {
       mockReq.query = { offset: '-5' };
 
       // Mock call sequence:
-      // 1) user profile lookup
-      // 2) custom fields list
-      // 3) attendees list
-      // 4) access control list
+      // 1) custom fields list
+      // 2) attendees list
+      // 3) access control for att-1
+      // 4) access control for att-2
       mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
         .mockResolvedValueOnce({ documents: [], total: 0 }) // custom fields
-        .mockResolvedValueOnce({ documents: mockAttendees, total: 2 })
-        .mockResolvedValueOnce({ documents: mockAccessControl, total: 2 });
+        .mockResolvedValueOnce({ documents: mockAttendees, total: 2 }) // attendees
+        .mockResolvedValueOnce({ documents: [mockAccessControl[0]], total: 1 }) // access control for att-1
+        .mockResolvedValueOnce({ documents: [mockAccessControl[1]], total: 1 }); // access control for att-2
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -388,15 +418,15 @@ describe('/api/mobile/sync/attendees - Mobile Sync Attendees API', () => {
       mockReq.query = { limit: 'invalid' };
 
       // Mock call sequence:
-      // 1) user profile lookup
-      // 2) custom fields list
-      // 3) attendees list
-      // 4) access control list
+      // 1) custom fields list
+      // 2) attendees list
+      // 3) access control for att-1
+      // 4) access control for att-2
       mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
         .mockResolvedValueOnce({ documents: [], total: 0 }) // custom fields
-        .mockResolvedValueOnce({ documents: mockAttendees, total: 2 })
-        .mockResolvedValueOnce({ documents: mockAccessControl, total: 2 });
+        .mockResolvedValueOnce({ documents: mockAttendees, total: 2 }) // attendees
+        .mockResolvedValueOnce({ documents: [mockAccessControl[0]], total: 1 }) // access control for att-1
+        .mockResolvedValueOnce({ documents: [mockAccessControl[1]], total: 1 }); // access control for att-2
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -409,15 +439,15 @@ describe('/api/mobile/sync/attendees - Mobile Sync Attendees API', () => {
       mockReq.query = { offset: 'invalid' };
 
       // Mock call sequence:
-      // 1) user profile lookup
-      // 2) custom fields list
-      // 3) attendees list
-      // 4) access control list
+      // 1) custom fields list
+      // 2) attendees list
+      // 3) access control for att-1
+      // 4) access control for att-2
       mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
         .mockResolvedValueOnce({ documents: [], total: 0 }) // custom fields
-        .mockResolvedValueOnce({ documents: mockAttendees, total: 2 })
-        .mockResolvedValueOnce({ documents: mockAccessControl, total: 2 });
+        .mockResolvedValueOnce({ documents: mockAttendees, total: 2 }) // attendees
+        .mockResolvedValueOnce({ documents: [mockAccessControl[0]], total: 1 }) // access control for att-1
+        .mockResolvedValueOnce({ documents: [mockAccessControl[1]], total: 1 }); // access control for att-2
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -429,16 +459,20 @@ describe('/api/mobile/sync/attendees - Mobile Sync Attendees API', () => {
 
   describe('Permissions', () => {
     it('should return 403 when user lacks attendee read permission', async () => {
-      const noPermRole = {
-        ...mockScannerRole,
-        permissions: JSON.stringify({}),
+      // Override the userProfile in the request to have no permissions
+      const noPermUserProfile = {
+        ...mockUserProfile,
+        roleId: 'role-no-perm',
+        role: {
+          $id: 'role-no-perm',
+          name: 'No Permissions',
+          description: 'No permissions',
+          permissions: {}, // No permissions
+        },
       };
 
-      mockDatabases.getDocument.mockResolvedValue(noPermRole);
-      // Mock call sequence:
-      // 1) user profile lookup (with no permissions)
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [{ ...mockUserProfile, roleId: 'role-no-perm' }], total: 1 });
+      // Inject the no-permission user profile into the request
+      (mockReq as any).userProfile = noPermUserProfile;
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -485,15 +519,13 @@ describe('/api/mobile/sync/attendees - Mobile Sync Attendees API', () => {
       };
 
       // Mock call sequence:
-      // 1) user profile lookup
-      // 2) custom fields list
-      // 3) attendees list
-      // 4) access control list
+      // 1) custom fields list (with actual field definitions)
+      // 2) attendees list
+      // 3) access control for att-1
       mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: mockCustomFields, total: 2 })
-        .mockResolvedValueOnce({ documents: [attendeeWithFieldIds], total: 1 })
-        .mockResolvedValueOnce({ documents: [mockAccessControl[0]], total: 1 });
+        .mockResolvedValueOnce({ documents: mockCustomFields, total: 2 }) // custom fields
+        .mockResolvedValueOnce({ documents: [attendeeWithFieldIds], total: 1 }) // attendees
+        .mockResolvedValueOnce({ documents: [mockAccessControl[0]], total: 1 }); // access control for att-1
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -538,15 +570,13 @@ describe('/api/mobile/sync/attendees - Mobile Sync Attendees API', () => {
       ];
 
       // Mock call sequence:
-      // 1) user profile lookup
-      // 2) custom fields list
-      // 3) attendees list
-      // 4) access control list
+      // 1) custom fields list (only has field-vip-status)
+      // 2) attendees list
+      // 3) access control for att-1
       mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: mockCustomFields, total: 1 })
-        .mockResolvedValueOnce({ documents: [attendeeWithFieldIds], total: 1 })
-        .mockResolvedValueOnce({ documents: [mockAccessControl[0]], total: 1 });
+        .mockResolvedValueOnce({ documents: mockCustomFields, total: 1 }) // custom fields
+        .mockResolvedValueOnce({ documents: [attendeeWithFieldIds], total: 1 }) // attendees
+        .mockResolvedValueOnce({ documents: [mockAccessControl[0]], total: 1 }); // access control
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -574,15 +604,13 @@ describe('/api/mobile/sync/attendees - Mobile Sync Attendees API', () => {
       };
 
       // Mock call sequence:
-      // 1) user profile lookup
-      // 2) custom fields list
-      // 3) attendees list
-      // 4) access control list
+      // 1) custom fields list
+      // 2) attendees list
+      // 3) access control for att-3 (empty)
       mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 })
-        .mockResolvedValueOnce({ documents: [attendeeWithNoCustomFields], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+        .mockResolvedValueOnce({ documents: [], total: 0 }) // custom fields
+        .mockResolvedValueOnce({ documents: [attendeeWithNoCustomFields], total: 1 }) // attendees
+        .mockResolvedValueOnce({ documents: [], total: 0 }); // access control for att-3 (empty)
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -607,15 +635,13 @@ describe('/api/mobile/sync/attendees - Mobile Sync Attendees API', () => {
       };
 
       // Mock call sequence:
-      // 1) user profile lookup
-      // 2) custom fields list
-      // 3) attendees list
-      // 4) access control list
+      // 1) custom fields list
+      // 2) attendees list
+      // 3) access control for att-4 (empty)
       mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 })
-        .mockResolvedValueOnce({ documents: [attendeeWithNullCustomFields], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+        .mockResolvedValueOnce({ documents: [], total: 0 }) // custom fields
+        .mockResolvedValueOnce({ documents: [attendeeWithNullCustomFields], total: 1 }) // attendees
+        .mockResolvedValueOnce({ documents: [], total: 0 }); // access control for att-4 (empty)
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -632,9 +658,7 @@ describe('/api/mobile/sync/attendees - Mobile Sync Attendees API', () => {
     it('should return 405 for non-GET methods', async () => {
       mockReq.method = 'POST';
 
-      // Mock user profile lookup
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      // No database calls needed - method check happens before any queries
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
