@@ -16,8 +16,9 @@
  *   "firstName": "string",
  *   "lastName": "string",
  *   "photoUrl": "string (optional)",
- *   "customFieldValues": {},
- *   "customFieldValuesByName": {},
+ *   "customFieldValues": {},                    // Field IDs as keys
+ *   "customFieldValuesByName": {},              // Display names as keys
+ *   "customFieldValuesByInternalName": {},      // Internal names as keys (for approval profiles)
  *   "accessControl": {
  *     "accessEnabled": true,
  *     "validFrom": "ISO8601 timestamp (optional)",
@@ -80,7 +81,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     }
 
     // Fetch custom fields for field name mapping
-    let customFieldMap = new Map<string, string>();
+    let customFieldMap = new Map<string, string>(); // Maps fieldId -> fieldName
+    let customFieldInternalMap = new Map<string, string>(); // Maps fieldId -> internalFieldName
     try {
       const customFieldsResult = await databases.listDocuments(
         dbId,
@@ -91,6 +93,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       customFieldsResult.documents.forEach((field: any) => {
         if (field.$id && field.fieldName) {
           customFieldMap.set(field.$id, field.fieldName);
+        }
+        if (field.$id && field.internalFieldName) {
+          customFieldInternalMap.set(field.$id, field.internalFieldName);
         }
       });
     } catch (error) {
@@ -142,6 +147,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     // Parse custom field values
     let customFieldValues: Record<string, any> = {};
     let customFieldValuesByName: Record<string, any> = {};
+    let customFieldValuesByInternalName: Record<string, any> = {};
     
     if (attendee.customFieldValues) {
       try {
@@ -151,12 +157,15 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         
         Object.entries(customFieldValues).forEach(([fieldId, value]) => {
           const displayName = customFieldMap.get(fieldId) || fieldId;
+          const internalName = customFieldInternalMap.get(fieldId) || fieldId;
           customFieldValuesByName[displayName] = value;
+          customFieldValuesByInternalName[internalName] = value;
         });
       } catch (error) {
         console.error(`Failed to parse customFieldValues for attendee ${attendee.$id}:`, error);
         customFieldValues = {};
         customFieldValuesByName = {};
+        customFieldValuesByInternalName = {};
       }
     }
 
@@ -168,6 +177,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       photoUrl: attendee.photoUrl || null,
       customFieldValues,
       customFieldValuesByName,
+      customFieldValuesByInternalName,
       accessControl,
       updatedAt: attendee.$updatedAt
     });

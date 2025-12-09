@@ -96,6 +96,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
     // Fetch custom fields for field name mapping
     let customFieldMap = new Map<string, string>(); // Maps fieldId -> fieldName
+    let customFieldInternalMap = new Map<string, string>(); // Maps fieldId -> internalFieldName
     try {
       const customFieldsResult = await databases.listDocuments(
         dbId,
@@ -103,11 +104,14 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         [Query.limit(1000)] // Reasonable limit for custom fields
       );
       
-      // Build mapping from field IDs to display names
+      // Build mappings from field IDs to display names and internal names
       // Custom field values are stored with field ID as key, not internalFieldName
       customFieldsResult.documents.forEach((field: any) => {
         if (field.$id && field.fieldName) {
           customFieldMap.set(field.$id, field.fieldName);
+        }
+        if (field.$id && field.internalFieldName) {
+          customFieldInternalMap.set(field.$id, field.internalFieldName);
         }
       });
     } catch (error) {
@@ -135,16 +139,18 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     const accessControlMap = new Map<string, any>();
     
     if (attendeeIds.length > 0) {
-      // Fetch access control data in batches (Appwrite limit for 'in' queries is 100)
+      // Fetch access control data in batches (Appwrite limit for OR queries is 100)
       // This prevents N+1 query problem and dramatically improves performance
       const chunkSize = 100;
       for (let i = 0; i < attendeeIds.length; i += chunkSize) {
         const chunk = attendeeIds.slice(i, i + chunkSize);
         try {
+          // Build OR queries for multiple attendee IDs
+          const orQueries = chunk.map(id => Query.equal('attendeeId', id));
           const accessControlResult = await databases.listDocuments(
             dbId,
             accessControlCollectionId,
-            [Query.equal('attendeeId', chunk), Query.limit(chunkSize)]
+            [...orQueries, Query.limit(chunkSize)]
           );
           
           // Map access control records by attendeeId
@@ -174,6 +180,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       // Parse custom field values
       let customFieldValues: Record<string, any> = {};
       let customFieldValuesByName: Record<string, any> = {}; // Display names as keys
+      let customFieldValuesByInternalName: Record<string, any> = {}; // Internal names as keys
       
       if (attendee.customFieldValues) {
         try {
@@ -181,16 +188,19 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             ? JSON.parse(attendee.customFieldValues)
             : attendee.customFieldValues;
           
-          // Create mapping with display names
-          // customFieldValues keys are field IDs, map them to display names
+          // Create mappings with display names and internal names
+          // customFieldValues keys are field IDs, map them to both display and internal names
           Object.entries(customFieldValues).forEach(([fieldId, value]) => {
             const displayName = customFieldMap.get(fieldId) || fieldId;
+            const internalName = customFieldInternalMap.get(fieldId) || fieldId;
             customFieldValuesByName[displayName] = value;
+            customFieldValuesByInternalName[internalName] = value;
           });
         } catch (error) {
           console.error(`Failed to parse customFieldValues for attendee ${attendee.$id}:`, error);
           customFieldValues = {};
           customFieldValuesByName = {};
+          customFieldValuesByInternalName = {};
         }
       }
 
@@ -200,8 +210,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         lastName: attendee.lastName,
         barcodeNumber: attendee.barcodeNumber,
         photoUrl: attendee.photoUrl || null,
-        customFieldValues, // Internal field names (for backward compatibility)
-        customFieldValuesByName, // Display field names (new)
+        customFieldValues, // Field IDs as keys (backward compatibility)
+        customFieldValuesByName, // Display names as keys
+        customFieldValuesByInternalName, // Internal names as keys (for approval profile rules)
         accessControl,
         updatedAt: attendee.$updatedAt
       };

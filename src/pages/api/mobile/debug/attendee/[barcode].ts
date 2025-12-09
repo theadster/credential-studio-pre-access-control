@@ -18,8 +18,14 @@
  *   "email": "string",
  *   "phone": "string",
  *   "photoUrl": "string (optional)",
- *   "customFields": {
+ *   "customFields": {                           // Display names as keys (legacy)
  *     "fieldName": value
+ *   },
+ *   "customFieldValues": {                      // Field IDs as keys
+ *     "field-id": value
+ *   },
+ *   "customFieldValuesByInternalName": {        // Internal names as keys (for approval profiles)
+ *     "internal_name": value
  *   },
  *   "accessControl": {
  *     "accessEnabled": boolean,
@@ -154,6 +160,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
     // Requirement 1.3: Retrieve custom fields and format
     let customFields: Record<string, any> = {};
+    let customFieldValues: Record<string, any> = {};
+    let customFieldValuesByInternalName: Record<string, any> = {};
 
     try {
       // Fetch custom field definitions for field name mapping
@@ -164,9 +172,13 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       );
 
       const fieldNameMap = new Map<string, string>();
+      const fieldInternalMap = new Map<string, string>();
       customFieldsResult.documents.forEach((field: any) => {
         if (field.$id && field.fieldName) {
           fieldNameMap.set(field.$id, field.fieldName);
+        }
+        if (field.$id && field.internalFieldName) {
+          fieldInternalMap.set(field.$id, field.internalFieldName);
         }
       });
 
@@ -178,9 +190,12 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             : attendee.customFieldValues;
 
           if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            customFieldValues = parsed; // Store original with field IDs
             Object.entries(parsed).forEach(([fieldId, value]) => {
               const displayName = fieldNameMap.get(fieldId) || fieldId;
+              const internalName = fieldInternalMap.get(fieldId) || fieldId;
               customFields[displayName] = value;
+              customFieldValuesByInternalName[internalName] = value;
             });
           }
         } catch (error) {
@@ -195,7 +210,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     const response = {
       ...coreData,
       accessControl,
-      customFields
+      customFields, // Display names as keys (legacy format)
+      customFieldValues, // Field IDs as keys
+      customFieldValuesByInternalName // Internal names as keys (for approval profiles)
     };
 
     // Remove undefined photoUrl if not present

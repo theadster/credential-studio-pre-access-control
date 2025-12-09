@@ -25,6 +25,9 @@ docs/
 - [**Bulk Delete Log Size Fix**](./fixes/BULK_DELETE_LOG_SIZE_FIX.md) - Use API key for bulk deletes and handle large log entries
 
 ### Recent Fixes
+- [**🔧 Custom Field Naming Discrepancy Fix**](./fixes/CUSTOM_FIELD_INTERNAL_NAMES_IMPLEMENTATION.md) - ✅ **FIXED:** Added `customFieldValuesByInternalName` to mobile API to fix approval profile rule evaluation
+- [**📊 Custom Field Naming Analysis**](./fixes/CUSTOM_FIELD_NAMING_DISCREPANCY_ANALYSIS.md) - 🔍 **ANALYSIS:** Comprehensive analysis of custom field naming mismatch between approval profiles and mobile app
+- [**⚡ Custom Field Fix Quick Summary**](./fixes/CUSTOM_FIELD_FIX_SUMMARY.md) - 📋 Quick reference for the custom field naming fix
 - [**⚡ Dashboard Performance Fix**](./fixes/DASHBOARD_PERFORMANCE_FIX.md) - ✅ **FIXED:** Resolved N+1 query problem causing 100x slowdown in dashboard loading (reverted individual queries to batch fetching)
 - [**📊 Performance Issues Analysis**](./fixes/PERFORMANCE_ISSUES_ANALYSIS.md) - 🔍 **ANALYSIS:** Comprehensive analysis of all detected performance issues with prioritization and action plan
 - [**🔍 Custom Field Search Analysis**](./fixes/CUSTOM_FIELD_SEARCH_ANALYSIS.md) - 📊 **ANALYSIS:** Custom field search works correctly - email field is hidden by design (showOnMainPage = false)
@@ -235,6 +238,9 @@ docs/
   - Environment variable setup per deployment
   - Scaling to dozens of sites
   - Troubleshooting multi-tenant issues
+
+#### Mobile App Integration
+- [**Mobile App Integration Guide**](./guides/MOBILE_APP_INTEGRATION_GUIDE.md) - 📱 Step-by-step guide for integrating custom field internal names in mobile app
 
 #### Other Guides
 - [**Printable Fields User Guide**](./guides/PRINTABLE_FIELDS_USER_GUIDE.md) - 🎯 Complete guide to configuring printable fields and managing credential status
