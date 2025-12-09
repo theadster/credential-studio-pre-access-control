@@ -153,6 +153,20 @@ export function validateEventSettings(settings: any, isUpdate: boolean = false):
     }
   }
 
+  // Validate mobile settings passcode format
+  if (settings.mobileSettingsPasscode !== undefined) {
+    // Allow null value (no passcode protection)
+    if (settings.mobileSettingsPasscode !== null) {
+      const passcodeRegex = /^[0-9]{4}$/;
+      if (!passcodeRegex.test(settings.mobileSettingsPasscode)) {
+        return {
+          valid: false,
+          error: 'Mobile settings passcode must be exactly 4 numerical digits (0-9)'
+        };
+      }
+    }
+  }
+
   return { valid: true };
 }
 

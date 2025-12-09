@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertTriangle, Shield } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { AlertTriangle, Shield, Smartphone } from "lucide-react";
 import { EventSettings, AccessControlTimeMode } from './types';
 
 interface AccessControlTabProps {
@@ -106,6 +107,45 @@ export const AccessControlTab = memo(function AccessControlTab({
           )}
         </CardContent>
       </Card>
+
+      {/* Mobile App Security Card - Only visible when access control is enabled */}
+      {accessControlEnabled && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Smartphone className="h-5 w-5" />
+              Mobile App Security
+            </CardTitle>
+            <CardDescription>
+              Configure security settings for the mobile scanning app
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="mobileSettingsPasscode" className="text-base font-medium">
+                Settings Menu Passcode
+              </Label>
+              <Input
+                id="mobileSettingsPasscode"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]{4}"
+                maxLength={4}
+                value={formData.mobileSettingsPasscode || ''}
+                onChange={(e) => {
+                  const value = e.target.value.replace(/\D/g, ''); // Remove non-digits
+                  onInputChange("mobileSettingsPasscode", value || null);
+                }}
+                placeholder="Enter 4-digit code"
+                className="w-48"
+              />
+              <p className="text-sm text-muted-foreground">
+                Set a 4-digit code to protect the mobile app settings menu. Leave empty to disable passcode protection.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Default Values Card - Only visible when access control is enabled */}
       {accessControlEnabled && (
@@ -227,6 +267,7 @@ export const AccessControlTab = memo(function AccessControlTab({
   return (
     prevProps.formData.accessControlEnabled === nextProps.formData.accessControlEnabled &&
     prevProps.formData.accessControlTimeMode === nextProps.formData.accessControlTimeMode &&
+    prevProps.formData.mobileSettingsPasscode === nextProps.formData.mobileSettingsPasscode &&
     JSON.stringify(prevProps.formData.accessControlDefaults) === JSON.stringify(nextProps.formData.accessControlDefaults) &&
     prevProps.onInputChange === nextProps.onInputChange
   );

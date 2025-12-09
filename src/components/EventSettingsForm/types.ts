@@ -80,6 +80,12 @@ export interface EventSettings {
     /** Whether to use today's date for Valid From (overrides validFrom) */
     validFromUseToday?: boolean;
   };
+  /** 
+   * 4-digit numerical passcode for mobile app settings protection.
+   * When set, the mobile app will require this passcode to access the settings menu.
+   * Set to null to disable passcode protection.
+   */
+  mobileSettingsPasscode?: string | null;
   cloudinaryEnabled?: boolean;
   cloudinaryCloudName?: string;
   cloudinaryUploadPreset?: string;

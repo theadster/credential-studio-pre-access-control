@@ -98,6 +98,11 @@ docs/
 ### API Reference
 - [**📖 API Transactions Reference**](./reference/API_TRANSACTIONS_REFERENCE.md) - 🔥 **NEW:** Complete API reference for transaction-enabled endpoints
   - Transaction behavior and atomicity guarantees
+- [**📱 Mobile API Reference**](./reference/MOBILE_API_REFERENCE.md) - Complete reference for all mobile scanning APIs
+  - Event Info API (includes mobileSettingsPasscode field)
+  - Sync Attendees API
+  - Sync Profiles API
+  - Scan Logs Upload API
   - Error responses with HTTP status codes
   - Retry behavior and exponential backoff
   - Fallback scenarios and performance metrics
@@ -241,6 +246,12 @@ docs/
 
 #### Mobile App Integration
 - [**Mobile App Integration Guide**](./guides/MOBILE_APP_INTEGRATION_GUIDE.md) - 📱 Step-by-step guide for integrating custom field internal names in mobile app
+- [**Mobile Settings Passcode Implementation Guide**](./guides/MOBILE_SETTINGS_PASSCODE_IMPLEMENTATION_GUIDE.md) - 🔐 Complete guide for implementing 4-digit passcode protection on mobile app settings menu
+  - API integration with authentication requirements
+  - UI/UX guidelines and validation rules
+  - Error handling and edge cases
+  - Security best practices and recommendations
+  - Testing checklist and troubleshooting
 
 #### Other Guides
 - [**Printable Fields User Guide**](./guides/PRINTABLE_FIELDS_USER_GUIDE.md) - 🎯 Complete guide to configuring printable fields and managing credential status

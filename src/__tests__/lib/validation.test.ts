@@ -246,6 +246,96 @@ describe('validateEventSettings', () => {
     const result = validateEventSettings(settings, true);
     expect(result.valid).toBe(true);
   });
+
+  // Tests for mobile settings passcode validation
+  it('should accept valid 4-digit passcode', () => {
+    const settings = {
+      eventName: 'Test Event',
+      eventDate: '2024-12-31',
+      eventLocation: 'Test Location',
+      mobileSettingsPasscode: '1234'
+    };
+    const result = validateEventSettings(settings);
+    expect(result.valid).toBe(true);
+  });
+
+  it('should accept null passcode (no protection)', () => {
+    const settings = {
+      eventName: 'Test Event',
+      eventDate: '2024-12-31',
+      eventLocation: 'Test Location',
+      mobileSettingsPasscode: null
+    };
+    const result = validateEventSettings(settings);
+    expect(result.valid).toBe(true);
+  });
+
+  it('should reject passcode with less than 4 digits', () => {
+    const settings = {
+      eventName: 'Test Event',
+      eventDate: '2024-12-31',
+      eventLocation: 'Test Location',
+      mobileSettingsPasscode: '123'
+    };
+    const result = validateEventSettings(settings);
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain('4 numerical digits');
+  });
+
+  it('should reject passcode with more than 4 digits', () => {
+    const settings = {
+      eventName: 'Test Event',
+      eventDate: '2024-12-31',
+      eventLocation: 'Test Location',
+      mobileSettingsPasscode: '12345'
+    };
+    const result = validateEventSettings(settings);
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain('4 numerical digits');
+  });
+
+  it('should reject passcode with non-numerical characters', () => {
+    const settings = {
+      eventName: 'Test Event',
+      eventDate: '2024-12-31',
+      eventLocation: 'Test Location',
+      mobileSettingsPasscode: '12a4'
+    };
+    const result = validateEventSettings(settings);
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain('4 numerical digits');
+  });
+
+  it('should reject passcode with special characters', () => {
+    const settings = {
+      eventName: 'Test Event',
+      eventDate: '2024-12-31',
+      eventLocation: 'Test Location',
+      mobileSettingsPasscode: '12-4'
+    };
+    const result = validateEventSettings(settings);
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain('4 numerical digits');
+  });
+
+  it('should accept passcode with leading zeros', () => {
+    const settings = {
+      eventName: 'Test Event',
+      eventDate: '2024-12-31',
+      eventLocation: 'Test Location',
+      mobileSettingsPasscode: '0123'
+    };
+    const result = validateEventSettings(settings);
+    expect(result.valid).toBe(true);
+  });
+
+  it('should accept passcode in update mode', () => {
+    const settings = {
+      mobileSettingsPasscode: '5678'
+    };
+    const result = validateEventSettings(settings, true);
+    expect(result.valid).toBe(true);
+  });
 });
 
 describe('validateCustomField', () => {

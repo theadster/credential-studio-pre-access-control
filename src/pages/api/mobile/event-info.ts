@@ -4,12 +4,13 @@
  * GET /api/mobile/event-info
  * 
  * Returns essential event information for mobile app display.
- * Includes event name and other key details needed for the scanning interface.
+ * Includes event name, location, date/time, and mobile settings passcode.
  * 
  * This endpoint is optimized for mobile clients and returns minimal data
  * to reduce bandwidth usage.
  * 
  * @see .kiro/specs/mobile-access-control/design.md - Mobile Integration Guide
+ * @see .kiro/specs/mobile-settings-passcode/design.md - Mobile Settings Passcode Feature
  */
 
 import { NextApiResponse } from 'next';
@@ -92,6 +93,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         eventLocation: eventSettings.eventLocation || null,
         eventTime: eventSettings.eventTime || null,
         timeZone: eventSettings.timeZone || null,
+        mobileSettingsPasscode: eventSettings.mobileSettingsPasscode || null,
         updatedAt: eventSettings.$updatedAt
       }
     });
