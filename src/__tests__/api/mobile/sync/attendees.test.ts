@@ -181,13 +181,11 @@ describe('/api/mobile/sync/attendees - Mobile Sync Attendees API', () => {
       // Mock call sequence (middleware auth happens before handler):
       // 1) custom fields list (for field name mapping)
       // 2) attendees list
-      // 3) access control for att-1
-      // 4) access control for att-2
+      // 3) access control list (Query.or() with both attendee IDs)
       mockDatabases.listDocuments
         .mockResolvedValueOnce({ documents: [], total: 0 }) // custom fields
         .mockResolvedValueOnce({ documents: mockAttendees, total: 2 }) // attendees
-        .mockResolvedValueOnce({ documents: [mockAccessControl[0]], total: 1 }) // access control for att-1
-        .mockResolvedValueOnce({ documents: [mockAccessControl[1]], total: 1 }); // access control for att-2
+        .mockResolvedValueOnce({ documents: mockAccessControl, total: 2 }); // access control (Query.or() result)
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -232,11 +230,11 @@ describe('/api/mobile/sync/attendees - Mobile Sync Attendees API', () => {
       // Mock call sequence:
       // 1) custom fields list
       // 2) attendees list
-      // 3) access control for att-1
+      // 3) access control list (Query.or() with att-1)
       mockDatabases.listDocuments
         .mockResolvedValueOnce({ documents: [], total: 0 }) // custom fields
         .mockResolvedValueOnce({ documents: [mockAttendees[0]], total: 1 }) // attendees
-        .mockResolvedValueOnce({ documents: [mockAccessControl[0]], total: 1 }); // access control for att-1
+        .mockResolvedValueOnce({ documents: [mockAccessControl[0]], total: 1 }); // access control
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -249,11 +247,11 @@ describe('/api/mobile/sync/attendees - Mobile Sync Attendees API', () => {
       // Mock call sequence:
       // 1) custom fields list
       // 2) attendees list
-      // 3) empty access control for att-1
+      // 3) empty access control list (Query.or() returns no results)
       mockDatabases.listDocuments
         .mockResolvedValueOnce({ documents: [], total: 0 }) // custom fields
         .mockResolvedValueOnce({ documents: [mockAttendees[0]], total: 1 }) // attendees
-        .mockResolvedValueOnce({ documents: [], total: 0 }); // empty access control for att-1
+        .mockResolvedValueOnce({ documents: [], total: 0 }); // empty access control
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -274,11 +272,11 @@ describe('/api/mobile/sync/attendees - Mobile Sync Attendees API', () => {
       // Mock call sequence:
       // 1) custom fields list
       // 2) attendees list (filtered by since parameter)
-      // 3) access control for att-2
+      // 3) access control list (Query.or() with att-2)
       mockDatabases.listDocuments
         .mockResolvedValueOnce({ documents: [], total: 0 }) // custom fields
         .mockResolvedValueOnce({ documents: [mockAttendees[1]], total: 1 }) // attendees (only att-2 updated after since)
-        .mockResolvedValueOnce({ documents: [mockAccessControl[1]], total: 1 }); // access control for att-2
+        .mockResolvedValueOnce({ documents: [mockAccessControl[1]], total: 1 }); // access control
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -314,11 +312,11 @@ describe('/api/mobile/sync/attendees - Mobile Sync Attendees API', () => {
       // Mock call sequence:
       // 1) custom fields list
       // 2) attendees list (limited to 1, but total is 2)
-      // 3) access control for att-1
+      // 3) access control list (Query.or() with att-1)
       mockDatabases.listDocuments
         .mockResolvedValueOnce({ documents: [], total: 0 }) // custom fields
         .mockResolvedValueOnce({ documents: [mockAttendees[0]], total: 2 }) // attendees (1 returned, 2 total)
-        .mockResolvedValueOnce({ documents: [mockAccessControl[0]], total: 1 }); // access control for att-1
+        .mockResolvedValueOnce({ documents: [mockAccessControl[0]], total: 1 }); // access control
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -338,11 +336,11 @@ describe('/api/mobile/sync/attendees - Mobile Sync Attendees API', () => {
       // Mock call sequence:
       // 1) custom fields list
       // 2) attendees list (with offset 1)
-      // 3) access control for att-2
+      // 3) access control list (Query.or() with att-2)
       mockDatabases.listDocuments
         .mockResolvedValueOnce({ documents: [], total: 0 }) // custom fields
         .mockResolvedValueOnce({ documents: [mockAttendees[1]], total: 2 }) // attendees (offset 1, returns att-2)
-        .mockResolvedValueOnce({ documents: [mockAccessControl[1]], total: 1 }); // access control for att-2
+        .mockResolvedValueOnce({ documents: [mockAccessControl[1]], total: 1 }); // access control
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -357,13 +355,11 @@ describe('/api/mobile/sync/attendees - Mobile Sync Attendees API', () => {
       // Mock call sequence:
       // 1) custom fields list
       // 2) attendees list
-      // 3) access control for att-1
-      // 4) access control for att-2
+      // 3) access control list (Query.or() with both attendees)
       mockDatabases.listDocuments
         .mockResolvedValueOnce({ documents: [], total: 0 }) // custom fields
         .mockResolvedValueOnce({ documents: mockAttendees, total: 2 }) // attendees
-        .mockResolvedValueOnce({ documents: [mockAccessControl[0]], total: 1 }) // access control for att-1
-        .mockResolvedValueOnce({ documents: [mockAccessControl[1]], total: 1 }); // access control for att-2
+        .mockResolvedValueOnce({ documents: mockAccessControl, total: 2 }); // access control
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -378,13 +374,11 @@ describe('/api/mobile/sync/attendees - Mobile Sync Attendees API', () => {
       // Mock call sequence:
       // 1) custom fields list
       // 2) attendees list
-      // 3) access control for att-1
-      // 4) access control for att-2
+      // 3) access control list (Query.or() with both attendees)
       mockDatabases.listDocuments
         .mockResolvedValueOnce({ documents: [], total: 0 }) // custom fields
         .mockResolvedValueOnce({ documents: mockAttendees, total: 2 }) // attendees
-        .mockResolvedValueOnce({ documents: [mockAccessControl[0]], total: 1 }) // access control for att-1
-        .mockResolvedValueOnce({ documents: [mockAccessControl[1]], total: 1 }); // access control for att-2
+        .mockResolvedValueOnce({ documents: mockAccessControl, total: 2 }); // access control
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -399,13 +393,11 @@ describe('/api/mobile/sync/attendees - Mobile Sync Attendees API', () => {
       // Mock call sequence:
       // 1) custom fields list
       // 2) attendees list
-      // 3) access control for att-1
-      // 4) access control for att-2
+      // 3) access control list (Query.or() with both attendees)
       mockDatabases.listDocuments
         .mockResolvedValueOnce({ documents: [], total: 0 }) // custom fields
         .mockResolvedValueOnce({ documents: mockAttendees, total: 2 }) // attendees
-        .mockResolvedValueOnce({ documents: [mockAccessControl[0]], total: 1 }) // access control for att-1
-        .mockResolvedValueOnce({ documents: [mockAccessControl[1]], total: 1 }); // access control for att-2
+        .mockResolvedValueOnce({ documents: mockAccessControl, total: 2 }); // access control
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -420,13 +412,11 @@ describe('/api/mobile/sync/attendees - Mobile Sync Attendees API', () => {
       // Mock call sequence:
       // 1) custom fields list
       // 2) attendees list
-      // 3) access control for att-1
-      // 4) access control for att-2
+      // 3) access control list (Query.or() with both attendees)
       mockDatabases.listDocuments
         .mockResolvedValueOnce({ documents: [], total: 0 }) // custom fields
         .mockResolvedValueOnce({ documents: mockAttendees, total: 2 }) // attendees
-        .mockResolvedValueOnce({ documents: [mockAccessControl[0]], total: 1 }) // access control for att-1
-        .mockResolvedValueOnce({ documents: [mockAccessControl[1]], total: 1 }); // access control for att-2
+        .mockResolvedValueOnce({ documents: mockAccessControl, total: 2 }); // access control
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -441,13 +431,11 @@ describe('/api/mobile/sync/attendees - Mobile Sync Attendees API', () => {
       // Mock call sequence:
       // 1) custom fields list
       // 2) attendees list
-      // 3) access control for att-1
-      // 4) access control for att-2
+      // 3) access control list (Query.or() with both attendees)
       mockDatabases.listDocuments
         .mockResolvedValueOnce({ documents: [], total: 0 }) // custom fields
         .mockResolvedValueOnce({ documents: mockAttendees, total: 2 }) // attendees
-        .mockResolvedValueOnce({ documents: [mockAccessControl[0]], total: 1 }) // access control for att-1
-        .mockResolvedValueOnce({ documents: [mockAccessControl[1]], total: 1 }); // access control for att-2
+        .mockResolvedValueOnce({ documents: mockAccessControl, total: 2 }); // access control
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -516,16 +504,18 @@ describe('/api/mobile/sync/attendees - Mobile Sync Attendees API', () => {
         }),
         $createdAt: '2024-01-01T00:00:00.000Z',
         $updatedAt: '2024-01-10T00:00:00.000Z',
+        $collectionId: 'attendees',
+        $databaseId: 'test-db',
       };
 
       // Mock call sequence:
       // 1) custom fields list (with actual field definitions)
       // 2) attendees list
-      // 3) access control for att-1
+      // 3) access control list (Query.or() with att-1)
       mockDatabases.listDocuments
         .mockResolvedValueOnce({ documents: mockCustomFields, total: 2 }) // custom fields
         .mockResolvedValueOnce({ documents: [attendeeWithFieldIds], total: 1 }) // attendees
-        .mockResolvedValueOnce({ documents: [mockAccessControl[0]], total: 1 }); // access control for att-1
+        .mockResolvedValueOnce({ documents: [mockAccessControl[0]], total: 1 }); // access control
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -558,6 +548,8 @@ describe('/api/mobile/sync/attendees - Mobile Sync Attendees API', () => {
         }),
         $createdAt: '2024-01-01T00:00:00.000Z',
         $updatedAt: '2024-01-10T00:00:00.000Z',
+        $collectionId: 'attendees',
+        $databaseId: 'test-db',
       };
 
       const mockCustomFields = [
@@ -572,7 +564,7 @@ describe('/api/mobile/sync/attendees - Mobile Sync Attendees API', () => {
       // Mock call sequence:
       // 1) custom fields list (only has field-vip-status)
       // 2) attendees list
-      // 3) access control for att-1
+      // 3) access control list (Query.or() with att-1)
       mockDatabases.listDocuments
         .mockResolvedValueOnce({ documents: mockCustomFields, total: 1 }) // custom fields
         .mockResolvedValueOnce({ documents: [attendeeWithFieldIds], total: 1 }) // attendees
@@ -593,7 +585,7 @@ describe('/api/mobile/sync/attendees - Mobile Sync Attendees API', () => {
 
     it('should handle empty custom field values', async () => {
       const attendeeWithNoCustomFields = {
-        $id: 'att-3',
+        $id: 'att-1',
         firstName: 'Bob',
         lastName: 'Johnson',
         barcodeNumber: '5555555555',
@@ -601,16 +593,18 @@ describe('/api/mobile/sync/attendees - Mobile Sync Attendees API', () => {
         customFieldValues: JSON.stringify({}),
         $createdAt: '2024-01-03T00:00:00.000Z',
         $updatedAt: '2024-01-12T00:00:00.000Z',
+        $collectionId: 'attendees',
+        $databaseId: 'test-db',
       };
 
       // Mock call sequence:
       // 1) custom fields list
       // 2) attendees list
-      // 3) access control for att-3 (empty)
+      // 3) access control list (Query.or() - returns att-1 access control)
       mockDatabases.listDocuments
         .mockResolvedValueOnce({ documents: [], total: 0 }) // custom fields
         .mockResolvedValueOnce({ documents: [attendeeWithNoCustomFields], total: 1 }) // attendees
-        .mockResolvedValueOnce({ documents: [], total: 0 }); // access control for att-3 (empty)
+        .mockResolvedValueOnce({ documents: [mockAccessControl[0]], total: 1 }); // access control
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -624,7 +618,7 @@ describe('/api/mobile/sync/attendees - Mobile Sync Attendees API', () => {
 
     it('should handle null customFieldValues', async () => {
       const attendeeWithNullCustomFields = {
-        $id: 'att-4',
+        $id: 'att-2',
         firstName: 'Alice',
         lastName: 'Williams',
         barcodeNumber: '6666666666',
@@ -632,16 +626,18 @@ describe('/api/mobile/sync/attendees - Mobile Sync Attendees API', () => {
         customFieldValues: null,
         $createdAt: '2024-01-04T00:00:00.000Z',
         $updatedAt: '2024-01-13T00:00:00.000Z',
+        $collectionId: 'attendees',
+        $databaseId: 'test-db',
       };
 
       // Mock call sequence:
       // 1) custom fields list
       // 2) attendees list
-      // 3) access control for att-4 (empty)
+      // 3) access control list (Query.or() - returns att-2 access control)
       mockDatabases.listDocuments
         .mockResolvedValueOnce({ documents: [], total: 0 }) // custom fields
         .mockResolvedValueOnce({ documents: [attendeeWithNullCustomFields], total: 1 }) // attendees
-        .mockResolvedValueOnce({ documents: [], total: 0 }); // access control for att-4 (empty)
+        .mockResolvedValueOnce({ documents: [mockAccessControl[1]], total: 1 }); // access control
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 

@@ -138,34 +138,35 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     const attendeeIds = attendeesResult.documents.map((doc: any) => doc.$id);
     const accessControlMap = new Map<string, any>();
     
-    if (attendeeIds.length > 0) {
-      // Fetch access control data in batches (Appwrite limit for OR queries is 100)
-      // This prevents N+1 query problem and dramatically improves performance
+    if (attendeeIds.length > 0 && accessControlCollectionId) {
+      // Fetch access control records for the attendees being synced
+      // Uses Query.equal with array for efficient "IN" query
+      // Appwrite supports up to 100 values per "IN" query
       const chunkSize = 100;
-      for (let i = 0; i < attendeeIds.length; i += chunkSize) {
-        const chunk = attendeeIds.slice(i, i + chunkSize);
-        try {
-          // Build OR queries for multiple attendee IDs using Query.or()
-          // This properly combines multiple equal conditions with OR logic
-          const orQueries = chunk.map(id => Query.equal('attendeeId', id));
+      
+      try {
+        for (let i = 0; i < attendeeIds.length; i += chunkSize) {
+          const chunk = attendeeIds.slice(i, i + chunkSize);
+          
+          // Use Query.equal with array for "IN" query (same as attendees/index.ts)
           const accessControlResult = await databases.listDocuments(
             dbId,
             accessControlCollectionId,
-            [Query.or(orQueries), Query.limit(chunkSize)]
+            [Query.equal('attendeeId', chunk), Query.limit(chunkSize)]
           );
           
           // Map access control records by attendeeId
           accessControlResult.documents.forEach((ac: any) => {
             accessControlMap.set(ac.attendeeId, {
-              accessEnabled: ac.accessEnabled,
+              accessEnabled: ac.accessEnabled ?? true,
               validFrom: ac.validFrom || null,
               validUntil: ac.validUntil || null
             });
           });
-        } catch (error) {
-          console.warn(`[Mobile Sync Attendees] Failed to fetch access control batch:`, error);
-          // Continue with next batch if one fails
         }
+      } catch (error) {
+        console.warn(`[Mobile Sync Attendees] Failed to fetch access control data:`, error);
+        // Continue without access control data if fetch fails
       }
     }
 
