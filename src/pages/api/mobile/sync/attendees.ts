@@ -145,12 +145,13 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       for (let i = 0; i < attendeeIds.length; i += chunkSize) {
         const chunk = attendeeIds.slice(i, i + chunkSize);
         try {
-          // Build OR queries for multiple attendee IDs
+          // Build OR queries for multiple attendee IDs using Query.or()
+          // This properly combines multiple equal conditions with OR logic
           const orQueries = chunk.map(id => Query.equal('attendeeId', id));
           const accessControlResult = await databases.listDocuments(
             dbId,
             accessControlCollectionId,
-            [...orQueries, Query.limit(chunkSize)]
+            [Query.or(orQueries), Query.limit(chunkSize)]
           );
           
           // Map access control records by attendeeId
