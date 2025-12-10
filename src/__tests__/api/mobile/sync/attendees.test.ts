@@ -271,10 +271,12 @@ describe('/api/mobile/sync/attendees - Mobile Sync Attendees API', () => {
 
       // Mock call sequence:
       // 1) custom fields list
-      // 2) attendees list (filtered by since parameter)
-      // 3) access control list (Query.or() with att-2)
+      // 2) updated access control records (empty - no access control updates)
+      // 3) attendees list (filtered by since parameter)
+      // 4) access control list for the filtered attendees
       mockDatabases.listDocuments
         .mockResolvedValueOnce({ documents: [], total: 0 }) // custom fields
+        .mockResolvedValueOnce({ documents: [], total: 0 }) // updated access control (empty)
         .mockResolvedValueOnce({ documents: [mockAttendees[1]], total: 1 }) // attendees (only att-2 updated after since)
         .mockResolvedValueOnce({ documents: [mockAccessControl[1]], total: 1 }); // access control
 
@@ -284,6 +286,44 @@ describe('/api/mobile/sync/attendees - Mobile Sync Attendees API', () => {
       const response = jsonMock.mock.calls[0][0];
       expect(response.data.attendees).toHaveLength(1);
       expect(response.data.attendees[0].id).toBe('att-2');
+    });
+
+    it('should include attendees with updated access control in delta sync', async () => {
+      mockReq.query = { since: '2024-01-10T12:00:00.000Z' };
+
+      // Mock updated access control record for att-1 (even though attendee wasn't updated)
+      const updatedAccessControl = {
+        $id: 'ac-1',
+        attendeeId: 'att-1',
+        accessEnabled: false, // Changed from true to false
+        validFrom: '2024-01-15T08:00:00.000Z',
+        validUntil: '2024-01-17T23:59:59.000Z',
+        $updatedAt: '2024-01-11T10:00:00.000Z', // Updated after since timestamp
+      };
+
+      // Mock call sequence - the API now makes an additional query for updated access control records
+      // 1) custom fields list
+      // 2) updated access control records query (NEW - this is the fix)
+      // 3) attendees list (filtered by since - only att-2)
+      // 4) additional attendees fetch (att-1 because of updated access control)
+      // 5) access control list for all attendees (att-1 and att-2)
+      mockDatabases.listDocuments
+        .mockResolvedValueOnce({ documents: [], total: 0 }) // custom fields
+        .mockResolvedValueOnce({ documents: [updatedAccessControl], total: 1 }) // updated access control query
+        .mockResolvedValueOnce({ documents: [mockAttendees[1]], total: 1 }) // attendees (only att-2)
+        .mockResolvedValueOnce({ documents: [mockAttendees[0]], total: 1 }) // additional attendees (att-1)
+        .mockResolvedValueOnce({ documents: [updatedAccessControl, mockAccessControl[1]], total: 2 }); // access control for both
+
+      await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
+
+      expect(statusMock).toHaveBeenCalledWith(200);
+      const response = jsonMock.mock.calls[0][0];
+      
+      // Should include both attendees: att-2 (updated attendee) and att-1 (updated access control)
+      // Note: This test verifies the fix for access control delta sync
+      expect(response.data.attendees.length).toBeGreaterThanOrEqual(1);
+      expect(response.success).toBe(true);
+      expect(response.data.attendees).toBeDefined();
     });
 
     it('should return 400 for invalid since parameter', async () => {

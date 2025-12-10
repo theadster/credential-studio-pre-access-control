@@ -11,6 +11,12 @@
  * - limit: number - Max records to return (default: 1000, max: 5000)
  * - offset: number - Pagination offset (default: 0)
  * 
+ * Delta Sync Behavior:
+ * - Includes attendees modified since 'since' timestamp
+ * - Also includes attendees whose access control records (validFrom, validUntil, accessStatus) 
+ *   were modified since 'since' timestamp, even if the attendee record itself wasn't modified
+ * - This ensures mobile devices receive updated access control fields during quick syncs
+ * 
  * @see .kiro/specs/mobile-access-control/design.md - Mobile Integration Guide
  */
 
@@ -67,8 +73,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
     // Build queries
     const queries: any[] = [];
+    let additionalAttendeeIds: string[] = [];
 
-    // Delta sync: only fetch records modified after 'since' timestamp
+    // Delta sync: fetch records modified after 'since' timestamp
     if (since && typeof since === 'string') {
       try {
         const sinceDate = new Date(since);
@@ -79,6 +86,29 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           });
         }
         queries.push(Query.greaterThan('$updatedAt', since));
+
+        // DELTA SYNC FIX: Also check for access control records updated since 'since'
+        // This ensures attendees with updated access control fields are included in delta sync
+        if (accessControlCollectionId) {
+          try {
+            const updatedAccessControlResult = await databases.listDocuments(
+              dbId,
+              accessControlCollectionId,
+              [
+                Query.greaterThan('$updatedAt', since),
+                Query.limit(5000) // Max limit to get all updated access control records
+              ]
+            );
+            
+            // Extract attendee IDs from updated access control records
+            additionalAttendeeIds = updatedAccessControlResult.documents.map((ac: any) => ac.attendeeId);
+            
+            console.log(`[Mobile Sync Attendees] Found ${additionalAttendeeIds.length} attendees with updated access control since ${since}`);
+          } catch (error) {
+            console.warn('[Mobile Sync Attendees] Failed to fetch updated access control records:', error);
+            // Continue without additional attendee IDs if access control fetch fails
+          }
+        }
       } catch (error) {
         return res.status(400).json({
           success: false,
@@ -120,11 +150,58 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     }
 
     // Fetch attendees
-    const attendeesResult = await databases.listDocuments(
+    let attendeesResult = await databases.listDocuments(
       dbId,
       attendeesCollectionId,
       queries
     );
+
+    // DELTA SYNC FIX: If we have additional attendee IDs from updated access control records,
+    // fetch those attendees separately and merge them with the main result
+    // PAGINATION FIX: Enforce the original limit to prevent exceeding requested page size
+    let combinedUniqueCount = attendeesResult.total; // Total unique attendees available
+    
+    if (additionalAttendeeIds.length > 0) {
+      try {
+        // Remove duplicates - attendees already in the main result
+        const existingAttendeeIds = new Set(attendeesResult.documents.map((doc: any) => doc.$id));
+        const uniqueAdditionalIds = additionalAttendeeIds.filter(id => !existingAttendeeIds.has(id));
+        
+        if (uniqueAdditionalIds.length > 0) {
+          console.log(`[Mobile Sync Attendees] Fetching ${uniqueAdditionalIds.length} additional attendees with updated access control`);
+          
+          // Fetch additional attendees in chunks (Appwrite limit for IN queries)
+          const chunkSize = 100;
+          const additionalAttendees: any[] = [];
+          
+          for (let i = 0; i < uniqueAdditionalIds.length; i += chunkSize) {
+            const chunk = uniqueAdditionalIds.slice(i, i + chunkSize);
+            const additionalResult = await databases.listDocuments(
+              dbId,
+              attendeesCollectionId,
+              [Query.equal('$id', chunk), Query.limit(chunkSize)]
+            );
+            additionalAttendees.push(...additionalResult.documents);
+          }
+          
+          // Merge additional attendees with main result
+          attendeesResult.documents.push(...additionalAttendees);
+          
+          // Update combined unique count (main total + additional unique count)
+          combinedUniqueCount = attendeesResult.total + additionalAttendees.length;
+          
+          console.log(`[Mobile Sync Attendees] Added ${additionalAttendees.length} attendees with updated access control to sync (combined total: ${combinedUniqueCount})`);
+        }
+      } catch (error) {
+        console.warn('[Mobile Sync Attendees] Failed to fetch additional attendees with updated access control:', error);
+        // Continue with main result if additional fetch fails
+      }
+    }
+    
+    // PAGINATION FIX: Enforce the original limit by trimming merged attendees to requested limit
+    // This ensures pagination works correctly and responses don't exceed the requested page size
+    const combinedDocuments = attendeesResult.documents.slice(0, limit);
+    const actualReturnedCount = combinedDocuments.length;
 
     /**
      * ACCESS CONTROL DATA FETCHING
@@ -135,7 +212,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
      * Note: validFrom and validUntil are stored as strings to preserve exact values
      * without Appwrite's automatic timezone conversion
      */
-    const attendeeIds = attendeesResult.documents.map((doc: any) => doc.$id);
+    const attendeeIds = combinedDocuments.map((doc: any) => doc.$id);
     const accessControlMap = new Map<string, any>();
     
     if (attendeeIds.length > 0 && accessControlCollectionId) {
@@ -171,7 +248,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     }
 
     // Map attendees with access control data
-    const attendees = attendeesResult.documents.map((attendee: any) => {
+    const attendees = combinedDocuments.map((attendee: any) => {
       // Get access control for this attendee (default to enabled if not found)
       const accessControl = accessControlMap.get(attendee.$id) || {
         accessEnabled: true,
@@ -221,14 +298,15 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     });
 
     // Calculate pagination metadata
-    const hasMore = offset + attendees.length < attendeesResult.total;
+    // hasMore is true if there are more unique attendees available than what we're returning
+    const hasMore = offset + actualReturnedCount < combinedUniqueCount;
 
     return res.status(200).json({
       success: true,
       data: {
         attendees,
         pagination: {
-          total: attendeesResult.total,
+          total: combinedUniqueCount,
           limit,
           offset,
           hasMore

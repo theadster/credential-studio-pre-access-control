@@ -51,9 +51,11 @@ import {
   User,
   Calendar,
   QrCode,
-  Shield
+  Shield,
+  Trash2
 } from 'lucide-react';
 import { useSweetAlert } from '@/hooks/useSweetAlert';
+import ScanLogsDeleteDialog from '@/components/ScanLogsDeleteDialog';
 
 interface ScanLog {
   id: string;
@@ -111,22 +113,104 @@ export default function ScanLogsViewer() {
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [showFilters, setShowFilters] = useState(false);
   const [profiles, setProfiles] = useState<{ id: string; name: string }[]>([]);
+  const [profileMap, setProfileMap] = useState<Record<string, string>>({});
+  const [userMap, setUserMap] = useState<Record<string, string>>({});
+  const [attendeeMap, setAttendeeMap] = useState<Record<string, { firstName: string; lastName: string }>>({});
 
-  // Load profiles for filter dropdown
+  // Load profiles and users for filter dropdown and name mapping
   useEffect(() => {
     const loadProfiles = async () => {
       try {
         const response = await fetch('/api/approval-profiles');
-        if (response.ok) {
-          const data = await response.json();
-          setProfiles((data.data || []).map((p: any) => ({ id: p.$id, name: p.name })));
+        if (!response.ok) {
+          console.error('Failed to load profiles:', response.status, response.statusText);
+          return;
         }
+        const data = await response.json();
+        const profileList = (data.data || []).map((p: any) => ({ id: p.$id, name: p.name }));
+        setProfiles(profileList);
+        // Create profile map for quick lookup
+        const map: Record<string, string> = {};
+        profileList.forEach((p: { id: string; name: string }) => {
+          map[p.id] = p.name;
+        });
+        setProfileMap(map);
       } catch (err) {
         console.error('Error loading profiles:', err);
       }
     };
+    
+    const loadUsers = async () => {
+      try {
+        const response = await fetch('/api/users');
+        if (!response.ok) {
+          console.error('Failed to load users:', response.status, response.statusText);
+          return;
+        }
+        const data = await response.json();
+        const users = data.users || [];
+        const map: Record<string, string> = {};
+        users.forEach((user: any) => {
+          // Map both the profile ID and the auth userId to the name
+          // operatorId could be either the auth userId or the profile id
+          if (user.userId) {
+            map[user.userId] = user.name || user.email || user.userId;
+          }
+          if (user.id) {
+            map[user.id] = user.name || user.email || user.id;
+          }
+        });
+        setUserMap(map);
+      } catch (err) {
+        console.error('Error loading users:', err);
+      }
+    };
+    
     loadProfiles();
+    loadUsers();
   }, []);
+
+  // Load attendee names for a list of attendee IDs
+  const loadAttendeeNames = useCallback(async (attendeeIds: string[]) => {
+    // Filter out nulls, already loaded attendees, and deduplicate
+    const idsToLoad = Array.from(new Set(attendeeIds.filter(id => id && !attendeeMap[id])));
+    if (idsToLoad.length === 0) return;
+
+    try {
+      // Fetch attendees in batches to avoid too large requests
+      const batchSize = 25;
+      const newMap: Record<string, { firstName: string; lastName: string }> = {};
+      
+      for (let i = 0; i < idsToLoad.length; i += batchSize) {
+        const batch = idsToLoad.slice(i, i + batchSize);
+        const promises = batch.map(async (id) => {
+          try {
+            const response = await fetch(`/api/attendees/${id}`);
+            if (response.ok) {
+              const data = await response.json();
+              return { id, firstName: data.firstName || '', lastName: data.lastName || '' };
+            }
+          } catch {
+            // Ignore individual fetch errors
+          }
+          return null;
+        });
+        
+        const results = await Promise.all(promises);
+        results.forEach(result => {
+          if (result) {
+            newMap[result.id] = { firstName: result.firstName, lastName: result.lastName };
+          }
+        });
+      }
+      
+      if (Object.keys(newMap).length > 0) {
+        setAttendeeMap(prev => ({ ...prev, ...newMap }));
+      }
+    } catch (err) {
+      console.error('Error loading attendee names:', err);
+    }
+  }, [attendeeMap]);
 
   // Load scan logs
   const loadLogs = useCallback(async (offset = 0, currentFilters: Filters = DEFAULT_FILTERS) => {
@@ -146,8 +230,17 @@ export default function ScanLogsViewer() {
       const response = await fetch(`/api/scan-logs?${params}`);
       if (response.ok) {
         const data = await response.json();
-        setLogs(data.data?.logs || []);
+        const fetchedLogs = data.data?.logs || [];
+        setLogs(fetchedLogs);
         setPagination(data.data?.pagination || { total: 0, limit: 50, offset: 0, hasMore: false });
+        
+        // Load attendee names for logs that have attendeeId
+        const attendeeIds = fetchedLogs
+          .map((log: ScanLog) => log.attendeeId)
+          .filter((id: string | null): id is string => id !== null);
+        if (attendeeIds.length > 0) {
+          loadAttendeeNames(attendeeIds);
+        }
       } else {
         const errorData = await response.json();
         showError('Error', errorData.error?.message || 'Failed to load scan logs');
@@ -158,11 +251,11 @@ export default function ScanLogsViewer() {
     } finally {
       setLoading(false);
     }
-  }, [pagination.limit, showError]);
+  }, [pagination.limit, showError, loadAttendeeNames]);
 
   useEffect(() => {
     loadLogs(0, filters);
-  }, []);
+  }, [loadLogs, filters]);
 
   // Handle filter change
   const handleFilterChange = (key: keyof Filters, value: string) => {
@@ -215,18 +308,6 @@ export default function ScanLogsViewer() {
     }
   };
 
-  // Format date
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    });
-  };
-
   // Check if any filters are active
   const hasActiveFilters = Object.entries(filters).some(([key, value]) => {
     if (key === 'result') return value !== 'all' && value !== '';
@@ -264,6 +345,15 @@ export default function ScanLogsViewer() {
                 </>
               )}
             </Button>
+            <ScanLogsDeleteDialog 
+              profiles={profiles} 
+              onDeleteSuccess={() => loadLogs(0, filters)}
+            >
+              <Button variant="outline" className="text-destructive hover:text-destructive">
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete Logs
+              </Button>
+            </ScanLogsDeleteDialog>
           </div>
         </div>
       </CardHeader>
@@ -330,13 +420,13 @@ export default function ScanLogsViewer() {
               <div className="space-y-2">
                 <Label htmlFor="filter-operator" className="flex items-center gap-1">
                   <User className="h-3 w-3" />
-                  Operator ID
+                  Operator
                 </Label>
                 <Input
                   id="filter-operator"
                   value={filters.operatorId}
                   onChange={(e) => handleFilterChange('operatorId', e.target.value)}
-                  placeholder="Enter operator ID"
+                  placeholder="Enter operator name or ID"
                 />
               </div>
 
@@ -423,47 +513,70 @@ export default function ScanLogsViewer() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Time</TableHead>
-                  <TableHead>Barcode</TableHead>
-                  <TableHead className="text-center">Result</TableHead>
+                  <TableHead className="w-[160px]">Time</TableHead>
+                  <TableHead className="w-[100px]">Barcode</TableHead>
+                  <TableHead>Attendee</TableHead>
+                  <TableHead className="text-center w-[100px]">Result</TableHead>
                   <TableHead>Denial Reason</TableHead>
-                  <TableHead>Device</TableHead>
+                  <TableHead>Profile</TableHead>
                   <TableHead>Operator</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {logs.map((log) => (
-                  <TableRow key={log.id}>
-                    <TableCell className="whitespace-nowrap">
-                      {formatDate(log.scannedAt)}
-                    </TableCell>
-                    <TableCell className="font-mono">{log.barcodeScanned}</TableCell>
-                    <TableCell className="text-center">
-                      {log.result === 'approved' ? (
-                        <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                          <CheckCircle className="h-3 w-3 mr-1" />
-                          Approved
-                        </Badge>
-                      ) : log.result === 'denied' ? (
-                        <Badge variant="destructive">
-                          <XCircle className="h-3 w-3 mr-1" />
-                          Denied
-                        </Badge>
-                      ) : (
-                        <Badge variant="secondary">Unknown</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground max-w-xs truncate">
-                      {log.denialReason || '-'}
-                    </TableCell>
-                    <TableCell className="font-mono text-xs">
-                      {String(log.deviceId || '-').substring(0, 12)}...
-                    </TableCell>
-                    <TableCell className="font-mono text-xs">
-                      {String(log.operatorId || '-').substring(0, 12)}...
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {logs.map((log) => {
+                  const attendee = log.attendeeId ? attendeeMap[log.attendeeId] : null;
+                  const attendeeName = attendee 
+                    ? `${attendee.firstName} ${attendee.lastName}`.trim() 
+                    : null;
+                  
+                  return (
+                    <TableRow key={log.id}>
+                      <TableCell>
+                        <div className="text-sm">
+                          <div>{new Date(log.scannedAt).toLocaleDateString()}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {new Date(log.scannedAt).toLocaleTimeString()}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell 
+                        className="font-mono text-xs max-w-[100px] truncate" 
+                        title={log.barcodeScanned || undefined}
+                      >
+                        {log.barcodeScanned && log.barcodeScanned.length > 10 
+                          ? log.barcodeScanned.substring(0, 10) + '…' 
+                          : log.barcodeScanned || '-'}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {attendeeName || (log.attendeeId ? <span className="text-muted-foreground italic">Unknown</span> : '-')}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {log.result === 'approved' ? (
+                          <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Approved
+                          </Badge>
+                        ) : log.result === 'denied' ? (
+                          <Badge variant="destructive">
+                            <XCircle className="h-3 w-3 mr-1" />
+                            Denied
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary">Unknown</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate">
+                        {log.denialReason || '-'}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {log.profileId ? (profileMap[log.profileId] || <span className="text-muted-foreground italic">Unknown</span>) : '-'}
+                      </TableCell>
+                      <TableCell className="text-sm" title={log.operatorId || undefined}>
+                        {log.operatorId ? (userMap[log.operatorId] || (log.operatorId.length > 12 ? log.operatorId.substring(0, 12) + '...' : log.operatorId)) : '-'}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
 
