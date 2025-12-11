@@ -87,24 +87,36 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     // Now filter to only attendees with credentials for further processing
     const attendees = allAttendees.filter(attendee => attendee.credentialUrl);
 
-    // Check for outdated credentials
+    /**
+     * Outdated Credential Detection
+     * 
+     * Uses the same logic as the main attendee list to determine if a credential is outdated.
+     * A credential is considered outdated if printable fields have been modified after the
+     * credential was generated.
+     * 
+     * Logic:
+     * - If credentialGeneratedAt >= lastSignificantUpdate: CURRENT (credential is up-to-date)
+     * - If credentialGeneratedAt < lastSignificantUpdate: OUTDATED (needs reprinting)
+     * - If no credentialGeneratedAt: OUTDATED (never generated)
+     * - If no lastSignificantUpdate: CURRENT (no printable changes tracked)
+     * 
+     * This ensures that only changes to printable fields (those that appear on the credential)
+     * trigger the outdated status, not changes to internal fields like email or notes.
+     */
     const attendeesWithOutdatedCredentials = attendees.filter(attendee => {
-      if (!attendee.credentialGeneratedAt) return true; // No generation timestamp means outdated
+      // No generation timestamp means outdated
+      if (!attendee.credentialGeneratedAt) return true;
       
       const credentialGeneratedAt = new Date(attendee.credentialGeneratedAt);
-      const recordUpdatedAt = new Date(attendee.updatedAt);
       
-      // Since generating a credential also updates the record, we need to account for this
-      // We'll consider the credential "current" if it was generated within a reasonable time
-      // of the last record update (e.g., within 5 seconds to account for processing time)
-      const timeDifference = Math.abs(credentialGeneratedAt.getTime() - recordUpdatedAt.getTime());
-      const isCredentialFromSameUpdate = timeDifference <= 5000; // 5 seconds tolerance
+      // If lastSignificantUpdate doesn't exist, credential is current
+      // (no printable changes have been tracked)
+      if (!attendee.lastSignificantUpdate) return false;
       
-      if (isCredentialFromSameUpdate) {
-        return false; // Current
-      } else {
-        return credentialGeneratedAt < recordUpdatedAt; // Outdated if credential was generated before record was last updated
-      }
+      const lastSignificantUpdate = new Date(attendee.lastSignificantUpdate);
+      
+      // Credential is outdated if it was generated before the last significant update
+      return credentialGeneratedAt < lastSignificantUpdate;
     });
 
     if (attendeesWithOutdatedCredentials.length > 0) {

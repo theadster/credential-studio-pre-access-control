@@ -452,8 +452,8 @@ export default function Dashboard() {
         let displayValue = value?.value || null;
 
         // Format display value based on field type
-        if (field.fieldType === 'boolean') {
-          // CRITICAL: Boolean fields use 'yes'/'no' format (NOT 'true'/'false')
+        if (field.fieldType === 'boolean' || field.fieldType === 'checkbox') {
+          // CRITICAL: Boolean and checkbox fields use 'yes'/'no' format (NOT 'true'/'false')
           // However, for display purposes, accept both 'yes' and 'true' as truthy
           // to handle any legacy values gracefully
           const normalizedValue = String(displayValue || '').trim().toLowerCase();
@@ -470,9 +470,9 @@ export default function Dashboard() {
         };
       })
       .filter((field: any) => {
-        // Show boolean fields always (they will show Yes/No)
+        // Show boolean and checkbox fields always (they will show Yes/No)
         // Show other fields only if they have a value
-        return field.fieldType === 'boolean' || field.value;
+        return field.fieldType === 'boolean' || field.fieldType === 'checkbox' || field.value;
       });
   }, []);
 
@@ -3285,7 +3285,7 @@ export default function Dashboard() {
                                             ))}
                                           </SelectContent>
                                         </Select>
-                                      ) : field.fieldType === 'boolean' ? (
+                                      ) : field.fieldType === 'boolean' || field.fieldType === 'checkbox' ? (
                                         <Select
                                           value={advancedSearchFilters.customFields[field.id]?.value || 'all'}
                                           onValueChange={(value) => handleCustomFieldSearchChange(field.id, value === 'all' ? '' : value, 'equals')}
@@ -3496,21 +3496,26 @@ export default function Dashboard() {
                         {/* Bulk Edit Dialog - moved outside dropdown */}
                         {hasPermission(currentUser?.role, 'attendees', 'bulkEdit') && (
                           <Dialog open={showBulkEdit} onOpenChange={setShowBulkEdit}>
-                            <DialogContent>
-                              <DialogHeader>
-                                <DialogTitle>Bulk Edit Attendees</DialogTitle>
-                                <DialogDescription>
-                                  Apply changes to all {selectedAttendees.length} selected attendees.
-                                  Only fields you change will be updated.
-                                </DialogDescription>
-                              </DialogHeader>
-                              <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+                            <DialogContent className="max-w-lg max-h-[90vh] p-0 gap-0 overflow-hidden">
+                              <div className="px-6 pt-6 pb-4 flex-shrink-0 border-b border-slate-200 dark:border-slate-700 bg-[#F1F5F9] dark:bg-slate-800">
+                                <DialogHeader>
+                                  <DialogTitle className="text-2xl font-bold text-primary flex items-center gap-2">
+                                    <Wand2 className="h-5 w-5 text-primary" />
+                                    Bulk Edit Attendees
+                                  </DialogTitle>
+                                  <DialogDescription className="text-slate-600 dark:text-slate-400 mt-2">
+                                    Apply changes to all {selectedAttendees.length} selected attendee{selectedAttendees.length !== 1 ? 's' : ''}.
+                                    Only fields you change will be updated.
+                                  </DialogDescription>
+                                </DialogHeader>
+                              </div>
+                              <div className="space-y-4 px-6 pt-6 pb-0 max-h-[60vh] overflow-y-auto flex-1">
                                 {eventSettings?.customFields
-                                  ?.filter(field => ['text', 'url', 'email', 'number', 'select', 'boolean', 'uppercase'].includes(field.fieldType))
+                                  ?.filter(field => ['text', 'url', 'email', 'number', 'date', 'select', 'boolean', 'checkbox', 'textarea'].includes(field.fieldType))
                                   .map((field: any) => (
                                     <div key={field.id} className="space-y-2">
                                       <Label htmlFor={`bulk-edit-${field.id}`}>{field.fieldName}</Label>
-                                      {field.fieldType === 'boolean' ? (
+                                      {field.fieldType === 'boolean' || field.fieldType === 'checkbox' ? (
                                         <Select
                                           onValueChange={(value) => setBulkEditChanges(prev => ({ ...prev, [field.id]: value }))}
                                         >
@@ -3539,6 +3544,65 @@ export default function Dashboard() {
                                             ))}
                                           </SelectContent>
                                         </Select>
+                                      ) : field.fieldType === 'date' ? (
+                                        <div className="space-y-2">
+                                          <Input
+                                            id={`bulk-edit-${field.id}`}
+                                            type="date"
+                                            placeholder="Leave empty for no change"
+                                            value={bulkEditChanges[field.id] === CLEAR_SENTINEL ? '' : bulkEditChanges[field.id] || ''}
+                                            onChange={(e) => setBulkEditChanges(prev => ({ ...prev, [field.id]: e.target.value }))}
+                                            disabled={bulkEditChanges[field.id] === CLEAR_SENTINEL}
+                                            aria-disabled={bulkEditChanges[field.id] === CLEAR_SENTINEL}
+                                          />
+                                          <div className="flex items-center space-x-2">
+                                            <Checkbox
+                                              id={`clear-${field.id}`}
+                                              checked={bulkEditChanges[field.id] === CLEAR_SENTINEL}
+                                              onCheckedChange={(checked) => {
+                                                setBulkEditChanges(prev => ({
+                                                  ...prev,
+                                                  [field.id]: checked ? CLEAR_SENTINEL : ''
+                                                }));
+                                              }}
+                                            />
+                                            <Label
+                                              htmlFor={`clear-${field.id}`}
+                                              className="text-sm text-muted-foreground cursor-pointer"
+                                            >
+                                              Clear this field for all selected attendees
+                                            </Label>
+                                          </div>
+                                        </div>
+                                      ) : field.fieldType === 'textarea' ? (
+                                        <div className="space-y-2">
+                                          <Textarea
+                                            id={`bulk-edit-${field.id}`}
+                                            placeholder="Leave empty for no change"
+                                            value={bulkEditChanges[field.id] === CLEAR_SENTINEL ? '' : bulkEditChanges[field.id] || ''}
+                                            onChange={(e) => setBulkEditChanges(prev => ({ ...prev, [field.id]: e.target.value }))}
+                                            disabled={bulkEditChanges[field.id] === CLEAR_SENTINEL}
+                                            aria-disabled={bulkEditChanges[field.id] === CLEAR_SENTINEL}
+                                          />
+                                          <div className="flex items-center space-x-2">
+                                            <Checkbox
+                                              id={`clear-${field.id}`}
+                                              checked={bulkEditChanges[field.id] === CLEAR_SENTINEL}
+                                              onCheckedChange={(checked) => {
+                                                setBulkEditChanges(prev => ({
+                                                  ...prev,
+                                                  [field.id]: checked ? CLEAR_SENTINEL : ''
+                                                }));
+                                              }}
+                                            />
+                                            <Label
+                                              htmlFor={`clear-${field.id}`}
+                                              className="text-sm text-muted-foreground cursor-pointer"
+                                            >
+                                              Clear this field for all selected attendees
+                                            </Label>
+                                          </div>
+                                        </div>
                                       ) : (
                                         <div className="space-y-2">
                                           <Input
@@ -3572,11 +3636,13 @@ export default function Dashboard() {
                                     </div>
                                   ))}
                               </div>
-                              <div className="flex justify-end space-x-2">
-                                <Button variant="outline" onClick={() => setShowBulkEdit(false)}>Cancel</Button>
-                                <Button onClick={handleBulkEdit} disabled={isBulkEditing}>
-                                  {isBulkEditing ? 'Applying...' : 'Apply Changes'}
-                                </Button>
+                              <div className="px-6 pb-6 pt-4 flex-shrink-0 border-t border-slate-200 dark:border-slate-700">
+                                <div className="flex justify-end gap-2">
+                                  <Button variant="outline" onClick={() => setShowBulkEdit(false)}>Cancel</Button>
+                                  <Button onClick={handleBulkEdit} disabled={isBulkEditing}>
+                                    {isBulkEditing ? 'Applying...' : 'Apply Changes'}
+                                  </Button>
+                                </div>
                               </div>
                             </DialogContent>
                           </Dialog>
@@ -4019,7 +4085,7 @@ export default function Dashboard() {
                                                     <Link className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
                                                     <span className="truncate block min-w-0">{field.value}</span>
                                                   </a>
-                                                ) : field.fieldType === 'boolean' ? (
+                                                ) : field.fieldType === 'boolean' || field.fieldType === 'checkbox' ? (
                                                   <Badge
                                                     variant="outline"
                                                     className={`text-xs ${field.value === 'Yes'

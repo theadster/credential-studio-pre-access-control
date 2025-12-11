@@ -264,14 +264,19 @@ export const CustomFieldInput = memo(function CustomFieldInput({
       );
 
     case 'checkbox':
+      // Checkbox fields use the same 'yes'/'no' format as boolean fields
+      // - Default value: 'no'
+      // - Checked state: 'yes'
+      // - Unchecked state: 'no'
+      // This ensures consistency across all boolean-like fields
       return (
         <div className="flex items-center space-x-2">
-          <Checkbox
-            checked={value === 'true'}
-            onCheckedChange={(checked) => onChange(checked ? 'true' : 'false')}
+          <Switch
+            checked={value === 'yes' || value === 'true'}
+            onCheckedChange={(checked) => onChange(checked ? 'yes' : 'no')}
             aria-label={field.fieldName}
           />
-          <Label>{field.fieldName}</Label>
+          <Label>{(value === 'yes' || value === 'true') ? 'Yes' : 'No'}</Label>
         </div>
       );
 

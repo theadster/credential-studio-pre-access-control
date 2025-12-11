@@ -65,3 +65,17 @@ npm run vercel-build # Vercel deployment build
 - TypeScript build errors are ignored in production (`ignoreBuildErrors: true`)
 - Webpack optimization disabled in preview environments
 - Image domains configured for images.unsplash.com
+
+## Command Execution Guidelines
+
+### Running Commands
+- **NEVER** use a `path` parameter when executing bash commands
+- Commands run from the workspace root by default
+- Only specify a path if you need to run a command in a specific subdirectory
+- This keeps command execution clean and prevents unnecessary path overhead
+
+**Examples:**
+- ✅ `npm run dev` (no path needed)
+- ✅ `npx vitest --run` (no path needed)
+- ✅ `npm run build` (no path needed)
+- ❌ `path: "."` or `path: "/workspace"` (unnecessary)

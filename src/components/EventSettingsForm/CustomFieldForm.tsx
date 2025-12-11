@@ -244,19 +244,19 @@ export const CustomFieldForm = memo(function CustomFieldForm({ isOpen, field, on
     <Dialog open={isOpen} onOpenChange={(open) => !open && onCancel()}>
       <DialogContent className="max-w-lg max-h-[90vh] p-0 gap-0 overflow-hidden">
         <form onSubmit={handleSubmit} className="flex flex-col max-h-[90vh]" autoComplete="off" data-form-type="other">
-          <div className="px-6 pt-6 pb-4 flex-shrink-0">
+          <div className="px-6 pt-6 pb-4 flex-shrink-0 border-b border-slate-200 dark:border-slate-700 bg-[#F1F5F9] dark:bg-slate-800">
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Settings className="h-5 w-5" />
+              <DialogTitle className="text-2xl font-bold text-primary flex items-center gap-2">
+                <Settings className="h-5 w-5 text-primary" />
                 {field?.id ? "Edit Custom Field" : "Add Custom Field"}
               </DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="text-slate-600 dark:text-slate-400 mt-2">
                 Define a new piece of information to collect from attendees.
               </DialogDescription>
             </DialogHeader>
           </div>
 
-          <div className="space-y-5 px-6 py-4 overflow-y-auto flex-1">
+          <div className="space-y-5 px-6 pt-6 pb-0 overflow-y-auto flex-1">
             <div>
               <Label htmlFor="fieldName" className="flex items-center gap-2 text-sm font-medium mb-2">
                 <Type className="h-4 w-4" />
@@ -422,8 +422,8 @@ export const CustomFieldForm = memo(function CustomFieldForm({ isOpen, field, on
               />
             </div>
           </div>
-          <div className="px-6 pb-6 pt-4 flex-shrink-0 border-t">
-            <DialogFooter>
+          <div className="px-6 pb-6 pt-4 flex-shrink-0 border-t border-slate-200 dark:border-slate-700">
+            <DialogFooter className="gap-2">
               <Button type="button" variant="outline" onClick={onCancel}>
                 Cancel
               </Button>
