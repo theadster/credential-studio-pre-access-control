@@ -1,3 +1,38 @@
+/**
+ * Bulk Export PDF API
+ * 
+ * Generates a bulk PDF export for multiple attendees using OneSimpleAPI integration.
+ * 
+ * ## Outdated Credential Detection
+ * 
+ * This endpoint uses the same logic as the main attendees page to determine if credentials
+ * are outdated. The logic respects the "printable fields" toggle in custom field settings:
+ * 
+ * - **Printable fields** (printable=true): Changes to these fields mark credentials as outdated
+ * - **Non-printable fields** (printable=false): Changes to these fields do NOT mark credentials as outdated
+ * - **Notes field**: Always non-printable, changes don't affect credential status
+ * 
+ * ### Credential Status Logic:
+ * 
+ * 1. If `lastSignificantUpdate` exists (new records):
+ *    - Compare `credentialGeneratedAt` with `lastSignificantUpdate`
+ *    - `lastSignificantUpdate` only updates when printable fields change
+ *    - CURRENT: credentialGeneratedAt >= lastSignificantUpdate
+ *    - OUTDATED: credentialGeneratedAt < lastSignificantUpdate
+ * 
+ * 2. If `lastSignificantUpdate` doesn't exist (legacy records):
+ *    - Fall back to comparing with `$updatedAt` or `updatedAt`
+ *    - CURRENT: credentialGeneratedAt >= updatedAt
+ *    - OUTDATED: credentialGeneratedAt < updatedAt
+ * 
+ * This ensures that:
+ * - Updating an email address (non-printable) won't trigger outdated warning
+ * - Updating a name (printable) will trigger outdated warning
+ * - Updating notes will never trigger outdated warning
+ * 
+ * @see src/pages/api/attendees/[id].ts - Attendee update logic with printable field tracking
+ * @see src/pages/dashboard.tsx - Main attendees page with same credential status logic
+ */
 import { NextApiResponse } from 'next';
 import { createSessionClient } from '@/lib/appwrite';
 import { Query } from 'appwrite';
@@ -87,24 +122,47 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     // Now filter to only attendees with credentials for further processing
     const attendees = allAttendees.filter(attendee => attendee.credentialUrl);
 
-    // Check for outdated credentials
+    // Check for outdated credentials using the same logic as the main attendees page
+    // This logic respects the "printable fields" toggle in custom field settings
     const attendeesWithOutdatedCredentials = attendees.filter(attendee => {
       if (!attendee.credentialGeneratedAt) return true; // No generation timestamp means outdated
       
       const credentialGeneratedAt = new Date(attendee.credentialGeneratedAt);
-      const recordUpdatedAt = new Date(attendee.updatedAt);
-      
-      // Since generating a credential also updates the record, we need to account for this
-      // We'll consider the credential "current" if it was generated within a reasonable time
-      // of the last record update (e.g., within 5 seconds to account for processing time)
-      const timeDifference = Math.abs(credentialGeneratedAt.getTime() - recordUpdatedAt.getTime());
-      const isCredentialFromSameUpdate = timeDifference <= 5000; // 5 seconds tolerance
-      
-      if (isCredentialFromSameUpdate) {
-        return false; // Current
-      } else {
-        return credentialGeneratedAt < recordUpdatedAt; // Outdated if credential was generated before record was last updated
+
+      // Check if the attendee has a lastSignificantUpdate field
+      // This field is set by the API when printable fields are updated
+      // It ignores changes to non-printable fields (like notes or custom fields with printable=false)
+      const lastSignificantUpdate = (attendee as any).lastSignificantUpdate;
+
+      if (lastSignificantUpdate) {
+        // Use lastSignificantUpdate for comparison (only considers printable field changes)
+        const significantUpdateDate = new Date(lastSignificantUpdate);
+        const timeDifference = Math.abs(credentialGeneratedAt.getTime() - significantUpdateDate.getTime());
+        const isCredentialFromSameUpdate = timeDifference <= 5000; // 5 seconds tolerance
+
+        if (isCredentialFromSameUpdate || credentialGeneratedAt >= significantUpdateDate) {
+          return false; // Current
+        } else {
+          return true; // Outdated - printable fields changed after credential generation
+        }
       }
+
+      // Fall back to $updatedAt if lastSignificantUpdate doesn't exist (legacy records)
+      const updatedAtField = (attendee as any).$updatedAt || attendee.updatedAt;
+      if (updatedAtField) {
+        const recordUpdatedAt = new Date(updatedAtField);
+        const timeDifference = Math.abs(credentialGeneratedAt.getTime() - recordUpdatedAt.getTime());
+        const isCredentialFromSameUpdate = timeDifference <= 5000; // 5 seconds tolerance
+
+        if (isCredentialFromSameUpdate || credentialGeneratedAt >= recordUpdatedAt) {
+          return false; // Current
+        } else {
+          return true; // Outdated
+        }
+      }
+
+      // Has credential and timestamp but no updatedAt (shouldn't happen) - treat as current
+      return false;
     });
 
     if (attendeesWithOutdatedCredentials.length > 0) {

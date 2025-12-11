@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
-import { CustomFieldInput } from '../CustomFieldInput';
+import { CustomFieldInput } from '@/components/AttendeeForm/CustomFieldInput';
 
 describe('CustomFieldInput', () => {
   const mockOnChange = vi.fn();
@@ -174,7 +174,7 @@ describe('CustomFieldInput', () => {
   });
 
   describe('Checkbox Field', () => {
-    it('renders checkbox correctly', () => {
+    it('renders checkbox correctly with yes value', () => {
       const field = {
         id: '5',
         fieldName: 'Agree',
@@ -183,14 +183,14 @@ describe('CustomFieldInput', () => {
         order: 5
       };
 
-      render(<CustomFieldInput field={field} value="true" onChange={mockOnChange} />);
+      render(<CustomFieldInput field={field} value="yes" onChange={mockOnChange} />);
 
       const checkbox = screen.getByRole('checkbox');
       expect(checkbox).toBeInTheDocument();
       expect(checkbox).toBeChecked();
     });
 
-    it('handles checkbox change', () => {
+    it('renders checkbox correctly with no value', () => {
       const field = {
         id: '5',
         fieldName: 'Agree',
@@ -199,17 +199,159 @@ describe('CustomFieldInput', () => {
         order: 5
       };
 
-      render(<CustomFieldInput field={field} value="false" onChange={mockOnChange} />);
+      render(<CustomFieldInput field={field} value="no" onChange={mockOnChange} />);
+
+      const checkbox = screen.getByRole('checkbox');
+      expect(checkbox).toBeInTheDocument();
+      expect(checkbox).not.toBeChecked();
+    });
+
+    it('handles checkbox change to yes', () => {
+      const field = {
+        id: '5',
+        fieldName: 'Agree',
+        fieldType: 'checkbox',
+        required: false,
+        order: 5
+      };
+
+      render(<CustomFieldInput field={field} value="no" onChange={mockOnChange} />);
 
       const checkbox = screen.getByRole('checkbox');
       fireEvent.click(checkbox);
 
-      expect(mockOnChange).toHaveBeenCalledWith('true');
+      expect(mockOnChange).toHaveBeenCalledWith('yes');
+    });
+
+    it('handles checkbox change to no', () => {
+      const field = {
+        id: '5',
+        fieldName: 'Agree',
+        fieldType: 'checkbox',
+        required: false,
+        order: 5
+      };
+
+      render(<CustomFieldInput field={field} value="yes" onChange={mockOnChange} />);
+
+      const checkbox = screen.getByRole('checkbox');
+      fireEvent.click(checkbox);
+
+      expect(mockOnChange).toHaveBeenCalledWith('no');
+    });
+
+    it('handles legacy true value gracefully', () => {
+      const field = {
+        id: '5',
+        fieldName: 'Agree',
+        fieldType: 'checkbox',
+        required: false,
+        order: 5
+      };
+
+      render(<CustomFieldInput field={field} value="true" onChange={mockOnChange} />);
+
+      const checkbox = screen.getByRole('checkbox');
+      expect(checkbox).toBeChecked();
+    });
+
+    it('displays Yes label when checked', () => {
+      const field = {
+        id: '5',
+        fieldName: 'Agree',
+        fieldType: 'checkbox',
+        required: false,
+        order: 5
+      };
+
+      render(<CustomFieldInput field={field} value="yes" onChange={mockOnChange} />);
+
+      expect(screen.getByText('Yes')).toBeInTheDocument();
+    });
+
+    it('displays No label when unchecked', () => {
+      const field = {
+        id: '5',
+        fieldName: 'Agree',
+        fieldType: 'checkbox',
+        required: false,
+        order: 5
+      };
+
+      render(<CustomFieldInput field={field} value="no" onChange={mockOnChange} />);
+
+      expect(screen.getByText('No')).toBeInTheDocument();
     });
   });
 
   describe('Boolean Field', () => {
-    it('renders switch correctly', () => {
+    it('renders switch correctly with yes value', () => {
+      const field = {
+        id: '6',
+        fieldName: 'Active',
+        fieldType: 'boolean',
+        required: false,
+        order: 6
+      };
+
+      render(<CustomFieldInput field={field} value="yes" onChange={mockOnChange} />);
+
+      const switchElement = screen.getByRole('switch');
+      expect(switchElement).toBeInTheDocument();
+      expect(switchElement).toBeChecked();
+    });
+
+    it('renders switch correctly with no value', () => {
+      const field = {
+        id: '6',
+        fieldName: 'Active',
+        fieldType: 'boolean',
+        required: false,
+        order: 6
+      };
+
+      render(<CustomFieldInput field={field} value="no" onChange={mockOnChange} />);
+
+      const switchElement = screen.getByRole('switch');
+      expect(switchElement).toBeInTheDocument();
+      expect(switchElement).not.toBeChecked();
+    });
+
+    it('handles boolean toggle to yes', () => {
+      const field = {
+        id: '6',
+        fieldName: 'Active',
+        fieldType: 'boolean',
+        required: false,
+        order: 6
+      };
+
+      render(<CustomFieldInput field={field} value="no" onChange={mockOnChange} />);
+
+      const switchElement = screen.getByRole('switch');
+      fireEvent.click(switchElement);
+
+      expect(mockOnChange).toHaveBeenCalledWith('yes');
+    });
+
+    it('handles boolean toggle to no', () => {
+      const field = {
+        id: '6',
+        fieldName: 'Active',
+        fieldType: 'boolean',
+        required: false,
+        order: 6
+      };
+
+      render(<CustomFieldInput field={field} value="yes" onChange={mockOnChange} />);
+
+      const switchElement = screen.getByRole('switch');
+      fireEvent.click(switchElement);
+
+      expect(mockOnChange).toHaveBeenCalledWith('no');
+    });
+
+    it('handles legacy true value gracefully', () => {
       const field = {
         id: '6',
         fieldName: 'Active',
@@ -221,25 +363,7 @@ describe('CustomFieldInput', () => {
       render(<CustomFieldInput field={field} value="true" onChange={mockOnChange} />);
 
       const switchElement = screen.getByRole('switch');
-      expect(switchElement).toBeInTheDocument();
       expect(switchElement).toBeChecked();
-    });
-
-    it('handles boolean toggle correctly', () => {
-      const field = {
-        id: '6',
-        fieldName: 'Active',
-        fieldType: 'boolean',
-        required: false,
-        order: 6
-      };
-
-      render(<CustomFieldInput field={field} value="false" onChange={mockOnChange} />);
-
-      const switchElement = screen.getByRole('switch');
-      fireEvent.click(switchElement);
-
-      expect(mockOnChange).toHaveBeenCalledWith('true');
     });
   });
 

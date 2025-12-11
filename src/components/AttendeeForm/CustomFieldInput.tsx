@@ -264,14 +264,27 @@ export const CustomFieldInput = memo(function CustomFieldInput({
       );
 
     case 'checkbox':
+      // CRITICAL: Checkbox custom fields MUST use 'yes'/'no' format (NOT 'true'/'false')
+      // - Default value: 'no'
+      // - Checked state: 'yes'
+      // - Unchecked state: 'no'
+      // This format is required for:
+      // - Database consistency
+      // - Switchboard integration field mappings
+      // - Import/export functionality
+      // - Bulk edit operations
+      // DO NOT change to 'true'/'false' - it will corrupt data and break integrations
+      //
+      // GRACEFUL HANDLING: For display/editing, accept both 'yes' and 'true' as checked
+      // to handle any legacy values, but ALWAYS save as 'yes'/'no'
       return (
         <div className="flex items-center space-x-2">
           <Checkbox
-            checked={value === 'true'}
-            onCheckedChange={(checked) => onChange(checked ? 'true' : 'false')}
+            checked={value === 'yes' || value === 'true'}
+            onCheckedChange={(checked) => onChange(checked ? 'yes' : 'no')}
             aria-label={field.fieldName}
           />
-          <Label>{field.fieldName}</Label>
+          <Label>{(value === 'yes' || value === 'true') ? 'Yes' : 'No'}</Label>
         </div>
       );
 

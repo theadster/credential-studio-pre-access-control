@@ -242,21 +242,19 @@ export const CustomFieldForm = memo(function CustomFieldForm({ isOpen, field, on
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onCancel()}>
-      <DialogContent className="max-w-lg max-h-[90vh] p-0 gap-0 overflow-hidden">
-        <form onSubmit={handleSubmit} className="flex flex-col max-h-[90vh]" autoComplete="off" data-form-type="other">
-          <div className="px-6 pt-6 pb-4 flex-shrink-0">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Settings className="h-5 w-5" />
-                {field?.id ? "Edit Custom Field" : "Add Custom Field"}
-              </DialogTitle>
-              <DialogDescription>
-                Define a new piece of information to collect from attendees.
-              </DialogDescription>
-            </DialogHeader>
-          </div>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 shadow-2xl p-0">
+        <form onSubmit={handleSubmit} className="flex flex-col" autoComplete="off" data-form-type="other">
+          <DialogHeader className="border-b border-slate-200 dark:border-slate-700 pb-4 mb-0 bg-[#F1F5F9] dark:bg-slate-800 px-6 pt-6">
+            <DialogTitle className="text-2xl font-bold text-primary flex items-center gap-2">
+              <Settings className="h-5 w-5" />
+              {field?.id ? "Edit Custom Field" : "Add Custom Field"}
+            </DialogTitle>
+            <DialogDescription>
+              Define a new piece of information to collect from attendees.
+            </DialogDescription>
+          </DialogHeader>
 
-          <div className="space-y-5 px-6 py-4 overflow-y-auto flex-1">
+          <div className="space-y-5 px-6 py-6">
             <div>
               <Label htmlFor="fieldName" className="flex items-center gap-2 text-sm font-medium mb-2">
                 <Type className="h-4 w-4" />
@@ -422,17 +420,15 @@ export const CustomFieldForm = memo(function CustomFieldForm({ isOpen, field, on
               />
             </div>
           </div>
-          <div className="px-6 pb-6 pt-4 flex-shrink-0 border-t">
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={onCancel}>
-                Cancel
-              </Button>
-              <Button type="submit">
-                <Save className="mr-2 h-4 w-4" />
-                {field?.id ? "Update Field" : "Add Field"}
-              </Button>
-            </DialogFooter>
-          </div>
+          <DialogFooter className="px-6 pb-6 pt-4 border-t border-slate-200 dark:border-slate-700 bg-[#F1F5F9] dark:bg-slate-800">
+            <Button type="button" variant="outline" onClick={onCancel}>
+              Cancel
+            </Button>
+            <Button type="submit">
+              <Save className="mr-2 h-4 w-4" />
+              {field?.id ? "Update Field" : "Add Field"}
+            </Button>
+          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
