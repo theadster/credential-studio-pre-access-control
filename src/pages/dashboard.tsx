@@ -449,14 +449,14 @@ export default function Dashboard() {
           }
         }
         
-        let displayValue = value?.value || null;
+        let displayValue = value?.value ?? null;
 
         // Format display value based on field type
         if (field.fieldType === 'boolean' || field.fieldType === 'checkbox') {
           // CRITICAL: Boolean and checkbox fields use 'yes'/'no' format (NOT 'true'/'false')
           // However, for display purposes, accept both 'yes' and 'true' as truthy
           // to handle any legacy values gracefully
-          const normalizedValue = String(displayValue || '').trim().toLowerCase();
+          const normalizedValue = String(displayValue ?? '').trim().toLowerCase();
           displayValue = (normalizedValue === 'yes' || normalizedValue === 'true') ? 'Yes' : 'No';
         } else if (displayValue && field.fieldType === 'url') {
           // For URLs, show a clickable link
@@ -471,8 +471,8 @@ export default function Dashboard() {
       })
       .filter((field: any) => {
         // Show boolean and checkbox fields always (they will show Yes/No)
-        // Show other fields only if they have a value
-        return field.fieldType === 'boolean' || field.fieldType === 'checkbox' || field.value;
+        // Show other fields only if they have a value (including falsy values like 0 or '')
+        return field.fieldType === 'boolean' || field.fieldType === 'checkbox' || field.value !== null;
       });
   }, []);
 
@@ -1252,10 +1252,10 @@ export default function Dashboard() {
       customFields: {
         ...prev.customFields,
         [fieldId]: {
-          ...prev.customFields[fieldId],
+          ...(prev.customFields[fieldId] ?? { value: '', operator: 'contains' }),
           operator,
           // Clear value if operator doesn't need it
-          value: ['isEmpty', 'isNotEmpty'].includes(operator) ? '' : prev.customFields[fieldId].value,
+          value: ['isEmpty', 'isNotEmpty'].includes(operator) ? '' : (prev.customFields[fieldId]?.value ?? ''),
         }
       }
     }));
@@ -4067,7 +4067,7 @@ export default function Dashboard() {
                                       return (
                                         <div className={`grid grid-cols-1 ${gridCols} gap-x-6 gap-y-2`}>
                                           {customFieldsWithValues.map((field, index: number) => (
-                                            <div key={index} className="flex flex-col space-y-0.5 min-w-0">
+                                            <div key={`${field.fieldName}-${index}`} className="flex flex-col space-y-0.5 min-w-0">
                                               <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide" id={`field-label-${attendee.id}-${index}`}>
                                                 {field.fieldName}
                                               </span>

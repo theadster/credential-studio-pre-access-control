@@ -177,7 +177,14 @@ describe('Bulk Export PDF - Outdated Credential Detection Logic', () => {
       if (!attendee.credentialGeneratedAt) return true;
       
       const credentialGeneratedAt = new Date(attendee.credentialGeneratedAt);
+      
+      // Guard: updatedAt must exist and be valid
+      if (!attendee.updatedAt) return false;
+      
       const recordUpdatedAt = new Date(attendee.updatedAt);
+      
+      // Guard: Check for Invalid Date
+      if (isNaN(recordUpdatedAt.getTime())) return false;
       
       const timeDifference = Math.abs(credentialGeneratedAt.getTime() - recordUpdatedAt.getTime());
       const isCredentialFromSameUpdate = timeDifference <= 5000;
@@ -221,6 +228,32 @@ describe('Bulk Export PDF - Outdated Credential Detection Logic', () => {
       // Both should mark as outdated
       expect(isCredentialOutdatedOldLogic(attendee)).toBe(true);
       expect(isCredentialOutdated(attendee)).toBe(true);
+    });
+
+    it('should handle missing updatedAt gracefully (old logic guard)', () => {
+      // Scenario: updatedAt is missing/null (legacy record)
+      // Old logic should not crash and should return false
+      const attendee = {
+        firstName: 'Jack',
+        lastName: 'Ryan',
+        credentialGeneratedAt: '2024-01-05T10:00:00.000Z',
+        updatedAt: null,
+      };
+
+      expect(isCredentialOutdatedOldLogic(attendee)).toBe(false);
+    });
+
+    it('should handle invalid updatedAt gracefully (old logic guard)', () => {
+      // Scenario: updatedAt is invalid date string
+      // Old logic should not crash and should return false
+      const attendee = {
+        firstName: 'Kate',
+        lastName: 'Bishop',
+        credentialGeneratedAt: '2024-01-05T10:00:00.000Z',
+        updatedAt: 'invalid-date',
+      };
+
+      expect(isCredentialOutdatedOldLogic(attendee)).toBe(false);
     });
   });
 });
