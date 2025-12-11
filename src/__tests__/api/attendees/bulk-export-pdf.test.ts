@@ -82,10 +82,10 @@ describe('Bulk Export PDF API - Outdated Credential Detection', () => {
     } as any);
 
     // Mock successful PDF generation response
-    (global.fetch as any).mockResolvedValue({
+    vi.mocked(global.fetch).mockResolvedValue({
       ok: true,
       text: vi.fn().mockResolvedValue('https://example.com/generated.pdf'),
-    });
+    } as any);
 
     jsonMock = vi.fn();
     statusMock = vi.fn(() => ({ json: jsonMock }));
@@ -327,7 +327,7 @@ describe('Bulk Export PDF API - Outdated Credential Detection', () => {
         credentialUrl: 'https://example.com/credential.png',
         // No credentialGeneratedAt field
         lastSignificantUpdate: '2024-01-10T10:00:00.000Z',
-        $updatedAt: '2024-01-10T10:00:00.000Z',
+        updatedAt: '2024-01-10T10:00:00.000Z',
       };
 
       mockDatabases.listDocuments

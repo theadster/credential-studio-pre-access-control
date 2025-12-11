@@ -137,8 +137,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       if (lastSignificantUpdate) {
         // Use lastSignificantUpdate for comparison (only considers printable field changes)
         const significantUpdateDate = new Date(lastSignificantUpdate);
-        const timeDifference = Math.abs(credentialGeneratedAt.getTime() - significantUpdateDate.getTime());
-        const isCredentialFromSameUpdate = timeDifference <= 5000; // 5 seconds tolerance
+        const timeDifference = credentialGeneratedAt.getTime() - significantUpdateDate.getTime();
+        const isCredentialFromSameUpdate = timeDifference >= -5000 && timeDifference <= 0; // 5 seconds before update
 
         if (isCredentialFromSameUpdate || credentialGeneratedAt >= significantUpdateDate) {
           return false; // Current
@@ -151,8 +151,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       const updatedAtField = (attendee as any).$updatedAt || attendee.updatedAt;
       if (updatedAtField) {
         const recordUpdatedAt = new Date(updatedAtField);
-        const timeDifference = Math.abs(credentialGeneratedAt.getTime() - recordUpdatedAt.getTime());
-        const isCredentialFromSameUpdate = timeDifference <= 5000; // 5 seconds tolerance
+        const timeDifference = credentialGeneratedAt.getTime() - recordUpdatedAt.getTime();
+        const isCredentialFromSameUpdate = timeDifference >= -5000 && timeDifference <= 0; // 5 seconds before update
 
         if (isCredentialFromSameUpdate || credentialGeneratedAt >= recordUpdatedAt) {
           return false; // Current

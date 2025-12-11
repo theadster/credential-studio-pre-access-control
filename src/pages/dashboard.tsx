@@ -3820,6 +3820,7 @@ export default function Dashboard() {
                                       <Label htmlFor={`bulk-edit-${field.id}`}>{field.fieldName}</Label>
                                       {(field.fieldType === 'boolean' || field.fieldType === 'checkbox') ? (
                                         <Select
+                                          value={bulkEditChanges[field.id] ?? ''}
                                           onValueChange={(value) => setBulkEditChanges(prev => ({ ...prev, [field.id]: value }))}
                                         >
                                           <SelectTrigger>
@@ -3834,6 +3835,7 @@ export default function Dashboard() {
                                         </Select>
                                       ) : field.fieldType === 'select' ? (
                                         <Select
+                                          value={bulkEditChanges[field.id] ?? ''}
                                           onValueChange={(value) => setBulkEditChanges(prev => ({ ...prev, [field.id]: value }))}
                                         >
                                           <SelectTrigger>
@@ -3853,7 +3855,7 @@ export default function Dashboard() {
                                             <Textarea
                                               id={`bulk-edit-${field.id}`}
                                               placeholder="Leave empty for no change"
-                                              value={bulkEditChanges[field.id] === CLEAR_SENTINEL ? '' : bulkEditChanges[field.id] || ''}
+                                              value={bulkEditChanges[field.id] === CLEAR_SENTINEL ? '' : bulkEditChanges[field.id] ?? ''}
                                               onChange={(e) => setBulkEditChanges(prev => ({ ...prev, [field.id]: e.target.value }))}
                                               disabled={bulkEditChanges[field.id] === CLEAR_SENTINEL}
                                               aria-disabled={bulkEditChanges[field.id] === CLEAR_SENTINEL}
@@ -3864,7 +3866,7 @@ export default function Dashboard() {
                                               id={`bulk-edit-${field.id}`}
                                               type={field.fieldType === 'number' ? 'number' : field.fieldType === 'email' ? 'email' : field.fieldType === 'url' ? 'url' : field.fieldType === 'date' ? 'date' : 'text'}
                                               placeholder="Leave empty for no change"
-                                              value={bulkEditChanges[field.id] === CLEAR_SENTINEL ? '' : bulkEditChanges[field.id] || ''}
+                                              value={bulkEditChanges[field.id] === CLEAR_SENTINEL ? '' : bulkEditChanges[field.id] ?? ''}
                                               onChange={(e) => setBulkEditChanges(prev => ({ ...prev, [field.id]: e.target.value }))}
                                               disabled={bulkEditChanges[field.id] === CLEAR_SENTINEL}
                                               aria-disabled={bulkEditChanges[field.id] === CLEAR_SENTINEL}
