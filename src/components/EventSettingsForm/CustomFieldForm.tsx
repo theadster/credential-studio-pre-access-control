@@ -254,7 +254,7 @@ export const CustomFieldForm = memo(function CustomFieldForm({ isOpen, field, on
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-5 px-6 pt-6 pb-0">
+          <div className="space-y-5 px-6 pt-6 pb-6">
             <div>
               <Label htmlFor="fieldName" className="flex items-center gap-2 text-sm font-medium mb-2">
                 <Type className="h-4 w-4" />
@@ -420,7 +420,7 @@ export const CustomFieldForm = memo(function CustomFieldForm({ isOpen, field, on
               />
             </div>
           </div>
-          <div className="flex justify-end space-x-2 pt-6 pb-6 border-t-2 border-slate-200 dark:border-slate-700 bg-[#F1F5F9] dark:bg-slate-800 -mx-6 px-6 mt-6">
+          <div className="flex justify-end space-x-2 pt-6 pb-6 px-6 border-t-2 border-slate-200 dark:border-slate-700 bg-[#F1F5F9] dark:bg-slate-800">
             <Button type="button" variant="outline" onClick={onCancel}>
               Cancel
             </Button>

@@ -3507,7 +3507,7 @@ export default function Dashboard() {
                                   Only fields you change will be updated.
                                 </DialogDescription>
                               </DialogHeader>
-                              <div className="space-y-4 px-6 pt-6 pb-0">
+                              <div className="space-y-4 px-6 pt-6 pb-6">
                                 {eventSettings?.customFields
                                   ?.filter(field => ['text', 'url', 'email', 'number', 'date', 'select', 'boolean', 'checkbox', 'textarea'].includes(field.fieldType))
                                   .map((field: any) => (
@@ -3634,7 +3634,7 @@ export default function Dashboard() {
                                     </div>
                                   ))}
                               </div>
-                              <div className="flex justify-end space-x-2 pt-6 pb-6 border-t-2 border-slate-200 dark:border-slate-700 bg-[#F1F5F9] dark:bg-slate-800 -mx-6 px-6 mt-6">
+                              <div className="flex justify-end space-x-2 pt-6 pb-6 px-6 border-t-2 border-slate-200 dark:border-slate-700 bg-[#F1F5F9] dark:bg-slate-800">
                                 <Button variant="outline" onClick={() => setShowBulkEdit(false)} disabled={isBulkEditing}>
                                   Cancel
                                 </Button>
