@@ -142,21 +142,19 @@ export const FieldMappingForm = memo(function FieldMappingForm({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] p-0 gap-0 overflow-hidden">
-        <form onSubmit={handleSubmit} className="flex flex-col max-h-[90vh]">
-          <div className="px-6 pt-6 pb-4 flex-shrink-0">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Link className="h-5 w-5" />
-                {editingMapping ? "Edit Field Mapping" : "Add Field Mapping"}
-              </DialogTitle>
-              <DialogDescription>
-                Map custom field responses to specific variable names for your JSON request body.
-              </DialogDescription>
-            </DialogHeader>
-          </div>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto p-0 gap-0">
+        <form onSubmit={handleSubmit}>
+          <DialogHeader className="border-b border-slate-200 dark:border-slate-700 pb-4 bg-[#F1F5F9] dark:bg-slate-800 px-6 pt-6">
+            <DialogTitle className="flex items-center gap-2">
+              <Link className="h-5 w-5" />
+              {editingMapping ? "Edit Field Mapping" : "Add Field Mapping"}
+            </DialogTitle>
+            <DialogDescription>
+              Map custom field responses to specific variable names for your JSON request body.
+            </DialogDescription>
+          </DialogHeader>
 
-          <div className="space-y-5 px-6 py-4 overflow-y-auto flex-1">
+          <div className="space-y-5 px-6 py-6">
             <div>
               <Label htmlFor="customField" className="flex items-center gap-2 text-sm font-medium mb-2">
                 <Settings className="h-4 w-4" />
@@ -274,19 +272,17 @@ export const FieldMappingForm = memo(function FieldMappingForm({
               </>
             )}
           </div>
-          <div className="px-6 pb-6 pt-4 flex-shrink-0 border-t">
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={onCancel}>
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={!selectedField || !jsonVariable.trim()}
-              >
-                <Save className="mr-2 h-4 w-4" />
-                {editingMapping ? "Update Mapping" : "Add Mapping"}
-              </Button>
-            </DialogFooter>
+          <div className="flex justify-end space-x-2 pt-6 pb-6 border-t-2 border-slate-200 dark:border-slate-700 bg-[#F1F5F9] dark:bg-slate-800 -mx-6 px-6 mt-6">
+            <Button type="button" variant="outline" onClick={onCancel}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={!selectedField || !jsonVariable.trim()}
+            >
+              <Save className="mr-2 h-4 w-4" />
+              {editingMapping ? "Update Mapping" : "Add Mapping"}
+            </Button>
           </div>
         </form>
       </DialogContent>
