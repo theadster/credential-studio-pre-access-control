@@ -96,13 +96,15 @@ export default function LogsDeleteDialog({ users, onDeleteSuccess, onDeleteStart
 
       const result = await response.json();
       
-      // Show final count
-      setDeletedCount(result.deletedCount);
-      
-      success("Success", result.message);
-
-      // Wait a moment to show results and let rate limits reset before closing
-      setTimeout(() => {
+      // Check if this is a background job (202 status)
+      if (result.backgroundJob) {
+        // Background job started - show info message
+        success(
+          "Deletion Started", 
+          result.message + " You can continue using the application while the deletion completes."
+        );
+        
+        // Close dialog immediately
         setIsOpen(false);
         setFilters({ beforeDate: '', action: '', userId: '' });
         setElapsedTime(0);
@@ -114,11 +116,39 @@ export default function LogsDeleteDialog({ users, onDeleteSuccess, onDeleteStart
           onDeleteEnd();
         }
         
-        // Wait an additional 3 seconds before refreshing to let rate limits reset
+        // Refresh logs after a delay to show progress
         setTimeout(() => {
-          onDeleteSuccess();
-        }, 3000);
-      }, 1500);
+          if (onDeleteSuccess) {
+            onDeleteSuccess();
+          }
+        }, 5000);
+      } else {
+        // Synchronous deletion completed - show final count
+        setDeletedCount(result.deletedCount);
+        
+        success("Success", result.message);
+
+        // Wait a moment to show results and let rate limits reset before closing
+        setTimeout(() => {
+          setIsOpen(false);
+          setFilters({ beforeDate: '', action: '', userId: '' });
+          setElapsedTime(0);
+          setDeletedCount(null);
+          setIsDeleting(false);
+          
+          // Notify parent to resume real-time updates
+          if (onDeleteEnd) {
+            onDeleteEnd();
+          }
+          
+          // Wait an additional 3 seconds before refreshing to let rate limits reset
+          setTimeout(() => {
+            if (onDeleteSuccess) {
+              onDeleteSuccess();
+            }
+          }, 3000);
+        }, 1500);
+      }
     } catch (err: any) {
       clearInterval(timerInterval);
       error("Error", err.message);
