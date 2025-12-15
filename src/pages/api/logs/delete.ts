@@ -1,8 +1,120 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { createSessionClient, createAdminClient } from '@/lib/appwrite';
-import { Query, ID } from 'appwrite';
+import { createAdminClient, createSessionClient } from '@/lib/appwrite';
+import { ID, Query } from 'appwrite';
 import { hasPermission } from '@/lib/permissions';
 import { shouldLog } from '@/lib/logSettings';
+
+/**
+ * Background deletion function for large log deletions (≥100 logs)
+ * Runs asynchronously without blocking the HTTP response
+ */
+async function performBackgroundDeletion(
+  adminDatabases: any,
+  queries: string[],
+  userId: string,
+  filters: { beforeDate?: string; action?: string; userId?: string }
+) {
+  console.log('[Background Deletion] Starting background deletion job');
+  
+  let deletedCount = 0;
+  let totalProcessed = 0;
+  const errors: any[] = [];
+  let offset = 0;
+  const batchSize = 50; // Larger batch size for background jobs
+  const delayBetweenDeletions = 50; // Faster for background jobs (20 per second)
+
+  try {
+    while (true) {
+      const batchQueries = [...queries, Query.limit(batchSize), Query.offset(offset)];
+      const logsResponse = await adminDatabases.listDocuments(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+        batchQueries,
+      );
+
+      const currentBatch = logsResponse.documents;
+
+      if (currentBatch.length === 0) {
+        break; // No more documents to process
+      }
+
+      totalProcessed += currentBatch.length;
+
+      // Delete documents one at a time with delay to avoid rate limiting
+      for (const log of currentBatch) {
+        try {
+          await adminDatabases.deleteDocument(
+            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+            log.$id,
+          );
+          deletedCount += 1;
+          
+          // Delay between deletions to avoid rate limiting
+          await new Promise((resolve) => setTimeout(resolve, delayBetweenDeletions));
+        } catch (error: any) {
+          console.error(`[Background Deletion] Error deleting log ${log.$id}:`, error);
+          
+          // If rate limited, wait longer before continuing
+          if (error.code === 429) {
+            console.log('[Background Deletion] Rate limit detected, waiting 3 seconds...');
+            await new Promise((resolve) => setTimeout(resolve, 3000));
+            errors.push({ id: log.$id, error: error.message, rateLimited: true });
+          } else {
+            errors.push({ id: log.$id, error: error.message });
+          }
+        }
+      }
+
+      // Check if we've processed all documents
+      if (currentBatch.length < batchSize) {
+        break; // Last batch processed
+      }
+
+      // Delay between batches
+      console.log(`[Background Deletion] Processed batch of ${currentBatch.length} logs. Total: ${totalProcessed}. Continuing...`);
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Continue with next batch (offset stays at 0 since we're deleting documents)
+      offset = 0;
+    }
+
+    console.log(`[Background Deletion] Completed. Deleted ${deletedCount} of ${totalProcessed} logs`);
+
+    // Log this deletion activity
+    try {
+      if (await shouldLog('logsDelete')) {
+        const { createDeleteLogsDetails } = await import('@/lib/logFormatting');
+        const logDetails = createDeleteLogsDetails(
+          deletedCount,
+          filters,
+          {
+            totalProcessed,
+            errorCount: errors.length,
+            backgroundJob: true,
+            ...(errors.length > 0 && errors.length <= 10 && { errors: errors.slice(0, 10) }),
+          },
+        );
+
+        await adminDatabases.createDocument(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+          ID.unique(),
+          {
+            action: 'delete_logs',
+            userId,
+            attendeeId: null,
+            details: JSON.stringify(logDetails),
+          },
+        );
+      }
+    } catch (logError: any) {
+      console.error('[Background Deletion] Failed to log deletion activity:', logError);
+    }
+  } catch (error: any) {
+    console.error('[Background Deletion] Fatal error:', error);
+  }
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'DELETE') {
@@ -76,14 +188,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const countResponse = await adminDatabases.listDocuments(
       process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
       process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
-      [...queries, Query.limit(1)]
+      [...queries, Query.limit(1)],
     );
     const totalToDelete = countResponse.total;
     
     console.log(`[Delete Logs] Found ${totalToDelete} logs matching criteria`);
 
-    // Process and delete logs in batches to avoid memory issues
-    // Slow down to avoid rate limiting (similar to client SDK approach)
+    // Hybrid approach: Small deletions sync, large deletions background
+    const BACKGROUND_THRESHOLD = 100;
+
+    if (totalToDelete >= BACKGROUND_THRESHOLD) {
+      // Large deletion - start background job and return immediately
+      console.log(`[Delete Logs] Starting background deletion for ${totalToDelete} logs`);
+      
+      // Start background deletion (don't await)
+      performBackgroundDeletion(adminDatabases, queries, user.$id, { beforeDate, action, userId })
+        .catch((error) => console.error('[Background Deletion] Error:', error));
+
+      // Return immediately with 202 Accepted status
+      return res.status(202).json({
+        success: true,
+        totalToDelete,
+        message: `Deletion of ${totalToDelete} log entries has been started in the background. This may take several minutes to complete.`,
+        backgroundJob: true,
+      });
+    }
+
+    // Small deletion - process synchronously (same as before)
+    console.log(`[Delete Logs] Processing ${totalToDelete} logs synchronously`);
+    
     let deletedCount = 0;
     let totalProcessed = 0;
     const errors: any[] = [];
@@ -96,7 +229,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const logsResponse = await adminDatabases.listDocuments(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
         process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
-        batchQueries
+        batchQueries,
       );
 
       const currentBatch = logsResponse.documents;
@@ -113,19 +246,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           await adminDatabases.deleteDocument(
             process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
             process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
-            log.$id
+            log.$id,
           );
-          deletedCount++;
+          deletedCount += 1;
           
           // Delay between deletions to avoid rate limiting
-          await new Promise(resolve => setTimeout(resolve, delayBetweenDeletions));
+          await new Promise((resolve) => setTimeout(resolve, delayBetweenDeletions));
         } catch (error: any) {
           console.error(`Error deleting log ${log.$id}:`, error);
           
           // If rate limited, wait longer before continuing
           if (error.code === 429) {
             console.log('Rate limit detected, waiting 3 seconds before continuing...');
-            await new Promise(resolve => setTimeout(resolve, 3000));
+            await new Promise((resolve) => setTimeout(resolve, 3000));
             errors.push({ id: log.$id, error: error.message, rateLimited: true });
           } else {
             errors.push({ id: log.$id, error: error.message });
@@ -140,7 +273,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       // Delay between batches
       console.log(`Processed batch of ${currentBatch.length} logs. Total: ${totalProcessed}. Continuing...`);
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
       // Continue with next batch (offset stays at 0 since we're deleting documents)
       // Note: After deletion, the next batch will be at offset 0
@@ -158,8 +291,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           {
             totalProcessed,
             errorCount: errors.length,
-            ...(errors.length > 0 && { errors })
-          }
+            ...(errors.length > 0 && { errors }),
+          },
         );
 
         await adminDatabases.createDocument(
@@ -170,8 +303,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             action: 'delete_logs',
             userId: user.$id,
             attendeeId: null,
-            details: JSON.stringify(logDetails)
-          }
+            details: JSON.stringify(logDetails),
+          },
         );
       }
     } catch (logError: any) {
@@ -185,7 +318,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       totalProcessed,
       totalToDelete,
       message: `Successfully deleted ${deletedCount} of ${totalToDelete} log entries`,
-      errors: errors.length > 0 ? errors : undefined
+      errors: errors.length > 0 ? errors : undefined,
     });
 
   } catch (error: any) {
