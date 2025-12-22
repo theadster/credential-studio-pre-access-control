@@ -1543,9 +1543,10 @@ export default function Dashboard() {
       // Close progress modal
       closeProgressModal();
 
-      // Open the generated credential in a new tab
+      // Open the generated credential in a new tab with cache-busting parameter
       if (result.credentialUrl) {
-        window.open(result.credentialUrl, '_blank');
+        const cacheBustedUrl = `${result.credentialUrl}?v=${Date.now()}`;
+        window.open(cacheBustedUrl, '_blank');
       }
 
       success("Success", "Credential generated successfully!");
@@ -1614,9 +1615,10 @@ export default function Dashboard() {
 
       const result = await response.json();
 
-      // Open the generated image in a new tab for printing
+      // Open the generated image in a new tab for printing with cache-busting parameter
       if (result.credential?.imageUrl) {
-        window.open(result.credential.imageUrl, '_blank');
+        const cacheBustedUrl = `${result.credential.imageUrl}?v=${Date.now()}`;
+        window.open(cacheBustedUrl, '_blank');
       }
 
       success("Success", "Credential generated successfully!");
@@ -3883,7 +3885,7 @@ export default function Dashboard() {
                                 <div className="flex justify-center">
                                   {attendee.credentialUrl ? (
                                     <button
-                                      onClick={() => attendee.credentialUrl && window.open(attendee.credentialUrl, '_blank')}
+                                      onClick={() => attendee.credentialUrl && window.open(`${attendee.credentialUrl}?v=${Date.now()}`, '_blank')}
                                       className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
                                       aria-label={`View credential for ${attendee.firstName} ${attendee.lastName}, opens in new tab`}
                                     >
