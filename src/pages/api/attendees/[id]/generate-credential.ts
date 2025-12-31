@@ -30,20 +30,34 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     const hasPermission = permissions?.attendees?.print || permissions?.all;
     
     if (!hasPermission) {
-      return res.status(403).json({ error: 'Insufficient permissions' });
+      return res.status(403).json({ 
+        error: 'Insufficient permissions to generate credentials',
+        details: 'You need attendee print permissions to generate credentials',
+        requiredPermission: 'attendees.print',
+        userRole: userProfile.role?.name || 'No role assigned',
+        errorType: 'PermissionError'
+      });
     }
 
     const { id } = req.query;
 
     if (!id || typeof id !== 'string') {
-      return res.status(400).json({ error: 'Invalid attendee ID' });
+      return res.status(400).json({ 
+        error: 'Invalid attendee ID',
+        details: 'Attendee ID must be a valid string',
+        errorType: 'ValidationError'
+      });
     }
 
     // Get attendee
     const attendee = await databases.getDocument(dbId, attendeesCollectionId, id);
 
     if (!attendee) {
-      return res.status(404).json({ error: 'Attendee not found' });
+      return res.status(404).json({ 
+        error: 'Attendee not found',
+        details: `No attendee found with ID: ${id}`,
+        errorType: 'NotFoundError'
+      });
     }
 
     // Get event settings
@@ -51,26 +65,51 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     const eventSettings = eventSettingsDocs.documents[0];
 
     if (!eventSettings) {
-      return res.status(400).json({ error: 'Event settings not configured' });
+      return res.status(400).json({ 
+        error: 'Event settings not configured',
+        details: 'Please configure event settings first in the Event Settings tab',
+        hint: 'Go to Event Settings to set up your event configuration',
+        errorType: 'ConfigurationError'
+      });
     }
 
     // Get Switchboard integration from separate collection
     const switchboardIntegration = await getSwitchboardIntegration(databases, eventSettings.$id);
 
     if (!switchboardIntegration) {
-      return res.status(400).json({ error: 'Switchboard Canvas integration not found' });
+      return res.status(400).json({ 
+        error: 'Switchboard Canvas integration not found',
+        details: 'No Switchboard Canvas integration configured for this event',
+        hint: 'Go to Event Settings > Integrations to configure Switchboard Canvas',
+        errorType: 'ConfigurationError'
+      });
     }
 
     // Check if Switchboard Canvas is enabled and configured
     if (!switchboardIntegration.enabled) {
-      return res.status(400).json({ error: 'Switchboard Canvas integration is not enabled' });
+      return res.status(400).json({ 
+        error: 'Switchboard Canvas integration is not enabled',
+        details: 'The Switchboard Canvas integration exists but is currently disabled',
+        hint: 'Go to Event Settings > Integrations and enable Switchboard Canvas',
+        errorType: 'ConfigurationError'
+      });
     }
 
     // Get API key from environment variable (not stored in database for security)
     const switchboardApiKey = process.env.SWITCHBOARD_API_KEY;
     
     if (!switchboardApiKey || !switchboardIntegration.apiEndpoint) {
-      return res.status(400).json({ error: 'Switchboard Canvas is not properly configured. Check SWITCHBOARD_API_KEY environment variable.' });
+      const missingItems = [];
+      if (!switchboardApiKey) missingItems.push('SWITCHBOARD_API_KEY environment variable');
+      if (!switchboardIntegration.apiEndpoint) missingItems.push('API endpoint in integration settings');
+      
+      return res.status(400).json({ 
+        error: 'Switchboard Canvas is not properly configured',
+        details: `Missing configuration: ${missingItems.join(', ')}`,
+        missingConfiguration: missingItems,
+        hint: 'Check environment variables and integration settings',
+        errorType: 'ConfigurationError'
+      });
     }
 
     // Get custom fields
@@ -314,14 +353,35 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         });
 
       } catch (fetchError) {
-        return res.status(500).json({ error: 'Failed to connect to Switchboard Canvas API' });
+        const errorMessage = fetchError instanceof Error ? fetchError.message : String(fetchError);
+        return res.status(500).json({ 
+          error: 'Failed to connect to Switchboard Canvas API',
+          details: `Network error: ${errorMessage}`,
+          endpoint: switchboardIntegration.apiEndpoint,
+          errorType: 'NetworkError'
+        });
       }
 
       if (!switchboardResponse.ok) {
         const errorText = await switchboardResponse.text();
+        let responseBody = errorText;
+        
+        // Try to parse as JSON for better error details
+        try {
+          const parsedError = JSON.parse(errorText);
+          responseBody = JSON.stringify(parsedError, null, 2);
+        } catch {
+          // Keep as plain text if not JSON
+        }
+        
         return res.status(500).json({ 
           error: 'Failed to generate credential with Switchboard Canvas',
-          details: `API returned ${switchboardResponse.status}: ${errorText}`
+          details: `API returned ${switchboardResponse.status} ${switchboardResponse.statusText}`,
+          statusCode: switchboardResponse.status,
+          statusText: switchboardResponse.statusText,
+          responseBody: responseBody,
+          endpoint: switchboardIntegration.apiEndpoint,
+          errorType: 'APIError'
         });
       }
 
@@ -329,7 +389,16 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       try {
         switchboardResult = await switchboardResponse.json();
       } catch (parseError) {
-        return res.status(500).json({ error: 'Invalid response format from Switchboard Canvas' });
+        const responseText = await switchboardResponse.text();
+        const errorMessage = parseError instanceof Error ? parseError.message : String(parseError);
+        
+        return res.status(500).json({ 
+          error: 'Invalid response format from Switchboard Canvas',
+          details: `Failed to parse JSON response: ${errorMessage}`,
+          responseBody: responseText.substring(0, 500) + (responseText.length > 500 ? '...' : ''),
+          endpoint: switchboardIntegration.apiEndpoint,
+          errorType: 'ResponseFormatError'
+        });
       }
       
       // Extract the credential URL from the response
@@ -354,8 +423,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       if (!credentialUrl) {
         return res.status(500).json({ 
           error: 'No credential URL returned from Switchboard Canvas',
+          details: 'The API response did not contain a credential URL in any expected field',
           responseFields: Object.keys(switchboardResult),
-          response: switchboardResult
+          expectedFields: ['url', 'imageUrl', 'downloadUrl', 'credentialUrl', 'result.url', 'data.url', 'response.url', 'sizes[].url'],
+          response: switchboardResult,
+          errorType: 'ResponseProcessingError'
         });
       }
 
@@ -441,9 +513,12 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       });
 
     } catch (parseError) {
+      const errorMessage = parseError instanceof Error ? parseError.message : String(parseError);
+      
       return res.status(400).json({ 
         error: 'Invalid request body template in Switchboard Canvas settings',
-        details: parseError instanceof Error ? parseError.message : String(parseError)
+        details: `Template processing error: ${errorMessage}`,
+        errorType: 'TemplateProcessingError'
       });
     }
 
@@ -452,11 +527,38 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     
     // Handle Appwrite-specific errors
     if (error.code === 401) {
-      return res.status(401).json({ error: 'Unauthorized' });
+      return res.status(401).json({ 
+        error: 'Unauthorized',
+        details: 'Authentication failed or session expired',
+        errorType: 'AuthenticationError'
+      });
     } else if (error.code === 404) {
-      return res.status(404).json({ error: 'Resource not found' });
+      return res.status(404).json({ 
+        error: 'Resource not found',
+        details: 'The requested resource could not be found',
+        errorType: 'NotFoundError'
+      });
     }
     
-    return res.status(500).json({ error: 'Internal server error' });
+    // Generic error with additional context in development
+    const errorResponse: any = { 
+      error: 'Internal server error',
+      errorType: 'InternalError'
+    };
+    
+    // Add error details in development mode
+    if (process.env.NODE_ENV === 'development') {
+      errorResponse.details = error.message;
+      if (error.stack) {
+        errorResponse.stackTrace = error.stack.split('\n').slice(0, 3);
+      }
+    }
+    
+    // Add Appwrite error code if available
+    if (error.code) {
+      errorResponse.appwriteErrorCode = error.code;
+    }
+    
+    return res.status(500).json(errorResponse);
   }
 });

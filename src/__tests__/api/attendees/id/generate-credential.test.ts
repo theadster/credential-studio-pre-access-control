@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import handler from '../generate-credential';
+import handler from '@/pages/api/attendees/[id]/generate-credential';
 import { mockAccount, mockDatabases, resetAllMocks } from '@/test/mocks/appwrite';
 
 // Mock the appwrite module
@@ -9,6 +9,11 @@ vi.mock('@/lib/appwrite', () => ({
     account: mockAccount,
     databases: mockDatabases,
   })),
+}));
+
+// Mock appwrite-integrations
+vi.mock('@/lib/appwrite-integrations', () => ({
+  getSwitchboardIntegration: vi.fn(),
 }));
 
 // Mock fetch
@@ -41,10 +46,10 @@ describe('/api/attendees/[id]/generate-credential - Generate Credential API', ()
     $id: 'role-admin',
     name: 'Super Administrator',
     description: 'Full system access',
-    permissions: JSON.stringify({
+    permissions: {
       attendees: { print: true },
       all: true,
-    }),
+    },
   };
 
   const mockAttendee = {
@@ -86,6 +91,12 @@ describe('/api/attendees/[id]/generate-credential - Generate Credential API', ()
       cookies: { 'appwrite-session': 'test-session' },
       query: { id: 'attendee-123' },
       body: {},
+      // Add the user and userProfile that the middleware would attach
+      user: mockAuthUser,
+      userProfile: {
+        ...mockUserProfile,
+        role: mockAdminRole
+      }
     };
     
     mockRes = {
@@ -99,7 +110,6 @@ describe('/api/attendees/[id]/generate-credential - Generate Credential API', ()
       documents: [mockUserProfile],
       total: 1,
     });
-    mockDatabases.getDocument.mockResolvedValue(mockAdminRole);
     mockDatabases.createDocument.mockResolvedValue({
       $id: 'new-log-123',
       userId: mockAuthUser.$id,
@@ -110,6 +120,7 @@ describe('/api/attendees/[id]/generate-credential - Generate Credential API', ()
 
   afterEach(() => {
     vi.clearAllMocks();
+    vi.resetModules();
   });
 
   describe('Method Validation', () => {
@@ -140,51 +151,57 @@ describe('/api/attendees/[id]/generate-credential - Generate Credential API', ()
     });
 
     it('should return 403 if user profile is not found', async () => {
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [],
-        total: 0,
-      });
+      // Override the default mock to simulate no user profile
+      mockReq.userProfile = null as any;
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       expect(statusMock).toHaveBeenCalledWith(403);
       expect(jsonMock).toHaveBeenCalledWith(
         expect.objectContaining({
-          error: 'User profile not found',
-          code: 404,
-          type: 'profile_not_found',
+          error: 'Insufficient permissions to generate credentials',
         })
       );
     });
 
     it('should return 403 if user has no role', async () => {
-      const userWithoutRole = { ...mockUserProfile, roleId: null };
-
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [userWithoutRole],
-        total: 1,
-      });
-      mockDatabases.getDocument.mockResolvedValueOnce(null);
+      // Override the default mock to simulate user with no role
+      mockReq.userProfile = {
+        ...mockUserProfile,
+        role: null
+      } as any;
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       expect(statusMock).toHaveBeenCalledWith(403);
-      expect(jsonMock).toHaveBeenCalledWith({ error: 'No role assigned' });
+      expect(jsonMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'Insufficient permissions to generate credentials',
+        })
+      );
     });
 
     it('should return 403 if user does not have print permission', async () => {
-      const noPermRole = {
-        ...mockAdminRole,
-        permissions: JSON.stringify({ attendees: { print: false } }),
-      };
-
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(noPermRole);
+      // Override the default mock to simulate user with role but no print permission
+      mockReq.userProfile = {
+        ...mockUserProfile,
+        role: {
+          ...mockAdminRole,
+          permissions: {
+            attendees: { print: false },
+            all: false,
+          }
+        }
+      } as any;
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       expect(statusMock).toHaveBeenCalledWith(403);
-      expect(jsonMock).toHaveBeenCalledWith({ error: 'Insufficient permissions' });
+      expect(jsonMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'Insufficient permissions to generate credentials',
+        })
+      );
     });
   });
 
@@ -192,35 +209,37 @@ describe('/api/attendees/[id]/generate-credential - Generate Credential API', ()
     it('should return 400 if attendee ID is missing', async () => {
       mockReq.query = {};
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
-
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       expect(statusMock).toHaveBeenCalledWith(400);
-      expect(jsonMock).toHaveBeenCalledWith({ error: 'Invalid attendee ID' });
+      expect(jsonMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'Invalid attendee ID'
+        })
+      );
     });
 
     it('should return 400 if attendee ID is not a string', async () => {
       mockReq.query = { id: ['array', 'value'] };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
-
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       expect(statusMock).toHaveBeenCalledWith(400);
-      expect(jsonMock).toHaveBeenCalledWith({ error: 'Invalid attendee ID' });
+      expect(jsonMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'Invalid attendee ID'
+        })
+      );
     });
 
     it('should return 404 if attendee is not found', async () => {
       const error = new Error('Not found');
       (error as any).code = 404;
 
+      // Mock the attendee lookup (first getDocument call) to fail
+      mockDatabases.getDocument.mockRejectedValueOnce(error);
+      // Mock user profile lookup (first listDocuments call)
       mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument
-        .mockResolvedValueOnce(mockAdminRole)
-        .mockRejectedValueOnce(error);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -229,35 +248,43 @@ describe('/api/attendees/[id]/generate-credential - Generate Credential API', ()
 
     it('should return 400 if event settings not configured', async () => {
       mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 }); // No event settings
+        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // User profile
+        .mockResolvedValueOnce({ documents: [], total: 0 }); // No event settings (handler returns early)
 
-      mockDatabases.getDocument
-        .mockResolvedValueOnce(mockAdminRole)
-        .mockResolvedValueOnce(mockAttendee);
+      mockDatabases.getDocument.mockResolvedValueOnce(mockAttendee);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       expect(statusMock).toHaveBeenCalledWith(400);
-      expect(jsonMock).toHaveBeenCalledWith({ error: 'Event settings not configured' });
+      expect(jsonMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'Event settings not configured'
+        })
+      );
     });
 
     it('should return 400 if Switchboard is not enabled', async () => {
-      const disabledSettings = { ...mockEventSettings, switchboardEnabled: false };
+      const disabledIntegration = { enabled: false };
 
       mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [disabledSettings], total: 1 })
+        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // User profile
+        .mockResolvedValueOnce({ documents: [mockEventSettings], total: 1 }) // Event settings
         .mockResolvedValueOnce({ documents: [], total: 0 }); // Custom fields
 
-      mockDatabases.getDocument
-        .mockResolvedValueOnce(mockAdminRole)
-        .mockResolvedValueOnce(mockAttendee);
+      mockDatabases.getDocument.mockResolvedValueOnce(mockAttendee);
+
+      // Mock getSwitchboardIntegration to return disabled integration
+      const { getSwitchboardIntegration } = await import('@/lib/appwrite-integrations');
+      vi.mocked(getSwitchboardIntegration).mockResolvedValue(disabledIntegration);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       expect(statusMock).toHaveBeenCalledWith(400);
-      expect(jsonMock).toHaveBeenCalledWith({ error: 'Switchboard Canvas integration is not enabled' });
+      expect(jsonMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'Switchboard Canvas integration is not enabled'
+        })
+      );
     });
 
     it('should return 400 if Switchboard API endpoint is missing', async () => {
@@ -268,9 +295,7 @@ describe('/api/attendees/[id]/generate-credential - Generate Credential API', ()
         .mockResolvedValueOnce({ documents: [incompleteSettings], total: 1 })
         .mockResolvedValueOnce({ documents: [], total: 0 });
 
-      mockDatabases.getDocument
-        .mockResolvedValueOnce(mockAdminRole)
-        .mockResolvedValueOnce(mockAttendee);
+      mockDatabases.getDocument.mockResolvedValueOnce(mockAttendee);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -288,14 +313,12 @@ describe('/api/attendees/[id]/generate-credential - Generate Credential API', ()
         .mockResolvedValueOnce({ documents: [mockEventSettings], total: 1 })
         .mockResolvedValueOnce({ documents: [], total: 0 }); // Custom fields
 
-      mockDatabases.getDocument
-        .mockResolvedValueOnce(mockAdminRole)
-        .mockResolvedValueOnce(mockAttendee);
+      mockDatabases.getDocument.mockResolvedValueOnce(mockAttendee);
 
       mockDatabases.updateDocument.mockResolvedValue({
         ...mockAttendee,
         credentialUrl,
-        credentialGeneratedAt: expect.any(String),
+        credentialGeneratedAt: new Date().toISOString(),
       });
 
       (global.fetch as any).mockResolvedValue({
@@ -344,9 +367,7 @@ describe('/api/attendees/[id]/generate-credential - Generate Credential API', ()
         .mockResolvedValueOnce({ documents: [mockEventSettings], total: 1 })
         .mockResolvedValueOnce({ documents: [], total: 0 });
 
-      mockDatabases.getDocument
-        .mockResolvedValueOnce(mockAdminRole)
-        .mockResolvedValueOnce(mockAttendee);
+      mockDatabases.getDocument.mockResolvedValueOnce(mockAttendee);
 
       mockDatabases.updateDocument.mockResolvedValue({
         ...mockAttendee,
@@ -373,9 +394,7 @@ describe('/api/attendees/[id]/generate-credential - Generate Credential API', ()
         .mockResolvedValueOnce({ documents: [mockEventSettings], total: 1 })
         .mockResolvedValueOnce({ documents: [], total: 0 });
 
-      mockDatabases.getDocument
-        .mockResolvedValueOnce(mockAdminRole)
-        .mockResolvedValueOnce(mockAttendee);
+      mockDatabases.getDocument.mockResolvedValueOnce(mockAttendee);
 
       (global.fetch as any).mockResolvedValue({
         ok: false,
@@ -399,9 +418,7 @@ describe('/api/attendees/[id]/generate-credential - Generate Credential API', ()
         .mockResolvedValueOnce({ documents: [mockEventSettings], total: 1 })
         .mockResolvedValueOnce({ documents: [], total: 0 });
 
-      mockDatabases.getDocument
-        .mockResolvedValueOnce(mockAdminRole)
-        .mockResolvedValueOnce(mockAttendee);
+      mockDatabases.getDocument.mockResolvedValueOnce(mockAttendee);
 
       (global.fetch as any).mockRejectedValue(new Error('Network error'));
 
@@ -417,9 +434,7 @@ describe('/api/attendees/[id]/generate-credential - Generate Credential API', ()
         .mockResolvedValueOnce({ documents: [mockEventSettings], total: 1 })
         .mockResolvedValueOnce({ documents: [], total: 0 });
 
-      mockDatabases.getDocument
-        .mockResolvedValueOnce(mockAdminRole)
-        .mockResolvedValueOnce(mockAttendee);
+      mockDatabases.getDocument.mockResolvedValueOnce(mockAttendee);
 
       (global.fetch as any).mockResolvedValue({
         ok: true,
@@ -444,9 +459,7 @@ describe('/api/attendees/[id]/generate-credential - Generate Credential API', ()
         .mockResolvedValueOnce({ documents: [mockEventSettings], total: 1 })
         .mockResolvedValueOnce({ documents: [], total: 0 });
 
-      mockDatabases.getDocument
-        .mockResolvedValueOnce(mockAdminRole)
-        .mockResolvedValueOnce(mockAttendee);
+      mockDatabases.getDocument.mockResolvedValueOnce(mockAttendee);
 
       mockDatabases.updateDocument.mockResolvedValue({
         ...mockAttendee,
@@ -476,9 +489,7 @@ describe('/api/attendees/[id]/generate-credential - Generate Credential API', ()
         .mockResolvedValueOnce({ documents: [mockEventSettings], total: 1 })
         .mockResolvedValueOnce({ documents: [], total: 0 });
 
-      mockDatabases.getDocument
-        .mockResolvedValueOnce(mockAdminRole)
-        .mockResolvedValueOnce(mockAttendee);
+      mockDatabases.getDocument.mockResolvedValueOnce(mockAttendee);
 
       mockDatabases.updateDocument.mockResolvedValue({
         ...mockAttendee,

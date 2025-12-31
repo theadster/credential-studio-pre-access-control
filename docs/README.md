@@ -25,6 +25,7 @@ docs/
 - [**Bulk Delete Log Size Fix**](./fixes/BULK_DELETE_LOG_SIZE_FIX.md) - Use API key for bulk deletes and handle large log entries
 
 ### Recent Fixes
+- [**🔍 Advanced Filter Dropdown Scrolling Fix**](./fixes/ADVANCED_FILTER_DROPDOWN_SCROLLING_FIX.md) - ✅ **FIXED:** Multi-select dropdowns now show all options with proper scrolling using Radix UI viewport constraints
 - [**🔍 Multi-Select Filter Enhancement**](./fixes/MULTI_SELECT_IMPLEMENTATION_SUMMARY.md) - ✅ **NEW:** Multi-select dropdown filters with search for custom fields
   - [Quick Reference](./fixes/MULTI_SELECT_QUICK_REFERENCE.md) - ⚡ Quick reference card
   - [Full Documentation](./fixes/CUSTOM_FIELD_MULTI_SELECT_FILTER_ENHANCEMENT.md) - 📚 Complete technical documentation

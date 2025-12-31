@@ -8,7 +8,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
   const { id } = req.query;
 
   if (!id || typeof id !== 'string') {
-    return res.status(400).json({ error: 'Invalid attendee ID' });
+    return res.status(400).json({ 
+      error: 'Invalid attendee ID',
+      details: 'Attendee ID must be a valid string',
+      errorType: 'ValidationError'
+    });
   }
 
   if (req.method !== 'POST') {
@@ -22,11 +26,20 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       const validation = validateAppwriteEnv();
       if (!validation.isValid) {
         console.error('Missing required environment variables:', validation.missingVars);
-        return res.status(500).json({ error: 'Server configuration error' });
+        return res.status(500).json({ 
+          error: 'Server configuration error',
+          details: 'Missing required environment variables',
+          missingVars: validation.missingVars,
+          errorType: 'ConfigurationError'
+        });
       }
     } catch (error) {
       console.error('Environment validation error:', error);
-      return res.status(500).json({ error: 'Server configuration error' });
+      return res.status(500).json({ 
+        error: 'Server configuration error',
+        details: 'Environment validation failed',
+        errorType: 'ConfigurationError'
+      });
     }
 
     // User and userProfile are already attached by middleware
@@ -43,7 +56,13 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     const hasPrintPermission = permissions?.attendees?.print === true || permissions?.all === true;
 
     if (!hasPrintPermission) {
-      return res.status(403).json({ error: 'Insufficient permissions to print credentials' });
+      return res.status(403).json({ 
+        error: 'Insufficient permissions to print credentials',
+        details: 'You need attendee print permissions to print credentials',
+        requiredPermission: 'attendees.print',
+        userRole: userProfile.role?.name || 'No role assigned',
+        errorType: 'PermissionError'
+      });
     }
 
     // Get attendee details
@@ -54,7 +73,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     });
 
     if (!attendee) {
-      return res.status(404).json({ error: 'Attendee not found' });
+      return res.status(404).json({ 
+        error: 'Attendee not found',
+        details: `No attendee found with ID: ${id}`,
+        errorType: 'NotFoundError'
+      });
     }
 
     // Get event settings
@@ -68,11 +91,21 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     // Verify Switchboard configuration
     if (!process.env.SWITCHBOARD_API_KEY) {
       console.error('SWITCHBOARD_API_KEY environment variable is not configured');
-      return res.status(500).json({ error: 'Switchboard Canvas API key not configured' });
+      return res.status(500).json({ 
+        error: 'Switchboard Canvas API key not configured',
+        details: 'SWITCHBOARD_API_KEY environment variable is missing',
+        hint: 'Check server environment configuration',
+        errorType: 'ConfigurationError'
+      });
     }
 
     if (!eventSettings || !eventSettings.switchboardTemplateId) {
-      return res.status(400).json({ error: 'Switchboard Canvas template not configured' });
+      return res.status(400).json({ 
+        error: 'Switchboard Canvas template not configured',
+        details: 'No template ID found in event settings',
+        hint: 'Go to Event Settings > Integrations to configure Switchboard Canvas template',
+        errorType: 'ConfigurationError'
+      });
     }
 
     // Parse custom field values
@@ -122,7 +155,24 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     if (!switchboardResponse.ok) {
       const errorData = await switchboardResponse.text();
       console.error('Switchboard API Error:', errorData);
-      return res.status(500).json({ error: 'Failed to generate credential image' });
+      
+      let responseBody = errorData;
+      try {
+        const parsedError = JSON.parse(errorData);
+        responseBody = JSON.stringify(parsedError, null, 2);
+      } catch {
+        // Keep as plain text if not JSON
+      }
+      
+      return res.status(500).json({ 
+        error: 'Failed to generate credential image',
+        details: `Switchboard API returned ${switchboardResponse.status} ${switchboardResponse.statusText}`,
+        statusCode: switchboardResponse.status,
+        statusText: switchboardResponse.statusText,
+        responseBody: responseBody,
+        endpoint: 'https://api.switchboard.ai/v1/render',
+        errorType: 'APIError'
+      });
     }
 
     const switchboardResult = await switchboardResponse.json();
@@ -168,11 +218,38 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
     // Handle Appwrite-specific errors
     if (error.code === 401) {
-      return res.status(401).json({ error: 'Unauthorized' });
+      return res.status(401).json({ 
+        error: 'Unauthorized',
+        details: 'Authentication failed or session expired',
+        errorType: 'AuthenticationError'
+      });
     } else if (error.code === 404) {
-      return res.status(404).json({ error: 'Resource not found' });
+      return res.status(404).json({ 
+        error: 'Resource not found',
+        details: 'The requested resource could not be found',
+        errorType: 'NotFoundError'
+      });
     }
 
-    return res.status(500).json({ error: 'Internal server error' });
+    // Generic error with additional context in development
+    const errorResponse: any = { 
+      error: 'Internal server error',
+      errorType: 'InternalError'
+    };
+    
+    // Add error details in development mode
+    if (process.env.NODE_ENV === 'development') {
+      errorResponse.details = error.message;
+      if (error.stack) {
+        errorResponse.stackTrace = error.stack.split('\n').slice(0, 3);
+      }
+    }
+    
+    // Add Appwrite error code if available
+    if (error.code) {
+      errorResponse.appwriteErrorCode = error.code;
+    }
+
+    return res.status(500).json(errorResponse);
   }
 });

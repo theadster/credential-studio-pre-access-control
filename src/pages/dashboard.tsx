@@ -60,6 +60,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -1731,7 +1732,24 @@ export default function Dashboard() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || 'Failed to generate credential');
+        // Create detailed error message with all available information
+        let errorMessage = error.error || 'Failed to generate credential';
+        if (error.details) {
+          errorMessage += `\n\nDetails: ${error.details}`;
+        }
+        if (error.statusCode) {
+          errorMessage += `\nStatus Code: ${error.statusCode}`;
+        }
+        if (error.responseBody) {
+          errorMessage += `\nAPI Response: ${error.responseBody}`;
+        }
+        if (error.endpoint) {
+          errorMessage += `\nEndpoint: ${error.endpoint}`;
+        }
+        if (error.hint) {
+          errorMessage += `\nHint: ${error.hint}`;
+        }
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
@@ -1771,9 +1789,10 @@ export default function Dashboard() {
         html: `
           <div style="text-align: left;">
             <p style="margin-bottom: 12px;"><strong>Attendee:</strong> ${attendeeName}</p>
-            <p style="margin-bottom: 12px;"><strong>Error:</strong></p>
-            <p style="color: #ef4444; font-family: monospace; font-size: 0.9em; background: #fee; padding: 8px; border-radius: 4px; word-break: break-word;">
-              ${err.message || 'Failed to generate credential'}
+            <p style="margin-bottom: 12px;"><strong>Error Details:</strong></p>
+            <pre style="color: #ef4444; font-family: monospace; font-size: 0.85em; background: #fee; padding: 12px; border-radius: 6px; word-break: break-word; white-space: pre-wrap; max-height: 400px; overflow-y: auto; margin: 0;">${err.message || 'Failed to generate credential'}</pre>
+            <p style="margin-top: 12px; font-size: 0.9em; color: #6b7280;">
+              <strong>Tip:</strong> Check your integration settings in Event Settings > Integrations if this error persists.
             </p>
           </div>
         `,
@@ -1817,8 +1836,25 @@ export default function Dashboard() {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to print credential');
+        const errorResponse = await response.json();
+        // Create detailed error message with all available information
+        let errorMessage = errorResponse.error || 'Failed to print credential';
+        if (errorResponse.details) {
+          errorMessage += `\n\nDetails: ${errorResponse.details}`;
+        }
+        if (errorResponse.statusCode) {
+          errorMessage += `\nStatus Code: ${errorResponse.statusCode}`;
+        }
+        if (errorResponse.responseBody) {
+          errorMessage += `\nAPI Response: ${errorResponse.responseBody}`;
+        }
+        if (errorResponse.endpoint) {
+          errorMessage += `\nEndpoint: ${errorResponse.endpoint}`;
+        }
+        if (errorResponse.hint) {
+          errorMessage += `\nHint: ${errorResponse.hint}`;
+        }
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
@@ -2530,10 +2566,23 @@ export default function Dashboard() {
             errorMessage = 'Failed to generate credential';
             try {
               const errorData = await response.json();
-              // Include detailed error information if available
-              errorMessage = errorData.details
-                ? `${errorData.error}: ${errorData.details}`
-                : errorData.error || errorMessage;
+              // Build comprehensive error message
+              let detailedError = errorData.error || errorMessage;
+              if (errorData.details) {
+                detailedError += ` - ${errorData.details}`;
+              }
+              if (errorData.statusCode) {
+                detailedError += ` (Status: ${errorData.statusCode})`;
+              }
+              if (errorData.errorType) {
+                detailedError += ` [${errorData.errorType}]`;
+              }
+              if (errorData.responseBody && errorData.responseBody.length < 200) {
+                detailedError += ` Response: ${errorData.responseBody}`;
+              } else if (errorData.responseBody) {
+                detailedError += ` Response: ${errorData.responseBody.substring(0, 200)}...`;
+              }
+              errorMessage = detailedError;
             } catch (parseError) {
               // If we can't parse the error response, use the status text
               errorMessage = `HTTP ${response.status}: ${response.statusText}`;
@@ -2582,9 +2631,9 @@ export default function Dashboard() {
       } else if (successCount > 0 && errorCount > 0) {
         // Partial success - show detailed error modal
         const errorListHtml = errors.slice(0, 5).map(err =>
-          `<li style="margin-bottom: 8px; color: #ef4444;">${err}</li>`
+          `<li style="margin-bottom: 10px; color: #ef4444; font-size: 0.9em; word-break: break-word;">${err}</li>`
         ).join('');
-        const moreErrors = errors.length > 5 ? `<li style="margin-top: 8px; color: #6b7280;">...and ${errors.length - 5} more errors</li>` : '';
+        const moreErrors = errors.length > 5 ? `<li style="margin-top: 8px; color: #6b7280; font-style: italic;">...and ${errors.length - 5} more errors</li>` : '';
 
         await alert({
           title: 'Partial Success',
@@ -2598,10 +2647,13 @@ export default function Dashboard() {
               </p>
               <div style="background: #fee; padding: 12px; border-radius: 6px; margin-top: 12px;">
                 <p style="margin-bottom: 8px; font-weight: 600;">Error Details:</p>
-                <ul style="margin: 0; padding-left: 20px; font-size: 0.9em; max-height: 200px; overflow-y: auto;">
+                <ul style="margin: 0; padding-left: 20px; font-size: 0.85em; max-height: 300px; overflow-y: auto; font-family: monospace;">
                   ${errorListHtml}
                   ${moreErrors}
                 </ul>
+                <p style="margin-top: 12px; font-size: 0.9em; color: #6b7280; font-family: sans-serif;">
+                  <strong>Tip:</strong> Check your integration settings in Event Settings > Integrations if errors persist.
+                </p>
               </div>
             </div>
           `,
@@ -2611,9 +2663,9 @@ export default function Dashboard() {
       } else {
         // Complete failure - show detailed error modal
         const errorListHtml = errors.slice(0, 5).map(err =>
-          `<li style="margin-bottom: 8px; color: #ef4444;">${err}</li>`
+          `<li style="margin-bottom: 10px; color: #ef4444; font-size: 0.9em; word-break: break-word;">${err}</li>`
         ).join('');
-        const moreErrors = errors.length > 5 ? `<li style="margin-top: 8px; color: #6b7280;">...and ${errors.length - 5} more errors</li>` : '';
+        const moreErrors = errors.length > 5 ? `<li style="margin-top: 8px; color: #6b7280; font-style: italic;">...and ${errors.length - 5} more errors</li>` : '';
 
         await alert({
           title: 'Credential Generation Failed',
@@ -2624,10 +2676,13 @@ export default function Dashboard() {
               </p>
               <div style="background: #fee; padding: 12px; border-radius: 6px;">
                 <p style="margin-bottom: 8px; font-weight: 600;">Error Details:</p>
-                <ul style="margin: 0; padding-left: 20px; font-size: 0.9em; max-height: 200px; overflow-y: auto;">
+                <ul style="margin: 0; padding-left: 20px; font-size: 0.85em; max-height: 300px; overflow-y: auto; font-family: monospace;">
                   ${errorListHtml}
                   ${moreErrors}
                 </ul>
+                <p style="margin-top: 12px; font-size: 0.9em; color: #6b7280; font-family: sans-serif;">
+                  <strong>Tip:</strong> Check your integration settings in Event Settings > Integrations if errors persist.
+                </p>
               </div>
             </div>
           `,
@@ -3592,9 +3647,10 @@ export default function Dashboard() {
                                           />
                                         </div>
                                       ) : field.fieldType === 'select' ? (
-                                        <Popover>
+                                        <Popover modal={true}>
                                           <PopoverTrigger asChild>
                                             <Button
+                                              type="button"
                                               variant="outline"
                                               role="combobox"
                                               className="w-full justify-between bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800"
@@ -3618,50 +3674,52 @@ export default function Dashboard() {
                                           <PopoverContent className="w-[300px] p-0" align="start">
                                             <Command>
                                               <CommandInput placeholder={`Search ${field.fieldName.toLowerCase()}...`} />
-                                              <CommandList>
-                                                <CommandEmpty>No options found.</CommandEmpty>
-                                                <CommandGroup>
-                                                  {field.fieldOptions?.options?.filter((option: string) => option && option.trim() !== '').map((option: string, index: number) => {
-                                                    const selectedValues = Array.isArray(advancedSearchFilters.customFields[field.id]?.value) 
-                                                      ? advancedSearchFilters.customFields[field.id]?.value as string[]
-                                                      : [];
-                                                    const isSelected = selectedValues.includes(option);
-                                                    
-                                                    return (
-                                                      <CommandItem
-                                                        key={index}
-                                                        value={option}
-                                                        onSelect={() => {
-                                                          const currentValues = Array.isArray(advancedSearchFilters.customFields[field.id]?.value) 
-                                                            ? advancedSearchFilters.customFields[field.id]?.value as string[]
-                                                            : [];
-                                                          const currentIsSelected = currentValues.includes(option);
-                                                          
-                                                          let newValues: string[];
-                                                          if (currentIsSelected) {
-                                                            // Remove the option
-                                                            newValues = currentValues.filter(v => v !== option);
-                                                          } else {
-                                                            // Add the option
-                                                            newValues = [...currentValues, option];
-                                                          }
-                                                          
-                                                          handleCustomFieldSearchChange(field.id, newValues, 'equals');
-                                                        }}
-                                                      >
-                                                        <div className="flex items-center gap-2 w-full">
-                                                          <div className={`flex h-4 w-4 items-center justify-center rounded-sm border border-primary ${
-                                                            isSelected ? 'bg-primary text-primary-foreground' : 'opacity-50'
-                                                          }`}>
-                                                            {isSelected && <Check className="h-3 w-3" />}
+                                              <ScrollArea className="h-[300px]">
+                                                <CommandList>
+                                                  <CommandEmpty>No options found.</CommandEmpty>
+                                                  <CommandGroup>
+                                                    {field.fieldOptions?.options?.filter((option: string) => option && option.trim() !== '').map((option: string, index: number) => {
+                                                      const selectedValues = Array.isArray(advancedSearchFilters.customFields[field.id]?.value) 
+                                                        ? advancedSearchFilters.customFields[field.id]?.value as string[]
+                                                        : [];
+                                                      const isSelected = selectedValues.includes(option);
+                                                      
+                                                      return (
+                                                        <CommandItem
+                                                          key={index}
+                                                          value={option}
+                                                          onSelect={() => {
+                                                            const currentValues = Array.isArray(advancedSearchFilters.customFields[field.id]?.value) 
+                                                              ? advancedSearchFilters.customFields[field.id]?.value as string[]
+                                                              : [];
+                                                            const currentIsSelected = currentValues.includes(option);
+                                                            
+                                                            let newValues: string[];
+                                                            if (currentIsSelected) {
+                                                              // Remove the option
+                                                              newValues = currentValues.filter(v => v !== option);
+                                                            } else {
+                                                              // Add the option
+                                                              newValues = [...currentValues, option];
+                                                            }
+                                                            
+                                                            handleCustomFieldSearchChange(field.id, newValues, 'equals');
+                                                          }}
+                                                        >
+                                                          <div className="flex items-center gap-2 w-full">
+                                                            <div className={`flex h-4 w-4 items-center justify-center rounded-sm border border-primary ${
+                                                              isSelected ? 'bg-primary text-primary-foreground' : 'opacity-50'
+                                                            }`}>
+                                                              {isSelected && <Check className="h-3 w-3" />}
+                                                            </div>
+                                                            <span>{option}</span>
                                                           </div>
-                                                          <span>{option}</span>
-                                                        </div>
-                                                      </CommandItem>
-                                                    );
-                                                  })}
-                                                </CommandGroup>
-                                              </CommandList>
+                                                        </CommandItem>
+                                                      );
+                                                    })}
+                                                  </CommandGroup>
+                                                </CommandList>
+                                              </ScrollArea>
                                             </Command>
                                             {(() => {
                                               const selectedValues = Array.isArray(advancedSearchFilters.customFields[field.id]?.value) 
