@@ -353,7 +353,7 @@ export default function Dashboard() {
    * 
    * Memoized helper function to determine grid columns based on field count
    * and the configured maximum columns from event settings.
-   * Uses useCallback to prevent unnecessary re-creation on every render.
+   * Uses useMemo to prevent unnecessary re-creation on every render.
    * 
    * The Name column is now wider (w-auto) allowing custom fields to utilize more horizontal space.
    * The Barcode, Credential, Status, and Actions columns are compact and grouped on the right.
@@ -373,33 +373,34 @@ export default function Dashboard() {
    * @param fieldCount - Number of visible custom fields
    * @returns Tailwind CSS grid column classes
    */
-  const getGridColumns = useCallback((fieldCount: number): string => {
+  const getGridColumns = useMemo(() => {
     // Get configured max columns from event settings (default to 7 for backward compatibility)
     const maxColumns = eventSettings?.customFieldColumns || 7;
 
-    // Mapping for lg:grid-cols-* classes (Tailwind JIT-safe)
-    const lgGridColsMap: Record<number, string> = {
-      3: 'lg:grid-cols-3',
-      4: 'lg:grid-cols-4',
-      5: 'lg:grid-cols-5',
-      6: 'lg:grid-cols-6',
-      7: 'lg:grid-cols-7',
-      8: 'lg:grid-cols-8',
-      9: 'lg:grid-cols-9',
-      10: 'lg:grid-cols-10',
-    };
+    return (fieldCount: number): string => {
+      // Mapping for lg:grid-cols-* classes (Tailwind JIT-safe)
+      const lgGridColsMap: Record<number, string> = {
+        3: 'lg:grid-cols-3',
+        4: 'lg:grid-cols-4',
+        5: 'lg:grid-cols-5',
+        6: 'lg:grid-cols-6',
+        7: 'lg:grid-cols-7',
+        8: 'lg:grid-cols-8',
+        9: 'lg:grid-cols-9',
+        10: 'lg:grid-cols-10',
+      };
 
-    if (fieldCount === 1) return 'grid-cols-1';
-    if (fieldCount >= 2 && fieldCount <= 3) return 'md:grid-cols-2 lg:grid-cols-3';
-    if (fieldCount >= 4 && fieldCount <= 6) return 'md:grid-cols-3 lg:grid-cols-5';
-    if (fieldCount >= 7 && fieldCount <= 9) {
-      const cols = Math.min(6, maxColumns);
-      const clampedCols = Math.max(3, Math.min(10, cols));
-      return `md:grid-cols-4 ${lgGridColsMap[clampedCols] || 'lg:grid-cols-6'}`;
-    }
-    // 10 or more fields
-    const clampedMaxCols = Math.max(3, Math.min(10, maxColumns));
-    return `md:grid-cols-4 ${lgGridColsMap[clampedMaxCols] || 'lg:grid-cols-7'}`;
+      if (fieldCount === 1) return 'grid-cols-1';
+      if (fieldCount >= 2 && fieldCount <= 3) return 'md:grid-cols-2 lg:grid-cols-3';
+      if (fieldCount >= 4 && fieldCount <= 6) return 'md:grid-cols-3 lg:grid-cols-5';
+      if (fieldCount >= 7 && fieldCount <= 9) {
+        const clampedCols = Math.max(3, Math.min(10, maxColumns));
+        return `md:grid-cols-4 ${lgGridColsMap[clampedCols] || 'lg:grid-cols-6'}`;
+      }
+      // 10 or more fields
+      const clampedMaxCols = Math.max(3, Math.min(10, maxColumns));
+      return `md:grid-cols-4 ${lgGridColsMap[clampedMaxCols] || 'lg:grid-cols-7'}`;
+    };
   }, [eventSettings?.customFieldColumns]);
 
   /**
@@ -420,62 +421,64 @@ export default function Dashboard() {
    * @param customFields - Array of custom field definitions from event settings
    * @returns Array of custom fields with values ready for display
    */
-  const getCustomFieldsWithValues = useCallback((attendee: Attendee, customFields: any[]) => {
-    if (!customFields) return [];
+  const getCustomFieldsWithValues = useMemo(() => {
+    return (attendee: Attendee, customFields: any[]) => {
+      if (!customFields) return [];
 
-    // Parse customFieldValues if it's a string
-    let parsedCustomFieldValues: any = attendee.customFieldValues;
-    if (typeof parsedCustomFieldValues === 'string') {
-      try {
-        parsedCustomFieldValues = JSON.parse(parsedCustomFieldValues);
-      } catch (e) {
-        console.error('Failed to parse customFieldValues:', e);
-        parsedCustomFieldValues = {};
+      // Parse customFieldValues if it's a string
+      let parsedCustomFieldValues: any = attendee.customFieldValues;
+      if (typeof parsedCustomFieldValues === 'string') {
+        try {
+          parsedCustomFieldValues = JSON.parse(parsedCustomFieldValues);
+        } catch (e) {
+          console.error('Failed to parse customFieldValues:', e);
+          parsedCustomFieldValues = {};
+        }
       }
-    }
 
-    return customFields
-      .filter((field: any) => field.showOnMainPage !== false) // Only show visible fields
-      .sort((a: any, b: any) => a.order - b.order)
-      .map((field: any) => {
-        // Handle both array format (legacy) and object format (current)
-        let value = null;
-        if (Array.isArray(parsedCustomFieldValues)) {
-          // Legacy array format: [{ customFieldId: 'id', value: 'value' }]
-          value = parsedCustomFieldValues.find((cfv: any) => cfv.customFieldId === field.id);
-        } else if (parsedCustomFieldValues && typeof parsedCustomFieldValues === 'object') {
-          // Current object format: { 'fieldId': 'value' } or { 'fieldId': ['val1', 'val2'] }
-          const fieldValue = parsedCustomFieldValues[field.id];
-          if (fieldValue !== undefined) {
-            value = { value: fieldValue };
+      return customFields
+        .filter((field: any) => field.showOnMainPage !== false) // Only show visible fields
+        .sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0))
+        .map((field: any) => {
+          // Handle both array format (legacy) and object format (current)
+          let value = null;
+          if (Array.isArray(parsedCustomFieldValues)) {
+            // Legacy array format: [{ customFieldId: 'id', value: 'value' }]
+            value = parsedCustomFieldValues.find((cfv: any) => cfv.customFieldId === field.id);
+          } else if (parsedCustomFieldValues && typeof parsedCustomFieldValues === 'object') {
+            // Current object format: { 'fieldId': 'value' } or { 'fieldId': ['val1', 'val2'] }
+            const fieldValue = parsedCustomFieldValues[field.id];
+            if (fieldValue !== undefined) {
+              value = { value: fieldValue };
+            }
           }
-        }
-        
-        let displayValue = value?.value ?? null;
+          
+          let displayValue = value?.value ?? null;
 
-        // Format display value based on field type
-        if (field.fieldType === 'boolean' || field.fieldType === 'checkbox') {
-          // CRITICAL: Boolean and checkbox fields use 'yes'/'no' format (NOT 'true'/'false')
-          // However, for display purposes, accept both 'yes' and 'true' as truthy
-          // to handle any legacy values gracefully
-          const normalizedValue = String(displayValue ?? '').trim().toLowerCase();
-          displayValue = (normalizedValue === 'yes' || normalizedValue === 'true') ? 'Yes' : 'No';
-        } else if (displayValue && field.fieldType === 'url') {
-          // For URLs, show a clickable link
-          displayValue = displayValue;
-        }
+          // Format display value based on field type
+          if (field.fieldType === 'boolean' || field.fieldType === 'checkbox') {
+            // CRITICAL: Boolean and checkbox fields use 'yes'/'no' format (NOT 'true'/'false')
+            // However, for display purposes, accept both 'yes' and 'true' as truthy
+            // to handle any legacy values gracefully
+            const normalizedValue = String(displayValue ?? '').trim().toLowerCase();
+            displayValue = (normalizedValue === 'yes' || normalizedValue === 'true') ? 'Yes' : 'No';
+          } else if (displayValue && field.fieldType === 'url') {
+            // For URLs, show a clickable link
+            displayValue = displayValue;
+          }
 
-        return {
-          fieldName: field.fieldName,
-          fieldType: field.fieldType,
-          value: displayValue
-        };
-      })
-      .filter((field: any) => {
-        // Show boolean and checkbox fields always (they will show Yes/No)
-        // Show other fields only if they have a value (including falsy values like 0 or '')
-        return field.fieldType === 'boolean' || field.fieldType === 'checkbox' || field.value !== null;
-      });
+          return {
+            fieldName: field.fieldName,
+            fieldType: field.fieldType,
+            value: displayValue
+          };
+        })
+        .filter((field: any) => {
+          // Show boolean and checkbox fields always (they will show Yes/No)
+          // Show other fields only if they have a value (including falsy values like 0 or '')
+          return field.fieldType === 'boolean' || field.fieldType === 'checkbox' || field.value !== null;
+        });
+    };
   }, []);
 
   const loadLogs = useCallback(async (page = 1, filters = logsFilters, retryCount = 0) => {
@@ -977,6 +980,56 @@ export default function Dashboard() {
     ) || [],
     [eventSettings?.customFields]
   );
+
+  // Memoized stats calculations for dashboard cards
+  const credentialStats = useMemo(() => {
+    // Primary metric: Count of unique attendees with valid credential URLs
+    // Treat empty/whitespace-only strings as no credential
+    const attendeesWithCredentials = attendees.filter(
+      a => typeof a.credentialUrl === 'string' && a.credentialUrl.trim() !== ''
+    ).length;
+    
+    // Secondary metric: Total credential generation/regeneration count
+    const totalCredentialCount = attendees.reduce((sum, a) => {
+      const count = Number(a.credentialCount);
+      return sum + (isNaN(count) || count < 0 ? 0 : count);
+    }, 0);
+    
+    return { attendeesWithCredentials, totalCredentialCount };
+  }, [attendees]);
+
+  const photoStats = useMemo(() => {
+    // Compute all values once for deterministic rendering
+    const hasAtomicCounts = attendees.some(a => {
+      const count = Number(a.photoUploadCount);
+      return !isNaN(count) && count >= 0;
+    });
+    const totalUploads = attendees.reduce((sum, a) => {
+      const count = Number(a.photoUploadCount);
+      if (!isNaN(count) && count >= 0) {
+        return sum + count;
+      }
+      return sum + (a.photoUrl ? 1 : 0);
+    }, 0);
+    const attendeesWithPhotos = attendees.filter(a => a.photoUrl).length;
+    const percentage = attendees.length > 0 ? Math.round((attendeesWithPhotos / attendees.length) * 100) : 0;
+    const displayCount = hasAtomicCounts ? totalUploads : attendeesWithPhotos;
+    
+    return { displayCount, percentage };
+  }, [attendees]);
+
+  const daysUntilEvent = useMemo(() => {
+    if (!eventSettings?.eventDate) return null;
+    // Parse YYYY-MM-DD as local date to avoid timezone offset issues
+    const [year, month, day] = eventSettings.eventDate.split('-').map(Number);
+    const eventDate = new Date(year, month - 1, day);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    eventDate.setHours(0, 0, 0, 0);
+    const diffTime = eventDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays >= 0 ? diffDays : 0;
+  }, [eventSettings?.eventDate]);
 
   // Enhanced filtering function for attendees including custom fields and photo filter
   const filteredAttendees = attendees
@@ -2899,15 +2952,7 @@ ${err.message || 'Failed to generate credential'}</pre>
                     <div className="ml-4">
                       <p className="text-sm font-medium text-blue-700 dark:text-blue-300">Days Until Event</p>
                       <p className="text-4xl font-bold text-blue-900 dark:text-blue-100">
-                        {eventSettings?.eventDate ? (() => {
-                          const eventDate = new Date(eventSettings.eventDate);
-                          const today = new Date();
-                          today.setHours(0, 0, 0, 0);
-                          eventDate.setHours(0, 0, 0, 0);
-                          const diffTime = eventDate.getTime() - today.getTime();
-                          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                          return diffDays >= 0 ? diffDays : 0;
-                        })() : '--'}
+                        {daysUntilEvent !== null ? daysUntilEvent : '--'}
                       </p>
                     </div>
                   </CardContent>
@@ -2930,30 +2975,12 @@ ${err.message || 'Failed to generate credential'}</pre>
                     </div>
                     <div className="ml-4">
                       <p className="text-sm font-medium text-purple-700 dark:text-purple-300">Credentials Generated</p>
-                      {useMemo(() => {
-                        // Primary metric: Count of unique attendees with valid credential URLs
-                        // Treat empty/whitespace-only strings as no credential
-                        const attendeesWithCredentials = attendees.filter(
-                          a => a.credentialUrl && a.credentialUrl.trim() !== ''
-                        ).length;
-                        
-                        // Secondary metric: Total credential generation/regeneration count
-                        const totalCredentialCount = attendees.reduce((sum, a) => {
-                          const count = Number(a.credentialCount);
-                          return sum + (isNaN(count) || count < 0 ? 0 : count);
-                        }, 0);
-                        
-                        return (
-                          <>
-                            <p className="text-4xl font-bold text-purple-900 dark:text-purple-100">{attendeesWithCredentials}</p>
-                            {totalCredentialCount > attendeesWithCredentials && (
-                              <p className="text-xs font-normal text-purple-700 dark:text-purple-300">
-                                {totalCredentialCount} total generations
-                              </p>
-                            )}
-                          </>
-                        );
-                      }, [attendees])}
+                      <p className="text-4xl font-bold text-purple-900 dark:text-purple-100">{credentialStats.attendeesWithCredentials}</p>
+                      {credentialStats.totalCredentialCount > credentialStats.attendeesWithCredentials && (
+                        <p className="text-xs font-normal text-purple-700 dark:text-purple-300">
+                          {credentialStats.totalCredentialCount} total generations
+                        </p>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -2964,27 +2991,8 @@ ${err.message || 'Failed to generate credential'}</pre>
                     </div>
                     <div className="ml-4">
                       <p className="text-sm font-medium text-amber-700 dark:text-amber-300">Photos Uploaded</p>
-                      {(() => {
-                        // Compute all values once for deterministic rendering
-                        const hasAtomicCounts = attendees.some(a => typeof a.photoUploadCount === 'number');
-                        const totalUploads = attendees.reduce((sum, a) => {
-                          const count = Number(a.photoUploadCount);
-                          if (!isNaN(count) && count >= 0) {
-                            return sum + count;
-                          }
-                          return sum + (a.photoUrl ? 1 : 0);
-                        }, 0);
-                        const attendeesWithPhotos = attendees.filter(a => a.photoUrl).length;
-                        const percentage = attendees.length > 0 ? Math.round((attendeesWithPhotos / attendees.length) * 100) : 0;
-                        const displayCount = hasAtomicCounts ? totalUploads : attendeesWithPhotos;
-                        
-                        return (
-                          <>
-                            <p className="text-4xl font-bold text-amber-900 dark:text-amber-100">{displayCount}</p>
-                            <p className="text-xs font-normal text-amber-700 dark:text-amber-300">{percentage}% have photos</p>
-                          </>
-                        );
-                      })()}
+                      <p className="text-4xl font-bold text-amber-900 dark:text-amber-100">{photoStats.displayCount}</p>
+                      <p className="text-xs font-normal text-amber-700 dark:text-amber-300">{photoStats.percentage}% have photos</p>
                     </div>
                   </CardContent>
                 </Card>
