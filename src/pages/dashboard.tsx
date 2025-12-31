@@ -1542,7 +1542,27 @@ export default function Dashboard() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || 'Failed to generate credential');
+        // Create detailed error message with all available information
+        let errorMessage = error.error || 'Failed to generate credential';
+        if (error.details) {
+          errorMessage += `\n\nDetails: ${error.details}`;
+        }
+        if (error.responseBody) {
+          errorMessage += `\n\nAPI Response: ${error.responseBody}`;
+        }
+        if (error.endpoint) {
+          errorMessage += `\n\nEndpoint: ${error.endpoint}`;
+        }
+        if (error.statusCode) {
+          errorMessage += `\n\nStatus Code: ${error.statusCode}`;
+        }
+        if (error.errorType) {
+          errorMessage += `\n\nError Type: ${error.errorType}`;
+        }
+        if (error.hint) {
+          errorMessage += `\n\nHint: ${error.hint}`;
+        }
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
@@ -1580,11 +1600,13 @@ export default function Dashboard() {
       await alert({
         title: 'Credential Generation Failed',
         html: `
-          <div style="text-align: left;">
+          <div style="text-align: left; max-width: 600px;">
             <p style="margin-bottom: 12px;"><strong>Attendee:</strong> ${attendeeName}</p>
-            <p style="margin-bottom: 12px;"><strong>Error:</strong></p>
-            <p style="color: #ef4444; font-family: monospace; font-size: 0.9em; background: #fee; padding: 8px; border-radius: 4px; word-break: break-word;">
-              ${err.message || 'Failed to generate credential'}
+            <p style="margin-bottom: 12px;"><strong>Error Details:</strong></p>
+            <pre style="color: #ef4444; font-family: monospace; font-size: 0.85em; background: #fee; padding: 12px; border-radius: 4px; word-break: break-word; white-space: pre-wrap; max-height: 400px; overflow-y: auto; text-align: left;">
+${err.message || 'Failed to generate credential'}</pre>
+            <p style="margin-top: 12px; font-size: 0.9em; color: #6b7280;">
+              💡 Tip: Check your Switchboard Canvas integration settings and ensure all required fields are properly mapped.
             </p>
           </div>
         `,
@@ -2341,10 +2363,27 @@ export default function Dashboard() {
             errorMessage = 'Failed to generate credential';
             try {
               const errorData = await response.json();
-              // Include detailed error information if available
-              errorMessage = errorData.details
-                ? `${errorData.error}: ${errorData.details}`
-                : errorData.error || errorMessage;
+              // Build comprehensive error message with all available details
+              const errorParts = [errorData.error || 'Unknown error'];
+              
+              if (errorData.details) {
+                errorParts.push(errorData.details);
+              }
+              if (errorData.statusCode) {
+                errorParts.push(`Status: ${errorData.statusCode}`);
+              }
+              if (errorData.errorType) {
+                errorParts.push(`Type: ${errorData.errorType}`);
+              }
+              if (errorData.responseBody) {
+                // Truncate long response bodies
+                const body = errorData.responseBody.length > 200 
+                  ? errorData.responseBody.substring(0, 200) + '...'
+                  : errorData.responseBody;
+                errorParts.push(`Response: ${body}`);
+              }
+              
+              errorMessage = errorParts.join(' | ');
             } catch (parseError) {
               // If we can't parse the error response, use the status text
               errorMessage = `HTTP ${response.status}: ${response.statusText}`;
@@ -2393,7 +2432,7 @@ export default function Dashboard() {
       } else if (successCount > 0 && errorCount > 0) {
         // Partial success - show detailed error modal
         const errorListHtml = errors.slice(0, 5).map(err =>
-          `<li style="margin-bottom: 8px; color: #ef4444;">${err}</li>`
+          `<li style="margin-bottom: 8px; color: #ef4444; font-size: 0.9em; word-break: break-word;">${err}</li>`
         ).join('');
         const moreErrors = errors.length > 5 ? `<li style="margin-top: 8px; color: #6b7280;">...and ${errors.length - 5} more errors</li>` : '';
 
