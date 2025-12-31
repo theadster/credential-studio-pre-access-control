@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import handler from '../index';
+import handler from '@/pages/api/attendees/index';
 import { mockAccount, mockDatabases, resetAllMocks } from '@/test/mocks/appwrite';
 
 // Mock the appwrite module

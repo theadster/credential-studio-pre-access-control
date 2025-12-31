@@ -147,79 +147,6 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         // Add ordering
         queries.push(Query.orderDesc('$createdAt'));
 
-        /**
-         * VISIBILITY FILTERING LOGIC
-         * 
-         * This section implements the custom field visibility control feature.
-         * 
-         * How it works:
-         * 1. Fetch all custom fields from the database
-         * 2. Filter to only include fields where showOnMainPage !== false
-         * 3. Create a Set of visible field IDs for efficient lookup
-         * 4. When mapping attendees, filter customFieldValues to only include visible fields
-         * 
-         * Default Behavior:
-         * - Fields with showOnMainPage = true are visible (explicit)
-         * - Fields with showOnMainPage = undefined/null are visible (backward compatibility)
-         * - Fields with showOnMainPage = false are hidden (explicit)
-         * 
-         * Why this matters:
-         * - Keeps the main attendees table clean and focused
-         * - Reduces visual clutter for fields that are rarely needed
-         * - All fields remain accessible in edit/create forms
-         * - Improves performance by reducing data transferred to client
-         */
-        // Fetch custom fields to determine visibility
-        const customFieldsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID!;
-        
-        /**
-         * ⚠️  CUSTOM FIELD LIMIT: 100 FIELDS MAX
-         * 
-         * This implementation supports up to 100 custom fields per event.
-         * While this is a practical limit for most use cases, if you need to support
-         * more than 100 fields, implement pagination similar to the attendee fetching
-         * logic above (batch fetching with offset/limit).
-         * 
-         * Current behavior:
-         * - Fetches all custom fields in a single query with limit(100)
-         * - If an event has >100 fields, only the first 100 are loaded
-         * - Remaining fields would not appear in the visibility filter
-         * 
-         * To increase this limit:
-         * 1. Add pagination loop (similar to attendee batching above)
-         * 2. Fetch in batches of 100 until all fields are loaded
-         * 3. Aggregate results into a single array
-         * 4. Continue with visibility filtering as normal
-         */
-        
-        // Fetch all custom fields with pagination support
-        const allCustomFields: any[] = [];
-        let offset = 0;
-        const pageSize = 100;
-        let hasMore = true;
-        
-        while (hasMore) {
-          const customFieldsResult = await databases.listDocuments(
-            dbId,
-            customFieldsCollectionId,
-            [Query.isNull('deletedAt'), Query.orderAsc('order'), Query.limit(pageSize), Query.offset(offset)],
-          );
-          
-          allCustomFields.push(...customFieldsResult.documents);
-          
-          // Check if there are more fields to fetch
-          hasMore = customFieldsResult.documents.length === pageSize;
-          offset += pageSize;
-        }
-
-        // Create set of visible field IDs (for main page view)
-        // Default to visible if showOnMainPage is missing (undefined or null)
-        // This ensures backward compatibility with existing fields created before this feature
-        const visibleFieldIds = new Set(
-          allCustomFields
-            .filter((field: any) => field.showOnMainPage !== false) // Only exclude if explicitly false
-            .map((field: any) => field.$id),
-        );
 
         /**
          * ============================================================================
@@ -451,6 +378,36 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         };
 
         /**
+         * EVENT SETTINGS & VISIBLE FIELDS FETCHING
+         * 
+         * Fetch event settings to determine which custom fields are visible (showOnMainPage = true).
+         * This is used to filter custom field values in the response.
+         */
+        let visibleFieldIds = new Set<string>();
+        try {
+          const eventSettingsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID!;
+          const eventSettingsResult = await databases.listDocuments(
+            dbId,
+            eventSettingsCollectionId,
+            [Query.limit(1)],
+          );
+          
+          if (eventSettingsResult.documents.length > 0) {
+            const eventSettings = eventSettingsResult.documents[0];
+            if (eventSettings.customFields && Array.isArray(eventSettings.customFields)) {
+              visibleFieldIds = new Set(
+                eventSettings.customFields
+                  .filter((field: any) => field.showOnMainPage !== false)
+                  .map((field: any) => field.id),
+              );
+            }
+          }
+        } catch (error) {
+          // If event settings fetch fails, continue without filtering (all fields visible)
+          console.warn('[Attendees API] Failed to fetch event settings for visibility filtering:', error);
+        }
+
+        /**
          * ACCESS CONTROL DATA FETCHING
          * 
          * Fetch access control records for all attendees in this batch.
@@ -503,7 +460,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
            * 
            * Process:
            * 1. Parse customFieldValues from JSON string to object
-           * 2. Filter entries to only include fields in visibleFieldIds Set
+           * 2. Filter to only include fields where showOnMainPage = true
            * 3. Convert to array format for frontend consumption
            * 
            * Data Format:
@@ -511,10 +468,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
            * - Frontend expects: [{ customFieldId: "fieldId1", value: "value1" }, ...]
            * 
            * Visibility Impact:
-           * - Hidden fields (showOnMainPage = false) are excluded from response
-           * - This reduces payload size and keeps UI clean
-           * - Hidden field values are NOT deleted, just not returned for main page view
-           * - Edit/create forms will still fetch and display all fields
+           * - Only visible fields (showOnMainPage = true) are returned
+           * - Hidden fields are filtered out before sending to frontend
+           * - If visibleFieldIds is empty (event settings not found), all fields are returned
            */
           // Parse customFieldValues from JSON string to object
           let parsedCustomFieldValues: Array<{ customFieldId: string; value: unknown }> = [];
@@ -525,10 +481,10 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
                 : attendee.customFieldValues;
               
               // Convert object format {fieldId: value} to array format [{customFieldId, value}]
-              // Filter to only include visible fields (showOnMainPage !== false)
+              // Filter to only include visible fields
               if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
                 parsedCustomFieldValues = Object.entries(parsed)
-                  .filter(([customFieldId]) => visibleFieldIds.has(customFieldId)) // Only include visible fields
+                  .filter(([customFieldId]) => visibleFieldIds.size === 0 || visibleFieldIds.has(customFieldId))
                   .map(([customFieldId, value]) => ({
                     customFieldId,
                     value: String(value),
@@ -536,7 +492,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
               } else if (Array.isArray(parsed)) {
                 // Handle legacy array format (if any exists)
                 parsedCustomFieldValues = parsed
-                  .filter((cfv: any) => visibleFieldIds.has(cfv.customFieldId))
+                  .filter((cfv: any) => visibleFieldIds.size === 0 || visibleFieldIds.has(cfv.customFieldId))
                   .map((cfv: any) => ({
                     customFieldId: cfv.customFieldId,
                     value: String(cfv.value),

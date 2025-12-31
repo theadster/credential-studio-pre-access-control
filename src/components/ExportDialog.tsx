@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { useSweetAlert } from '@/hooks/useSweetAlert';
-import { Download, FileSpreadsheet, Users, Funnel, Calendar, Clock } from 'lucide-react';
+import { Calendar, Clock, Download, FileSpreadsheet, Funnel, Users } from 'lucide-react';
 
 interface ExportDialogProps {
   children: React.ReactNode;
@@ -23,7 +23,7 @@ interface ExportDialogProps {
     lastName: string;
     barcode: string;
     photoFilter: 'all' | 'with' | 'without';
-    customFields: { [key: string]: { value: string; searchEmpty: boolean } };
+    customFields: { [key: string]: { value: string | string[]; searchEmpty: boolean } };
   } | null;
   eventSettings?: {
     customFields?: Array<{
@@ -53,7 +53,7 @@ export default function ExportDialog({
   searchTerm,
   photoFilter,
   advancedFilters,
-  eventSettings
+  eventSettings,
 }: ExportDialogProps) {
   const { success, error } = useSweetAlert();
   const [open, setOpen] = useState(false);
@@ -63,7 +63,7 @@ export default function ExportDialog({
     'lastName',
     'barcodeNumber',
     'photoUrl',
-    'createdAt'
+    'createdAt',
   ]);
   const [isExporting, setIsExporting] = useState(false);
   const [dateFormat, setDateFormat] = useState<'iso' | 'us' | 'compact'>('compact');
@@ -98,7 +98,7 @@ export default function ExportDialog({
     name: field.fieldName,
     description: `Custom field: ${field.fieldName} (${field.fieldType})`,
     category: 'custom' as const,
-    required: field.required
+    required: field.required,
   })) || [];
 
   const allFields = [...exportFields, ...accessControlFields, ...customFields];
@@ -149,8 +149,8 @@ export default function ExportDialog({
           filters: {
             searchTerm,
             photoFilter,
-            advancedFilters
-          }
+            advancedFilters,
+          },
         })
       };
 
@@ -206,15 +206,23 @@ export default function ExportDialog({
       if (advancedFilters.firstName) filters.push(`First Name: "${advancedFilters.firstName}"`);
       if (advancedFilters.lastName) filters.push(`Last Name: "${advancedFilters.lastName}"`);
       if (advancedFilters.barcode) filters.push(`Barcode: "${advancedFilters.barcode}"`);
-      if (advancedFilters.photoFilter !== 'all') {
+      if (advancedFilters.photoFilter && advancedFilters.photoFilter !== 'all') {
         filters.push(`Photo: ${advancedFilters.photoFilter === 'with' ? 'With Photo' : 'Without Photo'}`);
       }
       
       // Add custom field filters
       if (advancedFilters.customFields) {
         Object.entries(advancedFilters.customFields).forEach(([fieldId, filter]) => {
-          if (filter.value) {
-            filters.push(`Custom Field: "${filter.value}"`);
+          if (filter.value !== undefined && filter.value !== null && filter.value !== '') {
+            // Handle both string and array values
+            if (Array.isArray(filter.value) && filter.value.length > 0) {
+              filters.push(`Custom Field: "${filter.value.join(', ')}"`);
+            } else if (typeof filter.value === 'string') {
+              filters.push(`Custom Field: "${filter.value}"`);
+            } else {
+              // Handle other types (number, boolean, etc.)
+              filters.push(`Custom Field: "${String(filter.value)}"`);
+            }
           }
           if (filter.searchEmpty) {
             filters.push(`Empty Custom Field`);

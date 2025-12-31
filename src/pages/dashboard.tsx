@@ -58,6 +58,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -263,7 +265,7 @@ export default function Dashboard() {
     barcode: { value: string; operator: string };
     notes: { value: string; operator: string; hasNotes: boolean };
     photoFilter: 'all' | 'with' | 'without';
-    customFields: { [key: string]: { value: string; operator: string } };
+    customFields: { [key: string]: { value: string | string[]; operator: string } };
     accessControl: {
       accessStatus: 'all' | 'active' | 'inactive';
       validFromStart: string;
@@ -1167,8 +1169,8 @@ export default function Dashboard() {
             const fieldValue = parsedCustomFieldValues[fieldId];
             if (Array.isArray(fieldValue)) {
               attendeeValue = fieldValue.join(', ');
-            } else {
-              attendeeValue = fieldValue || '';
+            } else if (fieldValue !== undefined && fieldValue !== null) {
+              attendeeValue = String(fieldValue);
             }
           }
           
@@ -1179,22 +1181,35 @@ export default function Dashboard() {
             return true;
           }
 
+          // Handle multi-select for select fields (array of values)
+          if (Array.isArray(filter.value)) {
+            // If empty array, match all (no filter applied)
+            if (filter.value.length === 0) {
+              return true;
+            }
+            // For multi-select, check if ANY of the attendee's values match ANY of the selected filter options
+            const attendeeValues = attendeeValue.split(',').map(v => v.trim().toLowerCase());
+            return filter.value.some(selectedValue => 
+              attendeeValues.includes(selectedValue.toLowerCase())
+            );
+          }
+
           switch (filter.operator) {
             case 'isEmpty':
               return !hasValue;
             case 'isNotEmpty':
               return hasValue;
             case 'contains':
-              return hasValue && attendeeValue.toLowerCase().includes(filter.value.toLowerCase());
+              return hasValue && attendeeValue.toLowerCase().includes((filter.value as string).toLowerCase());
             case 'equals':
-              return hasValue && attendeeValue.toLowerCase() === filter.value.toLowerCase();
+              return hasValue && attendeeValue.toLowerCase() === (filter.value as string).toLowerCase();
             case 'startsWith':
-              return hasValue && attendeeValue.toLowerCase().startsWith(filter.value.toLowerCase());
+              return hasValue && attendeeValue.toLowerCase().startsWith((filter.value as string).toLowerCase());
             case 'endsWith':
-              return hasValue && attendeeValue.toLowerCase().endsWith(filter.value.toLowerCase());
+              return hasValue && attendeeValue.toLowerCase().endsWith((filter.value as string).toLowerCase());
             default:
               // For select and boolean, it's an equals check
-              return hasValue && attendeeValue.toLowerCase() === filter.value.toLowerCase();
+              return hasValue && attendeeValue.toLowerCase() === (filter.value as string).toLowerCase();
           }
         });
 
@@ -1376,14 +1391,17 @@ export default function Dashboard() {
       advancedSearchFilters.accessControl.validUntilEnd
     );
     
-    return advancedSearchFilters.firstName.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.firstName.operator) ||
+    return !!(advancedSearchFilters.firstName.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.firstName.operator) ||
       advancedSearchFilters.lastName.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.lastName.operator) ||
       advancedSearchFilters.barcode.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.barcode.operator) ||
       advancedSearchFilters.notes.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.notes.operator) ||
       advancedSearchFilters.notes.hasNotes ||
       advancedSearchFilters.photoFilter !== 'all' ||
       hasAccessControlFilters ||
-      Object.values(advancedSearchFilters.customFields).some(field => field.value || field.operator === 'isEmpty' || field.operator === 'isNotEmpty');
+      Object.values(advancedSearchFilters.customFields).some(field => {
+        const hasValue = Array.isArray(field.value) ? field.value.length > 0 : !!field.value;
+        return hasValue || field.operator === 'isEmpty' || field.operator === 'isNotEmpty';
+      }));
   };
 
   const handleAdvancedSearchChange = (
@@ -1412,7 +1430,7 @@ export default function Dashboard() {
     });
   };
 
-  const handleCustomFieldSearchChange = (fieldId: string, value: string, operator?: string) => {
+  const handleCustomFieldSearchChange = (fieldId: string, value: string | string[], operator?: string) => {
     setAdvancedSearchFilters(prev => ({
       ...prev,
       customFields: {
@@ -1431,19 +1449,23 @@ export default function Dashboard() {
       customFields: {
         ...prev.customFields,
         [fieldId]: {
-          ...prev.customFields[fieldId],
+          ...(prev.customFields[fieldId] || { value: '', operator: 'contains' }),
           operator,
           // Clear value if operator doesn't need it
-          value: ['isEmpty', 'isNotEmpty'].includes(operator) ? '' : prev.customFields[fieldId].value,
+          value: ['isEmpty', 'isNotEmpty'].includes(operator) ? '' : prev.customFields[fieldId]?.value ?? '',
         }
       }
     }));
   };
 
   const clearAdvancedSearch = () => {
-    const customFields: { [key: string]: { value: string; operator: string } } = {};
+    const customFields: { [key: string]: { value: string | string[]; operator: string } } = {};
     eventSettings?.customFields?.forEach((field: any) => {
-      customFields[field.id] = { value: '', operator: 'contains' };
+      // Use empty array for select fields, empty string for others
+      customFields[field.id] = { 
+        value: field.fieldType === 'select' ? [] : '', 
+        operator: 'contains' 
+      };
     });
     setAdvancedSearchFilters({
       firstName: { value: '', operator: 'contains' },
@@ -3563,32 +3585,110 @@ export default function Dashboard() {
                                           <Input
                                             id={`custom-${field.id}`}
                                             placeholder={`Value...`}
-                                            value={advancedSearchFilters.customFields[field.id]?.value || ''}
+                                            value={(advancedSearchFilters.customFields[field.id]?.value as string) || ''}
                                             onChange={(e) => handleCustomFieldSearchChange(field.id, e.target.value)}
                                             disabled={['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.customFields[field.id]?.operator)}
                                             className="bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600"
                                           />
                                         </div>
                                       ) : field.fieldType === 'select' ? (
-                                        <Select
-                                          value={advancedSearchFilters.customFields[field.id]?.value || 'all'}
-                                          onValueChange={(value) => handleCustomFieldSearchChange(field.id, value === 'all' ? '' : value, 'equals')}
-                                        >
-                                          <SelectTrigger className="bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600">
-                                            <SelectValue placeholder={`Select ${field.fieldName.toLowerCase()}...`} />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            <SelectItem value="all">All options</SelectItem>
-                                            {field.fieldOptions?.options?.filter((option: string) => option && option.trim() !== '').map((option: string, index: number) => (
-                                              <SelectItem key={index} value={option}>
-                                                {option}
-                                              </SelectItem>
-                                            ))}
-                                          </SelectContent>
-                                        </Select>
+                                        <Popover>
+                                          <PopoverTrigger asChild>
+                                            <Button
+                                              variant="outline"
+                                              role="combobox"
+                                              className="w-full justify-between bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                            >
+                                              {(() => {
+                                                const selectedValues = Array.isArray(advancedSearchFilters.customFields[field.id]?.value) 
+                                                  ? advancedSearchFilters.customFields[field.id]?.value as string[]
+                                                  : [];
+                                                
+                                                if (selectedValues.length === 0) {
+                                                  return <span className="text-muted-foreground">Select options...</span>;
+                                                } else if (selectedValues.length === 1) {
+                                                  return <span>{selectedValues[0]}</span>;
+                                                } else {
+                                                  return <span>{selectedValues.length} options selected</span>;
+                                                }
+                                              })()}
+                                              <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                            </Button>
+                                          </PopoverTrigger>
+                                          <PopoverContent className="w-[300px] p-0" align="start">
+                                            <Command>
+                                              <CommandInput placeholder={`Search ${field.fieldName.toLowerCase()}...`} />
+                                              <CommandList>
+                                                <CommandEmpty>No options found.</CommandEmpty>
+                                                <CommandGroup>
+                                                  {field.fieldOptions?.options?.filter((option: string) => option && option.trim() !== '').map((option: string, index: number) => {
+                                                    const selectedValues = Array.isArray(advancedSearchFilters.customFields[field.id]?.value) 
+                                                      ? advancedSearchFilters.customFields[field.id]?.value as string[]
+                                                      : [];
+                                                    const isSelected = selectedValues.includes(option);
+                                                    
+                                                    return (
+                                                      <CommandItem
+                                                        key={index}
+                                                        value={option}
+                                                        onSelect={() => {
+                                                          const currentValues = Array.isArray(advancedSearchFilters.customFields[field.id]?.value) 
+                                                            ? advancedSearchFilters.customFields[field.id]?.value as string[]
+                                                            : [];
+                                                          const currentIsSelected = currentValues.includes(option);
+                                                          
+                                                          let newValues: string[];
+                                                          if (currentIsSelected) {
+                                                            // Remove the option
+                                                            newValues = currentValues.filter(v => v !== option);
+                                                          } else {
+                                                            // Add the option
+                                                            newValues = [...currentValues, option];
+                                                          }
+                                                          
+                                                          handleCustomFieldSearchChange(field.id, newValues, 'equals');
+                                                        }}
+                                                      >
+                                                        <div className="flex items-center gap-2 w-full">
+                                                          <div className={`flex h-4 w-4 items-center justify-center rounded-sm border border-primary ${
+                                                            isSelected ? 'bg-primary text-primary-foreground' : 'opacity-50'
+                                                          }`}>
+                                                            {isSelected && <Check className="h-3 w-3" />}
+                                                          </div>
+                                                          <span>{option}</span>
+                                                        </div>
+                                                      </CommandItem>
+                                                    );
+                                                  })}
+                                                </CommandGroup>
+                                              </CommandList>
+                                            </Command>
+                                            {(() => {
+                                              const selectedValues = Array.isArray(advancedSearchFilters.customFields[field.id]?.value) 
+                                                ? advancedSearchFilters.customFields[field.id]?.value as string[]
+                                                : [];
+                                              
+                                              if (selectedValues.length > 0) {
+                                                return (
+                                                  <div className="border-t p-2">
+                                                    <Button
+                                                      variant="ghost"
+                                                      size="sm"
+                                                      className="w-full text-xs"
+                                                      onClick={() => handleCustomFieldSearchChange(field.id, [], 'equals')}
+                                                    >
+                                                      Clear Selection
+                                                    </Button>
+                                                  </div>
+                                                );
+                                              }
+                                              return null;
+                                            })()}
+                                          </PopoverContent>
+                                        </Popover>
                                       ) : field.fieldType === 'boolean' ? (
                                         <Select
-                                          value={advancedSearchFilters.customFields[field.id]?.value || 'all'}
+                                          value={(advancedSearchFilters.customFields[field.id]?.value as string) || 'all'}
                                           onValueChange={(value) => handleCustomFieldSearchChange(field.id, value === 'all' ? '' : value, 'equals')}
                                         >
                                           <SelectTrigger className="bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600">
@@ -3604,7 +3704,7 @@ export default function Dashboard() {
                                         <Input
                                           id={`custom-${field.id}`}
                                           placeholder={`Search by ${field.fieldName.toLowerCase()}...`}
-                                          value={advancedSearchFilters.customFields[field.id]?.value || ''}
+                                          value={(advancedSearchFilters.customFields[field.id]?.value as string) || ''}
                                           onChange={(e) => handleCustomFieldSearchChange(field.id, e.target.value)}
                                           className="bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600"
                                         />

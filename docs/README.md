@@ -25,6 +25,13 @@ docs/
 - [**Bulk Delete Log Size Fix**](./fixes/BULK_DELETE_LOG_SIZE_FIX.md) - Use API key for bulk deletes and handle large log entries
 
 ### Recent Fixes
+- [**🔍 Multi-Select Filter Enhancement**](./fixes/MULTI_SELECT_IMPLEMENTATION_SUMMARY.md) - ✅ **NEW:** Multi-select dropdown filters with search for custom fields
+  - [Quick Reference](./fixes/MULTI_SELECT_QUICK_REFERENCE.md) - ⚡ Quick reference card
+  - [Full Documentation](./fixes/CUSTOM_FIELD_MULTI_SELECT_FILTER_ENHANCEMENT.md) - 📚 Complete technical documentation
+  - [Porting Guide](./fixes/MULTI_SELECT_FILTER_PORTING_GUIDE.md) - 🔧 Step-by-step porting instructions
+  - [Visual Comparison](./fixes/MULTI_SELECT_UI_COMPARISON.md) - 🎨 Before/after UI comparison
+  - [Implementation Comparison](./fixes/MULTI_SELECT_IMPLEMENTATION_COMPARISON.md) - 🔬 Comparison of inline vs component approaches
+- [**🔍 Custom Field Searchability Reapplied**](./fixes/CUSTOM_FIELD_SEARCHABILITY_REAPPLIED.md) - ✅ **FIXED:** Hidden custom fields are now searchable in Advanced Filters (fix reapplied after branch merge)
 - [**🔧 Custom Field Naming Discrepancy Fix**](./fixes/CUSTOM_FIELD_INTERNAL_NAMES_IMPLEMENTATION.md) - ✅ **FIXED:** Added `customFieldValuesByInternalName` to mobile API to fix approval profile rule evaluation
 - [**📊 Custom Field Naming Analysis**](./fixes/CUSTOM_FIELD_NAMING_DISCREPANCY_ANALYSIS.md) - 🔍 **ANALYSIS:** Comprehensive analysis of custom field naming mismatch between approval profiles and mobile app
 - [**⚡ Custom Field Fix Quick Summary**](./fixes/CUSTOM_FIELD_FIX_SUMMARY.md) - 📋 Quick reference for the custom field naming fix
@@ -85,6 +92,7 @@ docs/
 - [Integration Collections Migration](./migration/INTEGRATION_COLLECTIONS_MIGRATION.md) - Normalized design
 
 ### Testing Documentation
+- [**Attendee API Tests Updated**](./testing/ATTENDEE_API_TESTS_UPDATED.md) - ✅ Updated tests for custom field searchability fix (11 GET tests passing)
 - [Test Summary](./testing/TEST_SUMMARY.md) - Overall test coverage
 - [E2E Tests Summary](./testing/E2E_TESTS_SUMMARY.md) - End-to-end tests
 - [Auth User Linking Integration Tests](./testing/AUTH_USER_LINKING_INTEGRATION_TESTS_SUMMARY.md) - Auth user linking tests
