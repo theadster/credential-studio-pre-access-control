@@ -25,6 +25,8 @@ docs/
 - [**Bulk Delete Log Size Fix**](./fixes/BULK_DELETE_LOG_SIZE_FIX.md) - Use API key for bulk deletes and handle large log entries
 
 ### Recent Fixes
+- [**Custom Field Advanced Filter Searchability**](./fixes/CUSTOM_FIELD_ADVANCED_FILTER_SEARCHABILITY.md) - ✅ Hidden custom fields are searchable in Advanced Filters (showOnMainPage only affects table display) - **ALL TESTS PASSING**
+- [**Batch Fetching Tests**](./fixes/BATCH_FETCHING_TESTS_COMPLETED.md) - ✅ Updated batch fetching integration tests to match new mock pattern - **COMPLETED**
 - [**🧠 Memory Leak Fixes**](./fixes/MEMORY_LEAK_FIXES_IMPLEMENTED.md) - ✅ **FIXED:** Dashboard memory leak with conditional subscriptions and debouncing
 - [**📊 Memory Leak Analysis**](./fixes/MEMORY_LEAK_ANALYSIS.md) - 🔍 **ANALYSIS:** Root cause analysis of dashboard memory accumulation
 - [**🔧 Bulk Delete Timestamp Fix**](./fixes/BULK_DELETE_TIMESTAMP_FIX.md) - ✅ **FIXED:** Removed invalid timestamp attribute from audit logs

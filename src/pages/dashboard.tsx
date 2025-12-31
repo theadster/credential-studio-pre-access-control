@@ -55,6 +55,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { MultiSelect } from "@/components/ui/multi-select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -248,13 +249,14 @@ export default function Dashboard() {
 
   // Advanced Search State
   const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
+  const [advancedFiltersDialogOpen, setAdvancedFiltersDialogOpen] = useState(false);
   const [advancedSearchFilters, setAdvancedSearchFilters] = useState<{
     firstName: { value: string; operator: string };
     lastName: { value: string; operator: string };
     barcode: { value: string; operator: string };
     notes: { value: string; operator: string; hasNotes: boolean };
     photoFilter: 'all' | 'with' | 'without';
-    customFields: { [key: string]: { value: string; operator: string } };
+    customFields: { [key: string]: { value: string | string[]; operator: string } };
   }>({
     firstName: { value: '', operator: 'contains' },
     lastName: { value: '', operator: 'contains' },
@@ -1058,22 +1060,36 @@ export default function Dashboard() {
             return true;
           }
 
+          // Handle multi-select for dropdown fields (when filter.value is an array)
+          if (Array.isArray(filter.value)) {
+            if (filter.value.length === 0) {
+              return true; // No filter applied
+            }
+            // Check if attendee value matches ANY of the selected options (OR logic)
+            return filter.value.some(filterVal => 
+              hasValue && String(attendeeValue).toLowerCase() === String(filterVal).toLowerCase()
+            );
+          }
+
+          // Handle single value filters
+          const filterValue = typeof filter.value === 'string' ? filter.value : '';
+
           switch (filter.operator) {
             case 'isEmpty':
               return !hasValue;
             case 'isNotEmpty':
               return hasValue;
             case 'contains':
-              return hasValue && attendeeValue.toLowerCase().includes(filter.value.toLowerCase());
+              return hasValue && String(attendeeValue).toLowerCase().includes(String(filterValue).toLowerCase());
             case 'equals':
-              return hasValue && attendeeValue.toLowerCase() === filter.value.toLowerCase();
+              return hasValue && String(attendeeValue).toLowerCase() === String(filterValue).toLowerCase();
             case 'startsWith':
-              return hasValue && attendeeValue.toLowerCase().startsWith(filter.value.toLowerCase());
+              return hasValue && String(attendeeValue).toLowerCase().startsWith(String(filterValue).toLowerCase());
             case 'endsWith':
-              return hasValue && attendeeValue.toLowerCase().endsWith(filter.value.toLowerCase());
+              return hasValue && String(attendeeValue).toLowerCase().endsWith(String(filterValue).toLowerCase());
             default:
               // For select and boolean, it's an equals check
-              return hasValue && attendeeValue.toLowerCase() === filter.value.toLowerCase();
+              return hasValue && String(attendeeValue).toLowerCase() === String(filterValue).toLowerCase();
           }
         });
 
@@ -1204,7 +1220,10 @@ export default function Dashboard() {
       advancedSearchFilters.notes.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.notes.operator) ||
       advancedSearchFilters.notes.hasNotes ||
       advancedSearchFilters.photoFilter !== 'all' ||
-      Object.values(advancedSearchFilters.customFields).some(field => field.value || field.operator === 'isEmpty' || field.operator === 'isNotEmpty');
+      Object.values(advancedSearchFilters.customFields).some(field => {
+        const hasValue = Array.isArray(field.value) ? field.value.length > 0 : !!field.value;
+        return hasValue || field.operator === 'isEmpty' || field.operator === 'isNotEmpty';
+      });
   };
 
   const handleAdvancedSearchChange = (
@@ -1233,7 +1252,7 @@ export default function Dashboard() {
     });
   };
 
-  const handleCustomFieldSearchChange = (fieldId: string, value: string, operator?: string) => {
+  const handleCustomFieldSearchChange = (fieldId: string, value: string | string[], operator?: string) => {
     setAdvancedSearchFilters(prev => ({
       ...prev,
       customFields: {
@@ -2954,9 +2973,7 @@ export default function Dashboard() {
                           <SelectItem value="without">Without Photo</SelectItem>
                         </SelectContent>
                       </Select>
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button
+                      <Button
                             variant="outline"
                             className="flex items-center space-x-2"
                             data-advanced-search-trigger
@@ -2975,6 +2992,7 @@ export default function Dashboard() {
                                   }));
                                 }
                               }
+                              setAdvancedFiltersDialogOpen(true);
                             }}
                           >
                             <Filter className="h-4 w-4" />
@@ -2985,7 +3003,7 @@ export default function Dashboard() {
                               </Badge>
                             )}
                           </Button>
-                        </DialogTrigger>
+                      <Dialog open={advancedFiltersDialogOpen} onOpenChange={setAdvancedFiltersDialogOpen}>
                         <DialogContent className="max-w-5xl max-h-[80vh] overflow-y-auto bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 shadow-2xl p-0">
                           <DialogHeader className="border-b border-slate-200 dark:border-slate-700 pb-4 mb-0 bg-[#F1F5F9] dark:bg-slate-800 px-6 pt-6">
                             <DialogTitle className="text-2xl font-bold text-primary flex items-center gap-2">
@@ -3186,7 +3204,8 @@ export default function Dashboard() {
                                 </div>
                               </div>
 
-                              {/* Custom Fields */}
+                              {/* Custom Fields - Show ALL fields in Advanced Filters (including hidden ones) */}
+                              {/* The showOnMainPage setting only affects the main table display, not searchability */}
                               {eventSettings?.customFields?.map((field: any) => {
                                 // Function to get icon based on field type
                                 const getFieldIcon = (fieldType: string) => {
@@ -3271,25 +3290,27 @@ export default function Dashboard() {
                                           />
                                         </div>
                                       ) : field.fieldType === 'select' ? (
-                                        <Select
-                                          value={advancedSearchFilters.customFields[field.id]?.value || 'all'}
-                                          onValueChange={(value) => handleCustomFieldSearchChange(field.id, value === 'all' ? '' : value, 'equals')}
-                                        >
-                                          <SelectTrigger className="bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600">
-                                            <SelectValue placeholder={`Select ${field.fieldName.toLowerCase()}...`} />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            <SelectItem value="all">All options</SelectItem>
-                                            {field.fieldOptions?.options?.filter((option: string) => option && option.trim() !== '').map((option: string, index: number) => (
-                                              <SelectItem key={index} value={option}>
-                                                {option}
-                                              </SelectItem>
-                                            ))}
-                                          </SelectContent>
-                                        </Select>
+                                        <MultiSelect
+                                          options={field.fieldOptions?.options
+                                            ?.filter((option: string) => option && option.trim() !== '')
+                                            .map((option: string) => ({
+                                              label: option,
+                                              value: option
+                                            })) || []}
+                                          selected={Array.isArray(advancedSearchFilters.customFields[field.id]?.value) 
+                                            ? advancedSearchFilters.customFields[field.id]?.value as string[]
+                                            : advancedSearchFilters.customFields[field.id]?.value 
+                                              ? [advancedSearchFilters.customFields[field.id]?.value as string]
+                                              : []}
+                                          onChange={(values) => handleCustomFieldSearchChange(field.id, values, 'equals')}
+                                          placeholder={`Select ${field.fieldName.toLowerCase()}...`}
+                                        />
                                       ) : field.fieldType === 'boolean' || field.fieldType === 'checkbox' ? (
                                         <Select
-                                          value={advancedSearchFilters.customFields[field.id]?.value || 'all'}
+                                          value={(() => {
+                                            const val = advancedSearchFilters.customFields[field.id]?.value;
+                                            return typeof val === 'string' ? val || 'all' : 'all';
+                                          })()}
                                           onValueChange={(value) => handleCustomFieldSearchChange(field.id, value === 'all' ? '' : value, 'equals')}
                                         >
                                           <SelectTrigger className="bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600">
@@ -3323,16 +3344,14 @@ export default function Dashboard() {
                                 Clear All Filters
                               </Button>
                               <div className="flex space-x-2">
-                                <DialogTrigger asChild>
-                                  <Button variant="outline" className="border-2 hover:bg-slate-100 dark:hover:bg-slate-800">
+                                <Button variant="outline" className="border-2 hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => setAdvancedFiltersDialogOpen(false)}>
                                     <X className="h-4 w-4 mr-2" />
                                     Cancel
                                   </Button>
-                                </DialogTrigger>
-                                <DialogTrigger asChild>
-                                  <Button onClick={() => {
+                                <Button onClick={() => {
                                     if (hasAdvancedFilters()) {
                                       setShowAdvancedSearch(true);
+                                      setAdvancedFiltersDialogOpen(false);
                                     } else {
                                       error("No Search Criteria", "Please enter at least one search criterion to use advanced filters.");
                                     }
@@ -3340,7 +3359,6 @@ export default function Dashboard() {
                                     <Search className="h-4 w-4 mr-2" />
                                     Apply Search
                                   </Button>
-                                </DialogTrigger>
                               </div>
                             </div>
                           </div>
@@ -3362,7 +3380,10 @@ export default function Dashboard() {
                                 if (advancedSearchFilters.barcode.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.barcode.operator)) count++;
                                 if (advancedSearchFilters.notes.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.notes.operator) || advancedSearchFilters.notes.hasNotes) count++;
                                 if (advancedSearchFilters.photoFilter !== 'all') count++;
-                                count += Object.values(advancedSearchFilters.customFields).filter(field => field.value || field.operator === 'isEmpty' || field.operator === 'isNotEmpty').length;
+                                count += Object.values(advancedSearchFilters.customFields).filter(field => {
+                                  const hasValue = Array.isArray(field.value) ? field.value.length > 0 : !!field.value;
+                                  return hasValue || field.operator === 'isEmpty' || field.operator === 'isNotEmpty';
+                                }).length;
                                 return `${count} ${count === 1 ? 'filter' : 'filters'}`;
                               })()}
                             </Badge>
@@ -3379,15 +3400,12 @@ export default function Dashboard() {
                               size="sm"
                               className="w-[140px]"
                               onClick={() => {
-                                // Turn off advanced search mode to show the dialog
+                                // First switch to the view that has the Dialog, then open it
                                 setShowAdvancedSearch(false);
-                                // Trigger the dialog to open by clicking the Advanced Filters button
+                                // Use setTimeout to ensure the Dialog is rendered before opening
                                 setTimeout(() => {
-                                  const advancedSearchButton = document.querySelector('[data-advanced-search-trigger]') as HTMLButtonElement;
-                                  if (advancedSearchButton) {
-                                    advancedSearchButton.click();
-                                  }
-                                }, 50);
+                                  setAdvancedFiltersDialogOpen(true);
+                                }, 0);
                               }}
                             >
                               <Edit className="mr-2 h-4 w-4" />

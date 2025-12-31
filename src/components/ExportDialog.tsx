@@ -22,7 +22,7 @@ interface ExportDialogProps {
     lastName: string;
     barcode: string;
     photoFilter: 'all' | 'with' | 'without';
-    customFields: { [key: string]: { value: string; searchEmpty: boolean } };
+    customFields: { [key: string]: { value: string | string[]; searchEmpty: boolean } };
   } | null;
   eventSettings?: {
     customFields?: Array<{
@@ -191,19 +191,29 @@ export default function ExportDialog({
       if (advancedFilters.firstName) filters.push(`First Name: "${advancedFilters.firstName}"`);
       if (advancedFilters.lastName) filters.push(`Last Name: "${advancedFilters.lastName}"`);
       if (advancedFilters.barcode) filters.push(`Barcode: "${advancedFilters.barcode}"`);
-      if (advancedFilters.photoFilter !== 'all') {
+      if (advancedFilters.photoFilter && advancedFilters.photoFilter !== 'all') {
         filters.push(`Photo: ${advancedFilters.photoFilter === 'with' ? 'With Photo' : 'Without Photo'}`);
       }
       
       // Add custom field filters
-      Object.entries(advancedFilters.customFields).forEach(([fieldId, filter]) => {
-        if (filter.value) {
-          filters.push(`Custom Field: "${filter.value}"`);
-        }
-        if (filter.searchEmpty) {
-          filters.push(`Empty Custom Field`);
-        }
-      });
+      if (advancedFilters.customFields) {
+        Object.entries(advancedFilters.customFields).forEach(([fieldId, filter]) => {
+          const fieldName = eventSettings?.customFields?.find(f => f.id === fieldId)?.fieldName || fieldId;
+          if (filter.value) {
+            // Handle array values (multi-select)
+            if (Array.isArray(filter.value)) {
+              if (filter.value.length > 0) {
+                filters.push(`${fieldName}: "${filter.value.join(', ')}"`);
+              }
+            } else {
+              filters.push(`${fieldName}: "${filter.value}"`);
+            }
+          }
+          if (filter.searchEmpty) {
+            filters.push(`${fieldName}: Empty`);
+          }
+        });
+      }
     }
     
     return filters;

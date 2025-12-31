@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import handler from '../index';
+import handler from '@/pages/api/attendees/index';
 import { mockAccount, mockDatabases, resetAllMocks } from '@/test/mocks/appwrite';
 
 // Mock the appwrite module
@@ -8,7 +8,17 @@ vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn((req: NextApiRequest) => ({
     account: mockAccount,
     databases: mockDatabases,
+    tablesDB: {}, // Mock tablesDB for transaction support
   })),
+}));
+
+// Mock the API middleware to inject user and userProfile directly
+vi.mock('@/lib/apiMiddleware', () => ({
+  withAuth: (handler: any) => async (req: any, res: any) => {
+    // The test will set req.user and req.userProfile before calling handler
+    return handler(req, res);
+  },
+  AuthenticatedRequest: {} as any,
 }));
 
 describe('/api/attendees - Batch Fetching Integration Tests', () => {
@@ -58,6 +68,8 @@ describe('/api/attendees - Batch Fetching Integration Tests', () => {
   const generateMockAttendees = (count: number, startIndex: number = 0) => {
     return Array.from({ length: count }, (_, i) => ({
       $id: `attendee-${startIndex + i + 1}`,
+      id: `attendee-${startIndex + i + 1}`, // Include id for test assertions
+
       firstName: `First${startIndex + i + 1}`,
       lastName: `Last${startIndex + i + 1}`,
       barcodeNumber: `${String(startIndex + i + 1).padStart(5, '0')}`,
@@ -79,7 +91,18 @@ describe('/api/attendees - Batch Fetching Integration Tests', () => {
       cookies: { 'appwrite-session': 'test-session' },
       query: {},
       body: {},
-    };
+      // Inject authenticated user and profile (bypassing middleware)
+      user: mockAuthUser,
+      userProfile: {
+        ...mockUserProfile,
+        role: {
+          id: mockAdminRole.$id,
+          name: mockAdminRole.name,
+          description: mockAdminRole.description,
+          permissions: JSON.parse(mockAdminRole.permissions),
+        },
+      },
+    } as any;
 
     mockRes = {
       status: statusMock as any,
@@ -92,6 +115,21 @@ describe('/api/attendees - Batch Fetching Integration Tests', () => {
 
     // Default mock implementations
     mockAccount.get.mockResolvedValue(mockAuthUser);
+    mockDatabases.listDocuments.mockResolvedValue({
+      documents: [],
+      total: 0,
+    });
+    mockDatabases.createDocument.mockResolvedValue({
+      $id: 'new-log-123',
+      userId: mockAuthUser.$id,
+      action: 'view',
+      details: '{}',
+    });
+  });
+
+  afterEach(() => {
+    consoleWarnSpy.mockRestore();
+    consoleLogSpy.mockRestore();
   });
 
   describe('Small Events (≤5000 attendees)', () => {
@@ -99,16 +137,13 @@ describe('/api/attendees - Batch Fetching Integration Tests', () => {
       const mockAttendees = generateMockAttendees(50);
 
       mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // User profile lookup
         .mockResolvedValueOnce({ documents: mockCustomFields, total: 1 }) // Custom fields for visibility
         .mockResolvedValueOnce({ documents: mockAttendees, total: 50 }); // Attendees list
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
-
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      // Verify single database request for attendees (3rd call)
-      expect(mockDatabases.listDocuments).toHaveBeenCalledTimes(3);
+      // Verify single database request for attendees (2nd call)
+      expect(mockDatabases.listDocuments).toHaveBeenCalledTimes(2);
 
       // Verify no console warnings for small events
       expect(consoleWarnSpy).not.toHaveBeenCalled();
@@ -129,17 +164,14 @@ describe('/api/attendees - Batch Fetching Integration Tests', () => {
       const batch2 = generateMockAttendees(1, 5000);
 
       mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // User profile lookup
         .mockResolvedValueOnce({ documents: mockCustomFields, total: 1 }) // Custom fields for visibility
         .mockResolvedValueOnce({ documents: batch1, total: 5001 }) // First batch (total indicates more)
         .mockResolvedValueOnce({ documents: batch2, total: 5001 }); // Second batch
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
-
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      // Verify multiple database requests were made (4 total: profile, custom fields, batch1, batch2)
-      expect(mockDatabases.listDocuments).toHaveBeenCalledTimes(4);
+      // Verify multiple database requests were made (3 total: custom fields, batch1, batch2)
+      expect(mockDatabases.listDocuments).toHaveBeenCalledTimes(3);
 
       // Verify console warning was logged
       expect(consoleWarnSpy).toHaveBeenCalledWith(
@@ -165,17 +197,14 @@ describe('/api/attendees - Batch Fetching Integration Tests', () => {
       const batch2 = generateMockAttendees(5000, 5000);
 
       mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // User profile lookup
         .mockResolvedValueOnce({ documents: mockCustomFields, total: 1 }) // Custom fields for visibility
         .mockResolvedValueOnce({ documents: batch1, total: 10000 }) // First batch
         .mockResolvedValueOnce({ documents: batch2, total: 10000 }); // Second batch
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
-
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       // Verify multiple database requests were made
-      expect(mockDatabases.listDocuments).toHaveBeenCalledTimes(4);
+      expect(mockDatabases.listDocuments).toHaveBeenCalledTimes(3);
 
       // Verify console warning was logged
       expect(consoleWarnSpy).toHaveBeenCalledWith(
@@ -203,18 +232,15 @@ describe('/api/attendees - Batch Fetching Integration Tests', () => {
       const batch3 = generateMockAttendees(5000, 10000);
 
       mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // User profile lookup
         .mockResolvedValueOnce({ documents: mockCustomFields, total: 1 }) // Custom fields for visibility
         .mockResolvedValueOnce({ documents: batch1, total: 15000 }) // First batch
         .mockResolvedValueOnce({ documents: batch2, total: 15000 }) // Second batch
         .mockResolvedValueOnce({ documents: batch3, total: 15000 }); // Third batch
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
-
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      // Verify multiple database requests were made (5 total: profile, custom fields, 3 batches)
-      expect(mockDatabases.listDocuments).toHaveBeenCalledTimes(5);
+      // Verify multiple database requests were made (4 total: custom fields, 3 batches)
+      expect(mockDatabases.listDocuments).toHaveBeenCalledTimes(4);
 
       // Verify console warning was logged
       expect(consoleWarnSpy).toHaveBeenCalledWith(
@@ -244,13 +270,10 @@ describe('/api/attendees - Batch Fetching Integration Tests', () => {
       const batch3 = generateMockAttendees(5000, 10000);
 
       mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
         .mockResolvedValueOnce({ documents: mockCustomFields, total: 1 })
         .mockResolvedValueOnce({ documents: batch1, total: 15000 })
         .mockResolvedValueOnce({ documents: batch2, total: 15000 })
         .mockResolvedValueOnce({ documents: batch3, total: 15000 });
-
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -290,8 +313,8 @@ describe('/api/attendees - Batch Fetching Integration Tests', () => {
         return null;
       };
 
-      // Verify the third call (first attendees batch) has queries
-      const firstBatchCall = mockDatabases.listDocuments.mock.calls[2];
+      // Verify the second call (first attendees batch) has queries
+      const firstBatchCall = mockDatabases.listDocuments.mock.calls[1];
       const firstBatchQueries = firstBatchCall[2] as any[];
 
       // First batch should have limit but no offset
@@ -302,8 +325,8 @@ describe('/api/attendees - Batch Fetching Integration Tests', () => {
       expect(firstBatchLimit?.value, 'First batch limit should be 5000').toBe(5000);
       expect(firstBatchOffset, 'First batch should NOT have offset query').toBeNull();
 
-      // Verify the fourth call (second batch) has both limit and offset
-      const secondBatchCall = mockDatabases.listDocuments.mock.calls[3];
+      // Verify the third call (second batch) has both limit and offset
+      const secondBatchCall = mockDatabases.listDocuments.mock.calls[2];
       const secondBatchQueries = secondBatchCall[2] as any[];
 
       const secondBatchLimit = findQueryByMethod(secondBatchQueries, 'limit');
@@ -314,8 +337,8 @@ describe('/api/attendees - Batch Fetching Integration Tests', () => {
       expect(secondBatchOffset, 'Second batch should have offset query').not.toBeNull();
       expect(secondBatchOffset?.value, 'Second batch offset should be 5000').toBe(5000);
 
-      // Verify the fifth call (third batch) has both limit and offset
-      const thirdBatchCall = mockDatabases.listDocuments.mock.calls[4];
+      // Verify the fourth call (third batch) has both limit and offset
+      const thirdBatchCall = mockDatabases.listDocuments.mock.calls[3];
       const thirdBatchQueries = thirdBatchCall[2] as any[];
 
       const thirdBatchLimit = findQueryByMethod(thirdBatchQueries, 'limit');
@@ -336,23 +359,20 @@ describe('/api/attendees - Batch Fetching Integration Tests', () => {
       const batch2 = generateMockAttendees(1, 5000);
 
       mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
         .mockResolvedValueOnce({ documents: mockCustomFields, total: 1 })
         .mockResolvedValueOnce({ documents: batch1, total: 5001 })
         .mockResolvedValueOnce({ documents: batch2, total: 5001 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
-
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       // Verify first batch has the search filter
-      const firstBatchCall = mockDatabases.listDocuments.mock.calls[2];
+      const firstBatchCall = mockDatabases.listDocuments.mock.calls[1];
       const firstBatchQueries = firstBatchCall[2] as any[];
       const firstBatchQueryStrings = firstBatchQueries.map(q => String(q));
       expect(firstBatchQueryStrings.some(q => q.toLowerCase().includes('search') || q.includes('John'))).toBe(true);
 
       // Verify second batch also has the search filter
-      const secondBatchCall = mockDatabases.listDocuments.mock.calls[3];
+      const secondBatchCall = mockDatabases.listDocuments.mock.calls[2];
       const secondBatchQueries = secondBatchCall[2] as any[];
       const secondBatchQueryStrings = secondBatchQueries.map(q => String(q));
       expect(secondBatchQueryStrings.some(q => q.toLowerCase().includes('search') || q.includes('John'))).toBe(true);
@@ -363,23 +383,20 @@ describe('/api/attendees - Batch Fetching Integration Tests', () => {
       const batch2 = generateMockAttendees(1, 5000);
 
       mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
         .mockResolvedValueOnce({ documents: mockCustomFields, total: 1 })
         .mockResolvedValueOnce({ documents: batch1, total: 5001 })
         .mockResolvedValueOnce({ documents: batch2, total: 5001 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
-
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       // Verify first batch has orderDesc
-      const firstBatchCall = mockDatabases.listDocuments.mock.calls[2];
+      const firstBatchCall = mockDatabases.listDocuments.mock.calls[1];
       const firstBatchQueries = firstBatchCall[2] as any[];
       const firstBatchQueryStrings = firstBatchQueries.map(q => String(q));
       expect(firstBatchQueryStrings.some(q => q.toLowerCase().includes('order'))).toBe(true);
 
       // Verify second batch also has orderDesc
-      const secondBatchCall = mockDatabases.listDocuments.mock.calls[3];
+      const secondBatchCall = mockDatabases.listDocuments.mock.calls[2];
       const secondBatchQueries = secondBatchCall[2] as any[];
       const secondBatchQueryStrings = secondBatchQueries.map(q => String(q));
       expect(secondBatchQueryStrings.some(q => q.toLowerCase().includes('order'))).toBe(true);
@@ -391,16 +408,13 @@ describe('/api/attendees - Batch Fetching Integration Tests', () => {
       const mockAttendees = generateMockAttendees(5000);
 
       mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
         .mockResolvedValueOnce({ documents: mockCustomFields, total: 1 })
         .mockResolvedValueOnce({ documents: mockAttendees, total: 5000 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
-
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      // Verify only single batch was fetched (3 calls total)
-      expect(mockDatabases.listDocuments).toHaveBeenCalledTimes(3);
+      // Verify only single batch was fetched (2 calls total)
+      expect(mockDatabases.listDocuments).toHaveBeenCalledTimes(2);
 
       // Verify no console warnings for exactly 5000
       expect(consoleWarnSpy).not.toHaveBeenCalled();
@@ -412,7 +426,7 @@ describe('/api/attendees - Batch Fetching Integration Tests', () => {
       expect(result).toHaveLength(5000);
     });
 
-    it('should handle custom field visibility filtering with batch fetching', async () => {
+    it('should return ALL custom fields including hidden ones with batch fetching', async () => {
       const mockCustomFieldsWithHidden = [
         { $id: 'field-visible', showOnMainPage: true },
         { $id: 'field-hidden', showOnMainPage: false },
@@ -420,26 +434,23 @@ describe('/api/attendees - Batch Fetching Integration Tests', () => {
 
       const batch1 = generateMockAttendees(5000, 0).map(attendee => ({
         ...attendee,
-        customFieldValues: JSON.stringify({
-          'field-visible': 'visible value',
-          'field-hidden': 'hidden value',
-        }),
+        customFieldValues: [
+          { customFieldId: 'field-visible', value: 'visible value' },
+          { customFieldId: 'field-hidden', value: 'hidden value' },
+        ],
       }));
       const batch2 = generateMockAttendees(1, 5000).map(attendee => ({
         ...attendee,
-        customFieldValues: JSON.stringify({
-          'field-visible': 'visible value',
-          'field-hidden': 'hidden value',
-        }),
+        customFieldValues: [
+          { customFieldId: 'field-visible', value: 'visible value' },
+          { customFieldId: 'field-hidden', value: 'hidden value' },
+        ],
       }));
 
       mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
         .mockResolvedValueOnce({ documents: mockCustomFieldsWithHidden, total: 2 })
         .mockResolvedValueOnce({ documents: batch1, total: 5001 })
         .mockResolvedValueOnce({ documents: batch2, total: 5001 });
-
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -448,25 +459,25 @@ describe('/api/attendees - Batch Fetching Integration Tests', () => {
       const result = jsonMock.mock.calls[0][0];
       expect(result).toHaveLength(5001);
 
-      // Verify hidden fields are filtered out
-      expect(result[0].customFieldValues).toHaveLength(1);
-      expect(result[0].customFieldValues[0].customFieldId).toBe('field-visible');
-      expect(result[5000].customFieldValues).toHaveLength(1);
-      expect(result[5000].customFieldValues[0].customFieldId).toBe('field-visible');
+      // IMPORTANT: API returns ALL custom field values (including hidden ones)
+      // This allows Advanced Filters to search on hidden fields
+      expect(result[0].customFieldValues).toHaveLength(2);
+      expect(result[0].customFieldValues.find((f: any) => f.customFieldId === 'field-visible')).toBeDefined();
+      expect(result[0].customFieldValues.find((f: any) => f.customFieldId === 'field-hidden')).toBeDefined();
+      expect(result[5000].customFieldValues).toHaveLength(2);
+      expect(result[5000].customFieldValues.find((f: any) => f.customFieldId === 'field-visible')).toBeDefined();
+      expect(result[5000].customFieldValues.find((f: any) => f.customFieldId === 'field-hidden')).toBeDefined();
     });
 
     it('should handle empty batches gracefully', async () => {
       mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
         .mockResolvedValueOnce({ documents: mockCustomFields, total: 1 })
         .mockResolvedValueOnce({ documents: [], total: 0 });
-
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       // Verify no batch fetching triggered
-      expect(mockDatabases.listDocuments).toHaveBeenCalledTimes(3);
+      expect(mockDatabases.listDocuments).toHaveBeenCalledTimes(2);
       expect(consoleWarnSpy).not.toHaveBeenCalled();
 
       // Verify empty array is returned
@@ -479,12 +490,12 @@ describe('/api/attendees - Batch Fetching Integration Tests', () => {
   describe('Performance Characteristics', () => {
     it('should make correct number of requests for various event sizes', async () => {
       const testCases = [
-        { total: 1000, expectedBatches: 1, expectedCalls: 3 },
-        { total: 5000, expectedBatches: 1, expectedCalls: 3 },
-        { total: 5001, expectedBatches: 2, expectedCalls: 4 },
-        { total: 10000, expectedBatches: 2, expectedCalls: 4 },
-        { total: 15000, expectedBatches: 3, expectedCalls: 5 },
-        { total: 20000, expectedBatches: 4, expectedCalls: 6 },
+        { total: 1000, expectedBatches: 1, expectedCalls: 2 },
+        { total: 5000, expectedBatches: 1, expectedCalls: 2 },
+        { total: 5001, expectedBatches: 2, expectedCalls: 3 },
+        { total: 10000, expectedBatches: 2, expectedCalls: 3 },
+        { total: 15000, expectedBatches: 3, expectedCalls: 4 },
+        { total: 20000, expectedBatches: 4, expectedCalls: 5 },
       ];
 
       for (const testCase of testCases) {
@@ -498,6 +509,18 @@ describe('/api/attendees - Batch Fetching Integration Tests', () => {
         statusMock = vi.fn(() => ({ json: jsonMock }));
         mockRes.status = statusMock as any;
 
+        // Re-inject user and userProfile after reset
+        (mockReq as any).user = mockAuthUser;
+        (mockReq as any).userProfile = {
+          ...mockUserProfile,
+          role: {
+            id: mockAdminRole.$id,
+            name: mockAdminRole.name,
+            description: mockAdminRole.description,
+            permissions: JSON.parse(mockAdminRole.permissions),
+          },
+        };
+
         const batches = [];
         const batchCount = Math.ceil(testCase.total / 5000);
 
@@ -507,11 +530,9 @@ describe('/api/attendees - Batch Fetching Integration Tests', () => {
         }
 
         mockAccount.get.mockResolvedValue(mockAuthUser);
-        mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
 
         // Setup mock responses
         mockDatabases.listDocuments
-          .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
           .mockResolvedValueOnce({ documents: mockCustomFields, total: 1 });
 
         batches.forEach(batch => {

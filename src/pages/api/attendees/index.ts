@@ -37,7 +37,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           customFields: customFieldsJSON,
         } = req.query;
 
-        const queries: string[] = [];
+        const queries: any[] = [];
 
         // Build text filters
         if (firstNameFilter && typeof firstNameFilter === 'string') {
@@ -140,7 +140,12 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
          * 1. Fetch all custom fields from the database
          * 2. Filter to only include fields where showOnMainPage !== false
          * 3. Create a Set of visible field IDs for efficient lookup
-         * 4. When mapping attendees, filter customFieldValues to only include visible fields
+         * 4. Frontend uses this to determine which fields to display as table columns
+         * 
+         * IMPORTANT: The API returns ALL custom field values (visible and hidden)
+         * - This allows Advanced Filters to search on hidden fields
+         * - The frontend display logic filters what's shown in the table
+         * - Hidden fields remain searchable but don't appear as table columns
          * 
          * Default Behavior:
          * - Fields with showOnMainPage = true are visible (explicit)
@@ -150,8 +155,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
          * Why this matters:
          * - Keeps the main attendees table clean and focused
          * - Reduces visual clutter for fields that are rarely needed
-         * - All fields remain accessible in edit/create forms
-         * - Improves performance by reducing data transferred to client
+         * - All fields remain accessible in edit/create forms AND searchable
+         * - Hidden fields can be searched via Advanced Filters
          */
         // Fetch custom fields to determine visibility
         const customFieldsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID!;
@@ -164,6 +169,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         // Create set of visible field IDs (for main page view)
         // Default to visible if showOnMainPage is missing (undefined or null)
         // This ensures backward compatibility with existing fields created before this feature
+        // Note: visibleFieldIds is not used here - ALL custom field values are returned
+        // (including hidden fields) to allow Advanced Filters to search on hidden fields
         const visibleFieldIds = new Set(
           customFieldsResult.documents
             .filter((field: any) => field.showOnMainPage !== false) // Only exclude if explicitly false
@@ -364,6 +371,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         // If total > 5000, we have more attendees than fit in a single request
         if (firstBatch.total > 5000) {
           // Large event detected - fetching in batches
+          console.warn(`Large event detected: ${firstBatch.total} attendees. Fetching in batches...`);
           
           // Start with documents from first batch
           let allDocuments = [...firstBatch.documents];
@@ -406,46 +414,47 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         // Map attendees and filter custom field values based on visibility
         let attendees = attendeesResult.documents.map((attendee: any) => {
           /**
-           * CUSTOM FIELD VALUE FILTERING
+           * CUSTOM FIELD VALUE CONVERSION
            * 
-           * This filters the attendee's custom field values to only include visible fields.
+           * Converts custom field values from database format to API response format.
            * 
            * Process:
            * 1. Parse customFieldValues from JSON string to object
-           * 2. Filter entries to only include fields in visibleFieldIds Set
-           * 3. Convert to array format for frontend consumption
+           * 2. Convert to array format for frontend consumption
            * 
            * Data Format:
            * - Database stores: { "fieldId1": "value1", "fieldId2": "value2" }
            * - Frontend expects: [{ customFieldId: "fieldId1", value: "value1" }, ...]
            * 
-           * Visibility Impact:
-           * - Hidden fields (showOnMainPage = false) are excluded from response
-           * - This reduces payload size and keeps UI clean
-           * - Hidden field values are NOT deleted, just not returned for main page view
-           * - Edit/create forms will still fetch and display all fields
+           * IMPORTANT: ALL custom field values are returned (including hidden fields)
+           * - This allows Advanced Filters to search on hidden fields
+           * - The frontend display logic (getCustomFieldsWithValues) filters what's shown in the table
+           * - Hidden fields remain searchable but don't appear as table columns
            */
           // Parse customFieldValues from JSON string to object
           let parsedCustomFieldValues = [];
           if (attendee.customFieldValues) {
-            const parsed = typeof attendee.customFieldValues === 'string' 
-              ? JSON.parse(attendee.customFieldValues) 
-              : attendee.customFieldValues;
-            
-            // Convert object format {fieldId: value} to array format [{customFieldId, value}]
-            // Filter to only include visible fields (showOnMainPage !== false)
-            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-              parsedCustomFieldValues = Object.entries(parsed)
-                .filter(([customFieldId]) => visibleFieldIds.has(customFieldId)) // Only include visible fields
-                .map(([customFieldId, value]) => ({
-                  customFieldId,
-                  value: String(value)
-                }));
-            } else if (Array.isArray(parsed)) {
-              // Handle legacy array format (if any exists)
-              parsedCustomFieldValues = parsed.filter((cfv: any) => 
-                visibleFieldIds.has(cfv.customFieldId)
-              );
+            try {
+              const parsed = typeof attendee.customFieldValues === 'string' 
+                ? JSON.parse(attendee.customFieldValues) 
+                : attendee.customFieldValues;
+              
+              // Convert object format {fieldId: value} to array format [{customFieldId, value}]
+              // IMPORTANT: Include ALL fields (visible and hidden) for search functionality
+              if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                parsedCustomFieldValues = Object.entries(parsed)
+                  .map(([customFieldId, value]) => ({
+                    customFieldId,
+                    value: String(value)
+                  }));
+              } else if (Array.isArray(parsed)) {
+                // Handle legacy array format (if any exists)
+                parsedCustomFieldValues = parsed;
+              }
+            } catch (err) {
+              // Log malformed JSON but don't crash - return empty array
+              console.error(`Failed to parse customFieldValues for attendee ${attendee.$id}:`, err);
+              parsedCustomFieldValues = [];
             }
           }
           

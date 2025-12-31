@@ -1,14 +1,25 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import handler from '../index';
+import handler from '@/pages/api/attendees/index';
 import { mockAccount, mockDatabases, resetAllMocks } from '@/test/mocks/appwrite';
+
+// Disable transactions for these tests (use legacy mode)
+process.env.ENABLE_TRANSACTIONS = 'false';
 
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn((req: NextApiRequest) => ({
     account: mockAccount,
     databases: mockDatabases,
-    tablesDB: {}, // Mock tablesDB for transaction support
+    tablesDB: {
+      createTransaction: vi.fn(() => Promise.resolve({
+        $id: 'transaction-123',
+        status: 'completed',
+      })),
+    },
+  })),
+  createAdminClient: vi.fn(() => ({
+    databases: mockDatabases,
   })),
 }));
 
@@ -107,16 +118,42 @@ describe('/api/attendees - Attendee Management API', () => {
 
     // Default mock implementations
     mockAccount.get.mockResolvedValue(mockAuthUser);
-    mockDatabases.listDocuments.mockResolvedValue({
-      documents: [],
-      total: 0,
-    });
     mockDatabases.getDocument.mockResolvedValue(mockAdminRole);
-    mockDatabases.createDocument.mockResolvedValue({
-      $id: 'new-log-123',
-      userId: mockAuthUser.$id,
-      action: 'view',
-      details: '{}',
+    
+    // Mock createDocument with conditional logic based on collection
+    mockDatabases.createDocument.mockImplementation((dbId: string, collectionId: string, docId: string, data: any) => {
+      // Return appropriate mock based on collection type
+      if (collectionId === process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID) {
+        return Promise.resolve({
+          $id: docId || 'new-log-123',
+          userId: mockAuthUser.$id,
+          action: 'view',
+          details: '{}',
+        });
+      }
+      // Default: return the data as-is with the provided ID
+      return Promise.resolve({
+        $id: docId || 'new-doc-123',
+        ...data,
+      });
+    });
+    
+    // Mock listDocuments with conditional logic for log settings
+    mockDatabases.listDocuments.mockImplementation((dbId: string, collectionId: string) => {
+      // If it's the log settings collection, return a mock log settings document
+      if (collectionId === process.env.NEXT_PUBLIC_APPWRITE_LOG_SETTINGS_COLLECTION_ID) {
+        return Promise.resolve({
+          documents: [{
+            $id: 'log-settings-1',
+            logAttendeeCreate: true,
+            logAttendeeUpdate: true,
+            logAttendeeDelete: true,
+          }],
+          total: 1,
+        });
+      }
+      // Otherwise return empty
+      return Promise.resolve({ documents: [], total: 0 });
     });
   });
 
@@ -330,7 +367,7 @@ describe('/api/attendees - Attendee Management API', () => {
     });
 
     describe('Custom Field Visibility Filtering', () => {
-      it('should filter out custom fields where showOnMainPage is false', async () => {
+      it('should return ALL custom fields including hidden ones (showOnMainPage is false)', async () => {
         const mockCustomFields = [
           { $id: 'field-visible', showOnMainPage: true },
           { $id: 'field-hidden', showOnMainPage: false },
@@ -357,9 +394,13 @@ describe('/api/attendees - Attendee Management API', () => {
         await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
         expect(statusMock).toHaveBeenCalledWith(200);
+        expect(jsonMock).toHaveBeenCalled();
         const result = jsonMock.mock.calls[0][0];
-        expect(result[0].customFieldValues).toHaveLength(1);
-        expect(result[0].customFieldValues[0].customFieldId).toBe('field-visible');
+        // IMPORTANT: API returns ALL custom field values (including hidden ones)
+        // This allows Advanced Filters to search on hidden fields
+        expect(result[0].customFieldValues).toHaveLength(2);
+        expect(result[0].customFieldValues.find((f: any) => f.customFieldId === 'field-visible')).toBeDefined();
+        expect(result[0].customFieldValues.find((f: any) => f.customFieldId === 'field-hidden')).toBeDefined();
       });
 
       it('should default to visible when showOnMainPage is undefined', async () => {
@@ -471,8 +512,10 @@ describe('/api/attendees - Attendee Management API', () => {
 
         expect(statusMock).toHaveBeenCalledWith(200);
         const result = jsonMock.mock.calls[0][0];
-        expect(result[0].customFieldValues).toHaveLength(1);
-        expect(result[0].customFieldValues[0].customFieldId).toBe('field-visible');
+        // IMPORTANT: API returns ALL custom field values (including hidden ones)
+        expect(result[0].customFieldValues).toHaveLength(2);
+        expect(result[0].customFieldValues.find((f: any) => f.customFieldId === 'field-visible')).toBeDefined();
+        expect(result[0].customFieldValues.find((f: any) => f.customFieldId === 'field-hidden')).toBeDefined();
       });
     });
   });
@@ -492,9 +535,6 @@ describe('/api/attendees - Attendee Management API', () => {
     });
 
     it('should create a new attendee successfully', async () => {
-      // Ensure transactions are disabled for this test (legacy mode)
-      process.env.ENABLE_TRANSACTIONS = 'false';
-      
       const newAttendee = {
         $id: 'new-attendee-123',
         firstName: 'John',
@@ -593,7 +633,14 @@ describe('/api/attendees - Attendee Management API', () => {
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       expect(statusMock).toHaveBeenCalledWith(400);
-      expect(jsonMock).toHaveBeenCalledWith({ error: 'Barcode number already exists' });
+      expect(jsonMock).toHaveBeenCalledWith({
+        error: 'Barcode number already exists',
+        existingAttendee: {
+          firstName: mockAttendee.firstName,
+          lastName: mockAttendee.lastName,
+          barcodeNumber: mockAttendee.barcodeNumber,
+        },
+      });
     });
 
     it('should return 400 if custom field IDs are invalid', async () => {
@@ -616,7 +663,6 @@ describe('/api/attendees - Attendee Management API', () => {
     });
 
     it('should create attendee without photoUrl if not provided', async () => {
-      process.env.ENABLE_TRANSACTIONS = 'false';
       mockReq.body.photoUrl = undefined;
 
       const newAttendee = {
@@ -644,7 +690,6 @@ describe('/api/attendees - Attendee Management API', () => {
     });
 
     it('should filter out empty custom field values', async () => {
-      process.env.ENABLE_TRANSACTIONS = 'false';
       mockReq.body.customFieldValues = [
         { customFieldId: 'field-1', value: 'value1' },
         { customFieldId: 'field-2', value: '' },
@@ -683,7 +728,6 @@ describe('/api/attendees - Attendee Management API', () => {
     });
 
     it('should create log entry for attendee creation', async () => {
-      process.env.ENABLE_TRANSACTIONS = 'false';
       const newAttendee = {
         $id: 'new-attendee-123',
         firstName: 'John',
