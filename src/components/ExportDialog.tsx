@@ -8,7 +8,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { useSweetAlert } from '@/hooks/useSweetAlert';
-import { Download, FileSpreadsheet, Users, Filter } from 'lucide-react';
+import { Download, FileSpreadsheet, Filter, Users } from 'lucide-react';
 
 interface ExportDialogProps {
   children: React.ReactNode;
@@ -50,7 +50,7 @@ export default function ExportDialog({
   searchTerm,
   photoFilter,
   advancedFilters,
-  eventSettings
+  eventSettings,
 }: ExportDialogProps) {
   const { success, error } = useSweetAlert();
   const [open, setOpen] = useState(false);
@@ -60,7 +60,7 @@ export default function ExportDialog({
     'lastName',
     'barcodeNumber',
     'photoUrl',
-    'createdAt'
+    'createdAt',
   ]);
   const [isExporting, setIsExporting] = useState(false);
 
@@ -85,7 +85,7 @@ export default function ExportDialog({
     name: field.fieldName,
     description: `Custom field: ${field.fieldName} (${field.fieldType})`,
     category: 'custom' as const,
-    required: field.required
+    required: field.required,
   })) || [];
 
   const allFields = [...exportFields, ...customFields];
@@ -134,9 +134,9 @@ export default function ExportDialog({
           filters: {
             searchTerm,
             photoFilter,
-            advancedFilters
-          }
-        })
+            advancedFilters,
+          },
+        }),
       };
 
       // Make API call to export endpoint
