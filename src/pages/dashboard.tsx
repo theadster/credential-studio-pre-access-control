@@ -3156,18 +3156,22 @@ export default function Dashboard() {
                     <div className="p-3 rounded-lg bg-purple-500/20 dark:bg-purple-400/20">
                       <IdCard className="h-8 w-8 text-purple-600 dark:text-purple-400" />
                     </div>
-                    <div className="ml-4">
+                    <div className="ml-4 flex-1">
                       <p className="text-sm font-medium text-purple-700 dark:text-purple-300">Credentials Generated</p>
                       <p className="text-4xl font-bold text-purple-900 dark:text-purple-100">
                         {(() => {
-                          // Hybrid per-attendee sum: use credentialCount when available, fall back to credentialUrl presence
-                          return attendees.reduce((sum, a) => {
+                          // Primary metric: Count of attendees with a valid credentialUrl (unique credentials)
+                          return attendees.filter(a => a.credentialUrl && a.credentialUrl.trim() !== '').length;
+                        })()}
+                      </p>
+                      <p className="text-xs font-medium text-purple-600 dark:text-purple-400 mt-1">
+                        {(() => {
+                          // Secondary metric: Total count of all generation/regeneration events
+                          const totalGenerations = attendees.reduce((sum, a) => {
                             const count = Number(a.credentialCount);
-                            if (!isNaN(count) && count >= 0) {
-                              return sum + count;
-                            }
-                            return sum + (a.credentialUrl ? 1 : 0);
+                            return sum + ((!isNaN(count) && count >= 0) ? count : 0);
                           }, 0);
+                          return `${totalGenerations} total generation${totalGenerations !== 1 ? 's' : ''}`;
                         })()}
                       </p>
                     </div>
