@@ -2930,18 +2930,30 @@ ${err.message || 'Failed to generate credential'}</pre>
                     </div>
                     <div className="ml-4">
                       <p className="text-sm font-medium text-purple-700 dark:text-purple-300">Credentials Generated</p>
-                      <p className="text-4xl font-bold text-purple-900 dark:text-purple-100">
-                        {(() => {
-                          // Hybrid per-attendee sum: use credentialCount when available, fall back to credentialUrl presence
-                          return attendees.reduce((sum, a) => {
-                            const count = Number(a.credentialCount);
-                            if (!isNaN(count) && count >= 0) {
-                              return sum + count;
-                            }
-                            return sum + (a.credentialUrl ? 1 : 0);
-                          }, 0);
-                        })()}
-                      </p>
+                      {useMemo(() => {
+                        // Primary metric: Count of unique attendees with valid credential URLs
+                        // Treat empty/whitespace-only strings as no credential
+                        const attendeesWithCredentials = attendees.filter(
+                          a => a.credentialUrl && a.credentialUrl.trim() !== ''
+                        ).length;
+                        
+                        // Secondary metric: Total credential generation/regeneration count
+                        const totalCredentialCount = attendees.reduce((sum, a) => {
+                          const count = Number(a.credentialCount);
+                          return sum + (isNaN(count) || count < 0 ? 0 : count);
+                        }, 0);
+                        
+                        return (
+                          <>
+                            <p className="text-4xl font-bold text-purple-900 dark:text-purple-100">{attendeesWithCredentials}</p>
+                            {totalCredentialCount > attendeesWithCredentials && (
+                              <p className="text-xs font-normal text-purple-700 dark:text-purple-300">
+                                {totalCredentialCount} total generations
+                              </p>
+                            )}
+                          </>
+                        );
+                      }, [attendees])}
                     </div>
                   </CardContent>
                 </Card>
