@@ -12,7 +12,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
     if (!initializing && !user && !publicRoutes.includes(router.pathname)) {
       router.push('/login');
     }
-  }, [user, initializing, router]);
+  }, [user, initializing, router.pathname]);
 
   if (initializing) {
     return (
