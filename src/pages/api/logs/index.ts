@@ -149,6 +149,69 @@ async function handleGet(req: AuthenticatedRequest, res: NextApiResponse) {
   const totalCount = logsResponse.total;
   const totalPages = Math.ceil(totalCount / limitNum);
 
+  // Fetch ALL logs (without pagination) to compute aggregate metrics
+  // These metrics represent the entire dataset, not just the current page
+  const allLogsQueries: string[] = [];
+  if (actionFilter && actionFilter !== 'all') {
+    allLogsQueries.push(Query.equal('action', actionFilter as string));
+  }
+  if (filterUserId && filterUserId !== 'all') {
+    allLogsQueries.push(Query.equal('userId', filterUserId as string));
+  }
+  allLogsQueries.push(Query.orderDesc('$createdAt'));
+  allLogsQueries.push(Query.limit(10000)); // Fetch up to 10k logs for metrics
+
+  const allLogsResponse = await getDatabases.listDocuments(
+    process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+    process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+    allLogsQueries
+  );
+
+  // Compute aggregate metrics from all logs
+  const aggregateMetrics = {
+    totalMostCommonAction: 'N/A' as string,
+    totalActiveUsers: 0,
+    totalTodayCount: 0
+  };
+
+  if (allLogsResponse.documents.length > 0) {
+    // Calculate most common action across all logs
+    const actionCounts: Record<string, number> = {};
+    const activeUserIds = new Set<string>();
+    const today = new Date().toDateString();
+    let todayCount = 0;
+
+    allLogsResponse.documents.forEach(log => {
+      // Count actions
+      actionCounts[log.action] = (actionCounts[log.action] || 0) + 1;
+
+      // Track active users
+      if (log.userId) {
+        activeUserIds.add(log.userId);
+      }
+
+      // Count today's activities
+      const logDate = new Date(log.$createdAt).toDateString();
+      if (logDate === today) {
+        todayCount++;
+      }
+    });
+
+    // Find most common action
+    const mostCommonEntry = Object.entries(actionCounts).sort((a, b) => b[1] - a[1])[0];
+    if (mostCommonEntry) {
+      // Format action name (convert SNAKE_CASE to Title Case)
+      const actionName = mostCommonEntry[0]
+        .split('_')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(' ');
+      aggregateMetrics.totalMostCommonAction = actionName;
+    }
+
+    aggregateMetrics.totalActiveUsers = activeUserIds.size;
+    aggregateMetrics.totalTodayCount = todayCount;
+  }
+
   return res.status(200).json({
     logs: logsWithRelations,
     pagination: {
@@ -158,7 +221,8 @@ async function handleGet(req: AuthenticatedRequest, res: NextApiResponse) {
       totalPages,
       hasNext: pageNum < totalPages,
       hasPrev: pageNum > 1
-    }
+    },
+    aggregateMetrics
   });
 }
 

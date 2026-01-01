@@ -10,6 +10,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { EventSettings, CustomField, AccessControlTimeMode } from "@/components/EventSettingsForm/types";
+import {
+  parseCustomFieldValues,
+  getCustomFieldValue,
+  formatCustomFieldValue,
+  isLegacyCustomFieldValues,
+  isCurrentCustomFieldValues,
+  type CustomFieldWithValue,
+  type ParsedCustomFieldValues,
+} from "@/types/customFields";
 import { formatForDisplay, formatDateTimeSeparate } from "@/lib/accessControlDates";
 import {
   Users,
@@ -89,6 +98,7 @@ import ScanLogsViewer from "@/components/ScanLogsViewer";
 import OperatorMonitoringDashboard from "@/components/OperatorMonitoringDashboard";
 import { hasPermission, canAccessTab, canManageUser } from "@/lib/permissions";
 import { CLEAR_SENTINEL } from "@/lib/constants";
+import { buildPageWindow } from "@/lib/utils";
 
 /**
  * NotesTooltip component with overflow indicator
@@ -239,6 +249,11 @@ export default function Dashboard() {
   const [eventSettings, setEventSettings] = useState<DashboardEventSettings | null>(null);
   const [logs, setLogs] = useState<Log[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
+  const [aggregateMetrics, setAggregateMetrics] = useState({
+    totalMostCommonAction: 'N/A',
+    totalActiveUsers: 0,
+    totalTodayCount: 0
+  });
   const [logsPagination, setLogsPagination] = useState({
     page: 1,
     limit: 50,
@@ -401,9 +416,9 @@ export default function Dashboard() {
   /**
    * PERFORMANCE OPTIMIZATION: Grid Column Calculation
    * 
-   * Memoized helper function to determine grid columns based on field count
+   * Memoized factory function to determine grid columns based on field count
    * and the configured maximum columns from event settings.
-   * Uses useCallback to prevent unnecessary re-creation on every render.
+   * Uses useMemo to create a stable function reference that only changes when dependencies change.
    * 
    * The Name column is now wider (w-auto) allowing custom fields to utilize more horizontal space.
    * The Barcode, Credential, Status, and Actions columns are compact and grouped on the right.
@@ -420,42 +435,42 @@ export default function Dashboard() {
    * 
    * Responsive breakpoints ensure mobile-first design with progressive enhancement.
    * 
-   * @param fieldCount - Number of visible custom fields
-   * @returns Tailwind CSS grid column classes
+   * @returns Function that takes fieldCount and returns Tailwind CSS grid column classes
    */
-  const getGridColumns = useCallback((fieldCount: number): string => {
-    // Get configured max columns from event settings (default to 7 for backward compatibility)
+  const getGridColumns = useMemo(() => {
     const maxColumns = eventSettings?.customFieldColumns || 7;
 
-    // Mapping for lg:grid-cols-* classes (Tailwind JIT-safe)
-    const lgGridColsMap: Record<number, string> = {
-      3: 'lg:grid-cols-3',
-      4: 'lg:grid-cols-4',
-      5: 'lg:grid-cols-5',
-      6: 'lg:grid-cols-6',
-      7: 'lg:grid-cols-7',
-      8: 'lg:grid-cols-8',
-      9: 'lg:grid-cols-9',
-      10: 'lg:grid-cols-10',
-    };
+    return (fieldCount: number): string => {
+      // Mapping for lg:grid-cols-* classes (Tailwind JIT-safe)
+      const lgGridColsMap: Record<number, string> = {
+        3: 'lg:grid-cols-3',
+        4: 'lg:grid-cols-4',
+        5: 'lg:grid-cols-5',
+        6: 'lg:grid-cols-6',
+        7: 'lg:grid-cols-7',
+        8: 'lg:grid-cols-8',
+        9: 'lg:grid-cols-9',
+        10: 'lg:grid-cols-10',
+      };
 
-    if (fieldCount === 1) return 'grid-cols-1';
-    if (fieldCount >= 2 && fieldCount <= 3) return 'md:grid-cols-2 lg:grid-cols-3';
-    if (fieldCount >= 4 && fieldCount <= 6) return 'md:grid-cols-3 lg:grid-cols-5';
-    if (fieldCount >= 7 && fieldCount <= 9) {
-      const cols = Math.min(6, maxColumns);
-      const clampedCols = Math.max(3, Math.min(10, cols));
-      return `md:grid-cols-4 ${lgGridColsMap[clampedCols] || 'lg:grid-cols-6'}`;
-    }
-    // 10 or more fields
-    const clampedMaxCols = Math.max(3, Math.min(10, maxColumns));
-    return `md:grid-cols-4 ${lgGridColsMap[clampedMaxCols] || 'lg:grid-cols-7'}`;
+      if (fieldCount === 1) return 'grid-cols-1';
+      if (fieldCount >= 2 && fieldCount <= 3) return 'md:grid-cols-2 lg:grid-cols-3';
+      if (fieldCount >= 4 && fieldCount <= 6) return 'md:grid-cols-3 lg:grid-cols-5';
+      if (fieldCount >= 7 && fieldCount <= 9) {
+        const cols = Math.min(6, maxColumns);
+        const clampedCols = Math.max(3, Math.min(10, cols));
+        return `md:grid-cols-4 ${lgGridColsMap[clampedCols] || 'lg:grid-cols-6'}`;
+      }
+      // 10 or more fields
+      const clampedMaxCols = Math.max(3, Math.min(10, maxColumns));
+      return `md:grid-cols-4 ${lgGridColsMap[clampedMaxCols] || 'lg:grid-cols-7'}`;
+    };
   }, [eventSettings?.customFieldColumns]);
 
   /**
    * PERFORMANCE OPTIMIZATION: Custom Fields Value Extraction
    * 
-   * Extracts custom field values for an attendee outside the map function.
+   * Memoized factory function that extracts custom field values for an attendee.
    * This prevents recreating the function on every render and improves performance
    * when rendering large lists of attendees.
    * 
@@ -466,67 +481,41 @@ export default function Dashboard() {
    * 4. Format values based on field type (boolean, url, text)
    * 5. Filter out empty values (except boolean fields which always show)
    * 
-   * @param attendee - The attendee object
-   * @param customFields - Array of custom field definitions from event settings
-   * @returns Array of custom fields with values ready for display
+   * @returns Function that takes attendee and customFields and returns formatted field values
    */
-  const getCustomFieldsWithValues = useCallback((attendee: Attendee, customFields: any[]) => {
-    if (!customFields) return [];
+  const getCustomFieldsWithValues = useMemo(() => {
+    return (attendee: Attendee, customFields: CustomField[]): CustomFieldWithValue[] => {
+      if (!customFields || customFields.length === 0) return [];
 
-    // Parse customFieldValues if it's a string
-    let parsedCustomFieldValues: any = attendee.customFieldValues;
-    if (typeof parsedCustomFieldValues === 'string') {
-      try {
-        parsedCustomFieldValues = JSON.parse(parsedCustomFieldValues);
-      } catch (e) {
-        console.error('Failed to parse customFieldValues:', e);
-        parsedCustomFieldValues = {};
-      }
-    }
+      // Parse customFieldValues with type safety
+      const parsedCustomFieldValues: ParsedCustomFieldValues = parseCustomFieldValues(
+        attendee.customFieldValues
+      );
 
-    return customFields
-      .filter((field: any) => field.showOnMainPage !== false) // Only show visible fields
-      .sort((a: any, b: any) => a.order - b.order)
-      .map((field: any) => {
-        // Handle both array format (legacy) and object format (current)
-        let value = null;
-        if (Array.isArray(parsedCustomFieldValues)) {
-          // Legacy array format: [{ customFieldId: 'id', value: 'value' }]
-          value = parsedCustomFieldValues.find((cfv: any) => cfv.customFieldId === field.id);
-        } else if (parsedCustomFieldValues && typeof parsedCustomFieldValues === 'object') {
-          // Current object format: { 'fieldId': 'value' } or { 'fieldId': ['val1', 'val2'] }
-          const fieldValue = parsedCustomFieldValues[field.id];
-          if (fieldValue !== undefined) {
-            value = { value: fieldValue };
-          }
-        }
-        
-        let displayValue = value?.value || null;
+      return customFields
+        .filter((field: CustomField) => field.id && field.showOnMainPage !== false) // Only show visible fields with IDs
+        .sort((a: CustomField, b: CustomField) => a.order - b.order)
+        .map((field: CustomField): CustomFieldWithValue => {
+          // Get value using type-safe helper (handles both formats)
+          // field.id is guaranteed to exist due to filter above
+          const rawValue = getCustomFieldValue(parsedCustomFieldValues, field.id);
+          
+          // Format value based on field type
+          const displayValue = formatCustomFieldValue(rawValue ?? null, field.fieldType);
 
-        // Format display value based on field type
-        if (field.fieldType === 'boolean') {
-          // CRITICAL: Boolean fields use 'yes'/'no' format (NOT 'true'/'false')
-          // However, for display purposes, accept both 'yes' and 'true' as truthy
-          // to handle any legacy values gracefully
-          const normalizedValue = String(displayValue || '').trim().toLowerCase();
-          displayValue = (normalizedValue === 'yes' || normalizedValue === 'true') ? 'Yes' : 'No';
-        } else if (displayValue && field.fieldType === 'url') {
-          // For URLs, show a clickable link
-          displayValue = displayValue;
-        }
-
-        return {
-          customFieldId: field.id,
-          fieldName: field.fieldName,
-          fieldType: field.fieldType,
-          value: displayValue
-        };
-      })
-      .filter((field: any) => {
-        // Show boolean fields always (they will show Yes/No)
-        // Show other fields only if they have a value
-        return field.fieldType === 'boolean' || field.value;
-      });
+          return {
+            customFieldId: field.id!,
+            fieldName: field.fieldName,
+            fieldType: field.fieldType,
+            value: displayValue
+          };
+        })
+        .filter((field: CustomFieldWithValue) => {
+          // Show boolean fields always (they will show Yes/No)
+          // Show other fields only if they have a value
+          return field.fieldType === 'boolean' || field.value;
+        });
+    };
   }, []);
 
   const loadLogs = useCallback(async (page = 1, filters = logsFilters, retryCount = 0) => {
@@ -566,6 +555,10 @@ export default function Dashboard() {
           hasNext: false,
           hasPrev: false
         });
+        // Store aggregate metrics from API response
+        if (data.aggregateMetrics) {
+          setAggregateMetrics(data.aggregateMetrics);
+        }
       } else {
         setLogs([]);
       }
@@ -1100,6 +1093,309 @@ export default function Dashboard() {
     [eventSettings?.customFields]
   );
 
+  /**
+   * PERFORMANCE OPTIMIZATION: Memoized Stats Calculations
+   * 
+   * These values are calculated once and only recalculated when their dependencies change.
+   * This prevents expensive array operations (filter, reduce, sort) on every render.
+   */
+
+  // Days until event calculation
+  const daysUntilEvent = useMemo(() => {
+    if (!eventSettings?.eventDate) return null;
+    const eventDate = new Date(eventSettings.eventDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    eventDate.setHours(0, 0, 0, 0);
+    const diffTime = eventDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays >= 0 ? diffDays : 0;
+  }, [eventSettings?.eventDate]);
+
+  // Event date formatting
+  const formattedEventDate = useMemo(() => {
+    const dateValue = eventSettings?.eventDate;
+    if (!dateValue) return 'No date set';
+    const dateStr = typeof dateValue === 'string' ? dateValue : String(dateValue);
+    let datePart = dateStr;
+    if (dateStr.includes('T')) {
+      datePart = dateStr.split('T')[0];
+    }
+    const [year, month, day] = datePart.split('-').map(Number);
+    const localDate = new Date(year, month - 1, day);
+    return localDate.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  }, [eventSettings?.eventDate]);
+
+  // Event time formatting
+  const formattedEventTime = useMemo(() => {
+    if (!eventSettings?.eventTime) return null;
+    const timeZone = eventSettings.timeZone || 'America/Los_Angeles';
+    const timeStr = eventSettings.eventTime;
+    const today = new Date();
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    const eventDateTime = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes);
+    return eventDateTime.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: timeZone
+    });
+  }, [eventSettings?.eventTime, eventSettings?.timeZone]);
+
+  // Credentials generated count
+  const credentialsGeneratedCount = useMemo(() => {
+    return attendees.filter(a => a.credentialUrl && a.credentialUrl.trim() !== '').length;
+  }, [attendees]);
+
+  // Total credential generations
+  const totalCredentialGenerations = useMemo(() => {
+    const total = attendees.reduce((sum, a) => {
+      const count = Number(a.credentialCount);
+      return sum + (isNaN(count) || count < 0 ? 0 : count);
+    }, 0);
+    return total > 0 ? `${total} total generations` : '';
+  }, [attendees]);
+
+  // Photos uploaded stats
+  const photoStats = useMemo(() => {
+    const hasAtomicCounts = attendees.some(a => typeof a.photoUploadCount === 'number');
+    const totalUploads = attendees.reduce((sum, a) => {
+      const count = Number(a.photoUploadCount);
+      if (!isNaN(count) && count >= 0) {
+        return sum + count;
+      }
+      return sum + (a.photoUrl ? 1 : 0);
+    }, 0);
+    const attendeesWithPhotos = attendees.filter(a => a.photoUrl).length;
+    const percentage = attendees.length > 0 ? Math.round((attendeesWithPhotos / attendees.length) * 100) : 0;
+    const displayCount = hasAtomicCounts ? totalUploads : attendeesWithPhotos;
+    
+    return { displayCount, percentage };
+  }, [attendees]);
+
+  // Advanced filter count
+  const activeFilterCount = useMemo(() => {
+    const hasAccessControlFilters = eventSettings?.accessControlEnabled && (
+      advancedSearchFilters.accessControl.accessStatus !== 'all' ||
+      advancedSearchFilters.accessControl.validFromStart ||
+      advancedSearchFilters.accessControl.validFromEnd ||
+      advancedSearchFilters.accessControl.validUntilStart ||
+      advancedSearchFilters.accessControl.validUntilEnd
+    );
+    
+    let count = 0;
+    if (advancedSearchFilters.firstName.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.firstName.operator)) count++;
+    if (advancedSearchFilters.lastName.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.lastName.operator)) count++;
+    if (advancedSearchFilters.barcode.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.barcode.operator)) count++;
+    if (advancedSearchFilters.notes.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.notes.operator)) count++;
+    if (advancedSearchFilters.notes.hasNotes) count++;
+    if (advancedSearchFilters.photoFilter !== 'all') count++;
+    if (hasAccessControlFilters) count++;
+    
+    // Count custom field filters
+    Object.values(advancedSearchFilters.customFields).forEach(field => {
+      const hasValue = Array.isArray(field.value) ? field.value.length > 0 : !!field.value;
+      if (hasValue || field.operator === 'isEmpty' || field.operator === 'isNotEmpty') {
+        count++;
+      }
+    });
+    
+    return count;
+  }, [advancedSearchFilters, eventSettings?.accessControlEnabled]);
+
+  // Most common action in logs (from aggregate metrics)
+  // This is now computed server-side from ALL logs, not just the current page
+  const mostCommonAction = aggregateMetrics.totalMostCommonAction;
+
+  // Logs pagination pages
+  const logsPaginationPages = useMemo(() => {
+    return buildPageWindow(logsPagination.page, logsPagination.totalPages, 5);
+  }, [logsPagination.page, logsPagination.totalPages]);
+
+  // Last updated timestamp formatting
+  const formattedLastUpdated = useMemo(() => {
+    const timestamp = eventSettings?.updatedAt || eventSettings?.$updatedAt || eventSettings?.createdAt || eventSettings?.$createdAt;
+    if (!timestamp) return 'Last updated: Unknown';
+    try {
+      const date = new Date(timestamp);
+      if (isNaN(date.getTime())) return 'Last updated: Unknown';
+      return `Last updated ${date.toLocaleDateString()} at ${date.toLocaleTimeString()}`;
+    } catch {
+      return 'Last updated: Unknown';
+    }
+  }, [eventSettings?.updatedAt, eventSettings?.$updatedAt, eventSettings?.createdAt, eventSettings?.$createdAt]);
+
+  // Active users count (from aggregate metrics)
+  // This is now computed server-side from ALL logs, not just the current page
+  const activeUsersCount = aggregateMetrics.totalActiveUsers;
+
+  // Today's activities count (from aggregate metrics)
+  // This is now computed server-side from ALL logs, not just the current page
+  const todayActivitiesCount = aggregateMetrics.totalTodayCount;
+
+  // Users with roles count
+  const usersWithRolesCount = useMemo(() => {
+    return users.filter(u => u.role).length;
+  }, [users]);
+
+  // Unassigned users count
+  const unassignedUsersCount = useMemo(() => {
+    return users.filter(u => !u.role).length;
+  }, [users]);
+
+  // Permission categories count (unique permission keys across all roles)
+  const permissionCategoriesCount = useMemo(() => {
+    if (roles.length === 0) return 0;
+    return new Set(roles.flatMap(role => Object.keys(role.permissions || {}))).size;
+  }, [roles]);
+
+  /**
+   * HELPER FUNCTIONS: Extract complex logic from JSX
+   * 
+   * These functions are defined at component level (not inside render)
+   * to avoid recreating them on every render.
+   */
+
+  // Helper function for multi-select button display
+  const formatMultiSelectButtonText = (values: any): React.ReactNode => {
+    const selectedValues = Array.isArray(values) ? values : [];
+    
+    if (selectedValues.length === 0) {
+      return <span className="text-muted-foreground">Select options...</span>;
+    } else if (selectedValues.length === 1) {
+      return <span>{selectedValues[0]}</span>;
+    } else {
+      return <span>{selectedValues.length} options selected</span>;
+    }
+  };
+
+  // Helper function for credential status badge
+  const renderCredentialStatusBadge = (attendee: any): React.ReactNode => {
+    const status = getCredentialStatus(attendee);
+    if (status === 'current') {
+      return (
+        <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-200 hover:border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800 dark:hover:bg-emerald-900/40 dark:hover:border-emerald-700 font-semibold px-3 py-1 transition-colors" role="status" aria-label="Credential status: Current">
+          <CheckCircle className="h-3 w-3 mr-1" aria-hidden="true" />
+          CURRENT
+        </Badge>
+      );
+    } else if (status === 'outdated') {
+      return (
+        <Badge className="bg-red-100 text-red-800 border-red-200 hover:bg-red-200 hover:border-red-300 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800 dark:hover:bg-red-900/40 dark:hover:border-red-700 font-semibold px-3 py-1 transition-colors" role="status" aria-label="Credential status: Outdated">
+          <AlertTriangle className="h-3 w-3 mr-1" aria-hidden="true" />
+          OUTDATED
+        </Badge>
+      );
+    } else {
+      return (
+        <Badge variant="secondary" className="text-muted-foreground px-3 py-1" role="status" aria-label="Credential status: None">
+          <Circle className="h-3 w-3 mr-1" aria-hidden="true" />
+          NONE
+        </Badge>
+      );
+    }
+  };
+
+  // Helper function for log target name
+  const getLogTargetName = (details: any): string => {
+    if (details?.firstName && details?.lastName) {
+      return `${String(details.firstName)} ${String(details.lastName)}`;
+    } else if (details?.roleName) {
+      return String(details.roleName);
+    } else if (details?.target) {
+      return String(details.target);
+    } else {
+      return 'System';
+    }
+  };
+
+  // Helper function for log type category
+  const getLogTypeCategory = (details: any): string => {
+    const type = details?.type;
+    if (type === 'attendee' || type === 'attendees') return 'Attendee';
+    if (type === 'user' || type === 'users') return 'User';
+    if (type === 'role' || type === 'roles') return 'Role';
+    if (type === 'settings' || type === 'event_settings') return 'Settings';
+    if (type === 'system' || type === 'auth') return 'System Operation';
+    return 'General';
+  };
+
+  // Helper function for complex log changes formatting
+  // Handles mixed-shape objects by checking each entry individually for from/to structure
+  const formatComplexLogChanges = (changes: any): React.ReactNode => {
+    if (Array.isArray(changes)) {
+      // Handle array format (field names only)
+      return <>Changed: {(changes as string[]).join(', ')}</>;
+    } else if (typeof changes === 'object' && changes !== null) {
+      // Check each entry individually for from/to structure
+      const entries = Object.entries(changes);
+      const hasNewFormatEntries = entries.some(([, v]) => v && typeof v === 'object' && 'from' in v && 'to' in v);
+      
+      if (hasNewFormatEntries) {
+        // Mixed or new format: render each entry according to its shape
+        return (
+          <div className="space-y-0.5">
+            {entries.map(([field, value]) => {
+              // Check if this specific entry has from/to structure
+              if (value && typeof value === 'object' && 'from' in value && 'to' in value) {
+                return (
+                  <div key={field}>
+                    <span className="font-medium">{field}</span>: {String(value.from)} → {String(value.to)}
+                  </div>
+                );
+              } else if (typeof value === 'boolean') {
+                // Legacy format: only show if true
+                return value ? <div key={field}>{field}</div> : null;
+              } else {
+                // Other formats: show as-is
+                return (
+                  <div key={field}>
+                    <span className="font-medium">{field}</span>: {String(value)}
+                  </div>
+                );
+              }
+            })}
+          </div>
+        );
+      } else {
+        // Legacy format: { field: boolean }
+        return <>Changed: {entries
+          .filter(([, changed]) => changed === true)
+          .map(([field]) => field)
+          .join(', ')}
+        </>;
+      }
+    } else {
+      // Handle string format (fallback)
+      return <>Changed: {String(changes)}</>;
+    }
+  };
+
+  // Helper function for multi-select clear button
+  const renderMultiSelectClearButton = (fieldId: string, values: any, handleChange: (id: string, value: any, operator: string) => void): React.ReactNode => {
+    const selectedValues = Array.isArray(values) ? values : [];
+    
+    if (selectedValues.length > 0) {
+      return (
+        <div className="border-t p-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full text-xs"
+            onClick={() => handleChange(fieldId, [], 'equals')}
+          >
+            Clear Selection
+          </Button>
+        </div>
+      );
+    }
+    return null;
+  };
+
   // Enhanced filtering function for attendees including custom fields and photo filter
   const filteredAttendees = attendees
     .filter(attendee => {
@@ -1330,6 +1626,11 @@ export default function Dashboard() {
   const endIndex = startIndex + recordsPerPage;
   const paginatedAttendees = filteredAttendees.slice(startIndex, endIndex);
 
+  // Attendees pagination pages (must be after totalPages is defined)
+  const attendeesPaginationPages = useMemo(() => {
+    return buildPageWindow(currentPage, totalPages, 5);
+  }, [currentPage, totalPages]);
+
   // Reset to first page when search term or photo filter changes
   useEffect(() => {
     setCurrentPage(1);
@@ -1383,27 +1684,8 @@ export default function Dashboard() {
   };
 
   // Check if advanced search has any active filters
-  const hasAdvancedFilters = () => {
-    const hasAccessControlFilters = eventSettings?.accessControlEnabled && (
-      advancedSearchFilters.accessControl.accessStatus !== 'all' ||
-      advancedSearchFilters.accessControl.validFromStart ||
-      advancedSearchFilters.accessControl.validFromEnd ||
-      advancedSearchFilters.accessControl.validUntilStart ||
-      advancedSearchFilters.accessControl.validUntilEnd
-    );
-    
-    return !!(advancedSearchFilters.firstName.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.firstName.operator) ||
-      advancedSearchFilters.lastName.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.lastName.operator) ||
-      advancedSearchFilters.barcode.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.barcode.operator) ||
-      advancedSearchFilters.notes.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.notes.operator) ||
-      advancedSearchFilters.notes.hasNotes ||
-      advancedSearchFilters.photoFilter !== 'all' ||
-      hasAccessControlFilters ||
-      Object.values(advancedSearchFilters.customFields).some(field => {
-        const hasValue = Array.isArray(field.value) ? field.value.length > 0 : !!field.value;
-        return hasValue || field.operator === 'isEmpty' || field.operator === 'isNotEmpty';
-      }));
-  };
+  // Uses the memoized activeFilterCount to avoid duplication
+  const hasAdvancedFilters = () => activeFilterCount > 0;
 
   const handleAdvancedSearchChange = (
     field: 'firstName' | 'lastName' | 'barcode' | 'notes' | 'photoFilter',
@@ -2862,57 +3144,14 @@ export default function Dashboard() {
                   <div className="flex items-center justify-center text-xs text-muted-foreground mt-2">
                     <Calendar className="h-3 w-3 mr-1 flex-shrink-0" />
                     <span className="truncate">
-                      {(() => {
-                        // Handle date properly to avoid timezone issues
-                        const dateValue = eventSettings.eventDate;
-
-                        if (!dateValue) return 'No date set';
-
-                        // Convert to string if it's not already
-                        const dateStr = typeof dateValue === 'string' ? dateValue : String(dateValue);
-
-                        // Extract just the date part if it's an ISO string
-                        let datePart = dateStr;
-                        if (dateStr.includes('T')) {
-                          datePart = dateStr.split('T')[0];
-                        }
-
-                        // Parse as local date to avoid timezone conversion issues
-                        const [year, month, day] = datePart.split('-').map(Number);
-                        const localDate = new Date(year, month - 1, day);
-
-                        // Format the date without timezone conversion
-                        return localDate.toLocaleDateString('en-US', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric'
-                        });
-                      })()}
+                      {formattedEventDate}
                     </span>
                   </div>
-                  {eventSettings.eventTime && (
+                  {eventSettings.eventTime && formattedEventTime && (
                     <div className="flex items-center justify-center text-xs text-muted-foreground mt-1">
                       <Clock className="h-3 w-3 mr-1 flex-shrink-0" />
                       <span>
-                        {(() => {
-                          // Format time in the event's timezone
-                          const timeZone = eventSettings.timeZone || 'America/Los_Angeles';
-                          const timeStr = eventSettings.eventTime;
-
-                          // Create a date object with the time in the event's timezone
-                          const today = new Date();
-                          const [hours, minutes] = timeStr.split(':').map(Number);
-
-                          // Create a date with today's date and the event time
-                          const eventDateTime = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes);
-
-                          return eventDateTime.toLocaleTimeString('en-US', {
-                            hour: 'numeric',
-                            minute: '2-digit',
-                            hour12: true,
-                            timeZone: timeZone
-                          });
-                        })()}
+                        {formattedEventTime}
                       </span>
                     </div>
                   )}
@@ -3127,15 +3366,7 @@ export default function Dashboard() {
                     <div className="ml-4">
                       <p className="text-sm font-medium text-blue-700 dark:text-blue-300">Days Until Event</p>
                       <p className="text-4xl font-bold text-blue-900 dark:text-blue-100">
-                        {eventSettings?.eventDate ? (() => {
-                          const eventDate = new Date(eventSettings.eventDate);
-                          const today = new Date();
-                          today.setHours(0, 0, 0, 0);
-                          eventDate.setHours(0, 0, 0, 0);
-                          const diffTime = eventDate.getTime() - today.getTime();
-                          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                          return diffDays >= 0 ? diffDays : 0;
-                        })() : '--'}
+                        {daysUntilEvent !== null ? daysUntilEvent : '--'}
                       </p>
                     </div>
                   </CardContent>
@@ -3159,20 +3390,10 @@ export default function Dashboard() {
                     <div className="ml-4 flex-1">
                       <p className="text-sm font-medium text-purple-700 dark:text-purple-300">Credentials Generated</p>
                       <p className="text-4xl font-bold text-purple-900 dark:text-purple-100">
-                        {(() => {
-                          // Primary metric: Count of attendees with a valid credentialUrl (unique credentials)
-                          return attendees.filter(a => a.credentialUrl && a.credentialUrl.trim() !== '').length;
-                        })()}
+                        {credentialsGeneratedCount}
                       </p>
                       <p className="text-xs font-medium text-purple-600 dark:text-purple-400 mt-1">
-                        {(() => {
-                          // Secondary metric: Total count of all generation/regeneration events
-                          const totalGenerations = attendees.reduce((sum, a) => {
-                            const count = Number(a.credentialCount);
-                            return sum + ((!isNaN(count) && count >= 0) ? count : 0);
-                          }, 0);
-                          return `${totalGenerations} total generation${totalGenerations !== 1 ? 's' : ''}`;
-                        })()}
+                        {totalCredentialGenerations}
                       </p>
                     </div>
                   </CardContent>
@@ -3184,27 +3405,8 @@ export default function Dashboard() {
                     </div>
                     <div className="ml-4">
                       <p className="text-sm font-medium text-amber-700 dark:text-amber-300">Photos Uploaded</p>
-                      {(() => {
-                        // Compute all values once for deterministic rendering
-                        const hasAtomicCounts = attendees.some(a => typeof a.photoUploadCount === 'number');
-                        const totalUploads = attendees.reduce((sum, a) => {
-                          const count = Number(a.photoUploadCount);
-                          if (!isNaN(count) && count >= 0) {
-                            return sum + count;
-                          }
-                          return sum + (a.photoUrl ? 1 : 0);
-                        }, 0);
-                        const attendeesWithPhotos = attendees.filter(a => a.photoUrl).length;
-                        const percentage = attendees.length > 0 ? Math.round((attendeesWithPhotos / attendees.length) * 100) : 0;
-                        const displayCount = hasAtomicCounts ? totalUploads : attendeesWithPhotos;
-                        
-                        return (
-                          <>
-                            <p className="text-4xl font-bold text-amber-900 dark:text-amber-100">{displayCount}</p>
-                            <p className="text-xs font-normal text-amber-700 dark:text-amber-300">{percentage}% have photos</p>
-                          </>
-                        );
-                      })()}
+                      <p className="text-4xl font-bold text-amber-900 dark:text-amber-100">{photoStats.displayCount}</p>
+                      <p className="text-xs font-normal text-amber-700 dark:text-amber-300">{photoStats.percentage}% have photos</p>
                     </div>
                   </CardContent>
                 </Card>
@@ -3659,19 +3861,7 @@ export default function Dashboard() {
                                               role="combobox"
                                               className="w-full justify-between bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800"
                                             >
-                                              {(() => {
-                                                const selectedValues = Array.isArray(advancedSearchFilters.customFields[field.id]?.value) 
-                                                  ? advancedSearchFilters.customFields[field.id]?.value as string[]
-                                                  : [];
-                                                
-                                                if (selectedValues.length === 0) {
-                                                  return <span className="text-muted-foreground">Select options...</span>;
-                                                } else if (selectedValues.length === 1) {
-                                                  return <span>{selectedValues[0]}</span>;
-                                                } else {
-                                                  return <span>{selectedValues.length} options selected</span>;
-                                                }
-                                              })()}
+                                              {formatMultiSelectButtonText(advancedSearchFilters.customFields[field.id]?.value)}
                                               <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                             </Button>
                                           </PopoverTrigger>
@@ -3725,27 +3915,7 @@ export default function Dashboard() {
                                                 </CommandList>
                                               </ScrollArea>
                                             </Command>
-                                            {(() => {
-                                              const selectedValues = Array.isArray(advancedSearchFilters.customFields[field.id]?.value) 
-                                                ? advancedSearchFilters.customFields[field.id]?.value as string[]
-                                                : [];
-                                              
-                                              if (selectedValues.length > 0) {
-                                                return (
-                                                  <div className="border-t p-2">
-                                                    <Button
-                                                      variant="ghost"
-                                                      size="sm"
-                                                      className="w-full text-xs"
-                                                      onClick={() => handleCustomFieldSearchChange(field.id, [], 'equals')}
-                                                    >
-                                                      Clear Selection
-                                                    </Button>
-                                                  </div>
-                                                );
-                                              }
-                                              return null;
-                                            })()}
+                                            {renderMultiSelectClearButton(field.id, advancedSearchFilters.customFields[field.id]?.value, handleCustomFieldSearchChange)}
                                           </PopoverContent>
                                         </Popover>
                                       ) : field.fieldType === 'boolean' ? (
@@ -3816,22 +3986,7 @@ export default function Dashboard() {
                           <div className="flex items-center space-x-3">
                             <span className="font-semibold text-primary text-base">Advanced Filters Active</span>
                             <Badge variant="default" className="bg-primary text-primary-foreground">
-                              {(() => {
-                                let count = 0;
-                                if (advancedSearchFilters.firstName.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.firstName.operator)) count++;
-                                if (advancedSearchFilters.lastName.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.lastName.operator)) count++;
-                                if (advancedSearchFilters.barcode.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.barcode.operator)) count++;
-                                if (advancedSearchFilters.notes.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.notes.operator) || advancedSearchFilters.notes.hasNotes) count++;
-                                if (advancedSearchFilters.photoFilter !== 'all') count++;
-                                // Count access control filters
-                                if (eventSettings?.accessControlEnabled) {
-                                  if (advancedSearchFilters.accessControl.accessStatus !== 'all') count++;
-                                  if (advancedSearchFilters.accessControl.validFromStart || advancedSearchFilters.accessControl.validFromEnd) count++;
-                                  if (advancedSearchFilters.accessControl.validUntilStart || advancedSearchFilters.accessControl.validUntilEnd) count++;
-                                }
-                                count += Object.values(advancedSearchFilters.customFields).filter(field => field.value || field.operator === 'isEmpty' || field.operator === 'isNotEmpty').length;
-                                return `${count} ${count === 1 ? 'filter' : 'filters'}`;
-                              })()}
+                              {activeFilterCount} {activeFilterCount === 1 ? 'filter' : 'filters'}
                             </Badge>
                             <span className="text-sm text-muted-foreground">
                               •
@@ -4441,31 +4596,7 @@ export default function Dashboard() {
                               </TableCell>
                               <TableCell className="align-top pt-4">
                                 <div className="flex justify-center">
-                                  {(() => {
-                                    const status = getCredentialStatus(attendee);
-                                    if (status === 'current') {
-                                      return (
-                                        <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-200 hover:border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800 dark:hover:bg-emerald-900/40 dark:hover:border-emerald-700 font-semibold px-3 py-1 transition-colors" role="status" aria-label="Credential status: Current">
-                                          <CheckCircle className="h-3 w-3 mr-1" aria-hidden="true" />
-                                          CURRENT
-                                        </Badge>
-                                      );
-                                    } else if (status === 'outdated') {
-                                      return (
-                                        <Badge className="bg-red-100 text-red-800 border-red-200 hover:bg-red-200 hover:border-red-300 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800 dark:hover:bg-red-900/40 dark:hover:border-red-700 font-semibold px-3 py-1 transition-colors" role="status" aria-label="Credential status: Outdated">
-                                          <AlertTriangle className="h-3 w-3 mr-1" aria-hidden="true" />
-                                          OUTDATED
-                                        </Badge>
-                                      );
-                                    } else {
-                                      return (
-                                        <Badge variant="secondary" className="text-muted-foreground px-3 py-1" role="status" aria-label="Credential status: None">
-                                          <Circle className="h-3 w-3 mr-1" aria-hidden="true" />
-                                          NONE
-                                        </Badge>
-                                      );
-                                    }
-                                  })()}
+                                  {renderCredentialStatusBadge(attendee)}
                                 </div>
                               </TableCell>
                               {/* Access Control Cells - Requirements 6.1, 6.2, 6.3, 6.4 */}
@@ -4686,18 +4817,13 @@ export default function Dashboard() {
                               >
                                 <TableCell colSpan={eventSettings?.accessControlEnabled ? 8 : 5} className="pt-1 pb-6">
                                   <div className="border-t border-border/50 pt-2">
-                                    {(() => {
-                                      // PERFORMANCE OPTIMIZATION: Use memoized getGridColumns function
-                                      const gridCols = getGridColumns(customFieldsWithValues.length);
-
-                                      return (
-                                        <div className={`grid grid-cols-1 ${gridCols} gap-x-6 gap-y-2`}>
-                                          {customFieldsWithValues.map((field) => (
-                                            <div key={field.customFieldId} className="flex flex-col space-y-0.5 min-w-0">
-                                              <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide" id={`field-label-${attendee.id}-${field.customFieldId}`}>
-                                                {field.fieldName}
-                                              </span>
-                                              <div className="text-sm font-medium text-foreground min-w-0" aria-labelledby={`field-label-${attendee.id}-${field.customFieldId}`}>
+                                    <div className={`grid grid-cols-1 ${getGridColumns(customFieldsWithValues.length)} gap-x-6 gap-y-2`}>
+                                      {customFieldsWithValues.map((field) => (
+                                        <div key={field.customFieldId} className="flex flex-col space-y-0.5 min-w-0">
+                                          <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide" id={`field-label-${attendee.id}-${field.customFieldId}`}>
+                                            {field.fieldName}
+                                          </span>
+                                          <div className="text-sm font-medium text-foreground min-w-0" aria-labelledby={`field-label-${attendee.id}-${field.customFieldId}`}>
                                                 {field.fieldType === 'url' ? (
                                                   <a
                                                     href={field.value || ''}
@@ -4743,8 +4869,6 @@ export default function Dashboard() {
                                             </div>
                                           ))}
                                         </div>
-                                      );
-                                    })()}
                                   </div>
                                 </TableCell>
                               </TableRow>
@@ -4771,78 +4895,52 @@ export default function Dashboard() {
                           Previous
                         </Button>
                         <div className="flex items-center space-x-1">
-                          {(() => {
-                            const pages = [];
-                            const maxVisiblePages = 5;
-
-                            let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
-                            const endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
-
-                            if (endPage - startPage + 1 < maxVisiblePages) {
-                              startPage = Math.max(1, endPage - maxVisiblePages + 1);
-                            }
-
-                            // Add first page and ellipsis if needed
-                            if (startPage > 1) {
-                              pages.push(
-                                <Button
-                                  key={1}
-                                  variant={1 === currentPage ? "default" : "outline"}
-                                  size="sm"
-                                  onClick={() => handlePageChange(1)}
-                                  className="w-8 h-8 p-0"
-                                >
-                                  1
-                                </Button>
-                              );
-                              if (startPage > 2) {
-                                pages.push(
-                                  <span key="ellipsis1" className="text-muted-foreground px-1">
-                                    ...
-                                  </span>
-                                );
-                              }
-                            }
-
-                            // Add visible page numbers
-                            for (let i = startPage; i <= endPage; i++) {
-                              pages.push(
-                                <Button
-                                  key={i}
-                                  variant={i === currentPage ? "default" : "outline"}
-                                  size="sm"
-                                  onClick={() => handlePageChange(i)}
-                                  className="w-8 h-8 p-0"
-                                >
-                                  {i}
-                                </Button>
-                              );
-                            }
-
-                            // Add ellipsis and last page if needed
-                            if (endPage < totalPages) {
-                              if (endPage < totalPages - 1) {
-                                pages.push(
-                                  <span key="ellipsis2" className="text-muted-foreground px-1">
-                                    ...
-                                  </span>
-                                );
-                              }
-                              pages.push(
-                                <Button
-                                  key={totalPages}
-                                  variant={totalPages === currentPage ? "default" : "outline"}
-                                  size="sm"
-                                  onClick={() => handlePageChange(totalPages)}
-                                  className="w-8 h-8 p-0"
-                                >
-                                  {totalPages}
-                                </Button>
-                              );
-                            }
-
-                            return pages;
-                          })()}
+                          {/* First page and ellipsis if needed */}
+                          {attendeesPaginationPages[0] > 1 && (
+                            <>
+                              <Button
+                                variant={1 === currentPage ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => handlePageChange(1)}
+                                className="w-8 h-8 p-0"
+                              >
+                                1
+                              </Button>
+                              {attendeesPaginationPages[0] > 2 && (
+                                <span className="text-muted-foreground px-1">...</span>
+                              )}
+                            </>
+                          )}
+                          
+                          {/* Visible page numbers */}
+                          {attendeesPaginationPages.map(page => (
+                            <Button
+                              key={page}
+                              variant={page === currentPage ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => handlePageChange(page)}
+                              className="w-8 h-8 p-0"
+                            >
+                              {page}
+                            </Button>
+                          ))}
+                          
+                          {/* Ellipsis and last page if needed */}
+                          {attendeesPaginationPages[attendeesPaginationPages.length - 1] < totalPages && (
+                            <>
+                              {attendeesPaginationPages[attendeesPaginationPages.length - 1] < totalPages - 1 && (
+                                <span className="text-muted-foreground px-1">...</span>
+                              )}
+                              <Button
+                                variant={totalPages === currentPage ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => handlePageChange(totalPages)}
+                                className="w-8 h-8 p-0"
+                              >
+                                {totalPages}
+                              </Button>
+                            </>
+                          )}
                         </div>
                         <Button
                           variant="outline"
@@ -5169,7 +5267,7 @@ export default function Dashboard() {
                       </div>
                       <div className="ml-4">
                         <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Active Users</p>
-                        <p className="text-4xl font-bold text-emerald-900 dark:text-emerald-100">{users.filter(u => u.role).length}</p>
+                        <p className="text-4xl font-bold text-emerald-900 dark:text-emerald-100">{usersWithRolesCount}</p>
                       </div>
                     </CardContent>
                   </Card>
@@ -5180,7 +5278,7 @@ export default function Dashboard() {
                       </div>
                       <div className="ml-4">
                         <p className="text-sm font-medium text-purple-700 dark:text-purple-300">Unassigned Users</p>
-                        <p className="text-4xl font-bold text-purple-900 dark:text-purple-100">{users.filter(u => !u.role).length}</p>
+                        <p className="text-4xl font-bold text-purple-900 dark:text-purple-100">{unassignedUsersCount}</p>
                       </div>
                     </CardContent>
                   </Card>
@@ -5192,7 +5290,7 @@ export default function Dashboard() {
                       <div className="ml-4">
                         <p className="text-sm font-medium text-amber-700 dark:text-amber-300">Categories</p>
                         <p className="text-4xl font-bold text-amber-900 dark:text-amber-100">
-                          {roles.length > 0 ? new Set(roles.flatMap(role => Object.keys(role.permissions || {}))).size : 0}
+                          {permissionCategoriesCount}
                         </p>
                       </div>
                     </CardContent>
@@ -5252,32 +5350,7 @@ export default function Dashboard() {
                           <p className="text-sm font-medium text-blue-700 dark:text-blue-300">Event Details</p>
                           <p className="text-2xl font-bold text-blue-900 dark:text-blue-100 truncate" title={eventSettings.eventName}>{eventSettings.eventName}</p>
                           <p className="text-xs text-blue-700 dark:text-blue-300 truncate">
-                            {(() => {
-                              // Handle date properly to avoid timezone issues
-                              const dateValue = eventSettings.eventDate;
-
-                              if (!dateValue) return 'No date set';
-
-                              // Convert to string if it's not already
-                              const dateStr = typeof dateValue === 'string' ? dateValue : String(dateValue);
-
-                              // Extract just the date part if it's an ISO string
-                              let datePart = dateStr;
-                              if (dateStr.includes('T')) {
-                                datePart = dateStr.split('T')[0];
-                              }
-
-                              // Parse as local date to avoid timezone conversion issues
-                              const [year, month, day] = datePart.split('-').map(Number);
-                              const localDate = new Date(year, month - 1, day);
-
-                              // Format the date without timezone conversion
-                              return localDate.toLocaleDateString('en-US', {
-                                year: 'numeric',
-                                month: 'long',
-                                day: 'numeric'
-                              });
-                            })()} • {eventSettings.eventLocation}
+                            {formattedEventDate} • {eventSettings.eventLocation}
                           </p>
                         </div>
                       </CardContent>
@@ -5333,37 +5406,10 @@ export default function Dashboard() {
                               <span className="font-medium">Event Name:</span> {eventSettings.eventName || 'Not set'}
                             </div>
                             <div>
-                              <span className="font-medium">Event Date:</span> {eventSettings.eventDate ? (() => {
-                                const dateValue = eventSettings.eventDate;
-                                if (!dateValue) return 'No date set';
-                                const dateStr = typeof dateValue === 'string' ? dateValue : String(dateValue);
-                                let datePart = dateStr;
-                                if (dateStr.includes('T')) {
-                                  datePart = dateStr.split('T')[0];
-                                }
-                                const [year, month, day] = datePart.split('-').map(Number);
-                                const localDate = new Date(year, month - 1, day);
-                                return localDate.toLocaleDateString('en-US', {
-                                  year: 'numeric',
-                                  month: 'long',
-                                  day: 'numeric'
-                                });
-                              })() : 'Not set'}
+                              <span className="font-medium">Event Date:</span> {formattedEventDate}
                             </div>
                             <div>
-                              <span className="font-medium">Event Time:</span> {eventSettings.eventTime ? (() => {
-                                const timeZone = eventSettings.timeZone || 'America/Los_Angeles';
-                                const timeStr = eventSettings.eventTime;
-                                const today = new Date();
-                                const [hours, minutes] = timeStr.split(':').map(Number);
-                                const eventDateTime = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes);
-                                return eventDateTime.toLocaleTimeString('en-US', {
-                                  hour: 'numeric',
-                                  minute: '2-digit',
-                                  hour12: true,
-                                  timeZone: timeZone
-                                });
-                              })() : 'Not set'}
+                              <span className="font-medium">Event Time:</span> {formattedEventTime || 'Not set'}
                             </div>
                             <div>
                               <span className="font-medium">Location:</span> {eventSettings.eventLocation || 'Not set'}
@@ -5462,17 +5508,7 @@ export default function Dashboard() {
                         <div className="flex items-center justify-between pt-4 border-t">
                           <div>
                             <p className="text-sm text-muted-foreground">
-                              {(() => {
-                                const timestamp = eventSettings.updatedAt || eventSettings.$updatedAt || eventSettings.createdAt || eventSettings.$createdAt;
-                                if (!timestamp) return 'Last updated: Unknown';
-                                try {
-                                  const date = new Date(timestamp);
-                                  if (isNaN(date.getTime())) return 'Last updated: Unknown';
-                                  return `Last updated ${date.toLocaleDateString()} at ${date.toLocaleTimeString()}`;
-                                } catch {
-                                  return 'Last updated: Unknown';
-                                }
-                              })()}
+                              {formattedLastUpdated}
                             </p>
                           </div>
                           {hasPermission(currentUser?.role, 'eventSettings', 'update') && (
@@ -5540,11 +5576,7 @@ export default function Dashboard() {
                     <div className="ml-4">
                       <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Today&apos;s Activities</p>
                       <p className="text-4xl font-bold text-emerald-900 dark:text-emerald-100">
-                        {logs.filter(log => {
-                          const logDate = new Date(log.createdAt).toDateString();
-                          const today = new Date().toDateString();
-                          return logDate === today;
-                        }).length}
+                        {todayActivitiesCount}
                       </p>
                     </div>
                   </CardContent>
@@ -5557,7 +5589,7 @@ export default function Dashboard() {
                     <div className="ml-4">
                       <p className="text-sm font-medium text-purple-700 dark:text-purple-300">Active Users</p>
                       <p className="text-4xl font-bold text-purple-900 dark:text-purple-100">
-                        {new Set(logs.filter(log => log.user).map(log => log.user.email)).size}
+                        {activeUsersCount}
                       </p>
                     </div>
                   </CardContent>
@@ -5570,14 +5602,7 @@ export default function Dashboard() {
                     <div className="ml-4 flex-1 min-w-0">
                       <p className="text-sm font-medium text-amber-700 dark:text-amber-300">Most Common</p>
                       <p className="text-lg font-bold text-amber-900 dark:text-amber-100 break-words">
-                        {(() => {
-                          const actionCounts = logs.reduce((acc: Record<string, number>, log) => {
-                            acc[log.action] = (acc[log.action] || 0) + 1;
-                            return acc;
-                          }, {});
-                          const mostCommon = Object.entries(actionCounts).sort(([, a], [, b]) => (b as number) - (a as number))[0];
-                          return mostCommon ? formatActionName(mostCommon[0]) : 'N/A';
-                        })()}
+                        {mostCommonAction}
                       </p>
                     </div>
                   </CardContent>
@@ -5749,31 +5774,10 @@ export default function Dashboard() {
                                   ) : (
                                     <div>
                                       <div className="font-medium">
-                                        {((): string => {
-                                          // Show the actual target (person name or target type)
-                                          if (log.details?.firstName && log.details?.lastName) {
-                                            return `${String(log.details.firstName)} ${String(log.details.lastName)}`;
-                                          } else if (log.details?.roleName) {
-                                            return String(log.details.roleName);
-                                          } else if (log.details?.target) {
-                                            return String(log.details.target);
-                                          } else {
-                                            return 'System';
-                                          }
-                                        })()}
+                                        {getLogTargetName(log.details)}
                                       </div>
                                       <div className="text-xs text-muted-foreground">
-                                        {((): string => {
-                                          // Show the category
-                                          const type = log.details?.type;
-                                          if (type === 'attendee' || type === 'attendees') return 'Attendee';
-                                          if (type === 'user' || type === 'users') return 'User';
-                                          if (type === 'role' || type === 'roles') return 'Role';
-                                          if (type === 'settings' || type === 'event_settings') return 'Settings';
-                                          if (type === 'system' || type === 'auth') return 'System Operation';
-                                          if (log.details?.target) return String(log.details.target);
-                                          return 'System';
-                                        })()}
+                                        {getLogTypeCategory(log.details)}
                                       </div>
                                     </div>
                                   )}
@@ -5798,38 +5802,7 @@ export default function Dashboard() {
                                     </div>
                                   ) : log.details?.changes ? (
                                     <div className="text-xs space-y-1">
-                                      {(() => {
-                                        const changes = log.details.changes;
-                                        if (Array.isArray(changes)) {
-                                          // Handle array format (field names only)
-                                          return <>Changed: {(changes as string[]).join(', ')}</>;
-                                        } else if (typeof changes === 'object' && changes !== null) {
-                                          // Check if it's the new format with from/to values
-                                          const hasFromTo = Object.values(changes).some((v: any) => v && typeof v === 'object' && 'from' in v && 'to' in v);
-                                          if (hasFromTo) {
-                                            // New format: { field: { from: bool, to: bool } }
-                                            return (
-                                              <div className="space-y-0.5">
-                                                {Object.entries(changes as Record<string, { from: boolean; to: boolean }>).map(([field, change]) => (
-                                                  <div key={field}>
-                                                    <span className="font-medium">{field}</span>: {String(change.from)} → {String(change.to)}
-                                                  </div>
-                                                ))}
-                                              </div>
-                                            );
-                                          } else {
-                                            // Legacy format: { field: boolean }
-                                            return <>Changed: {Object.entries(changes as Record<string, boolean>)
-                                              .filter(([, changed]) => changed)
-                                              .map(([field]) => field)
-                                              .join(', ')}
-                                            </>;
-                                          }
-                                        } else {
-                                          // Handle string format (fallback)
-                                          return <>Changed: {String(changes)}</>;
-                                        }
-                                      })()}
+                                      {formatComplexLogChanges(log.details.changes)}
                                     </div>
                                   ) : null}
                                   {log.details?.summary ? (
@@ -5880,83 +5853,55 @@ export default function Dashboard() {
 
                             {/* Page Numbers */}
                             <div className="flex items-center space-x-1">
-                              {(() => {
-                                const pages = [];
-                                const maxVisiblePages = 5;
-                                const currentPage = logsPagination.page;
-                                const totalPages = logsPagination.totalPages;
-
-                                let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
-                                const endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
-
-                                if (endPage - startPage + 1 < maxVisiblePages) {
-                                  startPage = Math.max(1, endPage - maxVisiblePages + 1);
-                                }
-
-                                // Add first page and ellipsis if needed
-                                if (startPage > 1) {
-                                  pages.push(
-                                    <Button
-                                      key={1}
-                                      variant={1 === currentPage ? "default" : "outline"}
-                                      size="sm"
-                                      onClick={() => handleLogsPageChange(1)}
-                                      className="w-8 h-8 p-0"
-                                      disabled={logsLoading}
-                                    >
-                                      1
-                                    </Button>
-                                  );
-                                  if (startPage > 2) {
-                                    pages.push(
-                                      <span key="ellipsis1" className="text-muted-foreground px-1">
-                                        ...
-                                      </span>
-                                    );
-                                  }
-                                }
-
-                                // Add visible page numbers
-                                for (let i = startPage; i <= endPage; i++) {
-                                  pages.push(
-                                    <Button
-                                      key={i}
-                                      variant={i === currentPage ? "default" : "outline"}
-                                      size="sm"
-                                      onClick={() => handleLogsPageChange(i)}
-                                      className="w-8 h-8 p-0"
-                                      disabled={logsLoading}
-                                    >
-                                      {i}
-                                    </Button>
-                                  );
-                                }
-
-                                // Add ellipsis and last page if needed
-                                if (endPage < totalPages) {
-                                  if (endPage < totalPages - 1) {
-                                    pages.push(
-                                      <span key="ellipsis2" className="text-muted-foreground px-1">
-                                        ...
-                                      </span>
-                                    );
-                                  }
-                                  pages.push(
-                                    <Button
-                                      key={totalPages}
-                                      variant={totalPages === currentPage ? "default" : "outline"}
-                                      size="sm"
-                                      onClick={() => handleLogsPageChange(totalPages)}
-                                      className="w-8 h-8 p-0"
-                                      disabled={logsLoading}
-                                    >
-                                      {totalPages}
-                                    </Button>
-                                  );
-                                }
-
-                                return pages;
-                              })()}
+                              {/* First page and ellipsis if needed */}
+                              {logsPaginationPages[0] > 1 && (
+                                <>
+                                  <Button
+                                    variant={1 === logsPagination.page ? "default" : "outline"}
+                                    size="sm"
+                                    onClick={() => handleLogsPageChange(1)}
+                                    className="w-8 h-8 p-0"
+                                    disabled={logsLoading}
+                                  >
+                                    1
+                                  </Button>
+                                  {logsPaginationPages[0] > 2 && (
+                                    <span className="text-muted-foreground px-1">...</span>
+                                  )}
+                                </>
+                              )}
+                              
+                              {/* Visible page numbers */}
+                              {logsPaginationPages.map(page => (
+                                <Button
+                                  key={page}
+                                  variant={page === logsPagination.page ? "default" : "outline"}
+                                  size="sm"
+                                  onClick={() => handleLogsPageChange(page)}
+                                  className="w-8 h-8 p-0"
+                                  disabled={logsLoading}
+                                >
+                                  {page}
+                                </Button>
+                              ))}
+                              
+                              {/* Ellipsis and last page if needed */}
+                              {logsPaginationPages[logsPaginationPages.length - 1] < logsPagination.totalPages && (
+                                <>
+                                  {logsPaginationPages[logsPaginationPages.length - 1] < logsPagination.totalPages - 1 && (
+                                    <span className="text-muted-foreground px-1">...</span>
+                                  )}
+                                  <Button
+                                    variant={logsPagination.totalPages === logsPagination.page ? "default" : "outline"}
+                                    size="sm"
+                                    onClick={() => handleLogsPageChange(logsPagination.totalPages)}
+                                    className="w-8 h-8 p-0"
+                                    disabled={logsLoading}
+                                  >
+                                    {logsPagination.totalPages}
+                                  </Button>
+                                </>
+                              )}
                             </div>
 
                             <Button
