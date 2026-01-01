@@ -57,23 +57,8 @@ jobs:
           # Create and checkout target branch tracking the remote
           git checkout --track origin/${{ steps.branches.outputs.target }} 2>/dev/null || git checkout ${{ steps.branches.outputs.target }}
           
-          echo "=== Current branch ===" 
-          git rev-parse --abbrev-ref HEAD
-          
-          echo "=== Before checkout ===" 
-          git status --short
-          
           # Get the latest docs from source branch
           git checkout origin/${{ steps.branches.outputs.source }} -- docs/ scripts/ .kiro/steering/
-          
-          echo "=== After checkout from origin/${{ steps.branches.outputs.source }} ===" 
-          git status --short
-          
-          echo "=== Staged changes ===" 
-          git diff --cached --stat
-          
-          echo "=== Comparing HEAD to source ===" 
-          git diff HEAD origin/${{ steps.branches.outputs.source }} -- docs/ scripts/ .kiro/steering/ --stat
           
           # Check if there are changes (compare index against HEAD)
           if git diff --cached --quiet; then
