@@ -1018,18 +1018,42 @@ export default function Dashboard() {
     return { displayCount, percentage };
   }, [attendees]);
 
-  const daysUntilEvent = useMemo(() => {
+  const timeUntilEvent = useMemo(() => {
     if (!eventSettings?.eventDate) return null;
-    // Parse YYYY-MM-DD as local date to avoid timezone offset issues
+    
+    // Parse YYYY-MM-DD as local date
     const [year, month, day] = eventSettings.eventDate.split('-').map(Number);
-    const eventDate = new Date(year, month - 1, day);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    eventDate.setHours(0, 0, 0, 0);
-    const diffTime = eventDate.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays >= 0 ? diffDays : 0;
-  }, [eventSettings?.eventDate]);
+    const now = new Date();
+    
+    // Build event datetime (use event time if available, otherwise end of day)
+    let eventDateTime: Date;
+    if (eventSettings?.eventTime) {
+      const [hours, minutes] = eventSettings.eventTime.split(':').map(Number);
+      eventDateTime = new Date(year, month - 1, day, hours, minutes);
+    } else {
+      eventDateTime = new Date(year, month - 1, day, 23, 59, 59);
+    }
+    
+    const diffMs = eventDateTime.getTime() - now.getTime();
+    
+    // Event has passed
+    if (diffMs <= 0) {
+      return { value: 'Event Ended', unit: '', isCompleted: true };
+    }
+    
+    const diffHours = diffMs / (1000 * 60 * 60);
+    const diffDays = diffMs / (1000 * 60 * 60 * 24);
+    
+    // Less than 24 hours - show hours
+    if (diffHours < 24) {
+      const hours = Math.ceil(diffHours);
+      return { value: hours, unit: hours === 1 ? 'Hour' : 'Hours', isCompleted: false };
+    }
+    
+    // 24+ hours - show days
+    const days = Math.ceil(diffDays);
+    return { value: days, unit: days === 1 ? 'Day' : 'Days', isCompleted: false };
+  }, [eventSettings?.eventDate, eventSettings?.eventTime]);
 
   // Enhanced filtering function for attendees including custom fields and photo filter
   const filteredAttendees = attendees
@@ -2944,15 +2968,17 @@ ${err.message || 'Failed to generate credential'}</pre>
             <div className="space-y-6">
               {/* Stats Cards */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 dark:from-blue-950/50 dark:to-blue-900/50 dark:border-blue-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
+                <Card className={`bg-gradient-to-br ${timeUntilEvent?.isCompleted ? 'from-slate-50 to-slate-100 border-slate-200 dark:from-slate-950/50 dark:to-slate-900/50 dark:border-slate-800/50' : 'from-blue-50 to-blue-100 border-blue-200 dark:from-blue-950/50 dark:to-blue-900/50 dark:border-blue-800/50'} hover:shadow-lg transition-all duration-300 hover:scale-105`}>
                   <CardContent className="flex items-center p-4">
-                    <div className="p-3 rounded-lg bg-blue-500/20 dark:bg-blue-400/20">
-                      <Calendar className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+                    <div className={`p-3 rounded-lg ${timeUntilEvent?.isCompleted ? 'bg-slate-500/20 dark:bg-slate-400/20' : 'bg-blue-500/20 dark:bg-blue-400/20'}`}>
+                      <Calendar className={`h-8 w-8 ${timeUntilEvent?.isCompleted ? 'text-slate-600 dark:text-slate-400' : 'text-blue-600 dark:text-blue-400'}`} />
                     </div>
                     <div className="ml-4">
-                      <p className="text-sm font-medium text-blue-700 dark:text-blue-300">Days Until Event</p>
-                      <p className="text-4xl font-bold text-blue-900 dark:text-blue-100">
-                        {daysUntilEvent !== null ? daysUntilEvent : '--'}
+                      <p className={`text-sm font-medium ${timeUntilEvent?.isCompleted ? 'text-slate-700 dark:text-slate-300' : 'text-blue-700 dark:text-blue-300'}`}>
+                        {timeUntilEvent?.isCompleted ? 'Event Status' : `${timeUntilEvent?.unit || 'Time'} Until Event`}
+                      </p>
+                      <p className={`text-4xl font-bold ${timeUntilEvent?.isCompleted ? 'text-slate-900 dark:text-slate-100 text-2xl' : 'text-blue-900 dark:text-blue-100'}`}>
+                        {timeUntilEvent ? timeUntilEvent.value : '--'}
                       </p>
                     </div>
                   </CardContent>
