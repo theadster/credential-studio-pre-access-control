@@ -82,3 +82,4 @@ jobs:
           echo "**Source Branch:** ${{ steps.branches.outputs.source }}" >> $GITHUB_STEP_SUMMARY
           echo "**Target Branch:** ${{ steps.branches.outputs.target }}" >> $GITHUB_STEP_SUMMARY
           echo "**Status:** ✅ Synced" >> $GITHUB_STEP_SUMMARY
+          echo "**Timestamp:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
