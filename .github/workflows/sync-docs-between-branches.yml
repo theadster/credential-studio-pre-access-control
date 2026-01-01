@@ -69,11 +69,7 @@ jobs:
           else
             echo "Documentation changes detected, creating commit"
             git add docs/ scripts/ .kiro/steering/
-            git commit -m "chore(docs): sync documentation from ${{ steps.branches.outputs.source }}
-
-Automated sync of documentation, scripts, and steering files.
-Source branch: ${{ steps.branches.outputs.source }}
-Target branch: ${{ steps.branches.outputs.target }}"
+            git commit -m "chore(docs): sync documentation from ${{ steps.branches.outputs.source }}" -m "Automated sync of documentation, scripts, and steering files." -m "Source branch: ${{ steps.branches.outputs.source }}" -m "Target branch: ${{ steps.branches.outputs.target }}"
             git push origin ${{ steps.branches.outputs.target }}
             echo "✅ Documentation synced successfully"
           fi
