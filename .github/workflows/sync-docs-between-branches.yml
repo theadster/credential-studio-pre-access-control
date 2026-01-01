@@ -57,14 +57,26 @@ jobs:
           # Create and checkout target branch tracking the remote
           git checkout --track origin/${{ steps.branches.outputs.target }} 2>/dev/null || git checkout ${{ steps.branches.outputs.target }}
           
+          echo "=== Before removal ===" 
+          ls -la docs/ | wc -l
+          
           # Remove existing docs/scripts/.kiro/steering to ensure clean sync (deletes are detected)
           rm -rf docs/ scripts/ .kiro/steering/
+          
+          echo "=== After removal ===" 
+          ls -la docs/ 2>&1 || echo "docs/ directory removed"
           
           # Get the latest docs from source branch
           git checkout origin/${{ steps.branches.outputs.source }} -- docs/ scripts/ .kiro/steering/
           
+          echo "=== After checkout ===" 
+          ls -la docs/ | wc -l
+          
           # Stage all changes (including deletions)
           git add -A docs/ scripts/ .kiro/steering/
+          
+          echo "=== Staged changes ===" 
+          git diff --cached --stat
           
           # Check if there are changes (compare index against HEAD)
           if git diff --cached --quiet; then
