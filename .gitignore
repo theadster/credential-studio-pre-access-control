@@ -36,7 +36,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Development documentation and scripts (local only)
-docs/
-scripts/
-.kiro/
+# Development documentation and scripts
+# Now tracked in git for team collaboration
+# docs/        # TRACKED - documentation system
+# scripts/     # TRACKED - automation scripts
+# .kiro/       # TRACKED - steering and workflows
