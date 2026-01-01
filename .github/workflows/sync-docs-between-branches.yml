@@ -57,15 +57,20 @@ jobs:
           # Create and checkout target branch tracking the remote
           git checkout --track origin/${{ steps.branches.outputs.target }} 2>/dev/null || git checkout ${{ steps.branches.outputs.target }}
           
+          # Remove existing docs/scripts/.kiro/steering to ensure clean sync (deletes are detected)
+          rm -rf docs/ scripts/ .kiro/steering/
+          
           # Get the latest docs from source branch
           git checkout origin/${{ steps.branches.outputs.source }} -- docs/ scripts/ .kiro/steering/
+          
+          # Stage all changes (including deletions)
+          git add -A docs/ scripts/ .kiro/steering/
           
           # Check if there are changes (compare index against HEAD)
           if git diff --cached --quiet; then
             echo "No documentation changes to sync"
           else
             echo "Documentation changes detected, creating commit"
-            git add docs/ scripts/ .kiro/steering/
             git commit -m "chore(docs): sync documentation from ${{ steps.branches.outputs.source }}" -m "Automated sync of documentation, scripts, and steering files." -m "Source branch: ${{ steps.branches.outputs.source }}" -m "Target branch: ${{ steps.branches.outputs.target }}"
             git push origin ${{ steps.branches.outputs.target }}
             echo "✅ Documentation synced successfully"
