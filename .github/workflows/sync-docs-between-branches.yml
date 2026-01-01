@@ -51,23 +51,11 @@ jobs:
       - name: Sync documentation to target branch
         if: steps.check-branch.outputs.exists == 'true'
         run: |
-          # Debug: Show available branches
-          echo "Available branches:"
-          git branch -a
-          
-          # Checkout target branch
-          git checkout ${{ steps.branches.outputs.target }}
-          
-          # Debug: Show current branch
-          echo "Current branch: $(git rev-parse --abbrev-ref HEAD)"
+          # Checkout target branch using remote tracking branch
+          git checkout -B ${{ steps.branches.outputs.target }} origin/${{ steps.branches.outputs.target }}
           
           # Get the latest docs from source branch
-          echo "Fetching from origin/${{ steps.branches.outputs.source }}"
           git checkout origin/${{ steps.branches.outputs.source }} -- docs/ scripts/ .kiro/steering/
-          
-          # Debug: Show staged changes
-          echo "Staged changes:"
-          git diff --cached --name-only
           
           # Check if there are changes (compare index against HEAD)
           if git diff --cached --quiet; then
