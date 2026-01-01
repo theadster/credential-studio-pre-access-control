@@ -51,6 +51,9 @@ jobs:
       - name: Sync documentation to target branch
         if: steps.check-branch.outputs.exists == 'true'
         run: |
+          # Ensure we have all remote tracking branches
+          git fetch origin
+          
           # Checkout target branch using remote tracking branch
           git checkout -B ${{ steps.branches.outputs.target }} origin/${{ steps.branches.outputs.target }}
           
