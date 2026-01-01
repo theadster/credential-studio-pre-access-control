@@ -1,3 +1,13 @@
+---
+title: "Role User Count Caching Implementation"
+type: canonical
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 90
+related_code: ["src/lib/cache.ts", "src/pages/api/roles/"]
+---
+
 # Role User Count Caching Implementation
 
 ## Overview

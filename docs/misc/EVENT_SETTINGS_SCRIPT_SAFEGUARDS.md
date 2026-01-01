@@ -1,3 +1,13 @@
+---
+title: "Event Settings Recreation Script - Safeguards Implementation"
+type: canonical
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 90
+related_code: ["src/scripts/recreate-event-settings-fresh.ts"]
+---
+
 # Event Settings Recreation Script - Safeguards Implementation
 
 ## Overview

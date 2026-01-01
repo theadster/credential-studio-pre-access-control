@@ -1,3 +1,13 @@
+---
+title: "Log Settings Collection Schema Migration"
+type: runbook
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 180
+related_code: ["scripts/setup-appwrite.ts"]
+---
+
 # Log Settings Collection Schema Migration
 
 ## Date

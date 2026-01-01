@@ -1,3 +1,13 @@
+---
+title: "Event Settings Migration - Complete Summary"
+type: runbook
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 180
+related_code: ["scripts/setup-appwrite.ts"]
+---
+
 # Event Settings Migration - Complete Summary
 
 ## ✅ Migration Successfully Completed!

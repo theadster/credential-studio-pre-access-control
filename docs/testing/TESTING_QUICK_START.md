@@ -1,3 +1,13 @@
+---
+title: "Quick Start: Testing Delete Logs"
+type: runbook
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 90
+related_code: ["vitest.config.ts", "src/__tests__/"]
+---
+
 # Quick Start: Testing Delete Logs
 
 ## 1. Inject Test Data

@@ -1,3 +1,13 @@
+---
+title: "Attendees UI Improvements"
+type: canonical
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 90
+related_code: ["src/components/AttendeeList.tsx", "src/components/AttendeeForm.tsx"]
+---
+
 # Attendees UI Improvements
 
 ## Overview

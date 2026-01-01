@@ -1,3 +1,13 @@
+---
+title: Documentation Reorganization Summary
+type: canonical
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 90
+related_code: []
+---
+
 # Documentation Reorganization Summary
 
 All documentation has been reorganized from the project root into structured directories.

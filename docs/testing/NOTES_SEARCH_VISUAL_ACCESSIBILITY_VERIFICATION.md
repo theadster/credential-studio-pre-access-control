@@ -1,3 +1,13 @@
+---
+title: "Notes Search Visual Design and Accessibility Verification"
+type: worklog
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 30
+related_code: ["src/__tests__/"]
+---
+
 # Notes Search Visual Design and Accessibility Verification
 
 This document provides a comprehensive checklist for manually verifying the visual design and accessibility of the Notes search feature in the advanced search dialog.

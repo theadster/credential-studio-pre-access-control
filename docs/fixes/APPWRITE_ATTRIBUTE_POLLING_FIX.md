@@ -1,3 +1,13 @@
+---
+title: "Appwrite Attribute Polling Fix"
+type: canonical
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 90
+related_code: ["src/lib/appwrite.ts"]
+---
+
 # Appwrite Attribute Polling Fix
 
 ## Issue

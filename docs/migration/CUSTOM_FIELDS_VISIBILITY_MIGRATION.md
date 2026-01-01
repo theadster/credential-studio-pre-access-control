@@ -1,3 +1,13 @@
+---
+title: "Custom Fields Visibility Control Migration"
+type: runbook
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 180
+related_code: ["scripts/setup-appwrite.ts"]
+---
+
 # Custom Fields Visibility Control Migration
 
 ## Overview

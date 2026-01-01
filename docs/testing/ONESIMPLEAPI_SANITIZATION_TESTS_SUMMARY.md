@@ -1,3 +1,13 @@
+---
+title: "OneSimpleAPI HTML Sanitization Tests Summary"
+type: worklog
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 30
+related_code: ["src/__tests__/"]
+---
+
 # OneSimpleAPI HTML Sanitization Tests Summary
 
 ## Overview

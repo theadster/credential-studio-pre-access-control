@@ -1,3 +1,13 @@
+---
+title: "Bulk Operations - Canonical Implementation"
+type: canonical
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 90
+related_code: ["src/lib/bulkOperations.ts", "src/pages/api/attendees/bulk-delete.ts", "src/pages/api/attendees/bulk-edit.ts"]
+---
+
 # Bulk Operations - Canonical Implementation
 
 ## Overview

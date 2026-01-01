@@ -1,3 +1,13 @@
+---
+title: "Bulk Delete Timestamp Attribute Fix"
+type: canonical
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 90
+related_code: ["src/pages/api/attendees/bulk-delete.ts"]
+---
+
 # Bulk Delete Timestamp Attribute Fix
 
 ## Issue Summary

@@ -1,3 +1,13 @@
+---
+title: "Switchboard Canvas Configuration Guide"
+type: canonical
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 90
+related_code: ["src/pages/api/attendees/[id]/generate-credential.ts"]
+---
+
 # Switchboard Canvas Configuration Guide
 
 ## Testing Your Configuration

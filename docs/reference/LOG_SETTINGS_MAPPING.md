@@ -1,3 +1,13 @@
+---
+title: "Log Settings to Action Mapping"
+type: canonical
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 90
+related_code: ["src/lib/logSettings.ts", "src/pages/api/log-settings/index.ts", "src/components/LogSettingsDialog.tsx"]
+---
+
 # Log Settings to Action Mapping
 
 ## Date

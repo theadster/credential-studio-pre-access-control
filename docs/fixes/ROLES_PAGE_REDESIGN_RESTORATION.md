@@ -1,3 +1,13 @@
+---
+title: "Roles Page Redesign Restoration"
+type: canonical
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 90
+related_code: ["src/pages/roles.tsx", "src/components/RoleCard.tsx"]
+---
+
 # Roles Page Redesign Restoration
 
 ## Issue Summary

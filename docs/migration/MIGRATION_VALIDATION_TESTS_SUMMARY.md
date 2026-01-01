@@ -1,3 +1,13 @@
+---
+title: "Migration Script Validation Tests Summary"
+type: runbook
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 180
+related_code: ["scripts/verify-appwrite-setup.ts"]
+---
+
 # Migration Script Validation Tests Summary
 
 ## Overview

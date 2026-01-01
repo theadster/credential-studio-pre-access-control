@@ -1,371 +1,230 @@
-# Documentation
+# credential.studio Documentation
 
-This directory contains all project documentation organized by category.
+Welcome to the credential.studio documentation system. This documentation is organized by knowledge domain and maintained using a hybrid approach that combines physical folder organization with metadata-driven lifecycle management.
 
-## Directory Structure
+## Documentation Organization
 
+Our documentation is organized into **active** categories that represent different knowledge domains:
+
+### 📚 Active Documentation Categories
+
+| Category | Purpose | Files | Status |
+|----------|---------|-------|--------|
+| **guides/** | How-to guides, implementation patterns, best practices | 41 | Active |
+| **reference/** | API specs, data models, configuration reference | 3 | Active |
+| **migration/** | Appwrite migration runbooks and schema documentation | 16 | Active |
+| **testing/** | Test coverage, testing strategies, test guides | 21 | Active |
+| **fixes/** | Active bug fix patterns and known issues | 20 | Active |
+| **enhancements/** | Implemented features and enhancements | 19 | Active |
+| **misc/** | Miscellaneous references and utilities | 9 | Active |
+
+**Total Active Files:** 129
+
+### 📦 Archive
+
+Historical documentation is preserved in `_archive/` for reference and knowledge retention:
+
+- **_archive/fixes/** (275 files) - Resolved bugs and investigations
+- **_archive/migrations/** (7 files) - Completed migration runbooks
+- **_archive/testing/** (24 files) - Completed test documentation
+- **_archive/guides/** (39 files) - Superseded implementation guides
+- **_archive/enhancements/** (6 files) - Superseded feature documentation
+- **_archive/misc/** (7 files) - Resolved miscellaneous items
+
+**Total Archived Files:** 358
+
+See [Archive README](_archive/README.md) for more information.
+
+---
+
+## Documentation Metadata Schema
+
+All active documentation files should include frontmatter metadata to enable automation and maintain clarity about document status and ownership.
+
+### Frontmatter Template
+
+Add this to the top of every documentation file:
+
+```yaml
+---
+title: "Document Title"
+type: canonical | adr | worklog | runbook
+status: active | superseded | archived
+owner: "@username"
+last_verified: YYYY-MM-DD
+review_interval_days: 90
+related_code: ["src/lib/auth.ts", "app/api/auth/"]
+superseded_by: "../path/to/new-doc.md"  # if applicable
+---
 ```
-docs/
-├── fixes/          # Bug fixes and issue resolutions
-├── migration/      # Supabase to Appwrite migration documentation
-├── testing/        # Test summaries and testing guides
-├── guides/         # User guides and how-to documentation
-└── misc/           # Miscellaneous documentation
-```
 
-## Quick Links
+### Metadata Field Definitions
 
-### Canonical Implementations
-- [**Bulk Operations (TablesDB)**](./misc/BULK_OPERATIONS_CANONICAL.md) - ✅ **CANONICAL:** TablesDB atomic operations for bulk edit/delete/import
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `title` | string | Yes | Document title |
+| `type` | enum | Yes | `canonical` (always current), `adr` (decision record), `worklog` (high-churn), `runbook` (operational) |
+| `status` | enum | Yes | `active` (current), `superseded` (replaced), `archived` (historical) |
+| `owner` | string | Yes | GitHub username or team handle responsible for maintenance |
+| `last_verified` | date | Yes | Last date document was reviewed for accuracy (YYYY-MM-DD) |
+| `review_interval_days` | number | Yes | How often doc should be reviewed (90/180/365) |
+| `related_code` | array | No | File paths related to this documentation |
+| `superseded_by` | string | No | Path to document that replaces this one |
 
-### Recent Enhancements
-- [**Custom Field Columns Configuration**](./enhancements/CUSTOM_FIELD_COLUMNS_SETTING.md) - ✅ Configure custom field column layout (3-10 columns) for different screen resolutions
-- [**Attendees Pagination Improvement**](./enhancements/ATTENDEES_PAGINATION_IMPROVEMENT.md) - ✅ Show first/last page with ellipsis for better navigation
-- [**Bulk Import API Key Enhancement**](./enhancements/BULK_IMPORT_API_KEY_ENHANCEMENT.md) - Use API key for bulk imports to prevent rate limiting
-- [**Bulk Delete Log Size Fix**](./fixes/BULK_DELETE_LOG_SIZE_FIX.md) - Use API key for bulk deletes and handle large log entries
+### Review Intervals by Type
 
-### Recent Fixes
-- [**Custom Field Advanced Filter Searchability**](./fixes/CUSTOM_FIELD_ADVANCED_FILTER_SEARCHABILITY.md) - ✅ Hidden custom fields are searchable in Advanced Filters (showOnMainPage only affects table display) - **ALL TESTS PASSING**
-- [**Batch Fetching Tests**](./fixes/BATCH_FETCHING_TESTS_COMPLETED.md) - ✅ Updated batch fetching integration tests to match new mock pattern - **COMPLETED**
-- [**🧠 Memory Leak Fixes**](./fixes/MEMORY_LEAK_FIXES_IMPLEMENTED.md) - ✅ **FIXED:** Dashboard memory leak with conditional subscriptions and debouncing
-- [**📊 Memory Leak Analysis**](./fixes/MEMORY_LEAK_ANALYSIS.md) - 🔍 **ANALYSIS:** Root cause analysis of dashboard memory accumulation
-- [**🔧 Bulk Delete Timestamp Fix**](./fixes/BULK_DELETE_TIMESTAMP_FIX.md) - ✅ **FIXED:** Removed invalid timestamp attribute from audit logs
-- [**🔒 Email Verification Security Fix**](./fixes/EMAIL_VERIFICATION_SECURITY_FIX.md) - ✅ **CRITICAL:** Fixed automatic verification bypass
-- [**📧 Email Verification Appwrite Limitation**](./fixes/EMAIL_VERIFICATION_APPWRITE_LIMITATION.md) - ⚠️ **IMPORTANT:** Appwrite doesn't support admin-initiated email verification
-- [**Email Verification Fix Summary**](./fixes/EMAIL_VERIFICATION_FIX_SUMMARY.md) - Quick reference for the email verification security fix
-- [**🔑 Password Reset Feature**](./fixes/PASSWORD_RESET_FEATURE_SUMMARY.md) - ✅ **NEW:** Administrators can now send password reset emails to users
-- [**🔑 Password Reset in Edit Dialog**](./fixes/PASSWORD_RESET_EDIT_USER_DIALOG.md) - ✅ **ENHANCED:** Password reset now available directly in Edit User dialog
-- [**🔧 Password Reset User ID Fix**](./fixes/PASSWORD_RESET_USER_ID_FIX.md) - ✅ **FIXED:** Resolved userId fetching issue
-- [**🔧 Password Reset API Method Fix**](./fixes/PASSWORD_RESET_API_METHOD_FIX.md) - ✅ **FIXED:** Corrected API method from Users to Account API
-- [**Roles Page Redesign Restoration**](./fixes/ROLES_PAGE_REDESIGN_RESTORATION.md) - ✅ Restored modern role card design by importing and using RoleCard component
-- [**Role User Assignment Display Fix**](./fixes/ROLE_USER_ASSIGNMENT_FIX.md) - ✅ Fixed role cards showing "no users assigned" by normalizing API field names
-- [**Bulk Operations Pagination Reset Fix**](./fixes/BULK_OPERATIONS_PAGINATION_RESET_FIX.md) - ✅ Reset to page 1 after bulk delete/edit to prevent empty pages
-- [**🎉 Import Complete Fix Session Summary**](./fixes/IMPORT_COMPLETE_FIX_SESSION_SUMMARY.md) - ✅ **COMPREHENSIVE: All 8 import issues fixed and verified**
-- [**Boolean Field Data Corruption Fix**](./fixes/BOOLEAN_FIELD_DATA_CORRUPTION_FIX.md) - 🔴 CRITICAL: Fixed Switch component storing 'true'/'false' instead of 'yes'/'no', includes migration script
-- [**Boolean Field Documentation Added**](./fixes/BOOLEAN_FIELD_DOCUMENTATION_ADDED.md) - 📝 Added comprehensive comments throughout codebase to prevent future boolean format issues
-- [**Boolean Scripts Data Structure Fix**](./fixes/BOOLEAN_SCRIPTS_DATA_STRUCTURE_FIX.md) - 🔴 CRITICAL: Fixed migration scripts to handle JSON string format correctly
-- [**Boolean Display Graceful Handling**](./fixes/BOOLEAN_DISPLAY_GRACEFUL_HANDLING.md) - ✨ Enhanced display logic to gracefully handle both 'yes'/'no' and legacy 'true'/'false' values
-- [**Import Notes and Uppercase Fix**](./fixes/IMPORT_NOTES_AND_UPPERCASE_FIX.md) - ✅ Fixed notes field null issue and custom field uppercase transformation
-- [**Custom Field Storage Format Consistency Fix**](./fixes/CUSTOM_FIELD_STORAGE_FORMAT_CONSISTENCY_FIX.md) - ✅ Fixed update endpoint to use object format, preventing false change detection
-- [**Import Boolean Format Fix**](./fixes/IMPORT_BOOLEAN_FORMAT_FIX.md) - ✅ Fixed boolean values to use 'yes'/'no' instead of 'true'/'false'
-- [**Import API Response and Boolean Debug**](./fixes/IMPORT_API_RESPONSE_AND_BOOLEAN_DEBUG.md) - Fixed async response handling and logs API noise
-- [**Legacy Scripts Cleanup**](./fixes/LEGACY_SCRIPTS_CLEANUP_SUMMARY.md) - Archived legacy migration scripts and removed deprecated dependencies
-- [**TypeScript and Lint Fixes**](./fixes/TYPESCRIPT_LINT_FIXES_SUMMARY.md) - Fixed critical syntax errors and configured ESLint properly
-- [**Custom Fields Enhancements Summary**](./fixes/CUSTOM_FIELDS_ENHANCEMENTS_SUMMARY.md) - Complete overview of optimistic locking and soft delete features
-- [**Custom Fields Soft Delete**](./fixes/CUSTOM_FIELDS_SOFT_DELETE.md) - Implemented soft delete with deletedAt timestamp to handle orphaned data safely
-- [**Custom Fields Optimistic Locking**](./fixes/CUSTOM_FIELDS_OPTIMISTIC_LOCKING.md) - Implemented version-based concurrency control for custom field updates
-- [**Appwrite Attribute Polling Fix**](./fixes/APPWRITE_ATTRIBUTE_POLLING_FIX.md) - Replaced hardcoded sleep with intelligent retry logic
-- [**CRITICAL: Bulk Edit Data Loss Fix**](./fixes/CRITICAL_BULK_EDIT_DATA_LOSS_FIX.md) - 🚨 Fixed data loss bug in bulk edit
-- [Credential Generation Empty Placeholder Fix](./fixes/CREDENTIAL_GENERATION_EMPTY_PLACEHOLDER_FIX.md) - Fixed invalid JSON from empty placeholders
-- [Bulk Credential Generation Timestamp Fix](./fixes/BULK_CREDENTIAL_GENERATION_TIMESTAMP_FIX.md) - Fixed timestamp mismatch between UI and bulk generation
-- [Custom Field Validation Fix](./fixes/CUSTOM_FIELD_VALIDATION_FIX.md) - Handle deleted custom fields gracefully
-- [Token Refresh Session Expiration Fix](./fixes/TOKEN_REFRESH_SESSION_EXPIRATION_FIX.md) - Session validation and error handling
-- [Session Timeout Improvements](./fixes/SESSION_TIMEOUT_IMPROVEMENTS.md) - Enhanced session management
-- [Credential Generation Fixes](./fixes/CREDENTIAL_GENERATION_FIXES_SUMMARY.md) - Complete fix summary
-- [Credential Status Fix](./fixes/CREDENTIAL_STATUS_FIX.md) - CURRENT vs OUTDATED status
-- [Custom Field Values Fix](./fixes/CUSTOM_FIELD_VALUES_FIX.md) - Array/object format mismatch
-- [Integration Architecture Fix](./fixes/INTEGRATION_ARCHITECTURE_FIX.md) - Separate collections
-- [Template ID Fix](./fixes/TEMPLATE_ID_FIX.md) - Missing UI field
-- [Regex Escape Bug Fix](./fixes/REGEX_ESCAPE_BUG_FIX.md) - Corrupted regex patterns
-- [Debug Tools Moved](./fixes/DEBUG_TOOLS_MOVED.md) - Debug tools reorganization
+- **canonical:** 90 days (frequently changes)
+- **adr:** 365 days (rarely changes)
+- **worklog:** 30 days (high churn)
+- **runbook:** 180 days (operational)
 
-### Migration Documentation
-- [**UserForm Modular Migration**](./migration/USERFORM_MODULAR_MIGRATION.md) - ✅ Migrated from monolithic to modular UserForm architecture
-- [**Event Settings Migration Schema**](./migration/EVENT_SETTINGS_MIGRATION_SCHEMA.md) - 📋 Canonical schema for Event Settings migration
-- [**Migration Scripts Alignment**](./migration/MIGRATION_SCRIPTS_ALIGNMENT_SUMMARY.md) - ✅ Verification that both migration scripts use identical schemas
-- [Migration Status](./migration/MIGRATION_STATUS.md) - Overall migration progress
-- [Migration Complete Summary](./migration/MIGRATION_COMPLETE_SUMMARY.md) - Final summary
-- [Appwrite Configuration](./migration/APPWRITE_CONFIGURATION.md) - Database structure
-- [Appwrite Setup](./migration/APPWRITE_SETUP.md) - Setup instructions
-- [Integration Collections Migration](./migration/INTEGRATION_COLLECTIONS_MIGRATION.md) - Normalized design
+---
 
-### Testing Documentation
-- [Test Summary](./testing/TEST_SUMMARY.md) - Overall test coverage
-- [E2E Tests Summary](./testing/E2E_TESTS_SUMMARY.md) - End-to-end tests
-- [Auth User Linking Integration Tests](./testing/AUTH_USER_LINKING_INTEGRATION_TESTS_SUMMARY.md) - Auth user linking tests
-- [Attendee API Tests](./testing/ATTENDEE_API_TESTS_SUMMARY.md)
-- [Custom Field API Tests](./testing/CUSTOM_FIELD_API_TESTS_SUMMARY.md)
-- [Invitation API Tests](./testing/INVITATION_API_TESTS_SUMMARY.md)
-- [Logs API Tests](./testing/LOGS_API_TESTS_SUMMARY.md)
-- [Realtime Tests](./testing/REALTIME_TESTS_SUMMARY.md)
-- [User Management API Tests](./testing/USER_MANAGEMENT_API_TESTS_SUMMARY.md)
+## Quick Navigation
 
-### API Reference
-- [**📖 API Transactions Reference**](./reference/API_TRANSACTIONS_REFERENCE.md) - 🔥 **NEW:** Complete API reference for transaction-enabled endpoints
-  - Transaction behavior and atomicity guarantees
-  - Error responses with HTTP status codes
-  - Retry behavior and exponential backoff
-  - Fallback scenarios and performance metrics
-  - All bulk operations, single operations, and multi-step workflows
+### Getting Started
+- [Testing Quick Start](testing/TESTING_QUICK_START.md) - Run tests locally
+- [Manual Testing Guide](guides/MANUAL_TESTING_GUIDE.md) - Test the application
+- [Switchboard Configuration Guide](guides/SWITCHBOARD_CONFIGURATION_GUIDE.md) - Set up credential printing
 
-### Guides
+### Architecture & Design
+- [Integration Architecture Guide](guides/INTEGRATION_ARCHITECTURE_GUIDE.md) - System design
+- [Integration Data Flow](guides/INTEGRATION_DATA_FLOW.md) - How data flows through integrations
+- [Appwrite Configuration](migration/APPWRITE_CONFIGURATION.md) - Database structure
 
-#### Appwrite Transactions API
-- [**🚀 Transactions Quick Reference**](./guides/TRANSACTIONS_QUICK_REFERENCE.md) - ⚡ Quick reference card for common operations
-- [**Transactions Developer Guide**](./guides/TRANSACTIONS_DEVELOPER_GUIDE.md) - 📚 Comprehensive guide to using transactions (500+ lines)
-- [**Transactions Best Practices**](./guides/TRANSACTIONS_BEST_PRACTICES.md) - ✅ Production-ready best practices (600+ lines)
-- [**Transactions Code Examples**](./guides/TRANSACTIONS_CODE_EXAMPLES.md) - 💻 15 real-world code examples (400+ lines)
-- [**Transaction Monitoring Guide**](./guides/TRANSACTION_MONITORING_GUIDE.md) - 📊 Metrics, alerts, and monitoring
-- [**Transaction Monitoring Integration**](./guides/TRANSACTION_MONITORING_INTEGRATION_EXAMPLE.md) - 🔧 Integration examples
+### Development Guides
+- [Custom Fields API Guide](guides/CUSTOM_FIELDS_API_GUIDE.md) - Working with custom fields
+- [Transactions Developer Guide](guides/TRANSACTIONS_DEVELOPER_GUIDE.md) - Atomic operations
+- [Performance Best Practices](guides/PERFORMANCE_BEST_PRACTICES.md) - Optimization patterns
 
-#### SweetAlert2 Notification System
-- [**SweetAlert Usage Guide**](./guides/SWEETALERT_USAGE_GUIDE.md) - Complete guide to using notifications, confirmations, and loading states
-- [**SweetAlert Customization Guide**](./guides/SWEETALERT_CUSTOMIZATION_GUIDE.md) - Theme, duration, position, and animation customization
-- [**SweetAlert Migration Guide**](./guides/SWEETALERT_MIGRATION_GUIDE.md) - Migrating from old toast system to SweetAlert2
-- [**SweetAlert Best Practices Guide**](./guides/SWEETALERT_BEST_PRACTICES_GUIDE.md) - Best practices for notifications and user experience
+### Mobile Development
+- [Mobile API Quick Reference](guides/MOBILE_API_QUICK_REFERENCE.md) - Mobile endpoints
+- [Mobile Settings Passcode Implementation](guides/MOBILE_SETTINGS_PASSCODE_IMPLEMENTATION_GUIDE.md) - Passcode feature
 
-#### Performance & Optimization
-- [**Memory Optimization Guide**](./guides/MEMORY_OPTIMIZATION_GUIDE.md) - 🚀 Best practices for preventing memory leaks and optimizing performance
+### Troubleshooting
+- [Error Handling Guide](guides/ERROR_HANDLING_GUIDE.md) - Error patterns
+- [Integration Troubleshooting Guide](guides/INTEGRATION_TROUBLESHOOTING_GUIDE.md) - Common issues
+- [Memory Optimization Guide](guides/MEMORY_OPTIMIZATION_GUIDE.md) - Performance issues
 
-#### Automation & Maintenance
-- [**Version Sync Quick Start**](./guides/VERSION_SYNC_QUICK_START.md) - ⚡ Quick reference for automatic version sync
-- [**Version Sync Automation**](./guides/VERSION_SYNC_AUTOMATION.md) - 🤖 Complete guide to automatic documentation version updates
-- [**Version Sync Setup Summary**](./guides/VERSION_SYNC_SETUP_SUMMARY.md) - 📋 What was created and how it works
-- [**Package Update Summary**](./guides/PACKAGE_UPDATE_SUMMARY.md) - 📦 Recent package updates and what was skipped
-- [**Package Update Analysis**](./guides/PACKAGE_UPDATE_ANALYSIS.md) - 🔍 Detailed analysis of available package updates
+### Reference
+- [API Transactions Reference](reference/API_TRANSACTIONS_REFERENCE.md) - Transaction API
+- [Log Settings Mapping](reference/LOG_SETTINGS_MAPPING.md) - Logging configuration
+- [Mobile API Reference](reference/MOBILE_API_REFERENCE.md) - Mobile API endpoints
 
-#### Integration System
+---
 
-**Quick Start:**
-- [**Adding New Integration Guide**](./guides/ADDING_NEW_INTEGRATION_GUIDE.md) - 🚀 **START HERE:** Step-by-step procedure for adding new integrations
-  - Complete checklist from database setup to testing
-  - Phase-by-phase implementation guide
-  - Code examples for each step
-  - Common pitfalls and verification queries
+## Maintenance & Lifecycle
 
-**Architecture & Patterns:**
-- [**Integration Architecture Guide**](./guides/INTEGRATION_ARCHITECTURE_GUIDE.md) - 🏗️ Complete architecture overview of the integration system
-  - Normalized database design with separate collections
-  - Data flow from UI to database with Mermaid diagrams
-  - Optimistic locking mechanism for concurrency control
-  - Security patterns for API credentials
-  - File organization and responsibilities
-  - Examples from Cloudinary, Switchboard, and OneSimpleAPI
-- [**Integration Patterns Reference**](./guides/INTEGRATION_PATTERNS_REFERENCE.md) - 📋 Reusable code templates and patterns
-  - TypeScript interface templates
-  - Getter and update function patterns
-  - UI component templates
-  - Database collection creation patterns
-  - Helper function patterns (flattenEventSettings, extractIntegrationFields)
-- [**Integration Data Flow**](./guides/INTEGRATION_DATA_FLOW.md) - 🔄 Comprehensive data flow documentation
-  - Complete request/response lifecycle from UI to database
-  - Form data collection in EventSettingsForm
-  - extractIntegrationFields function and field separation
-  - Parallel integration fetching with Promise.allSettled
-  - Cache usage and invalidation patterns
-  - flattenEventSettings helper and backward compatibility
-  - Transaction handling for core settings vs integrations
-  - Performance optimization strategies
+### For Document Authors
 
-**Integration Types & Examples:**
-- [**Integration Type Examples**](./guides/INTEGRATION_TYPE_EXAMPLES.md) - 💡 Detailed examples of different integration types
-  - Photo integration pattern (Cloudinary)
-  - Printing integration pattern (Switchboard)
-  - Webhook integration pattern (OneSimpleAPI)
-  - Comparison table and use case guidance
-- [**Photo Service Integration Guide**](./guides/PHOTO_SERVICE_INTEGRATION_GUIDE.md) - 📸 Specific guidance for photo upload services
-  - Replacing Cloudinary walkthrough
-  - Minimum required configuration fields
-  - Photo URL handling patterns
-  - Testing checklist for photo integrations
-  - Migration strategy for existing photo URLs
+1. **Creating a new document:**
+   - Choose the appropriate category folder
+   - Add frontmatter metadata (see template above)
+   - Set `status: active` and `last_verified` to today's date
 
-**UI & User Experience:**
-- [**Integration UI Patterns**](./guides/INTEGRATION_UI_PATTERNS.md) - 🎨 UI component patterns and best practices
-  - IntegrationsTab component structure
-  - Enable/disable toggle implementation
-  - IntegrationStatusIndicator usage
-  - Section grouping and form organization
-  - Tab state management with localStorage
-  - Responsive design and accessibility
+2. **Updating a document:**
+   - Update `last_verified` to today's date
+   - If significant changes, update `related_code` if applicable
 
-**Security & Best Practices:**
-- [**Integration Security Guide**](./guides/INTEGRATION_SECURITY_GUIDE.md) - 🔒 Security best practices for integrations
-  - Environment variable management for API credentials
-  - Security audit checklist
-  - Secure vs insecure implementation examples
-  - Logging best practices (what not to log)
-  - Permission boundary considerations
+3. **Deprecating a document:**
+   - Set `status: superseded`
+   - Add `superseded_by` field pointing to replacement
+   - Leave in active folder for 30 days, then archive
 
-**Migration & Maintenance:**
-- [**Integration Migration Patterns**](./guides/INTEGRATION_MIGRATION_PATTERNS.md) - 🔄 Migration and maintenance strategies
-  - Migrating integration data between services
-  - Safe integration removal process
-  - Version migration for schema changes
-  - Script templates for data transformation
-  - Photo URL migration patterns
-  - Validation queries and rollback strategies
+### For Maintainers
 
-**Troubleshooting:**
-- [**Integration Troubleshooting Guide**](./guides/INTEGRATION_TROUBLESHOOTING_GUIDE.md) - 🔧 Common issues and solutions
-  - Optimistic locking conflict resolution
-  - Concurrent create conflict handling
-  - Integration fetch failures with Promise.allSettled
-  - Environment variable verification
-  - Debugging checklist and error message reference
-  - Performance optimization tips
+**Monthly:**
+- Review documents flagged as needing verification
+- Archive documents past their review date
 
-**Common Tasks:**
-- **Adding a new integration** → [Adding New Integration Guide](./guides/ADDING_NEW_INTEGRATION_GUIDE.md)
-- **Replacing Cloudinary** → [Photo Service Integration Guide](./guides/PHOTO_SERVICE_INTEGRATION_GUIDE.md)
-- **Understanding data flow** → [Integration Data Flow](./guides/INTEGRATION_DATA_FLOW.md)
-- **Fixing optimistic locking errors** → [Integration Troubleshooting Guide](./guides/INTEGRATION_TROUBLESHOOTING_GUIDE.md)
-- **Securing API credentials** → [Integration Security Guide](./guides/INTEGRATION_SECURITY_GUIDE.md)
-- **Creating UI components** → [Integration UI Patterns](./guides/INTEGRATION_UI_PATTERNS.md)
-- **Migrating integration data** → [Integration Migration Patterns](./guides/INTEGRATION_MIGRATION_PATTERNS.md)
+**Quarterly:**
+- Full documentation audit
+- Consolidate duplicate guides
+- Update archive indexes
 
-**Related Documentation:**
-- [Integration Architecture Fix](../fixes/INTEGRATION_ARCHITECTURE_FIX.md) - Historical context on the normalized design
-- [Integration Collections Migration](../migration/INTEGRATION_COLLECTIONS_MIGRATION.md) - Migration to separate collections
-- [Integration Interfaces Verification](./INTEGRATION_INTERFACES_VERIFICATION.md) - Interface consistency verification
-- [Switchboard Configuration Guide](./SWITCHBOARD_CONFIGURATION_GUIDE.md) - Specific Switchboard setup
-- [Error Handling Guide](./ERROR_HANDLING_GUIDE.md) - General error handling patterns
+**Annually:**
+- Complete documentation review
+- Remove outdated references
+- Update version information
 
-**Search Keywords:** integration, third-party, API, Cloudinary, Switchboard, OneSimpleAPI, photo upload, printing, webhook, optimistic locking, environment variables, security, migration
+### Automation
 
-#### Deployment & Configuration
-- [**Multi-Tenancy Quick Start**](./guides/MULTI_TENANCY_QUICK_START.md) - ⚡ 5-minute setup for multi-site deployments
-- [**Multi-Tenancy Setup Guide**](./guides/MULTI_TENANCY_SETUP_GUIDE.md) - 🏢 Complete guide to deploying multiple isolated sites using one Appwrite project
-  - Team-to-database mapping configuration
-  - Automatic team membership for users
-  - Environment variable setup per deployment
-  - Scaling to dozens of sites
-  - Troubleshooting multi-tenant issues
+We use GitHub Actions to:
+- Check for broken internal links
+- Flag documents past their review date
+- Validate frontmatter metadata
+- Generate documentation indexes
 
-#### Other Guides
-- [**Printable Fields User Guide**](./guides/PRINTABLE_FIELDS_USER_GUIDE.md) - 🎯 Complete guide to configuring printable fields and managing credential status
-- [**Custom Field Columns Quick Reference**](./guides/CUSTOM_FIELD_COLUMNS_QUICK_REFERENCE.md) - ⚡ Quick reference for custom field column configuration
-- [**Custom Field Columns Visual Guide**](./guides/CUSTOM_FIELD_COLUMNS_VISUAL_GUIDE.md) - 📊 Visual examples and decision tree for choosing column count
-- [**Custom Field Columns Configuration**](./guides/CUSTOM_FIELD_COLUMNS_CONFIGURATION.md) - Configure custom field column layout for different screen resolutions
-- [**Password Reset Admin Guide**](./guides/PASSWORD_RESET_ADMIN_GUIDE.md) - Complete guide for administrators to help users reset passwords
-- [**Email Verification Testing Guide**](./guides/EMAIL_VERIFICATION_TESTING_GUIDE.md) - Complete testing guide for email verification flow
-- [**Custom Fields API Guide**](./guides/CUSTOM_FIELDS_API_GUIDE.md) - Complete API reference with examples for optimistic locking and soft delete
-- [**Auth User Linking API Guide**](./guides/AUTH_USER_LINKING_API_GUIDE.md) - Complete API documentation for auth user linking
-- [**Auth User Linking Admin Guide**](./guides/AUTH_USER_LINKING_ADMIN_GUIDE.md) - Administrator guide for linking users
-- [**Cache Usage Guide**](./guides/CACHE_USAGE_GUIDE.md) - In-memory cache with size limits, LRU eviction, and monitoring
-- [**Appwrite Attribute Polling Configuration**](./guides/APPWRITE_ATTRIBUTE_POLLING_CONFIGURATION.md) - Configure retry logic for attribute creation
-- [Bulk Credential Generation Logic](./guides/BULK_CREDENTIAL_GENERATION_LOGIC.md) - How bulk generation determines credential status
-- [Switchboard Configuration Guide](./guides/SWITCHBOARD_CONFIGURATION_GUIDE.md) - Setup Switchboard
-- [Manual Testing Guide](./guides/MANUAL_TESTING_GUIDE.md) - Manual testing procedures
-- [Cache Usage Example](./guides/CACHE_USAGE_EXAMPLE.md) - Caching patterns
-- [Integration Interfaces Verification](./guides/INTEGRATION_INTERFACES_VERIFICATION.md)
-- [Error Handling Guide](./guides/ERROR_HANDLING_GUIDE.md) - Centralized error handling patterns
+---
 
-## Spec-Related Documentation
+## Documentation Standards
 
-Documentation related to specific specs is located in `.kiro/specs/[spec-name]/`:
+### Writing Style
+- Use clear, concise language
+- Prefer active voice
+- Include code examples where applicable
+- Link to related documentation
 
-### Integration System Documentation
-`.kiro/specs/integration-system-documentation/`
-- requirements.md - Documentation requirements
-- design.md - Documentation design and structure
-- tasks.md - Documentation creation tasks
-- **Output:** 10 comprehensive integration guides in `docs/guides/` (see Integration System section above)
+### File Naming
+- Use UPPERCASE for documentation files
+- Use underscores to separate words
+- Be descriptive but concise
+- Include the type of document (GUIDE, REFERENCE, etc.)
 
-### Auth User Linking System
-`.kiro/specs/auth-user-linking-system/`
-- requirements.md - Feature requirements
-- design.md - System design
-- tasks.md - Implementation tasks
-- TASK_1 through TASK_16 summaries (complete implementation)
+**Examples:**
+- ✅ `CUSTOM_FIELD_API_GUIDE.md`
+- ✅ `SWITCHBOARD_CONFIGURATION_GUIDE.md`
+- ❌ `guide.md` (too vague)
+- ❌ `documentation.md` (not descriptive)
 
-### Integration Fields Mapping Fix
-`.kiro/specs/integration-fields-mapping-fix/`
-- TASK_6_COMPLETE_FIELD_MAPPING_TESTS_SUMMARY.md
-- TASK_6.1 through TASK_6.10 summaries
+### Code Examples
+- Use complete, working examples
+- Include language syntax highlighting
+- Explain what the code does
+- Link to related source files
 
-### Integration Optimistic Locking
-`.kiro/specs/integration-optimistic-locking/`
-- INTEGRATION_OPTIMISTIC_LOCKING_API_USAGE.md
+### Links
+- Use relative links for internal documentation
+- Use absolute URLs for external resources
+- Check links regularly for rot
 
-### API Performance Optimization
-`.kiro/specs/api-performance-optimization/`
-- TASK_7_ERROR_HANDLING_SUMMARY.md
-- TASK_8_INTEGRATION_TESTS_SUMMARY.md
-- TASK_9_PERFORMANCE_BENCHMARKING_SUMMARY.md
+---
 
-### Supabase to Appwrite Migration
-`.kiro/specs/supabase-to-appwrite-migration/`
-- TASK_9_MIGRATION_SCRIPT_SUMMARY.md
+## Archive & Historical Knowledge
 
-### Multi-Session Authentication
-`.kiro/specs/multi-session-authentication/`
-- LOGIN_FIX_SUMMARY.md
-- USER_LOGS_FIX_SUMMARY.md
+Historical documentation is preserved in `_archive/` for:
 
-### Toast to SweetAlert Migration
-`.kiro/specs/toast-to-sweetalert-migration/`
-- requirements.md - Feature requirements
-- design.md - System design
-- tasks.md - Implementation tasks
-- TASK_1 through TASK_8 summaries (complete implementation)
-- See [SweetAlert Guides](./guides/) for usage documentation
+- **Pattern Recognition:** Identify recurring issues and solutions
+- **Audit Trail:** Maintain compliance and change history
+- **Learning:** Understand why decisions were made
+- **Rollback Knowledge:** Reference for reverting changes
 
-## Finding Documentation
+See [Archive README](_archive/README.md) for details on accessing archived documentation.
 
-### By Topic
-
-**Authentication & Users:**
-- Multi-session authentication spec folder
-- User Management Enhancement (misc/)
-
-**Credentials & Printing:**
-- Credential Generation Fixes (fixes/)
-- Switchboard Configuration Guide (guides/)
-
-**Custom Fields:**
-- Custom Field Values Fix (fixes/)
-- Custom Field API Tests (testing/)
-
-**Database & Migration:**
-- Migration documentation folder
-- Appwrite Configuration (migration/)
-
-**Integration System:**
-- Integration Architecture Guide (guides/)
-- Adding New Integration Guide (guides/)
-- Integration Patterns Reference (guides/)
-- Integration Security Guide (guides/)
-- Integration Troubleshooting Guide (guides/)
-- Photo Service Integration Guide (guides/)
-- Integration Type Examples (guides/)
-- Integration UI Patterns (guides/)
-- Integration Data Flow (guides/)
-- Integration Migration Patterns (guides/)
-
-**Testing:**
-- Testing documentation folder
-- Manual Testing Guide (guides/)
-
-### By Date
-
-Most recent documentation is in `fixes/` folder, created during the credential generation debugging session.
+---
 
 ## Contributing
 
-When adding new documentation:
+When contributing to documentation:
 
-1. **Fixes** - Bug fixes and issue resolutions → `docs/fixes/`
-2. **Migration** - Migration-related docs → `docs/migration/`
-3. **Testing** - Test summaries → `docs/testing/`
-4. **Guides** - How-to and user guides → `docs/guides/`
-5. **Spec-related** - Spec task summaries → `.kiro/specs/[spec-name]/`
-6. **Other** - Everything else → `docs/misc/`
+1. Follow the metadata schema above
+2. Use the file naming conventions
+3. Add your documentation to the appropriate category
+4. Include frontmatter with all required fields
+5. Link to related documentation
+6. Test all links before submitting
 
-## Maintenance
+---
 
-### Archiving Old Documentation
+## Questions?
 
-Consider archiving documentation that is:
-- No longer relevant
-- Superseded by newer docs
-- Related to completed migrations
+- **About a specific document?** Check the `owner` field in the frontmatter
+- **About documentation organization?** See [Documentation Audit Summary](DOCUMENTATION_AUDIT_SUMMARY.md)
+- **About the implementation plan?** See [Documentation Action Plan](DOCUMENTATION_ACTION_PLAN.md)
 
-Create an `archive/` folder when needed.
+---
 
-### Updating Documentation
-
-When fixing bugs or making changes:
-1. Update relevant documentation
-2. Add new summary to appropriate folder
-3. Update this README if adding new categories
+**Last Updated:** December 31, 2025  
+**Active Files:** 129  
+**Archived Files:** 358  
+**Total Documentation:** 487 files

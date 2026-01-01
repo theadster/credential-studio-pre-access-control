@@ -1,3 +1,13 @@
+---
+title: "Integration Version Migration"
+type: runbook
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 180
+related_code: ["scripts/setup-appwrite.ts"]
+---
+
 # Integration Version Migration Guide
 
 This guide explains how to migrate existing integration documents to support optimistic locking with version fields.
