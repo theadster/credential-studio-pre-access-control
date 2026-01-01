@@ -1,3 +1,13 @@
+---
+title: "Password Reset Feature - Implementation Summary"
+type: canonical
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 90
+related_code: ["src/pages/reset-password.tsx", "src/pages/api/auth/"]
+---
+
 # Password Reset Feature - Implementation Summary
 
 ## Overview

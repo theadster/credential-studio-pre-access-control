@@ -1,3 +1,13 @@
+---
+title: "Log Deletion Testing Guide"
+type: runbook
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 90
+related_code: ["src/pages/api/logs/delete.ts"]
+---
+
 # Log Deletion Testing Guide
 
 This guide explains how to test the delete logs functionality using the test data injection script.

@@ -1,3 +1,13 @@
+---
+title: "API Transactions Reference"
+type: canonical
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 90
+related_code: ["src/pages/api/attendees/", "src/pages/api/users/", "src/pages/api/event-settings/"]
+---
+
 # API Transactions Reference
 
 ## Overview

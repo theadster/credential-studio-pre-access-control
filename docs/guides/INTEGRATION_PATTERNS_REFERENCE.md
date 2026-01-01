@@ -1,3 +1,13 @@
+---
+title: "Integration Patterns Reference"
+type: canonical
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 90
+related_code: ["src/pages/api/integrations/"]
+---
+
 # Integration Patterns Reference
 
 This document provides reusable code templates and patterns for implementing integrations in credential.studio. Use these templates as starting points when adding new integrations to the system.

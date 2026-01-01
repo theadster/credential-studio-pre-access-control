@@ -1,3 +1,13 @@
+---
+title: "Quick Test Guide"
+type: runbook
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 90
+related_code: ["vitest.config.ts", "src/__tests__/"]
+---
+
 # Quick Test Guide - Transactions & Bulk Operations
 
 ## 🚀 Quick Start (5 Minutes)

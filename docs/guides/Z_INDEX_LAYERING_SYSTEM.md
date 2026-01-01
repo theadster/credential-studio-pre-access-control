@@ -1,3 +1,13 @@
+---
+title: "Z-Index Layering System"
+type: canonical
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 90
+related_code: ["src/styles/globals.css"]
+---
+
 # Z-Index Layering System
 
 ## Overview

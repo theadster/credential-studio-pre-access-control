@@ -1,3 +1,13 @@
+---
+title: "Transactions & Bulk Operations - Comprehensive Test Plan"
+type: worklog
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 30
+related_code: ["src/__tests__/"]
+---
+
 # Transactions & Bulk Operations - Comprehensive Test Plan
 
 ## Overview

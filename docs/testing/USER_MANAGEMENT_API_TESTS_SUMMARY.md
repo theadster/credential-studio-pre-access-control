@@ -1,3 +1,13 @@
+---
+title: "User Management API Integration Tests Summary"
+type: worklog
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 30
+related_code: ["src/__tests__/api/users/"]
+---
+
 # User Management API Integration Tests Summary
 
 ## Overview

@@ -1,3 +1,13 @@
+---
+title: "TablesDB Atomic Bulk Operations - Correct Implementation"
+type: canonical
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 90
+related_code: ["src/lib/bulkOperations.ts"]
+---
+
 # TablesDB Atomic Bulk Operations - Correct Implementation
 
 ## ✅ Corrected Understanding

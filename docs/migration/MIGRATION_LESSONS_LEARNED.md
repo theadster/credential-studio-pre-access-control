@@ -1,3 +1,13 @@
+---
+title: "Migration Lessons Learned"
+type: adr
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 365
+related_code: ["scripts/"]
+---
+
 # Migration Lessons Learned: Quick Reference
 
 ## Critical Gotchas

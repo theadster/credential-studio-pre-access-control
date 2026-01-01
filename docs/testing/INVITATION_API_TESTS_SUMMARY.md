@@ -1,3 +1,13 @@
+---
+title: "Invitation API Tests Summary"
+type: worklog
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 30
+related_code: ["src/__tests__/api/invitations/"]
+---
+
 # Invitation API Tests Summary
 
 ## Overview

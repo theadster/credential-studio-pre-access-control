@@ -1,3 +1,13 @@
+---
+title: "Printable Field Tracking Implementation"
+type: canonical
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 90
+related_code: ["src/pages/api/custom-fields/", "src/components/EventSettingsForm.tsx"]
+---
+
 # Printable Field Tracking Implementation
 
 ## Overview

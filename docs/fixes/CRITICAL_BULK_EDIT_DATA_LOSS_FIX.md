@@ -1,3 +1,13 @@
+---
+title: "CRITICAL: Bulk Edit Data Loss Fix"
+type: canonical
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 90
+related_code: ["src/pages/api/attendees/bulk-edit.ts"]
+---
+
 # CRITICAL: Bulk Edit Data Loss Fix
 
 ## Severity: CRITICAL 🚨

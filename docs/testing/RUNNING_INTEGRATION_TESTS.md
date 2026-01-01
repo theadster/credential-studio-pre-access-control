@@ -1,3 +1,13 @@
+---
+title: "Running Integration Tests"
+type: runbook
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 90
+related_code: ["vitest.config.ts", "src/__tests__/"]
+---
+
 # Running Integration Tests
 
 This guide explains how to run integration tests that require a live database connection.

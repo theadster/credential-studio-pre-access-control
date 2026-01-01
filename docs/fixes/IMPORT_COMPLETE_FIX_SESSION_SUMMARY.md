@@ -1,3 +1,13 @@
+---
+title: "Import Complete Fix Session Summary"
+type: canonical
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 90
+related_code: ["src/pages/api/attendees/import.ts"]
+---
+
 # Import Complete Fix Session Summary
 
 ## Overview

@@ -1,3 +1,13 @@
+---
+title: "Event Settings Cache Usage Example"
+type: canonical
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 90
+related_code: ["src/lib/cache.ts"]
+---
+
 # Event Settings Cache Usage Example
 
 ## How the Cache Works

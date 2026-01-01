@@ -1,0 +1,88 @@
+name: Sync Documentation Between Branches
+
+on:
+  push:
+    branches:
+      - main
+      - feature/mobile-access-control
+    paths:
+      - 'docs/**'
+      - 'scripts/**'
+      - '.kiro/steering/**'
+      - '.github/workflows/sync-docs-between-branches.yml'
+
+jobs:
+  sync-docs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Determine source and target branches
+        id: branches
+        run: |
+          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            echo "source=main" >> $GITHUB_OUTPUT
+            echo "target=feature/mobile-access-control" >> $GITHUB_OUTPUT
+          else
+            echo "source=feature/mobile-access-control" >> $GITHUB_OUTPUT
+            echo "target=main" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Fetch all branches
+        run: |
+          git fetch origin main
+          git fetch origin feature/mobile-access-control
+
+      - name: Check if target branch exists
+        id: check-branch
+        run: |
+          if git rev-parse --verify origin/${{ steps.branches.outputs.target }} >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Sync documentation to target branch
+        if: steps.check-branch.outputs.exists == 'true'
+        run: |
+          # Checkout target branch
+          git checkout ${{ steps.branches.outputs.target }}
+          
+          # Get the latest docs from source branch
+          git checkout origin/${{ steps.branches.outputs.source }} -- docs/ scripts/ .kiro/steering/ 2>/dev/null || true
+          
+          # Check if there are changes
+          if git diff --quiet; then
+            echo "No documentation changes to sync"
+          else
+            echo "Documentation changes detected, creating commit"
+            git add docs/ scripts/ .kiro/steering/
+            git commit -m "chore(docs): sync documentation from ${{ steps.branches.outputs.source }}
+
+Automated sync of documentation, scripts, and steering files.
+Source branch: ${{ steps.branches.outputs.source }}
+Target branch: ${{ steps.branches.outputs.target }}"
+            git push origin ${{ steps.branches.outputs.target }}
+            echo "✅ Documentation synced successfully"
+          fi
+
+      - name: Create sync summary
+        if: always()
+        run: |
+          echo "## Documentation Sync Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Source Branch:** ${{ steps.branches.outputs.source }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Target Branch:** ${{ steps.branches.outputs.target }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** ✅ Synced" >> $GITHUB_STEP_SUMMARY

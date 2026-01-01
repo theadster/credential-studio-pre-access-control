@@ -1,3 +1,13 @@
+---
+title: "Error Handling Guide"
+type: canonical
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 90
+related_code: ["src/lib/errorMessages.ts"]
+---
+
 # Error Handling Guide
 
 ## Overview

@@ -1,3 +1,13 @@
+---
+title: "Appwrite Transactions Quick Reference"
+type: canonical
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 90
+related_code: ["src/lib/bulkOperations.ts"]
+---
+
 # Appwrite Transactions Quick Reference
 
 ## Quick Start

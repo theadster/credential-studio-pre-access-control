@@ -1,3 +1,13 @@
+---
+title: "CredentialStudio Manual Testing Guide"
+type: runbook
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 90
+related_code: ["src/"]
+---
+
 # CredentialStudio Manual Testing Guide
 ## Appwrite Migration Validation
 

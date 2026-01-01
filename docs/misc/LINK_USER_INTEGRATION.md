@@ -1,3 +1,13 @@
+---
+title: "Link User Integration Guide"
+type: canonical
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 90
+related_code: ["src/components/LinkUserDialog.tsx", "src/components/DeleteUserDialog.tsx", "src/pages/api/users/"]
+---
+
 # Link User Integration Guide
 
 This guide explains how to integrate the new "Link Existing User" functionality into the dashboard.

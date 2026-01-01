@@ -6,21 +6,120 @@ inclusion: always
 
 When creating summary files, documentation, or guides, follow this organization structure to keep the project root clean.
 
+## 📋 Documentation System Status
+
+**Last Updated:** December 31, 2025  
+**Status:** ✅ Reorganized and Automated
+
+The credential.studio documentation system has been completely reorganized with:
+- ✅ 137 active documentation files (organized by category)
+- ✅ 350 archived files (preserved in `docs/_archive/`)
+- ✅ Automated validation and monitoring
+- ✅ Searchable indexes and categorization
+- ✅ GitHub Actions workflow for daily maintenance
+
+**Key Resources:**
+- **Quick Start:** `docs/QUICK_START_GUIDE.md`
+- **Full Summary:** `docs/DOCUMENTATION_REORGANIZATION_PROJECT_COMPLETE.md`
+- **Browse Docs:** `docs/INDEX_BY_TOPIC.md`
+- **Search Docs:** `docs/SEARCH_INDEX.md`
+
 ## Directory Structure
 
 ```
 docs/
-├── fixes/          # Bug fixes and issue resolutions
-├── migration/      # Migration-related documentation
-├── testing/        # Test summaries and testing guides
-├── guides/         # User guides and how-to documentation
-└── misc/           # Miscellaneous documentation
+├── fixes/          # Bug fixes and issue resolutions (20 active files)
+├── migration/      # Migration-related documentation (16 active files)
+├── testing/        # Test summaries and testing guides (21 active files)
+├── guides/         # User guides and how-to documentation (41 active files)
+├── enhancements/   # Feature enhancements (19 active files)
+├── misc/           # Miscellaneous documentation (9 active files)
+├── reference/      # API and technical reference (3 active files)
+├── _archive/       # Archived documentation (350 files)
+├── INDEX_BY_TOPIC.md       # Browse by category and type (auto-generated)
+├── SEARCH_INDEX.md         # Searchable index with keywords (auto-generated)
+└── README.md               # Main documentation guide
 
 .kiro/specs/[spec-name]/
 └── [spec-related summaries and documentation]
 ```
 
+## 🤖 Automation System
+
+The documentation system includes automated validation and monitoring:
+
+### Scripts
+- `scripts/validate-docs-frontmatter.ts` - Validates all frontmatter
+- `scripts/check-docs-staleness.ts` - Detects stale documentation
+- `scripts/check-docs-links.ts` - Validates internal links
+- `scripts/generate-docs-index.ts` - Generates searchable indexes
+
+### GitHub Actions Workflow
+- `.github/workflows/docs-maintenance.yml` - Daily automated checks at 2 AM UTC
+- Creates GitHub issues for problems
+- Auto-commits index updates
+
+### Running Locally
+```bash
+npx ts-node scripts/validate-docs-frontmatter.ts
+npx ts-node scripts/check-docs-staleness.ts
+npx ts-node scripts/check-docs-links.ts
+npx ts-node scripts/generate-docs-index.ts
+```
+
+## 📝 Frontmatter Requirements
+
+All active documentation files must have standardized YAML frontmatter:
+
+```yaml
+---
+title: Document Title
+type: canonical | adr | worklog | runbook
+status: active | superseded | archived
+owner: "@team"
+last_verified: YYYY-MM-DD
+review_interval_days: 30 | 90 | 180 | 365
+related_code: [array of file paths]
+---
+```
+
+**Document Types:**
+- **Canonical** (90-day review): Reference docs, guides, best practices
+- **Worklog** (30-day review): High-churn documentation
+- **Runbook** (180-day review): Operational procedures
+- **ADR** (90-day review): Architecture decisions
+
+**Important:** All new documentation files MUST include this frontmatter or validation will fail.
+
 ## Rules for New Documentation
+
+### ⚠️ CRITICAL: Frontmatter Required
+
+Every new documentation file MUST include frontmatter or it will fail validation:
+
+```yaml
+---
+title: Your Document Title
+type: canonical | adr | worklog | runbook
+status: active
+owner: "@team"
+last_verified: YYYY-MM-DD
+review_interval_days: 90
+related_code: []
+---
+
+# Your Document Title
+
+Content here...
+```
+
+**Validation will fail if:**
+- ❌ Frontmatter is missing
+- ❌ Required fields are missing (title, type, status, owner, last_verified, review_interval_days)
+- ❌ Type is not one of: canonical, adr, worklog, runbook
+- ❌ Status is not one of: active, superseded, archived
+- ❌ Date format is not YYYY-MM-DD
+- ❌ review_interval_days is 0 or negative
 
 ### 1. Bug Fixes and Issue Resolutions
 **Location:** `docs/fixes/`
@@ -32,6 +131,19 @@ docs/
 - Problem resolution documentation
 
 **Naming convention:** `[FEATURE]_[ISSUE]_FIX.md`
+
+**Frontmatter template:**
+```yaml
+---
+title: [Feature] [Issue] Fix
+type: canonical
+status: active
+owner: "@team"
+last_verified: YYYY-MM-DD
+review_interval_days: 90
+related_code: [src/path/to/file.ts]
+---
+```
 
 **Examples:**
 - `CREDENTIAL_GENERATION_FIXES_SUMMARY.md`
@@ -46,6 +158,19 @@ docs/
 - Platform migrations (e.g., Supabase to Appwrite)
 - Schema changes
 - Migration scripts and guides
+
+**Frontmatter template:**
+```yaml
+---
+title: [Migration Type] Migration
+type: runbook
+status: active
+owner: "@team"
+last_verified: YYYY-MM-DD
+review_interval_days: 180
+related_code: [src/scripts/migrate.ts]
+---
+```
 
 **Examples:**
 - `MIGRATION_STATUS.md`
@@ -62,6 +187,19 @@ docs/
 - API test documentation
 
 **Naming convention:** `[FEATURE]_TESTS_SUMMARY.md`
+
+**Frontmatter template:**
+```yaml
+---
+title: [Feature] Tests Summary
+type: worklog
+status: active
+owner: "@team"
+last_verified: YYYY-MM-DD
+review_interval_days: 30
+related_code: [src/__tests__/path/to/test.ts]
+---
+```
 
 **Examples:**
 - `ATTENDEE_API_TESTS_SUMMARY.md`
@@ -80,12 +218,67 @@ docs/
 
 **Naming convention:** `[FEATURE]_GUIDE.md` or `[FEATURE]_EXAMPLE.md`
 
+**Frontmatter template:**
+```yaml
+---
+title: [Feature] Guide
+type: canonical
+status: active
+owner: "@team"
+last_verified: YYYY-MM-DD
+review_interval_days: 90
+related_code: [src/path/to/file.ts]
+---
+```
+
 **Examples:**
 - `SWITCHBOARD_CONFIGURATION_GUIDE.md`
 - `MANUAL_TESTING_GUIDE.md`
 - `CACHE_USAGE_EXAMPLE.md`
 
-### 5. Spec-Related Documentation
+### 5. Feature Enhancements
+**Location:** `docs/enhancements/`
+
+**When to use:**
+- Feature enhancement documentation
+- Improvement summaries
+- Enhancement tracking
+
+**Frontmatter template:**
+```yaml
+---
+title: [Feature] Enhancement
+type: canonical
+status: active
+owner: "@team"
+last_verified: YYYY-MM-DD
+review_interval_days: 90
+related_code: [src/path/to/file.ts]
+---
+```
+
+### 6. Reference Documentation
+**Location:** `docs/reference/`
+
+**When to use:**
+- API reference documentation
+- Technical specifications
+- Architecture documentation
+
+**Frontmatter template:**
+```yaml
+---
+title: [System] Reference
+type: canonical
+status: active
+owner: "@team"
+last_verified: YYYY-MM-DD
+review_interval_days: 90
+related_code: [src/path/to/file.ts]
+---
+```
+
+### 7. Spec-Related Documentation
 **Location:** `.kiro/specs/[spec-name]/`
 
 **When to use:**
@@ -95,11 +288,24 @@ docs/
 
 **Naming convention:** `TASK_[N]_[DESCRIPTION]_SUMMARY.md`
 
+**Frontmatter template:**
+```yaml
+---
+title: Task [N] [Description] Summary
+type: worklog
+status: active
+owner: "@team"
+last_verified: YYYY-MM-DD
+review_interval_days: 30
+related_code: [src/path/to/file.ts]
+---
+```
+
 **Examples:**
 - `.kiro/specs/integration-fields-mapping-fix/TASK_6_COMPLETE_FIELD_MAPPING_TESTS_SUMMARY.md`
 - `.kiro/specs/api-performance-optimization/TASK_7_ERROR_HANDLING_SUMMARY.md`
 
-### 6. Miscellaneous Documentation
+### 8. Miscellaneous Documentation
 **Location:** `docs/misc/`
 
 **When to use:**
@@ -107,6 +313,19 @@ docs/
 - One-off enhancements
 - Temporary documentation
 - Legacy documentation
+
+**Frontmatter template:**
+```yaml
+---
+title: [Description]
+type: canonical
+status: active
+owner: "@team"
+last_verified: YYYY-MM-DD
+review_interval_days: 90
+related_code: []
+---
+```
 
 ## File Naming Conventions
 
@@ -435,54 +654,113 @@ If you find test files in the wrong location:
 
 ### Step 1: Determine Category
 Ask: What type of documentation is this?
-- Bug fix → `docs/fixes/`
-- Test summary → `docs/testing/`
-- User guide → `docs/guides/`
-- Spec task → `.kiro/specs/[spec-name]/`
-- Migration → `docs/migration/`
-- Other → `docs/misc/`
+- Bug fix → `docs/fixes/` (type: canonical, 90 days)
+- Test summary → `docs/testing/` (type: worklog, 30 days)
+- User guide → `docs/guides/` (type: canonical, 90 days)
+- Migration → `docs/migration/` (type: runbook, 180 days)
+- Enhancement → `docs/enhancements/` (type: canonical, 90 days)
+- Reference → `docs/reference/` (type: canonical, 90 days)
+- Spec task → `.kiro/specs/[spec-name]/` (type: worklog, 30 days)
+- Other → `docs/misc/` (type: canonical, 90 days)
 
-### Step 2: Choose Appropriate Name
-Follow naming conventions for the category.
+### Step 2: Add Frontmatter
+Create file with required frontmatter:
+```yaml
+---
+title: Your Document Title
+type: [canonical|adr|worklog|runbook]
+status: active
+owner: "@team"
+last_verified: YYYY-MM-DD
+review_interval_days: [30|90|180|365]
+related_code: [src/path/to/file.ts]
+---
+```
 
-### Step 3: Update Index
-After creating documentation, update `docs/README.md` to include a link to the new file.
+### Step 3: Choose Appropriate Name
+Follow naming conventions for the category (see examples above).
+
+### Step 4: Write Content
+Add your documentation content after the frontmatter.
+
+### Step 5: Validate
+Run validation to ensure frontmatter is correct:
+```bash
+npx ts-node scripts/validate-docs-frontmatter.ts
+```
+
+### Step 6: Update Index
+After creating documentation, the indexes will be auto-generated. No manual update needed.
 
 ## Examples
 
 ### Creating a Bug Fix Summary
 ```bash
-# Create file
-touch docs/fixes/NEW_FEATURE_FIX.md
+# Create file with frontmatter
+cat > docs/fixes/NEW_FEATURE_FIX.md << 'EOF'
+---
+title: New Feature Fix
+type: canonical
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 90
+related_code: [src/components/NewFeature.tsx]
+---
 
-# Add content
-# ...
+# New Feature Fix
 
-# Update index
-# Add link to docs/README.md under "Recent Fixes"
+Content here...
+EOF
+
+# Validate
+npx ts-node scripts/validate-docs-frontmatter.ts
+```
+
+### Creating a Test Summary
+```bash
+# Create file with frontmatter
+cat > docs/testing/NEW_FEATURE_TESTS_SUMMARY.md << 'EOF'
+---
+title: New Feature Tests Summary
+type: worklog
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 30
+related_code: [src/__tests__/components/NewFeature.test.tsx]
+---
+
+# New Feature Tests Summary
+
+Content here...
+EOF
+
+# Validate
+npx ts-node scripts/validate-docs-frontmatter.ts
 ```
 
 ### Creating a Spec Task Summary
 ```bash
-# Create file in appropriate spec folder
-touch .kiro/specs/my-spec-name/TASK_1_IMPLEMENTATION_SUMMARY.md
+# Create file in spec directory
+cat > .kiro/specs/my-feature/TASK_1_IMPLEMENTATION_SUMMARY.md << 'EOF'
+---
+title: Task 1 Implementation Summary
+type: worklog
+status: active
+owner: "@team"
+last_verified: 2025-12-31
+review_interval_days: 30
+related_code: [src/components/MyFeature.tsx]
+---
 
-# Add content
-# ...
+# Task 1 Implementation Summary
 
-# No need to update docs/README.md (spec-specific)
-```
+Content here...
+EOF
 
-### Creating a Configuration Guide
-```bash
-# Create file
-touch docs/guides/NEW_FEATURE_CONFIGURATION_GUIDE.md
-
-# Add content
-# ...
-
-# Update index
-# Add link to docs/README.md under "Guides"
+# Validate
+npx ts-node scripts/validate-docs-frontmatter.ts
 ```
 
 ## Maintenance
@@ -495,10 +773,79 @@ touch docs/guides/NEW_FEATURE_CONFIGURATION_GUIDE.md
 
 ### Archiving Old Documentation
 When documentation becomes outdated:
-1. Create `docs/archive/` if it doesn't exist
-2. Move old documentation there
-3. Update `docs/README.md` to remove references
-4. Add note in archive about why it was archived
+1. Move file to `docs/_archive/[category]/`
+2. Update `status: archived` in frontmatter
+3. Update any links pointing to it
+
+## Automated Documentation Maintenance
+
+The documentation system includes automated validation and monitoring:
+
+### Daily Automated Checks
+The GitHub Actions workflow (`.github/workflows/docs-maintenance.yml`) runs daily at 2 AM UTC:
+
+1. **Frontmatter Validation** - Ensures all files have valid metadata
+2. **Staleness Detection** - Identifies documentation past review interval
+3. **Link Validation** - Checks for broken internal links
+4. **Index Generation** - Updates searchable indexes
+
+### Running Checks Locally
+```bash
+# Validate frontmatter
+npx ts-node scripts/validate-docs-frontmatter.ts
+
+# Check for stale docs
+npx ts-node scripts/check-docs-staleness.ts
+
+# Check for broken links
+npx ts-node scripts/check-docs-links.ts
+
+# Generate indexes
+npx ts-node scripts/generate-docs-index.ts
+```
+
+### What Happens When Issues Are Found
+
+**Frontmatter Validation Fails:**
+- ❌ Script exits with error
+- 📋 Lists all files with invalid frontmatter
+- 🔧 Fix by adding missing fields or correcting values
+
+**Stale Documentation Found:**
+- ⚠️ GitHub issue created automatically
+- 📄 Lists files past review interval
+- 🔄 Update `last_verified` date to current date
+
+**Broken Links Found:**
+- ⚠️ GitHub issue created automatically
+- 🔗 Lists all broken links with line numbers
+- 🔧 Fix by updating or removing links
+
+**Index Generation:**
+- ✅ Automatically updates `INDEX_BY_TOPIC.md` and `SEARCH_INDEX.md`
+- 📝 Auto-commits changes to repository
+
+### Monitoring Documentation Health
+
+**Check documentation status:**
+```bash
+# All checks pass
+npx ts-node scripts/validate-docs-frontmatter.ts && \
+npx ts-node scripts/check-docs-staleness.ts && \
+npx ts-node scripts/check-docs-links.ts
+```
+
+**View documentation indexes:**
+- Browse by topic: `docs/INDEX_BY_TOPIC.md`
+- Search by keywords: `docs/SEARCH_INDEX.md`
+
+### Important Notes
+
+- ⚠️ **All new documentation MUST include frontmatter** or validation will fail
+- 🔄 **Update `last_verified` date** when reviewing documentation
+- 🔗 **Keep internal links current** - broken links will be detected
+- 📅 **Review intervals matter** - stale docs will be flagged
+- 🤖 **Automation runs daily** - check GitHub Actions for issues
 
 ## Quick Reference
 
