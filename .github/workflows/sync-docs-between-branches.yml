@@ -16,7 +16,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      pull-requests: write
 
     steps:
       - name: Checkout repository
@@ -40,11 +39,6 @@ jobs:
             echo "target=main" >> $GITHUB_OUTPUT
           fi
 
-      - name: Fetch all branches
-        run: |
-          git fetch origin main
-          git fetch origin feature/mobile-access-control
-
       - name: Check if target branch exists
         id: check-branch
         run: |
@@ -61,10 +55,10 @@ jobs:
           git checkout ${{ steps.branches.outputs.target }}
           
           # Get the latest docs from source branch
-          git checkout origin/${{ steps.branches.outputs.source }} -- docs/ scripts/ .kiro/steering/ 2>/dev/null || true
+          git checkout origin/${{ steps.branches.outputs.source }} -- docs/ scripts/ .kiro/steering/
           
-          # Check if there are changes
-          if git diff --quiet; then
+          # Check if there are changes (compare index against HEAD)
+          if git diff --cached --quiet; then
             echo "No documentation changes to sync"
           else
             echo "Documentation changes detected, creating commit"
@@ -81,5 +75,4 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Source Branch:** ${{ steps.branches.outputs.source }}" >> $GITHUB_STEP_SUMMARY
           echo "**Target Branch:** ${{ steps.branches.outputs.target }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Status:** ✅ Synced" >> $GITHUB_STEP_SUMMARY
           echo "**Timestamp:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
