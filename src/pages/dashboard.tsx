@@ -1218,10 +1218,11 @@ export default function Dashboard() {
   const photoStats = useMemo(() => {
     const hasAtomicCounts = attendees.some(a => typeof a.photoUploadCount === 'number');
     const totalUploads = attendees.reduce((sum, a) => {
-      const count = Number(a.photoUploadCount);
-      if (!isNaN(count) && count >= 0) {
-        return sum + count;
+      // Only use photoUploadCount if it's explicitly a number field
+      if (typeof a.photoUploadCount === 'number') {
+        return sum + a.photoUploadCount;
       }
+      // Fall back to counting based on photoUrl presence
       return sum + (a.photoUrl ? 1 : 0);
     }, 0);
     const attendeesWithPhotos = attendees.filter(a => a.photoUrl).length;
