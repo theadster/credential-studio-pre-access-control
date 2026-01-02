@@ -288,6 +288,7 @@ export default function Dashboard() {
   const [selectedAttendees, setSelectedAttendees] = useState<string[]>([]);
   const [exportingPdfs, setExportingPdfs] = useState(false);
   const [bulkGeneratingCredentials, setBulkGeneratingCredentials] = useState(false);
+  const [bulkClearingCredentials, setBulkClearingCredentials] = useState(false);
   const [isDark, setIsDark] = useState(false);
   const [showSelectAllDialog, setShowSelectAllDialog] = useState(false);
   const [showPageJumpDialog, setShowPageJumpDialog] = useState(false);
@@ -2607,6 +2608,168 @@ ${err.message || 'Failed to generate credential'}</pre>
     }
   };
 
+  const handleBulkClearCredentials = async () => {
+    if (selectedAttendees.length === 0) {
+      error("No Selection", "Please select attendees to clear credentials for.");
+      return;
+    }
+
+    // Filter attendees that have credentials
+    const selectedAttendeesData = attendees.filter(attendee =>
+      selectedAttendees.includes(attendee.id)
+    );
+
+    const attendeesWithCredentials = selectedAttendeesData.filter(attendee =>
+      attendee.credentialUrl && attendee.credentialUrl.trim() !== ''
+    );
+
+    if (attendeesWithCredentials.length === 0) {
+      info("No Credentials", "None of the selected attendees have credentials to clear.");
+      return;
+    }
+
+    const confirmed = await confirm({
+      title: 'Clear Credentials',
+      text: `Are you sure you want to clear credentials for ${attendeesWithCredentials.length} attendee${attendeesWithCredentials.length !== 1 ? 's' : ''}?`,
+      icon: 'warning',
+      confirmButtonText: 'Clear Credentials',
+      cancelButtonText: 'Cancel'
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    setBulkClearingCredentials(true);
+
+    // Show SweetAlert2 progress modal
+    const updateProgress = showProgressModal(isDark);
+    updateProgress({
+      title: 'Clearing Credentials',
+      text: 'Processing credentials for selected attendees...',
+      current: 0,
+      total: attendeesWithCredentials.length,
+    });
+
+    let successCount = 0;
+    let errorCount = 0;
+    const errors: string[] = [];
+
+    try {
+      for (let i = 0; i < attendeesWithCredentials.length; i++) {
+        const attendee = attendeesWithCredentials[i];
+        const attendeeName = `${attendee.firstName} ${attendee.lastName}`;
+
+        updateProgress({
+          title: 'Clearing Credentials',
+          text: 'Processing credentials for selected attendees...',
+          current: i + 1,
+          total: attendeesWithCredentials.length,
+          currentItemName: attendeeName
+        });
+
+        try {
+          const response = await fetch(`/api/attendees/${attendee.id}/clear-credential`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to clear credential');
+          }
+
+          // Update the attendee in the local state
+          setAttendees(prev => prev.map(a =>
+            a.id === attendee.id
+              ? { ...a, credentialUrl: null, credentialGeneratedAt: null }
+              : a
+          ));
+
+          successCount++;
+        } catch (err) {
+          errorCount++;
+          const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+          errors.push(`${attendeeName}: ${errorMessage}`);
+          console.error(`Error clearing credential for ${attendeeName}:`, err);
+        }
+
+        // Small delay between requests to avoid overwhelming the API
+        if (i < attendeesWithCredentials.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+
+      // Close progress modal
+      closeProgressModal();
+
+      // Show final results
+      if (successCount > 0 && errorCount === 0) {
+        success("Success", `Successfully cleared ${successCount} credential${successCount === 1 ? '' : 's'}.`);
+      } else if (successCount > 0 && errorCount > 0) {
+        // Partial success - show detailed error modal
+        const errorListHtml = errors.slice(0, 5).map(err =>
+          `<li style="margin-bottom: 8px; color: #ef4444; font-size: 0.9em; word-break: break-word;">${err}</li>`
+        ).join('');
+        const moreErrors = errors.length > 5 ? `<li style="margin-top: 8px; color: #6b7280;">...and ${errors.length - 5} more errors</li>` : '';
+
+        await alert({
+          title: 'Partial Success',
+          html: `
+            <div style="text-align: left;">
+              <p style="margin-bottom: 16px;">
+                <strong style="color: #10b981;">✓ Successfully cleared:</strong> ${successCount} credential${successCount === 1 ? '' : 's'}
+              </p>
+              <p style="margin-bottom: 12px;">
+                <strong style="color: #ef4444;">✗ Failed to clear:</strong> ${errorCount} credential${errorCount === 1 ? '' : 's'}
+              </p>
+              <div style="background: #fee; padding: 12px; border-radius: 6px; margin-top: 12px;">
+                <p style="margin-bottom: 8px; font-weight: 600;">Error Details:</p>
+                <ul style="margin: 0; padding-left: 20px; font-size: 0.9em; max-height: 200px; overflow-y: auto;">
+                  ${errorListHtml}
+                  ${moreErrors}
+                </ul>
+              </div>
+            </div>
+          `,
+          icon: 'warning',
+          confirmButtonText: 'OK, I Understand'
+        });
+      } else {
+        // Complete failure - show detailed error modal
+        const errorListHtml = errors.slice(0, 5).map(err =>
+          `<li style="margin-bottom: 8px; color: #ef4444;">${err}</li>`
+        ).join('');
+        const moreErrors = errors.length > 5 ? `<li style="margin-top: 8px; color: #6b7280;">...and ${errors.length - 5} more errors</li>` : '';
+
+        await alert({
+          title: 'Credential Clear Failed',
+          html: `
+            <div style="text-align: left;">
+              <p style="margin-bottom: 16px; color: #ef4444;">
+                Failed to clear any credentials. Please review the errors below:
+              </p>
+              <div style="background: #fee; padding: 12px; border-radius: 6px;">
+                <p style="margin-bottom: 8px; font-weight: 600;">Error Details:</p>
+                <ul style="margin: 0; padding-left: 20px; font-size: 0.9em; max-height: 200px; overflow-y: auto;">
+                  ${errorListHtml}
+                  ${moreErrors}
+                </ul>
+              </div>
+            </div>
+          `,
+          icon: 'error',
+          confirmButtonText: 'OK, I Understand'
+        });
+      }
+
+    } finally {
+      setBulkClearingCredentials(false);
+    }
+  };
+
   const handleBulkEdit = async () => {
     const changesToApply = Object.fromEntries(
       Object.entries(bulkEditChanges).filter(([, value]) => value && value !== 'no-change')
@@ -3592,6 +3755,24 @@ ${err.message || 'Failed to generate credential'}</pre>
                                     <>
                                       <FileImage className="mr-2 h-4 w-4" />
                                       Bulk Generate Credentials
+                                    </>
+                                  )}
+                                </DropdownMenuItem>
+                              )}
+                              {hasPermission(currentUser?.role, 'attendees', 'bulkGenerateCredentials') && (
+                                <DropdownMenuItem
+                                  onClick={handleBulkClearCredentials}
+                                  disabled={bulkClearingCredentials}
+                                >
+                                  {bulkClearingCredentials ? (
+                                    <>
+                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                                      Clearing...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Trash2 className="mr-2 h-4 w-4" />
+                                      Bulk Clear Credentials
                                     </>
                                   )}
                                 </DropdownMenuItem>
