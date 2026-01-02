@@ -1001,14 +1001,14 @@ export default function Dashboard() {
   const photoStats = useMemo(() => {
     // Compute all values once for deterministic rendering
     const hasAtomicCounts = attendees.some(a => {
-      const count = Number(a.photoUploadCount);
-      return !isNaN(count) && count >= 0;
+      return typeof a.photoUploadCount === 'number';
     });
     const totalUploads = attendees.reduce((sum, a) => {
-      const count = Number(a.photoUploadCount);
-      if (!isNaN(count) && count >= 0) {
-        return sum + count;
+      // Only use photoUploadCount if it exists as a field (not undefined/null)
+      if (typeof a.photoUploadCount === 'number') {
+        return sum + a.photoUploadCount;
       }
+      // Fallback: count based on photoUrl presence
       return sum + (a.photoUrl ? 1 : 0);
     }, 0);
     const attendeesWithPhotos = attendees.filter(a => a.photoUrl).length;
