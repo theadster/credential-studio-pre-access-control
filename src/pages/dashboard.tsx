@@ -1021,15 +1021,38 @@ export default function Dashboard() {
   const timeUntilEvent = useMemo(() => {
     if (!eventSettings?.eventDate) return null;
     
+    const dateValue = eventSettings.eventDate;
+    
+    // Convert to string if it's not already
+    const dateStr = typeof dateValue === 'string' ? dateValue : String(dateValue);
+    
+    // Extract just the date part if it's an ISO string
+    let datePart = dateStr;
+    if (dateStr.includes('T')) {
+      datePart = dateStr.split('T')[0];
+    }
+    
     // Parse YYYY-MM-DD as local date
-    const [year, month, day] = eventSettings.eventDate.split('-').map(Number);
+    const [year, month, day] = datePart.split('-').map(Number);
+    
+    // Validate parsed values
+    if (isNaN(year) || isNaN(month) || isNaN(day)) {
+      return null;
+    }
+    
     const now = new Date();
     
     // Build event datetime (use event time if available, otherwise end of day)
     let eventDateTime: Date;
     if (eventSettings?.eventTime) {
-      const [hours, minutes] = eventSettings.eventTime.split(':').map(Number);
-      eventDateTime = new Date(year, month - 1, day, hours, minutes);
+      const timeParts = eventSettings.eventTime.split(':').map(Number);
+      const hours = timeParts[0] || 0;
+      const minutes = timeParts[1] || 0;
+      if (!isNaN(hours) && !isNaN(minutes)) {
+        eventDateTime = new Date(year, month - 1, day, hours, minutes);
+      } else {
+        eventDateTime = new Date(year, month - 1, day, 23, 59, 59);
+      }
     } else {
       eventDateTime = new Date(year, month - 1, day, 23, 59, 59);
     }
