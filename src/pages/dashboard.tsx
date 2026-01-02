@@ -2646,84 +2646,61 @@ ${err.message || 'Failed to generate credential'}</pre>
     const updateProgress = showProgressModal(isDark);
     updateProgress({
       title: 'Clearing Credentials',
-      text: 'Processing credentials for selected attendees...',
+      text: `Processing credentials for ${attendeesWithCredentials.length} attendee${attendeesWithCredentials.length !== 1 ? 's' : ''}...`,
       current: 0,
-      total: attendeesWithCredentials.length,
+      total: 1, // Single bulk request
     });
 
-    let successCount = 0;
-    let errorCount = 0;
-    const errors: string[] = [];
-
     try {
-      for (let i = 0; i < attendeesWithCredentials.length; i++) {
-        const attendee = attendeesWithCredentials[i];
-        const attendeeName = `${attendee.firstName} ${attendee.lastName}`;
+      // Make single bulk API call
+      const response = await fetch('/api/attendees/bulk-clear-credentials', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          attendeeIds: attendeesWithCredentials.map(a => a.id) 
+        }),
+      });
 
-        updateProgress({
-          title: 'Clearing Credentials',
-          text: 'Processing credentials for selected attendees...',
-          current: i + 1,
-          total: attendeesWithCredentials.length,
-          currentItemName: attendeeName
-        });
+      const result = await response.json();
 
-        try {
-          const response = await fetch(`/api/attendees/${attendee.id}/clear-credential`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-          });
-
-          if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to clear credential');
-          }
-
-          // Update the attendee in the local state
-          setAttendees(prev => prev.map(a =>
-            a.id === attendee.id
-              ? { ...a, credentialUrl: null, credentialGeneratedAt: null }
-              : a
-          ));
-
-          successCount++;
-        } catch (err) {
-          errorCount++;
-          const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-          errors.push(`${attendeeName}: ${errorMessage}`);
-          console.error(`Error clearing credential for ${attendeeName}:`, err);
-        }
-
-        // Small delay between requests to avoid overwhelming the API
-        if (i < attendeesWithCredentials.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
+      if (!response.ok) {
+        throw new Error(result.error || 'Bulk clear operation failed');
       }
+
+      // Update local state for all successfully cleared attendees
+      const clearedIds = attendeesWithCredentials.map(a => a.id);
+      setAttendees(prev =>
+        prev.map(a =>
+          clearedIds.includes(a.id)
+            ? { ...a, credentialUrl: null, credentialGeneratedAt: null }
+            : a
+        )
+      );
 
       // Close progress modal
       closeProgressModal();
 
-      // Show final results
-      if (successCount > 0 && errorCount === 0) {
-        success("Success", `Successfully cleared ${successCount} credential${successCount === 1 ? '' : 's'}.`);
-      } else if (successCount > 0 && errorCount > 0) {
+      // Show final results based on server response
+      if (result.successCount > 0 && result.errorCount === 0) {
+        success("Success", `Successfully cleared ${result.successCount} credential${result.successCount === 1 ? '' : 's'}.`);
+      } else if (result.successCount > 0 && result.errorCount > 0) {
         // Partial success - show detailed error modal
-        const errorListHtml = errors.slice(0, 5).map(err =>
-          `<li style="margin-bottom: 8px; color: #ef4444; font-size: 0.9em; word-break: break-word;">${err}</li>`
+        const errorListHtml = (result.errors || []).slice(0, 5).map((err: any) =>
+          `<li style="margin-bottom: 8px; color: #ef4444; font-size: 0.9em; word-break: break-word;">Attendee ID ${err.attendeeId}: ${err.error}</li>`
         ).join('');
-        const moreErrors = errors.length > 5 ? `<li style="margin-top: 8px; color: #6b7280;">...and ${errors.length - 5} more errors</li>` : '';
+        const moreErrors = (result.errors || []).length > 5 ? `<li style="margin-top: 8px; color: #6b7280;">...and ${result.errors.length - 5} more errors</li>` : '';
 
         await alert({
           title: 'Partial Success',
           html: `
             <div style="text-align: left;">
               <p style="margin-bottom: 16px;">
-                <strong style="color: #10b981;">✓ Successfully cleared:</strong> ${successCount} credential${successCount === 1 ? '' : 's'}
+                <strong style="color: #10b981;">✓ Successfully cleared:</strong> ${result.successCount} credential${result.successCount === 1 ? '' : 's'}
               </p>
               <p style="margin-bottom: 12px;">
-                <strong style="color: #ef4444;">✗ Failed to clear:</strong> ${errorCount} credential${errorCount === 1 ? '' : 's'}
+                <strong style="color: #ef4444;">✗ Failed to clear:</strong> ${result.errorCount} credential${result.errorCount === 1 ? '' : 's'}
               </p>
               <div style="background: #fee; padding: 12px; border-radius: 6px; margin-top: 12px;">
                 <p style="margin-bottom: 8px; font-weight: 600;">Error Details:</p>
@@ -2739,10 +2716,10 @@ ${err.message || 'Failed to generate credential'}</pre>
         });
       } else {
         // Complete failure - show detailed error modal
-        const errorListHtml = errors.slice(0, 5).map(err =>
-          `<li style="margin-bottom: 8px; color: #ef4444;">${err}</li>`
+        const errorListHtml = (result.errors || []).slice(0, 5).map((err: any) =>
+          `<li style="margin-bottom: 8px; color: #ef4444;">Attendee ID ${err.attendeeId}: ${err.error}</li>`
         ).join('');
-        const moreErrors = errors.length > 5 ? `<li style="margin-top: 8px; color: #6b7280;">...and ${errors.length - 5} more errors</li>` : '';
+        const moreErrors = (result.errors || []).length > 5 ? `<li style="margin-top: 8px; color: #6b7280;">...and ${result.errors.length - 5} more errors</li>` : '';
 
         await alert({
           title: 'Credential Clear Failed',
@@ -2765,6 +2742,9 @@ ${err.message || 'Failed to generate credential'}</pre>
         });
       }
 
+    } catch (err: any) {
+      closeProgressModal();
+      error("Error", err.message || "An unexpected error occurred during bulk clear operation.");
     } finally {
       setBulkClearingCredentials(false);
     }
@@ -3759,7 +3739,7 @@ ${err.message || 'Failed to generate credential'}</pre>
                                   )}
                                 </DropdownMenuItem>
                               )}
-                              {hasPermission(currentUser?.role, 'attendees', 'bulkGenerateCredentials') && (
+                              {hasPermission(currentUser?.role, 'attendees', 'print') && (
                                 <DropdownMenuItem
                                   onClick={handleBulkClearCredentials}
                                   disabled={bulkClearingCredentials}
