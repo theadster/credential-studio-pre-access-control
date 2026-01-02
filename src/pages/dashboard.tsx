@@ -1114,10 +1114,23 @@ export default function Dashboard() {
     }
     const [year, month, day] = datePart.split('-').map(Number);
     
+    // Validate parsed date values
+    if (isNaN(year) || isNaN(month) || isNaN(day)) {
+      return null;
+    }
+    
     let eventDateTime: Date;
     if (eventSettings?.eventTime) {
-      const [hours, minutes] = eventSettings.eventTime.split(':').map(Number);
-      eventDateTime = new Date(year, month - 1, day, hours, minutes);
+      const timeParts = eventSettings.eventTime.split(':').map(Number);
+      const hours = timeParts[0];
+      const minutes = timeParts[1];
+      
+      // Validate time values
+      if (isNaN(hours) || isNaN(minutes)) {
+        eventDateTime = new Date(year, month - 1, day, 23, 59, 59);
+      } else {
+        eventDateTime = new Date(year, month - 1, day, hours, minutes);
+      }
     } else {
       eventDateTime = new Date(year, month - 1, day, 23, 59, 59);
     }
