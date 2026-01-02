@@ -34,7 +34,7 @@ Replaced the simple day counter with a dynamic time display that:
 
 ## Technical Changes
 
-### 1. Calculation Logic (`src/pages/dashboard.tsx`, lines 1021-1080)
+### 1. Calculation Logic (`src/pages/dashboard.tsx`, lines 1021-1095)
 
 **Old Implementation:**
 ```typescript
@@ -51,44 +51,43 @@ const timeUntilEvent = useMemo(() => {
   if (!eventSettings?.eventDate) return null;
   
   const dateValue = eventSettings.eventDate;
-  
-  // Convert to string if it's not already
   const dateStr = typeof dateValue === 'string' ? dateValue : String(dateValue);
   
-  // Extract just the date part if it's an ISO string (Appwrite returns ISO format)
+  // Extract date part from ISO string (e.g., "2025-01-03T00:00:00.000Z" -> "2025-01-03")
   let datePart = dateStr;
   if (dateStr.includes('T')) {
     datePart = dateStr.split('T')[0];
   }
   
-  // Parse YYYY-MM-DD as local date
-  const [year, month, day] = datePart.split('-').map(Number);
+  // Validate date format
+  const dateParts = datePart.split('-');
+  if (dateParts.length !== 3) return null;
   
-  // Validate parsed values to prevent NaN
-  if (isNaN(year) || isNaN(month) || isNaN(day)) {
-    return null;
-  }
+  const year = parseInt(dateParts[0], 10);
+  const month = parseInt(dateParts[1], 10);
+  const day = parseInt(dateParts[2], 10);
   
-  const now = new Date();
+  if (isNaN(year) || isNaN(month) || isNaN(day)) return null;
   
-  // Build event datetime (use event time if available, otherwise end of day)
-  let eventDateTime: Date;
+  // Parse event time (format: "HH:MM")
+  let eventHours = 23, eventMinutes = 59;
   if (eventSettings?.eventTime) {
-    const timeParts = eventSettings.eventTime.split(':').map(Number);
-    const hours = timeParts[0] || 0;
-    const minutes = timeParts[1] || 0;
-    if (!isNaN(hours) && !isNaN(minutes)) {
-      eventDateTime = new Date(year, month - 1, day, hours, minutes);
-    } else {
-      eventDateTime = new Date(year, month - 1, day, 23, 59, 59);
+    const timeParts = eventSettings.eventTime.split(':');
+    if (timeParts.length >= 2) {
+      const parsedHours = parseInt(timeParts[0], 10);
+      const parsedMinutes = parseInt(timeParts[1], 10);
+      if (!isNaN(parsedHours) && !isNaN(parsedMinutes)) {
+        eventHours = parsedHours;
+        eventMinutes = parsedMinutes;
+      }
     }
-  } else {
-    eventDateTime = new Date(year, month - 1, day, 23, 59, 59);
   }
   
+  // Create event datetime in local timezone
+  const eventDateTime = new Date(year, month - 1, day, eventHours, eventMinutes, 0, 0);
+  const now = new Date();
   const diffMs = eventDateTime.getTime() - now.getTime();
   
-  // Event has passed
   if (diffMs <= 0) {
     return { value: 'Event Ended', unit: '', isCompleted: true };
   }
@@ -96,21 +95,22 @@ const timeUntilEvent = useMemo(() => {
   const diffHours = diffMs / (1000 * 60 * 60);
   const diffDays = diffMs / (1000 * 60 * 60 * 24);
   
-  // Less than 24 hours - show hours
   if (diffHours < 24) {
     const hours = Math.ceil(diffHours);
     return { value: hours, unit: hours === 1 ? 'Hour' : 'Hours', isCompleted: false };
   }
   
-  // 24+ hours - show days
-  const days = Math.ceil(diffDays);
+  // Use Math.round for intuitive display (2.04 days = "2 Days", not "3 Days")
+  const days = Math.max(1, Math.round(diffDays));
   return { value: days, unit: days === 1 ? 'Day' : 'Days', isCompleted: false };
 }, [eventSettings?.eventDate, eventSettings?.eventTime]);
 ```
 
 **Key improvements:**
 - Handles ISO string format from Appwrite (e.g., `2025-01-03T00:00:00.000Z`)
-- Extracts date part before parsing to avoid split errors
+- Validates date format has exactly 3 parts before parsing
+- Uses `parseInt(value, 10)` with explicit radix to prevent parsing issues
+- Uses `Math.round()` instead of `Math.ceil()` for more intuitive day counting
 - Validates all parsed numeric values to prevent NaN results
 - Includes `eventSettings?.eventTime` in dependency array for accurate calculations
 - Returns object with `{ value, unit, isCompleted }` for flexible UI rendering
@@ -172,11 +172,12 @@ const timeUntilEvent = useMemo(() => {
 
 ## Behavior Details
 
-- **Date format handling**: Appwrite returns dates as ISO strings (e.g., `2025-01-03T00:00:00.000Z`). The code extracts the date part before parsing to handle this correctly.
-- **Validation**: All parsed numeric values are validated to prevent NaN errors. If parsing fails, the calculation returns `null`.
-- **Rounding**: Uses `Math.ceil()` to round up, so 23.5 hours shows as "24 Hours"
+- **Date format handling**: Appwrite returns dates as ISO strings (e.g., `2025-01-03T00:00:00.000Z`). The code extracts the date part and validates the format before parsing.
+- **Validation**: Uses `parseInt(value, 10)` with explicit radix and validates array length to prevent NaN errors across different browsers/environments.
+- **Rounding**: Uses `Math.round()` for days (more intuitive: 2.04 days = "2 Days") and `Math.ceil()` for hours (conservative: 0.5 hours = "1 Hour")
 - **Singular/Plural**: Automatically adjusts unit text ("1 Hour" vs "2 Hours", "1 Day" vs "2 Days")
-- **Fallback**: If no event time is set, uses end of day (23:59:59) for comparison
+- **Fallback**: If no event time is set, uses end of day (23:59) for comparison
+- **Timezone**: The calculation uses the browser's local timezone. The stored date represents the intended local date of the event.
 - **Real-time**: Updates on every render as time passes (consider adding interval if needed for live updates)
 
 ## Testing Considerations
