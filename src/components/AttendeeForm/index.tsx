@@ -163,9 +163,21 @@ const AttendeeForm = React.memo(function AttendeeForm({
     resetForm
   } = useAttendeeForm({ attendee, customFields, eventSettings });
 
+  // Handle photo upload success
+  const handlePhotoUploadSuccess = useCallback((url: string) => {
+    setPhotoUrl(url);
+    // After photo upload, focus the dialog content to enable Enter key
+    setTimeout(() => {
+      const dialogContent = document.querySelector('[role="dialog"]');
+      if (dialogContent instanceof HTMLElement) {
+        dialogContent.focus();
+      }
+    }, 100);
+  }, [setPhotoUrl]);
+
   const { isCloudinaryOpen, openUploadWidget } = useCloudinaryUpload({
     eventSettings,
-    onUploadSuccess: setPhotoUrl
+    onUploadSuccess: handlePhotoUploadSuccess
   });
 
   // Prevent body scroll when dialog is open (with ref counting for multiple modals)
@@ -269,6 +281,45 @@ const AttendeeForm = React.memo(function AttendeeForm({
     }
   }, [isOpen]);
 
+  // Global Enter key handler for the dialog
+  useEffect(() => {
+    if (!isOpen || isCloudinaryOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle Enter key
+      if (e.key !== 'Enter') return;
+
+      // Don't trigger if user is in a textarea (allow line breaks)
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'TEXTAREA') return;
+
+      // Don't trigger if a button has focus (let the button handle it)
+      if (target.tagName === 'BUTTON') return;
+
+      // Don't trigger if user is holding Shift (Shift+Enter for line breaks)
+      if (e.shiftKey) return;
+
+      // Prevent default form submission behavior
+      e.preventDefault();
+      e.stopPropagation();
+
+      // Trigger the main submit button (Update/Create Attendee)
+      if (!loading && !loadingAndGenerate) {
+        const form = document.querySelector('[data-attendee-form]') as HTMLFormElement;
+        if (form) {
+          form.requestSubmit();
+        }
+      }
+    };
+
+    // Add listener to the document to catch Enter from anywhere in the dialog
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, isCloudinaryOpen, loading, loadingAndGenerate]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -354,6 +405,7 @@ const AttendeeForm = React.memo(function AttendeeForm({
             e.preventDefault();
           }
         }}
+        tabIndex={-1}
       >
         <FocusTrap enabled={isOpen} allowCloudinary={isCloudinaryOpen}>
           <DialogHeader className="border-b border-slate-200 dark:border-slate-700 pb-4 mb-0 bg-[#F1F5F9] dark:bg-slate-800 px-6 pt-6">
@@ -379,7 +431,7 @@ const AttendeeForm = React.memo(function AttendeeForm({
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleSubmit} className="px-6 py-6" autoComplete="off" data-form-type="other" data-lpignore="true">
+          <form onSubmit={handleSubmit} className="px-6 py-6" autoComplete="off" data-form-type="other" data-lpignore="true" data-attendee-form>
             <div className="grid grid-cols-12 gap-6 mb-6">
               {/* Photo Upload Section - Left Column */}
               <div className="col-span-3">
