@@ -1112,7 +1112,16 @@ export default function Dashboard() {
     if (dateStr.includes('T')) {
       datePart = dateStr.split('T')[0];
     }
-    const [year, month, day] = datePart.split('-').map(Number);
+    
+    // Parse date parts with explicit validation
+    const dateParts = datePart.split('-');
+    if (dateParts.length !== 3) {
+      return null;
+    }
+    
+    const year = parseInt(dateParts[0], 10);
+    const month = parseInt(dateParts[1], 10);
+    const day = parseInt(dateParts[2], 10);
     
     // Validate parsed date values
     if (isNaN(year) || isNaN(month) || isNaN(day)) {
@@ -1121,9 +1130,9 @@ export default function Dashboard() {
     
     let eventDateTime: Date;
     if (eventSettings?.eventTime) {
-      const timeParts = eventSettings.eventTime.split(':').map(Number);
-      const hours = timeParts[0];
-      const minutes = timeParts[1];
+      const timeParts = eventSettings.eventTime.split(':');
+      const hours = timeParts.length >= 1 ? parseInt(timeParts[0], 10) : NaN;
+      const minutes = timeParts.length >= 2 ? parseInt(timeParts[1], 10) : 0;
       
       // Validate time values
       if (isNaN(hours) || isNaN(minutes)) {
@@ -1151,7 +1160,9 @@ export default function Dashboard() {
       return { value: hours, unit: hours === 1 ? 'Hour' : 'Hours', isCompleted: false };
     }
     
-    const days = Math.ceil(diffDays);
+    // Use Math.round instead of Math.ceil for more intuitive day display
+    // 2.04 days should show as "2 Days", not "3 Days"
+    const days = Math.round(diffDays);
     return { value: days, unit: days === 1 ? 'Day' : 'Days', isCompleted: false };
   }, [eventSettings?.eventDate, eventSettings?.eventTime]);
 
