@@ -16,11 +16,12 @@ Enhanced the dashboard's event countdown display to show dynamic time units (day
 
 ## Problem Statement
 
-The previous "Days Until Event" display had two issues:
+The previous "Days Until Event" display had three issues:
 
 1. **Inaccurate on event day**: Showed "0 days" even when the event hadn't started yet (e.g., January 3rd at 6:15 PM would show 0 days at 9 AM)
 2. **Limited information**: Only showed days, making it unclear how much time remained when less than 24 hours away
 3. **No completion state**: No visual indication that an event had ended
+4. **Data format mismatch**: Appwrite returns dates as ISO strings (e.g., `2025-01-03T00:00:00.000Z`), but the code expected simple `YYYY-MM-DD` format, causing NaN errors
 
 ## Solution
 
@@ -33,7 +34,7 @@ Replaced the simple day counter with a dynamic time display that:
 
 ## Technical Changes
 
-### 1. Calculation Logic (`src/pages/dashboard.tsx`, lines 1021-1055)
+### 1. Calculation Logic (`src/pages/dashboard.tsx`, lines 1021-1080)
 
 **Old Implementation:**
 ```typescript
@@ -49,18 +50,45 @@ const daysUntilEvent = useMemo(() => {
 const timeUntilEvent = useMemo(() => {
   if (!eventSettings?.eventDate) return null;
   
-  // Build full event datetime using eventTime if available
+  const dateValue = eventSettings.eventDate;
+  
+  // Convert to string if it's not already
+  const dateStr = typeof dateValue === 'string' ? dateValue : String(dateValue);
+  
+  // Extract just the date part if it's an ISO string (Appwrite returns ISO format)
+  let datePart = dateStr;
+  if (dateStr.includes('T')) {
+    datePart = dateStr.split('T')[0];
+  }
+  
+  // Parse YYYY-MM-DD as local date
+  const [year, month, day] = datePart.split('-').map(Number);
+  
+  // Validate parsed values to prevent NaN
+  if (isNaN(year) || isNaN(month) || isNaN(day)) {
+    return null;
+  }
+  
+  const now = new Date();
+  
+  // Build event datetime (use event time if available, otherwise end of day)
   let eventDateTime: Date;
   if (eventSettings?.eventTime) {
-    const [hours, minutes] = eventSettings.eventTime.split(':').map(Number);
-    eventDateTime = new Date(year, month - 1, day, hours, minutes);
+    const timeParts = eventSettings.eventTime.split(':').map(Number);
+    const hours = timeParts[0] || 0;
+    const minutes = timeParts[1] || 0;
+    if (!isNaN(hours) && !isNaN(minutes)) {
+      eventDateTime = new Date(year, month - 1, day, hours, minutes);
+    } else {
+      eventDateTime = new Date(year, month - 1, day, 23, 59, 59);
+    }
   } else {
     eventDateTime = new Date(year, month - 1, day, 23, 59, 59);
   }
   
   const diffMs = eventDateTime.getTime() - now.getTime();
   
-  // Return object with value, unit, and completion state
+  // Event has passed
   if (diffMs <= 0) {
     return { value: 'Event Ended', unit: '', isCompleted: true };
   }
@@ -68,21 +96,27 @@ const timeUntilEvent = useMemo(() => {
   const diffHours = diffMs / (1000 * 60 * 60);
   const diffDays = diffMs / (1000 * 60 * 60 * 24);
   
+  // Less than 24 hours - show hours
   if (diffHours < 24) {
     const hours = Math.ceil(diffHours);
     return { value: hours, unit: hours === 1 ? 'Hour' : 'Hours', isCompleted: false };
   }
   
+  // 24+ hours - show days
   const days = Math.ceil(diffDays);
   return { value: days, unit: days === 1 ? 'Day' : 'Days', isCompleted: false };
 }, [eventSettings?.eventDate, eventSettings?.eventTime]);
 ```
 
 **Key improvements:**
-- Now includes `eventSettings?.eventTime` in dependency array for accurate calculations
+- Handles ISO string format from Appwrite (e.g., `2025-01-03T00:00:00.000Z`)
+- Extracts date part before parsing to avoid split errors
+- Validates all parsed numeric values to prevent NaN results
+- Includes `eventSettings?.eventTime` in dependency array for accurate calculations
 - Returns object with `{ value, unit, isCompleted }` for flexible UI rendering
 - Properly handles singular/plural forms ("1 Hour" vs "2 Hours")
 - Compares against full datetime, not just date at midnight
+- Gracefully handles missing or invalid time values
 
 ### 2. UI Display (`src/pages/dashboard.tsx`, lines 2971-2989)
 
@@ -138,6 +172,8 @@ const timeUntilEvent = useMemo(() => {
 
 ## Behavior Details
 
+- **Date format handling**: Appwrite returns dates as ISO strings (e.g., `2025-01-03T00:00:00.000Z`). The code extracts the date part before parsing to handle this correctly.
+- **Validation**: All parsed numeric values are validated to prevent NaN errors. If parsing fails, the calculation returns `null`.
 - **Rounding**: Uses `Math.ceil()` to round up, so 23.5 hours shows as "24 Hours"
 - **Singular/Plural**: Automatically adjusts unit text ("1 Hour" vs "2 Hours", "1 Day" vs "2 Days")
 - **Fallback**: If no event time is set, uses end of day (23:59:59) for comparison
@@ -153,6 +189,8 @@ When testing this feature, verify:
 4. **No event time**: Falls back gracefully when event time is not set
 5. **Dark mode**: Colors display correctly in both light and dark themes
 6. **Singular/plural**: Correctly shows "1 Hour" and "1 Day" (not "1 Hours" or "1 Days")
+7. **ISO date format**: Correctly parses Appwrite's ISO date format (e.g., `2025-01-03T00:00:00.000Z`)
+8. **Invalid dates**: Gracefully handles malformed date strings without showing NaN
 
 ## Related Files
 
