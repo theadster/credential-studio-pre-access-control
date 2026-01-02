@@ -1026,36 +1026,48 @@ export default function Dashboard() {
     // Convert to string if it's not already
     const dateStr = typeof dateValue === 'string' ? dateValue : String(dateValue);
     
-    // Extract just the date part if it's an ISO string
+    // Extract just the date part if it's an ISO string (e.g., "2025-01-03T00:00:00.000Z" -> "2025-01-03")
     let datePart = dateStr;
     if (dateStr.includes('T')) {
       datePart = dateStr.split('T')[0];
     }
     
-    // Parse YYYY-MM-DD as local date
-    const [year, month, day] = datePart.split('-').map(Number);
+    // Parse YYYY-MM-DD
+    const dateParts = datePart.split('-');
+    if (dateParts.length !== 3) {
+      return null;
+    }
+    
+    const year = parseInt(dateParts[0], 10);
+    const month = parseInt(dateParts[1], 10);
+    const day = parseInt(dateParts[2], 10);
     
     // Validate parsed values
     if (isNaN(year) || isNaN(month) || isNaN(day)) {
       return null;
     }
     
-    const now = new Date();
+    // Parse event time (format: "HH:MM" from type="time" input)
+    let eventHours = 23;
+    let eventMinutes = 59;
     
-    // Build event datetime (use event time if available, otherwise end of day)
-    let eventDateTime: Date;
     if (eventSettings?.eventTime) {
-      const timeParts = eventSettings.eventTime.split(':').map(Number);
-      const hours = timeParts[0] || 0;
-      const minutes = timeParts[1] || 0;
-      if (!isNaN(hours) && !isNaN(minutes)) {
-        eventDateTime = new Date(year, month - 1, day, hours, minutes);
-      } else {
-        eventDateTime = new Date(year, month - 1, day, 23, 59, 59);
+      const timeStr = eventSettings.eventTime;
+      const timeParts = timeStr.split(':');
+      if (timeParts.length >= 2) {
+        const parsedHours = parseInt(timeParts[0], 10);
+        const parsedMinutes = parseInt(timeParts[1], 10);
+        if (!isNaN(parsedHours) && !isNaN(parsedMinutes)) {
+          eventHours = parsedHours;
+          eventMinutes = parsedMinutes;
+        }
       }
-    } else {
-      eventDateTime = new Date(year, month - 1, day, 23, 59, 59);
     }
+    
+    // Create event datetime in local timezone
+    // The date stored is the intended local date, not UTC
+    const eventDateTime = new Date(year, month - 1, day, eventHours, eventMinutes, 0, 0);
+    const now = new Date();
     
     const diffMs = eventDateTime.getTime() - now.getTime();
     
@@ -1074,8 +1086,12 @@ export default function Dashboard() {
     }
     
     // 24+ hours - show days
-    const days = Math.ceil(diffDays);
-    return { value: days, unit: days === 1 ? 'Day' : 'Days', isCompleted: false };
+    // Use Math.round for more intuitive display:
+    // 1.0-1.49 days = 1 day, 1.5-2.49 days = 2 days, etc.
+    const days = Math.round(diffDays);
+    // Ensure at least 1 day if we're in the "days" branch
+    const displayDays = Math.max(1, days);
+    return { value: displayDays, unit: displayDays === 1 ? 'Day' : 'Days', isCompleted: false };
   }, [eventSettings?.eventDate, eventSettings?.eventTime]);
 
   // Enhanced filtering function for attendees including custom fields and photo filter
