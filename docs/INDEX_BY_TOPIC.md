@@ -1,36 +1,45 @@
----
-title: Documentation Index by Topic
-type: canonical
-status: active
-owner: "@team"
-last_verified: 2025-12-31
-review_interval_days: 1
-related_code: []
----
-
 # Documentation Index by Topic
 
 > Auto-generated index of active documentation files
 
-**Last Updated:** 2026-01-01
+**Last Updated:** 2026-01-02
 
-**Total Active Documents:** 137
+**Total Active Documents:** 157
 
 ## By Category
 
-### Docs (9)
+### Docs (28)
 
+- [Archival System Comprehensive Answer](./ARCHIVAL_SYSTEM_COMPREHENSIVE_ANSWER.md)
+- [Automated Documentation Sync Guide](./AUTOMATED_DOCS_SYNC_GUIDE.md)
+- [Bidirectional Sync Final Verification](./BIDIRECTIONAL_SYNC_FINAL_VERIFICATION.md)
+- [Bidirectional Sync Triple Verified](./BIDIRECTIONAL_SYNC_TRIPLE_VERIFIED.md)
+- [Broken Links Action Items](./BROKEN_LINKS_ACTION_ITEMS.md)
 - [Documentation Action Plan](./DOCUMENTATION_ACTION_PLAN.md)
+- [Documentation Archival Summary](./DOCUMENTATION_ARCHIVAL_SUMMARY.md)
 - [Documentation Audit Summary](./DOCUMENTATION_AUDIT_SUMMARY.md)
 - [Documentation Detailed Breakdown](./DOCUMENTATION_DETAILED_BREAKDOWN.md)
 - [Documentation Index by Topic](./INDEX_BY_TOPIC.md)
+- [Documentation Lifecycle and Archival System](./DOCUMENTATION_LIFECYCLE_AND_ARCHIVAL.md)
 - [Documentation Reorganization Complete](./REORGANIZATION_COMPLETE.md)
+- [Documentation Reorganization Project Complete](./DOCUMENTATION_REORGANIZATION_PROJECT_COMPLETE.md)
 - [Documentation Reorganization Summary](./DOCUMENTATION_REORGANIZED.md)
 - [Documentation Search Index](./SEARCH_INDEX.md)
 - [Documentation Status Report](./DOCUMENTATION_STATUS_REPORT.md)
+- [Documentation Sync Implementation Setup Guide](./IMPLEMENTATION_SETUP_GUIDE.md)
+- [Documentation Sync Options Comparison](./DOCS_SYNC_OPTIONS_COMPARISON.md)
+- [Documentation System Quick Start Guide](./QUICK_START_GUIDE.md)
+- [GitHub Actions Sync Workflow Complete](./GITHUB_ACTIONS_SYNC_WORKFLOW_COMPLETE.md)
+- [Implementation Complete Summary](./IMPLEMENTATION_COMPLETE_SUMMARY.md)
+- [Implementation Quick Reference](./IMPLEMENTATION_QUICK_REFERENCE.md)
+- [Implementation Ready - Option A + GitHub Actions](./IMPLEMENTATION_READY.md)
 - [Phase 3 Automation Setup Complete](./PHASE_3_AUTOMATION_SETUP_COMPLETE.md)
+- [Phase 3 Implementation Summary](./PHASE_3_IMPLEMENTATION_SUMMARY.md)
+- [Phase 6 Automatic Sync Test Complete](./PHASE_6_AUTOMATIC_SYNC_TEST_COMPLETE.md)
+- [Phase 6 Complete Final Report](./PHASE_6_COMPLETE_FINAL_REPORT.md)
+- [Steering Update Summary](./STEERING_UPDATE_SUMMARY.md)
 
-### Enhancements (19)
+### Enhancements (20)
 
 - [Access Control Export Enhancement](./enhancements/ACCESS_CONTROL_EXPORT_ENHANCEMENT.md)
 - [Attendees Pagination Improvement](./enhancements/ATTENDEES_PAGINATION_IMPROVEMENT.md)
@@ -50,6 +59,7 @@ related_code: []
 - [Printable Field Tracking Implementation](./enhancements/PRINTABLE_FIELD_TRACKING_IMPLEMENTATION.md)
 - [SweetAlert2 Progress Modal - Quick Reference](./enhancements/SWEETALERT_PROGRESS_QUICK_REFERENCE.md)
 - [SweetAlert2 Progress Modals - Implementation Summary](./enhancements/SWEETALERT_PROGRESS_IMPLEMENTATION_SUMMARY.md)
+- [Time Until Event Display Enhancement](./enhancements/TIME_UNTIL_EVENT_DISPLAY_ENHANCEMENT.md)
 - [Universal Placeholder Support](./enhancements/UNIVERSAL_PLACEHOLDER_SUPPORT.md)
 
 ### Fixes (20)
@@ -187,7 +197,7 @@ related_code: []
 
 - [Migration Lessons Learned](./migration/MIGRATION_LESSONS_LEARNED.md) - migration
 
-### Canonical (100)
+### Canonical (114)
 
 *Reference documentation, guides, and best practices*
 
@@ -201,10 +211,13 @@ related_code: []
 - [Appwrite Transactions Code Examples](./guides/TRANSACTIONS_CODE_EXAMPLES.md) - guides
 - [Appwrite Transactions Developer Guide](./guides/TRANSACTIONS_DEVELOPER_GUIDE.md) - guides
 - [Appwrite Transactions Quick Reference](./guides/TRANSACTIONS_QUICK_REFERENCE.md) - guides
+- [Archival System Comprehensive Answer](./ARCHIVAL_SYSTEM_COMPREHENSIVE_ANSWER.md) - docs
 - [Attendees Pagination Improvement](./enhancements/ATTENDEES_PAGINATION_IMPROVEMENT.md) - enhancements
 - [Attendees UI Improvements](./enhancements/ATTENDEES_UI_IMPROVEMENTS.md) - enhancements
 - [Auth User Linking - Administrator Guide](./guides/AUTH_USER_LINKING_ADMIN_GUIDE.md) - guides
 - [Auth User Linking API Guide](./guides/AUTH_USER_LINKING_API_GUIDE.md) - guides
+- [Bidirectional Sync Final Verification](./BIDIRECTIONAL_SYNC_FINAL_VERIFICATION.md) - docs
+- [Bidirectional Sync Triple Verified](./BIDIRECTIONAL_SYNC_TRIPLE_VERIFIED.md) - docs
 - [Boolean Custom Field Data Corruption Fix](./fixes/BOOLEAN_FIELD_DATA_CORRUPTION_FIX.md) - fixes
 - [Bulk Credential Generation Logic](./guides/BULK_CREDENTIAL_GENERATION_LOGIC.md) - guides
 - [Bulk Delete Timestamp Attribute Fix](./fixes/BULK_DELETE_TIMESTAMP_FIX.md) - fixes
@@ -235,18 +248,27 @@ related_code: []
 - [Delete Logs Progress Indicator](./enhancements/DELETE_LOGS_PROGRESS_INDICATOR.md) - enhancements
 - [Dialog Styling Consistency Update](./enhancements/DIALOG_STYLING_CONSISTENCY_UPDATE.md) - enhancements
 - [Documentation Action Plan](./DOCUMENTATION_ACTION_PLAN.md) - docs
+- [Documentation Archival Summary](./DOCUMENTATION_ARCHIVAL_SUMMARY.md) - docs
 - [Documentation Audit Summary](./DOCUMENTATION_AUDIT_SUMMARY.md) - docs
 - [Documentation Detailed Breakdown](./DOCUMENTATION_DETAILED_BREAKDOWN.md) - docs
 - [Documentation Index by Topic](./INDEX_BY_TOPIC.md) - docs
+- [Documentation Lifecycle and Archival System](./DOCUMENTATION_LIFECYCLE_AND_ARCHIVAL.md) - docs
 - [Documentation Reorganization Complete](./REORGANIZATION_COMPLETE.md) - docs
+- [Documentation Reorganization Project Complete](./DOCUMENTATION_REORGANIZATION_PROJECT_COMPLETE.md) - docs
 - [Documentation Reorganization Summary](./DOCUMENTATION_REORGANIZED.md) - docs
 - [Documentation Search Index](./SEARCH_INDEX.md) - docs
 - [Documentation Status Report](./DOCUMENTATION_STATUS_REPORT.md) - docs
+- [Documentation Sync Options Comparison](./DOCS_SYNC_OPTIONS_COMPARISON.md) - docs
+- [Documentation System Quick Start Guide](./QUICK_START_GUIDE.md) - docs
 - [Email Verification Security Fix](./fixes/EMAIL_VERIFICATION_SECURITY_FIX.md) - fixes
 - [Enhanced Credential Generation Error Messages - Implementation Summary](./enhancements/CREDENTIAL_GENERATION_ERROR_MESSAGES_IMPLEMENTATION.md) - enhancements
 - [Error Handling Guide](./guides/ERROR_HANDLING_GUIDE.md) - guides
 - [Event Settings Cache Usage Example](./guides/CACHE_USAGE_EXAMPLE.md) - guides
 - [Event Settings Recreation Script - Safeguards Implementation](./misc/EVENT_SETTINGS_SCRIPT_SAFEGUARDS.md) - misc
+- [GitHub Actions Sync Workflow Complete](./GITHUB_ACTIONS_SYNC_WORKFLOW_COMPLETE.md) - docs
+- [Implementation Complete Summary](./IMPLEMENTATION_COMPLETE_SUMMARY.md) - docs
+- [Implementation Quick Reference](./IMPLEMENTATION_QUICK_REFERENCE.md) - docs
+- [Implementation Ready - Option A + GitHub Actions](./IMPLEMENTATION_READY.md) - docs
 - [Import Complete Fix Session Summary](./fixes/IMPORT_COMPLETE_FIX_SESSION_SUMMARY.md) - fixes
 - [Integration Architecture Fix](./fixes/INTEGRATION_ARCHITECTURE_FIX.md) - fixes
 - [Integration Architecture Guide](./guides/INTEGRATION_ARCHITECTURE_GUIDE.md) - guides
@@ -273,6 +295,7 @@ related_code: []
 - [Password Reset Feature - Implementation Summary](./fixes/PASSWORD_RESET_FEATURE_SUMMARY.md) - fixes
 - [Performance Best Practices](./guides/PERFORMANCE_BEST_PRACTICES.md) - guides
 - [Phase 3 Automation Setup Complete](./PHASE_3_AUTOMATION_SETUP_COMPLETE.md) - docs
+- [Phase 6 Complete Final Report](./PHASE_6_COMPLETE_FINAL_REPORT.md) - docs
 - [Photo Service Integration Guide](./guides/PHOTO_SERVICE_INTEGRATION_GUIDE.md) - guides
 - [Preventing Performance Regressions](./guides/PREVENTING_PERFORMANCE_REGRESSIONS.md) - guides
 - [Printable Field Configuration Change Messaging](./enhancements/PRINTABLE_FIELD_CONFIGURATION_MESSAGING.md) - enhancements
@@ -288,19 +311,22 @@ related_code: []
 - [Switchboard Canvas Configuration Guide](./guides/SWITCHBOARD_CONFIGURATION_GUIDE.md) - guides
 - [TablesDB Atomic Bulk Operations - Correct Implementation](./misc/TABLESDB_ATOMIC_OPERATIONS.md) - misc
 - [TablesDB: updateRows vs upsertRows - Critical Difference](./misc/TABLESDB_UPDATE_VS_UPSERT.md) - misc
+- [Time Until Event Display Enhancement](./enhancements/TIME_UNTIL_EVENT_DISPLAY_ENHANCEMENT.md) - enhancements
 - [Universal Placeholder Support](./enhancements/UNIVERSAL_PLACEHOLDER_SUPPORT.md) - enhancements
 - [User Management Enhancement for Appwrite](./misc/USER_MANAGEMENT_ENHANCEMENT.md) - misc
 - [Z-Index Layering System](./guides/Z_INDEX_LAYERING_SYSTEM.md) - guides
 
-### Runbook (20)
+### Runbook (22)
 
 *Operational runbooks and procedures*
 
 - [API Keys Removal Migration](./migration/API_KEYS_REMOVAL_MIGRATION.md) - migration
 - [Appwrite Configuration Reference](./migration/APPWRITE_CONFIGURATION.md) - migration
+- [Automated Documentation Sync Guide](./AUTOMATED_DOCS_SYNC_GUIDE.md) - docs
 - [Complete Backend Migration Guide: Supabase to Appwrite](./migration/COMPLETE_MIGRATION_GUIDE.md) - migration
 - [CredentialStudio Manual Testing Guide](./guides/MANUAL_TESTING_GUIDE.md) - guides
 - [Custom Fields Visibility Control Migration](./migration/CUSTOM_FIELDS_VISIBILITY_MIGRATION.md) - migration
+- [Documentation Sync Implementation Setup Guide](./IMPLEMENTATION_SETUP_GUIDE.md) - docs
 - [Event Settings Migration - Complete Summary](./migration/MIGRATION_COMPLETE_SUMMARY.md) - migration
 - [Event Settings Migration Schema](./migration/EVENT_SETTINGS_MIGRATION_SCHEMA.md) - migration
 - [Event Settings Migration Status](./migration/MIGRATION_STATUS.md) - migration
@@ -317,12 +343,13 @@ related_code: []
 - [Quick Test Guide](./testing/QUICK_TEST_GUIDE.md) - testing
 - [Running Integration Tests](./testing/RUNNING_INTEGRATION_TESTS.md) - testing
 
-### Worklog (16)
+### Worklog (20)
 
 *Work logs and progress tracking (high-churn, frequent updates)*
 
 - [Attendee Management API Tests Summary](./testing/ATTENDEE_API_TESTS_SUMMARY.md) - testing
 - [Auth User Linking Integration Tests Summary](./testing/AUTH_USER_LINKING_INTEGRATION_TESTS_SUMMARY.md) - testing
+- [Broken Links Action Items](./BROKEN_LINKS_ACTION_ITEMS.md) - docs
 - [Custom Field API Tests Summary](./testing/CUSTOM_FIELD_API_TESTS_SUMMARY.md) - testing
 - [Custom Field Columns Configuration - Testing Checklist](./testing/CUSTOM_FIELD_COLUMNS_TESTING_CHECKLIST.md) - testing
 - [End-to-End Tests Summary](./testing/E2E_TESTS_SUMMARY.md) - testing
@@ -332,8 +359,11 @@ related_code: []
 - [Notes Search Functionality Tests Summary](./testing/NOTES_SEARCH_TESTS_SUMMARY.md) - testing
 - [Notes Search Visual Design and Accessibility Verification](./testing/NOTES_SEARCH_VISUAL_ACCESSIBILITY_VERIFICATION.md) - testing
 - [OneSimpleAPI HTML Sanitization Tests Summary](./testing/ONESIMPLEAPI_SANITIZATION_TESTS_SUMMARY.md) - testing
+- [Phase 3 Implementation Summary](./PHASE_3_IMPLEMENTATION_SUMMARY.md) - docs
+- [Phase 6 Automatic Sync Test Complete](./PHASE_6_AUTOMATIC_SYNC_TEST_COMPLETE.md) - docs
 - [Real-time Functionality Tests Summary](./testing/REALTIME_TESTS_SUMMARY.md) - testing
 - [Role and Permission API Tests Summary](./testing/ROLE_API_TESTS_SUMMARY.md) - testing
+- [Steering Update Summary](./STEERING_UPDATE_SUMMARY.md) - docs
 - [Transactions & Bulk Operations - Comprehensive Test Plan](./testing/TRANSACTIONS_TEST_PLAN.md) - testing
 - [User Management API Integration Tests Summary](./testing/USER_MANAGEMENT_API_TESTS_SUMMARY.md) - testing
 - [UserForm Testing Summary](./testing/USERFORM_TESTING_SUMMARY.md) - testing
