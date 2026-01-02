@@ -1,18 +1,8 @@
----
-title: Documentation Search Index
-type: canonical
-status: active
-owner: "@team"
-last_verified: 2025-12-31
-review_interval_days: 1
-related_code: []
----
-
 # Documentation Search Index
 
 > Searchable index of all active documentation
 
-**Last Updated:** 2026-01-01
+**Last Updated:** 2026-01-02
 
 ## Access Control Export Enhancement
 
@@ -148,6 +138,15 @@ related_code: []
 
 [View Document](./guides/TRANSACTIONS_QUICK_REFERENCE.md)
 
+## Archival System Comprehensive Answer
+
+- **File:** `ARCHIVAL_SYSTEM_COMPREHENSIVE_ANSWER.md`
+- **Type:** canonical
+- **Category:** docs
+- **Keywords:** (180, (30, (90, (keep, (keeping, (superseded), (team, actions, active, active), add, alert, all, and, answer, architecture, archival, archive, archive?, archived, automated, automatic, available, been, broken, canonical, change:, check, checked, commit, complete, comprehensive, created, current, cycle, daily, date, days), decision, detection, docs, document, documentation, documents, driven), edit, example, file, for, frontmatter, generate/update, generation, gets, github, how, index, indexes, intervals, issues, keeps, key, last, link, links, maintenance, manual, mark, metrics, modern, modern), move, note, option, options, organization, outdated, overview, part, process, push, question, records, related, report, responsibilities, result, review, runbooks, scenario, scenarios, scripts, set, stale, staleness, state, status, status:, stays, structure, summary, superseded, system, team, the, this, three, to:, today, update, validate, validation, verified, what, what's, why, workflow, worklog, works, your
+
+[View Document](./ARCHIVAL_SYSTEM_COMPREHENSIVE_ANSWER.md)
+
 ## Attendee Management API Tests Summary
 
 - **File:** `testing/ATTENDEE_API_TESTS_SUMMARY.md`
@@ -216,6 +215,35 @@ related_code: []
 
 [View Document](./testing/AUTH_USER_LINKING_INTEGRATION_TESTS_SUMMARY.md)
 
+## Automated Documentation Sync Guide
+
+- **File:** `AUTOMATED_DOCS_SYNC_GUIDE.md`
+- **Type:** runbook
+- **Category:** docs
+- **Related Code:**
+  - `.github/workflows/sync-docs-between-branches.yml`
+- **Keywords:** (main, access, actions, and, any, appearing, automated, automatically, automation, best, both, branch, branches, check, chore(docs):, commit, commits, configuration, conflicting, conflicts, control), dashboard, details, diagram, documentation, don't, during, edit, editor, enhancements, environment, exists, fails, feature, feature/mobile, file, files, format, from, future, git, github, guide, handling, history, how, improvements, issues?, latest, like:, main, manually, merge, monitoring, normal, not, other, overview, permissions, possible, practices, preventing, process, pull, push, questions?, recent, required, resolve, result, retry, scripts, see, should, stage, status, steering, support, switch, sync, synced, the, trigger, troubleshooting, unexpectedly, usage, verify, view, will, workflow, working, works, your
+
+[View Document](./AUTOMATED_DOCS_SYNC_GUIDE.md)
+
+## Bidirectional Sync Final Verification
+
+- **File:** `BIDIRECTIONAL_SYNC_FINAL_VERIFICATION.md`
+- **Type:** canonical
+- **Category:** docs
+- **Keywords:** analysis, bidirectional, complete, conclusion, consulted, deletion, documentation, expert, feature, files, final, finding, fully, implementation, key, main, models, modified, next, now, operational, related, results, status:, steps, summary, sync, test, trigger, verification, why, workflow, works
+
+[View Document](./BIDIRECTIONAL_SYNC_FINAL_VERIFICATION.md)
+
+## Bidirectional Sync Triple Verified
+
+- **File:** `BIDIRECTIONAL_SYNC_TRIPLE_VERIFIED.md`
+- **Type:** canonical
+- **Category:** docs
+- **Keywords:** (recreates, all, and, applied, bidirectional, branch, changes, comprehensive, conclusion, create, critical, delete, deletion, deletions, details, detect, detection, directories, docs, documentation, existing, feature, file, files, files), fix, from, fully, get, how, implementation, including, key, latest, location, logic, main, modified, only, operational, problem, related, remove, results, solution, source, stage, status:, summary, sync, test, the, triple, verification, verified, workflow, works
+
+[View Document](./BIDIRECTIONAL_SYNC_TRIPLE_VERIFIED.md)
+
 ## Boolean Custom Field Data Corruption Fix
 
 - **File:** `fixes/BOOLEAN_FIELD_DATA_CORRUPTION_FIX.md`
@@ -226,6 +254,17 @@ related_code: []
 - **Keywords:** 'yes'/'no', affected, analysis, behavior, boolean, bug, bulk, cause, changes, check, checklist, code, components, consistent, corruption, custom, customfieldinput.tsx, dashboard.tsx, data, description, display, documentation, edit, enforcement, expects, field, files, fix, form, format, impact, import, integration, issue, learned, lessons, logic, measures, migration, modified, new, prevention, problem, related, root, run, safety, script, status, steps, summary, switchboard, test, testing, the, this, timeline, type, uses, validation, verification, verify, was, why, wrong
 
 [View Document](./fixes/BOOLEAN_FIELD_DATA_CORRUPTION_FIX.md)
+
+## Broken Links Action Items
+
+- **File:** `BROKEN_LINKS_ACTION_ITEMS.md`
+- **Type:** worklog
+- **Category:** docs
+- **Related Code:**
+  - `scripts/check-docs-links.ts`
+- **Keywords:** (35, (fix, action, after, archive, archived, automation, before, broken, category, create, documentation, enhancements, file, files, first), fix, fixes, fixes:, guide, guides, guides:, high, how, image, items, last), link, links, links), low, medium, migration, miscellaneous, missing, monitoring, next), option, other, overview, path, priority, progress, recommended, reference, references, referencing, remove, spec, sweetalert, testing, tracking, transaction, update
+
+[View Document](./BROKEN_LINKS_ACTION_ITEMS.md)
 
 ## Bulk Credential Generation Logic
 
@@ -604,6 +643,15 @@ related_code: []
 
 [View Document](./DOCUMENTATION_ACTION_PLAN.md)
 
+## Documentation Archival Summary
+
+- **File:** `DOCUMENTATION_ARCHIVAL_SUMMARY.md`
+- **Type:** canonical
+- **Category:** docs
+- **Keywords:** (keep, 181:, 365:, 400:, 90:, 91:, active), again, alert, alerts, all, and, answer, archival, archive, are, automated, automatic, automation, best, broken, check, checks, clear, created, current, daily, day, detected, detection, docs, document, documentation, don't, due, example:, features, for, frontmatter, generate/update, generation, get, guide, historical, how, index, indexes, intervals, key, lifecycle, link, links, maintenance, management, manual, mark, modern, old, option, options, practices, preservation, process, quarterly, quick, related, respond, response, review, reviews, stale, staleness, status, stays, structure, summary, superseded, system, team, three, update, validate, validation, what's, when, workflow, you
+
+[View Document](./DOCUMENTATION_ARCHIVAL_SUMMARY.md)
+
 ## Documentation Audit Summary
 
 - **File:** `DOCUMENTATION_AUDIT_SUMMARY.md`
@@ -627,9 +675,18 @@ related_code: []
 - **File:** `INDEX_BY_TOPIC.md`
 - **Type:** canonical
 - **Category:** docs
-- **Keywords:** (1), (100), (16), (19), (20), (3), (41), (9), adr, canonical, category, docs, document, documentation, enhancements, fixes, guides, index, migration, misc, reference, runbook, testing, topic, type, worklog
+- **Keywords:** (1), (114), (16), (20), (22), (28), (3), (41), (9), adr, canonical, category, docs, document, documentation, enhancements, fixes, guides, index, migration, misc, reference, runbook, testing, topic, type, worklog
 
 [View Document](./INDEX_BY_TOPIC.md)
+
+## Documentation Lifecycle and Archival System
+
+- **File:** `DOCUMENTATION_LIFECYCLE_AND_ARCHIVAL.md`
+- **Type:** canonical
+- **Category:** docs
+- **Keywords:** (fixes,, (high, (superseded), **note:**, 2025, 2026, [new, accuracy, active, add, add:, alerts, and, archival, archive, archived, are, automated, batch, been, best, broken, category, change:, check, checks, churn), cleanup, clear, commit, create, current, daily, date, detection, determine, directory, docs, document, documentation, edit, etc.), example, file, for, frontmatter, generate/update, generation, github, good, guide, guide](link)., guides,, has, how, index, indexes, intervals, issues, keeping, key, last, lifecycle, link, links, locally, maintenance, manual, manually, mark, messages, metrics, modern, monitoring, move, needed, not, note, old, organization, outdated, overview, practices, preservation, process, quarterly, regular, result, review, reviews, run, scenario, scenarios, see, stale, staleness, states, status, status:, structure, summary, superseded, system, testing,, the, this, to:, top, update, updates, validate, validation, verified, verified:, what, what's, when, which, workflow, worklog, works, you
+
+[View Document](./DOCUMENTATION_LIFECYCLE_AND_ARCHIVAL.md)
 
 ## Documentation Reorganization Complete
 
@@ -639,6 +696,21 @@ related_code: []
 - **Keywords:** (completed), (ongoing), (recommended), (this, about, active, add, all, archive, archived, automation, clear, code, cognitive, complete, conventions, created, docs, docs/readme.md, documentation, documents, done, established, file, files, for, frontmatter, historical, immediate, implementation, improvements, key, knowledge, lifecycle, linking, load, long, main, maintenance, medium, metadata, metrics, migration, model, modified/created, month), moved, naming, new, next, overall, ownership, phase, preserved, quarter), questions, readme, recommendations, reduced, reorganization, reorganized, schema, script, see, setup, short, specific, standardized, standards, statistics, steps, structure, success, summary, support, template, term, the, was, week), what, workflow
 
 [View Document](./REORGANIZATION_COMPLETE.md)
+
+## Documentation Reorganization Project Complete
+
+- **File:** `DOCUMENTATION_REORGANIZATION_PROJECT_COMPLETE.md`
+- **Type:** canonical
+- **Category:** docs
+- **Related Code:**
+  - `.github/workflows/docs-maintenance.yml`
+  - `scripts/check-docs-staleness.ts`
+  - `scripts/validate-docs-frontmatter.ts`
+  - `scripts/check-docs-links.ts`
+  - `scripts/generate-docs-index.ts`
+- **Keywords:** (11, (137, (65, (complete), (ongoing), (this, achievements, action, actions, active, all, archive, assignment, automation, breakdown, broken, browsing, check, complete, completion, conclusion, contact, coverage, deliverables, deployment, discoverability, docs, document, documentation, file), files, files), for, frontmatter, generate, github, how, immediate, indexes, issues, items, key, known, links, locally, long, maintainability, metadata, migration, modified, month), next, organization, overview, owner, passed, phase, project, recommendations, reorganization, results, running, scripts, setup, short, stale, statistics, steps, structure, subdirectories), summary, support, system, term, test, tests, the, timeline, total), types, use, validate, week), workflow
+
+[View Document](./DOCUMENTATION_REORGANIZATION_PROJECT_COMPLETE.md)
 
 ## Documentation Reorganization Summary
 
@@ -654,7 +726,7 @@ related_code: []
 - **File:** `SEARCH_INDEX.md`
 - **Type:** canonical
 - **Category:** docs
-- **Keywords:** access, accessibility, acknowledgment, action, adding, admin, administrator, advanced, aggregate, alignment, analysis, and, api, appwrite, architecture, atomic, attendee, attendees, attribute, auth, backend, best, boolean, bulk, cache, caching, canonical, canvas, change, checkbox, checklist, code, collection, collections, columns, complete, comprehensive, configuration, consistency, control, correct, corruption, count, credential, credentialstudio, critical, critical:, custom, customization, dashboard, data, delete, deletion, design, developer, dialog, difference, documentation, dropdown, edit, email, end, enhanced, enhancement, enhancements, error, event, example, examples, export, feature, field, fields, filter, fix, fixes, flow, for, format, functionality, generation, guide, guide:, handling, html, implementation, import, improvement, improvements, index, indicator, inline, integration, internal, invitation, key, keys, layering, leak, learned, lessons, link, linking, log, logging, logic, logs, loss, management, manual, mapping, memory, messages, messaging, metrics, migration, mobile, modal, modals, multi, names, new, notes, onesimpleapi, operations, optimization, page, pagination, passcode, password, patterns, performance, permanent, permission, photo, placeholder, plan, polling, practices, preventing, printable, progress, quick, react, real, reapplied, recreation, redesign, refactor, reference, regressions, removal, reset, restoration, role, roles, running, safeguards, safety, sanitization, schema, script, scripts, scrolling, search, searchability, secrets, security, select, service, session, settings, setup, start:, status, storage, styling, summary, supabase, support, sweetalert2, switchboard, system, tablesdb, tablesdb:, tenancy, test, testing, tests, text, time, timestamp, tracking, transactions, troubleshooting, truncation, type, universal, update, updaterows, upsertrows, usage, user, userform, utility, validation, verification, version, visibility, visual, yes/no
+- **Keywords:** access, accessibility, acknowledgment, action, adding, admin, administrator, advanced, aggregate, alignment, analysis, and, api, appwrite, architecture, atomic, attendee, attendees, attribute, audit, auth, automation, backend, best, boolean, breakdown, bulk, cache, caching, canonical, canvas, change, checkbox, checklist, code, collection, collections, columns, complete, comprehensive, configuration, consistency, control, correct, corruption, count, credential, credentialstudio, critical, critical:, custom, customization, dashboard, data, delete, deletion, design, detailed, developer, dialog, difference, documentation, dropdown, edit, email, end, enhanced, enhancement, enhancements, error, event, example, examples, export, feature, field, fields, filter, fix, fixes, flow, for, format, functionality, generation, guide, guide:, handling, html, implementation, import, improvement, improvements, index, indicator, inline, integration, internal, invitation, key, keys, layering, leak, learned, lessons, link, linking, log, logging, logic, logs, loss, management, manual, mapping, memory, messages, messaging, metrics, migration, mobile, modal, modals, multi, names, new, notes, onesimpleapi, operations, optimization, page, pagination, passcode, password, patterns, performance, permanent, permission, phase, photo, placeholder, plan, polling, practices, preventing, printable, progress, quick, react, real, reapplied, recreation, redesign, refactor, reference, regressions, removal, reorganization, report, reset, restoration, role, roles, running, safeguards, safety, sanitization, schema, script, scripts, scrolling, search, searchability, secrets, security, select, service, session, settings, setup, start:, status, storage, styling, summary, supabase, support, sweetalert2, switchboard, system, tablesdb, tablesdb:, tenancy, test, testing, tests, text, time, timestamp, topic, tracking, transactions, troubleshooting, truncation, type, universal, update, updaterows, upsertrows, usage, user, userform, utility, validation, verification, version, visibility, visual, yes/no
 
 [View Document](./SEARCH_INDEX.md)
 
@@ -666,6 +738,44 @@ related_code: []
 - **Keywords:** archive, automation, current, documentation, frontmatter, metadata, migration, next, phase, report, setup, status, steps
 
 [View Document](./DOCUMENTATION_STATUS_REPORT.md)
+
+## Documentation Sync Implementation Setup Guide
+
+- **File:** `IMPLEMENTATION_SETUP_GUIDE.md`
+- **Type:** runbook
+- **Category:** docs
+- **Related Code:**
+  - `.github/workflows/sync-docs-between-branches.yml`
+  - `.gitignore`
+- **Keywords:** (10, (local, (replace, .gitignore, .kiro/, accomplish, actions, actual, add, after, all, and, any, automatic, automation, both, branch, branches, cached, changes, check, checklist, cherry, code, collaboration, commit, commits, complete, conflicting, conflicts, continue, creates, current, daily, development, docs/, documentation, doesn't, don't, edit, editor, effect, exists, fails, feature, file, files, findings, for, from, frontmatter, get, git, github, guide, hash, hash), how, implementation, important, issue:, key, main, maintenance, make, making, many, minutes), monitoring, next, not, notes, now, ongoing, only), open, output:, overview, phase, pick, prerequisites, push, remove, resolve, resolved, resolving,, resources, results, scripts, scripts/, seconds, setup, should, stage, steering, step, steps, summary, support, sync, synchronization, syncing, system, taking, team, test, tested, the, too, tracked, trigger, troubleshooting, update, use, using, valid!, validation, verification, verify, view, vim, wait, was, what, with, workflow, workflows, works, you'll, your
+
+[View Document](./IMPLEMENTATION_SETUP_GUIDE.md)
+
+## Documentation Sync Options Comparison
+
+- **File:** `DOCS_SYNC_OPTIONS_COMPARISON.md`
+- **Type:** canonical
+- **Category:** docs
+- **Related Code:**
+  - `.github/workflows/sync-docs-between-branches.yml`
+- **Keywords:** (local), (recommended), .git/hooks/post, .github/workflows/sync, .kiro/steering/, access, actions, add, best, between, branch, branches.yml, changed, changes, cherry, commit, comparison, complexity, conclusion, cons, control, create, decision, detect, docs, docs/,, documentation, feature/mobile, file:, for, git, github, hooks, how, implementation, main, matrix, next, on:, option, options, other, overview, pick, pros, pull, push, recommendation, script, scripts/,, setup, status, steps, submodule, subtree, sync, syncs:, table, time, triggers, update, use, workflow, works
+
+[View Document](./DOCS_SYNC_OPTIONS_COMPARISON.md)
+
+## Documentation System Quick Start Guide
+
+- **File:** `QUICK_START_GUIDE.md`
+- **Type:** canonical
+- **Category:** docs
+- **Related Code:**
+  - `.github/workflows/docs-maintenance.yml`
+  - `scripts/check-docs-staleness.ts`
+  - `scripts/validate-docs-frontmatter.ts`
+  - `scripts/check-docs-links.ts`
+  - `scripts/generate-docs-index.ts`
+- **Keywords:** action, actions, active, alert, archive, archiving, automation, broken, browse, categories, check, common, creating, docs, document, documentation, documents, fails, finding, for, found, frontmatter, generate, github, guide, guides, indexes, items, key, keywords, links, metadata, new, new?, next, overview, phase, project, quick, running, scripts, search, specific, stale, start, steps, structure, summaries, support, system, tasks, topic, troubleshooting, updating, validate, validation, what's, workflow
+
+[View Document](./QUICK_START_GUIDE.md)
 
 ## Email Verification Security Fix
 
@@ -765,6 +875,48 @@ related_code: []
 - **Keywords:** "delete", (recommended, automatic, backup, changes, cli, code, confirm, confirmation, date, details, dry, environment, error, event, example, examples, execute, features, first, flag, flags, functions, handling, implementation, improvements, interactive, made, mode, modified, new, overview, preview, prompt, prompt:, quality, recovery, recreation, run, safe, safeguards, safety, script, settings, step), structure, testing, type, usage, validation, variable, will, with
 
 [View Document](./misc/EVENT_SETTINGS_SCRIPT_SAFEGUARDS.md)
+
+## GitHub Actions Sync Workflow Complete
+
+- **File:** `GITHUB_ACTIONS_SYNC_WORKFLOW_COMPLETE.md`
+- **Type:** canonical
+- **Category:** docs
+- **Keywords:** (feature, (main, actions, analysis, and, bidirectional, branch, cause, changes, cleanup, complete, diff, documentation, feature), files, final, forward, git, github, how, implementation, issue, key, logic, made, main), modified, next, operational, performed, problem, related, remote, results, reverse, root, setup, status:, step:, steps, summary, sync, target, testing, tracking, verification, workflow, works
+
+[View Document](./GITHUB_ACTIONS_SYNC_WORKFLOW_COMPLETE.md)
+
+## Implementation Complete Summary
+
+- **File:** `IMPLEMENTATION_COMPLETE_SUMMARY.md`
+- **Type:** canonical
+- **Category:** docs
+- **Keywords:** (optional), (this, .gitignore, actions, and, architecture, automated, automatic, automation, benefits, bidirectional, both, branches, broken, changes, check, checks, commit, commits, complete, comprehensive, conclusion, coverage, daily, deletion, deliverables, developers, docs, documentation, don't, executive, for, frontmatter, generate, github, guidelines, handling, how, immediate, implementation, implemented, important, indexes, key, links, maintenance, make, making, manual, means, metrics, monitoring, month), next, notes, now, ongoing, performance, projects, push, reliability, resources, results, scope, scripts, seconds, short, stage, stale, status, steering, steps, summary, support, sync, synchronization, system, teams, term, test, testing, this, timeline, updated, use, validate, view, wait, was, week), what, workflow
+
+[View Document](./IMPLEMENTATION_COMPLETE_SUMMARY.md)
+
+## Implementation Quick Reference
+
+- **File:** `IMPLEMENTATION_QUICK_REFERENCE.md`
+- **Type:** canonical
+- **Category:** docs
+- **Related Code:**
+  - `.gitignore`
+  - `.github/workflows/sync-docs-between-branches.yml`
+- **Keywords:** (replace, (triggers, .gitignore, .kiro/, 387, actions, actual, all, and, automatic, automation, both, branch, branches, changes, check, checklist, cherry, clean, comment, commit, commit), conflicts, continue, create, current, daily, docs/, documentation, edit, feature, file, files, find, for, from, get, github, hash, https://github.com/[user]/[repo]/actions, implementation, key, latest, lines:, main, make, monitor, not, now, out, phase, pick, pull, push, quick, reference, save, scripts/, seconds, stage, switch, sync, sync), test, these, to:, triggering, troubleshooting, update, usage, verification, verify, view, wait, with, workflow, working
+
+[View Document](./IMPLEMENTATION_QUICK_REFERENCE.md)
+
+## Implementation Ready - Option A + GitHub Actions
+
+- **File:** `IMPLEMENTATION_READY.md`
+- **Type:** canonical
+- **Category:** docs
+- **Related Code:**
+  - `.gitignore`
+  - `.github/workflows/sync-docs-between-branches.yml`
+- **Keywords:** (40, (now), (this, .gitignore, actions, actions:, after, already, automatic, automation, before, begin?, benefits, branch, changes, checklist, combined, commit, common, conflicting, detailed, documentation, done, during, edit, expected, feature, files, follow, github, guide, here:, how, immediate, implementation, implementing, issues, key, main, minutes, need, next, ongoing, option, phase, phases, push, quick, ready, reference, results, setup, shared, short, simple, start, steps, summary, support, sync, term, test, total), troubleshooting, update, use, verify, week), what, what's, you, you're
+
+[View Document](./IMPLEMENTATION_READY.md)
 
 ## Import Complete Fix Session Summary
 
@@ -1240,6 +1392,39 @@ related_code: []
 
 [View Document](./PHASE_3_AUTOMATION_SETUP_COMPLETE.md)
 
+## Phase 3 Implementation Summary
+
+- **File:** `PHASE_3_IMPLEMENTATION_SUMMARY.md`
+- **Type:** worklog
+- **Category:** docs
+- **Related Code:**
+  - `.github/workflows/docs-maintenance.yml`
+  - `scripts/check-docs-staleness.ts`
+  - `scripts/validate-docs-frontmatter.ts`
+  - `scripts/check-docs-links.ts`
+  - `scripts/generate-docs-index.ts`
+- **Keywords:** (65, (8), (9), (ongoing), (this, accomplished, actions, active, archive, archived, assignment, automation, broken, check, checking, completed, completion, conclusion, created, created/modified, deployment, docs, documentation, executive, files, for, four, frontmatter, generate, generated, generation, github, how, immediate, implementation, index, indexes, issues, known, link, links, locally, long, metadata, migration, modified, month), new, next, owner, phase, project, recommendations, results, running, scripts, searchable, setup, short, stale, staleness, standardization, statistics, status, steps, summary, system, term, test, tested, the, total), use, validate, validation, was, what, workflow
+
+[View Document](./PHASE_3_IMPLEMENTATION_SUMMARY.md)
+
+## Phase 6 Automatic Sync Test Complete
+
+- **File:** `PHASE_6_AUTOMATIC_SYNC_TEST_COMPLETE.md`
+- **Type:** worklog
+- **Category:** docs
+- **Keywords:** automatic, automation, cleanup, complete, completed, conclusion, conditions, configuration, create, delete, deletion, documentation, execution, feature, features, file, findings, generated, key, main, means, next, overview, performance, phase, related, results, scope, sequence, statistics, status, steps, strengths, summary, sync, syncs, test, this, trigger, verification, verify, what, workflow
+
+[View Document](./PHASE_6_AUTOMATIC_SYNC_TEST_COMPLETE.md)
+
+## Phase 6 Complete Final Report
+
+- **File:** `PHASE_6_COMPLETE_FINAL_REPORT.md`
+- **Type:** canonical
+- **Category:** docs
+- **Keywords:** (feature, (main, (this, achievements, all, and, applied, architecture, automatic, automation, benefits, bidirectional, both, branch, branches, changes, commit, commits, complete, completed, comprehensive, conclusion, conditions, configuration, creation, critical, deletion, deletions, deliverables, detect, developers, directories, docs, documentation, don't, executive, feature), file, final, fix, for, from, generated, get, handling, how, immediate, implementation, important, including, key, latest, main), make, making, means, metrics, monitoring, month), next, notes, now, ongoing, performance, phase, phases, problem, projects, push, reliability, remove, report, resources, results, scope, seconds, short, solution, source, stage, status, steps, summary, support, sync, synchronization, teams, term, test, testing, the, this, trigger, use, view, wait, week), what, workflow, works
+
+[View Document](./PHASE_6_COMPLETE_FINAL_REPORT.md)
+
 ## Photo Service Integration Guide
 
 - **File:** `guides/PHOTO_SERVICE_INTEGRATION_GUIDE.md`
@@ -1378,6 +1563,17 @@ related_code: []
 
 [View Document](./testing/RUNNING_INTEGRATION_TESTS.md)
 
+## Steering Update Summary
+
+- **File:** `STEERING_UPDATE_SUMMARY.md`
+- **Type:** worklog
+- **Category:** docs
+- **Related Code:**
+  - `.kiro/steering/documentation-organization.md`
+- **Keywords:** added, agents, automated, automation, changes, creating, directory, documentation, documents, for, frontmatter, future, helps, how, impact, key, know:, maintenance, new, next, project, related, requirements, rules, section, sections, status, steering, steps, structure, summary, system, this, update, updated, was, what, will, will:
+
+[View Document](./STEERING_UPDATE_SUMMARY.md)
+
 ## SweetAlert2 Best Practices Guide
 
 - **File:** `guides/SWEETALERT_BEST_PRACTICES_GUIDE.md`
@@ -1466,6 +1662,15 @@ related_code: []
 - **Keywords:** 'rows', (after), (atomic, (before), (sequential, `createrows()`, `deleterows()`, `src/lib/bulkoperations.ts`, `updaterows()`, `upsertrows()`, after, api, array, before, bulk, check, common, correct, correct:, critical, data, data,, difference, different, discovered, each, edit, failing, fix, impact, implementation, incorrect, issue, logs, message, method, methods, mistake, mistakes, multiple, name, parameter, perform, performance, reference, response, rows, same, server, signature, success, summary, tablesdb:, testing, the, two, updated:, updaterows, updates), upsert), upsertrows, use, using, was, when, when:, why, with, wrong, you
 
 [View Document](./misc/TABLESDB_UPDATE_VS_UPSERT.md)
+
+## Time Until Event Display Enhancement
+
+- **File:** `enhancements/TIME_UNTIL_EVENT_DISPLAY_ENHANCEMENT.md`
+- **Type:** canonical
+- **Category:** enhancements
+- **Keywords:** (`src/pages/dashboard.tsx`,, 1021, 1095), 2971, 2989), away, behavior, calculation, changes, considerations, details, display, ended, enhancement, enhancements, event, examples, files, future, has, hours, less, lines, logic, more, overview, problem, related, solution, statement, technical, testing, than, time, until
+
+[View Document](./enhancements/TIME_UNTIL_EVENT_DISPLAY_ENHANCEMENT.md)
 
 ## Transactions & Bulk Operations - Comprehensive Test Plan
 
