@@ -1,4 +1,4 @@
-import { useReducer, useEffect, useMemo, useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 import { useSweetAlert } from '@/hooks/useSweetAlert';
 import { FORM_LIMITS } from '@/constants/formLimits';
 
@@ -63,7 +63,7 @@ const initialFormState: FormData = {
   barcodeNumber: '',
   notes: '',
   photoUrl: '',
-  customFieldValues: {}
+  customFieldValues: {},
 };
 
 function formReducer(state: FormData, action: FormAction): FormData {
@@ -76,8 +76,8 @@ function formReducer(state: FormData, action: FormAction): FormData {
         ...state,
         customFieldValues: {
           ...state.customFieldValues,
-          [action.fieldId]: action.value
-        }
+          [action.fieldId]: action.value,
+        },
       };
 
     case 'SET_PHOTO_URL':
@@ -87,7 +87,7 @@ function formReducer(state: FormData, action: FormAction): FormData {
       return { ...state, photoUrl: '' };
 
     case 'RESET_FORM':
-      return initialFormState;
+      return { ...initialFormState };
 
     case 'INITIALIZE_FORM':
       return action.data;
@@ -104,7 +104,7 @@ function formReducer(state: FormData, action: FormAction): FormData {
       if (Object.keys(filteredCustomFieldValues).length !== Object.keys(state.customFieldValues).length) {
         return {
           ...state,
-          customFieldValues: filteredCustomFieldValues
+          customFieldValues: filteredCustomFieldValues,
         };
       }
       return state;
@@ -150,6 +150,10 @@ function formReducer(state: FormData, action: FormAction): FormData {
 export function useAttendeeForm({ attendee, customFields, eventSettings }: UseAttendeeFormProps) {
   const { error } = useSweetAlert();
   const [formData, dispatch] = useReducer(formReducer, initialFormState);
+  
+  // Track if form has been initialized to prevent re-initialization on focus changes
+  const isInitializedRef = useRef(false);
+  const attendeeIdRef = useRef<string | undefined>(undefined);
 
   // Memoized initialization logic
   const initializeFormData = useCallback(() => {
@@ -169,7 +173,7 @@ export function useAttendeeForm({ attendee, customFields, eventSettings }: UseAt
       // Boolean format: 'yes'/'no' (never 'true'/'false')
       // This ensures consistency across the application and Switchboard integration
       customFields.forEach(field => {
-        if (field.fieldType === 'boolean' && !initialCustomFieldValues[field.id]) {
+        if (field.fieldType === 'boolean' && initialCustomFieldValues[field.id] === undefined) {
           initialCustomFieldValues[field.id] = 'no';
         }
       });
@@ -182,18 +186,31 @@ export function useAttendeeForm({ attendee, customFields, eventSettings }: UseAt
           barcodeNumber: attendee.barcodeNumber || '',
           notes: attendee.notes || '',
           photoUrl: attendee.photoUrl || '',
-          customFieldValues: initialCustomFieldValues
-        }
+          customFieldValues: initialCustomFieldValues,
+        },
       });
+      
+      isInitializedRef.current = true;
+      attendeeIdRef.current = attendee.id;
     } else {
       dispatch({ type: 'RESET_FORM' });
+      isInitializedRef.current = true;
+      attendeeIdRef.current = undefined;
     }
   }, [attendee, customFields]);
 
   // Initialize/reset form when attendee or customFields changes
+  // Only reinitialize if:
+  // 1. Form hasn't been initialized yet, OR
+  // 2. We're switching to a different attendee (edit mode), OR
+  // 3. We're switching between create and edit modes
   useEffect(() => {
-    initializeFormData();
-  }, [initializeFormData]);
+    const attendeeChanged = attendeeIdRef.current !== attendee?.id;
+    
+    if (!isInitializedRef.current || attendeeChanged) {
+      initializeFormData();
+    }
+  }, [initializeFormData, attendee?.id]);
 
   // Prune deleted custom field values
   useEffect(() => {
@@ -236,37 +253,35 @@ export function useAttendeeForm({ attendee, customFields, eventSettings }: UseAt
       const charsetLength = charset.length;
       let barcode = '';
 
-      // Generate random bytes using Web Crypto API
-      const randomBytes = new Uint8Array(barcodeLength * 2); // Extra bytes for rejection sampling
+      // Get crypto reference safely
+      const crypto = (typeof window !== 'undefined' && window.crypto) ||
+                     (typeof global !== 'undefined' && global.crypto) ||
+                     null;
 
-      if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
-        // Browser environment
-        window.crypto.getRandomValues(randomBytes);
-      } else if (typeof global !== 'undefined' && global.crypto && global.crypto.getRandomValues) {
-        // Node.js 15+ with Web Crypto API
-        global.crypto.getRandomValues(randomBytes);
-      } else {
-        // Fallback to Math.random (should not happen in modern environments)
+      if (!crypto?.getRandomValues) {
+        // Fallback to Math.random
         console.warn('Crypto API not available, falling back to Math.random');
-        for (let i = 0; i < barcodeLength; i++) {
+        for (let i = 0; i < barcodeLength; i+=1) {
           barcode += charset.charAt(Math.floor(Math.random() * charsetLength));
         }
         return barcode;
       }
 
+      // Generate random bytes using Web Crypto API
+      const randomBytes = new Uint8Array(barcodeLength * 2);
+      crypto.getRandomValues(randomBytes);
+
       // Use rejection sampling to avoid modulo bias
       let byteIndex = 0;
-      for (let i = 0; i < barcodeLength; i++) {
-        // Find a random byte that doesn't cause modulo bias
+      for (let i = 0; i < barcodeLength; i+=1) {
         let randomValue;
         do {
           if (byteIndex >= randomBytes.length) {
-            // Need more random bytes
-            window.crypto?.getRandomValues(randomBytes) || global.crypto?.getRandomValues(randomBytes);
+            crypto.getRandomValues(randomBytes);
             byteIndex = 0;
           }
           randomValue = randomBytes[byteIndex++];
-        } while (randomValue >= 256 - (256 % charsetLength)); // Reject biased values
+        } while (randomValue >= 256 - (256 % charsetLength));
 
         barcode += charset.charAt(randomValue % charsetLength);
       }
@@ -280,19 +295,19 @@ export function useAttendeeForm({ attendee, customFields, eventSettings }: UseAt
         if (!response.ok) {
           const errorText = await response.text();
           console.error('Barcode uniqueness check failed:', response.status, errorText);
-          error('Failed to verify barcode uniqueness. Please try again.');
+          error('Barcode Check Failed', 'Failed to verify barcode uniqueness. Please try again.');
           return false; // Treat server errors as not unique to prevent duplicates
         }
         const data = await response.json();
         return !data.exists;
       } catch (err) {
         console.error('Error checking barcode uniqueness:', err);
-        error('Network error while checking barcode uniqueness. Please check your connection and try again.');
+        error('Barcode Check Failed', 'Network error while checking barcode uniqueness. Please check your connection and try again.');
         return false; // Treat network errors as not unique to prevent duplicates
       }
     };
 
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
+    for (let attempt = 0; attempt < maxRetries; attempt+=1) {
       const barcode = generateRandomBarcode();
       const isUnique = await checkBarcodeUniqueness(barcode);
 
@@ -304,7 +319,7 @@ export function useAttendeeForm({ attendee, customFields, eventSettings }: UseAt
 
     error(
       "Barcode Generation Failed",
-      `Unable to generate a unique barcode after ${maxRetries} attempts. Please try again or enter a barcode manually.`
+      `Unable to generate a unique barcode after ${maxRetries} attempts. Please try again or enter a barcode manually.`,
     );
   }, [eventSettings, error]);
 
@@ -384,7 +399,7 @@ export function useAttendeeForm({ attendee, customFields, eventSettings }: UseAt
     const customFieldValues = Object.entries(formData.customFieldValues)
       .map(([customFieldId, value]) => ({
         customFieldId,
-        value: value || ''
+        value: value || '',
       }));
 
     return {
@@ -393,12 +408,14 @@ export function useAttendeeForm({ attendee, customFields, eventSettings }: UseAt
       barcodeNumber: formData.barcodeNumber,
       notes: formData.notes || '',
       photoUrl: formData.photoUrl || null,
-      customFieldValues
+      customFieldValues,
     };
   };
 
   const resetForm = () => {
     dispatch({ type: 'RESET_FORM' });
+    isInitializedRef.current = false;
+    attendeeIdRef.current = undefined;
   };
 
   // Expose dispatch with typed actions for component use
@@ -427,6 +444,6 @@ export function useAttendeeForm({ attendee, customFields, eventSettings }: UseAt
     generateBarcode,
     validateForm,
     prepareAttendeeData,
-    resetForm
+    resetForm,
   };
 }
