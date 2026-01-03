@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer } from 'react';
+import { useCallback, useEffect, useReducer, useRef } from 'react';
 import { useSweetAlert } from '@/hooks/useSweetAlert';
 import { FORM_LIMITS } from '@/constants/formLimits';
 
@@ -73,7 +73,7 @@ type FormAction =
   | { type: 'REMOVE_PHOTO' }
   | { type: 'RESET_FORM'; eventSettings?: EventSettings; customFields?: CustomField[] }
   | { type: 'INITIALIZE_FORM'; data: FormData }
-  | { type: 'PRUNE_CUSTOM_FIELDS'; validFieldIds: Set<string> };
+  | { type: 'PRUNE_CUSTOM_FIELDS'; validFieldIds: string[] };
 
 const getInitialFormState = (eventSettings?: EventSettings, customFields: CustomField[] = []): FormData => {
   // Apply access control defaults if enabled
@@ -167,8 +167,9 @@ function formReducer(state: FormData, action: FormAction): FormData {
       return action.data;
 
     case 'PRUNE_CUSTOM_FIELDS': {
+      const validFieldIds = new Set(action.validFieldIds);
       const filteredCustomFieldValues = Object.entries(state.customFieldValues)
-        .filter(([fieldId]) => action.validFieldIds.has(fieldId))
+        .filter(([fieldId]) => validFieldIds.has(fieldId))
         .reduce((acc, [fieldId, value]) => {
           acc[fieldId] = value;
           return acc;
@@ -224,11 +225,15 @@ function formReducer(state: FormData, action: FormAction): FormData {
 export function useAttendeeForm({ attendee, customFields, eventSettings }: UseAttendeeFormProps) {
   const { error } = useSweetAlert();
   const [formData, dispatch] = useReducer(formReducer, getInitialFormState(eventSettings, customFields));
+  
+  // Track if form has been initialized to prevent re-initialization on focus changes
+  const isInitializedRef = useRef(false);
+  const attendeeIdRef = useRef<string | undefined>(undefined);
 
   // Memoized initialization logic
   const initializeFormData = useCallback(() => {
     if (attendee) {
-      const currentCustomFieldIds = new Set(customFields.map(cf => cf.id));
+      const currentCustomFieldIds = new Set((customFields || []).map(cf => cf.id));
       const initialCustomFieldValues: Record<string, string> = {};
 
       if (Array.isArray(attendee.customFieldValues)) {
@@ -242,8 +247,8 @@ export function useAttendeeForm({ attendee, customFields, eventSettings }: UseAt
       // CRITICAL: Boolean custom fields default to 'no' (NOT 'false')
       // Boolean format: 'yes'/'no' (never 'true'/'false')
       // This ensures consistency across the application and Switchboard integration
-      customFields.forEach(field => {
-        if (field.fieldType === 'boolean' && !initialCustomFieldValues[field.id]) {
+      (customFields || []).forEach(field => {
+        if (field.fieldType === 'boolean' && initialCustomFieldValues[field.id] === undefined) {
           initialCustomFieldValues[field.id] = 'no';
         }
       });
@@ -263,24 +268,42 @@ export function useAttendeeForm({ attendee, customFields, eventSettings }: UseAt
           accessEnabled: attendee.accessEnabled !== undefined ? attendee.accessEnabled : true,
         },
       });
+      
+      // Mark as initialized and track the attendee ID
+      isInitializedRef.current = true;
+      attendeeIdRef.current = attendee.id;
     } else {
       // New attendee - apply defaults from event settings
       dispatch({ type: 'RESET_FORM', eventSettings, customFields });
+      
+      // Mark as initialized with no attendee ID
+      isInitializedRef.current = true;
+      attendeeIdRef.current = undefined;
     }
   }, [attendee, customFields, eventSettings]);
 
-  // Initialize/reset form when attendee, customFields, or eventSettings changes
+  // Initialize/reset form when attendee or customFields changes
+  // Only reinitialize if:
+  // 1. Form hasn't been initialized yet, OR
+  // 2. We're switching to a different attendee (edit mode), OR
+  // 3. We're switching between create and edit modes, OR
+  // 4. customFields or eventSettings change for a new attendee
   useEffect(() => {
-    initializeFormData();
-  }, [initializeFormData]);
+    const attendeeChanged = attendeeIdRef.current !== attendee?.id;
+    const isNewAttendee = !attendee;
+    
+    if (!isInitializedRef.current || attendeeChanged || isNewAttendee) {
+      initializeFormData();
+    }
+  }, [initializeFormData, attendee?.id]);
 
   // Prune deleted custom field values
   useEffect(() => {
-    if (attendee) {
+    if (attendee && customFields) {
       const currentCustomFieldIds = new Set(customFields.map(cf => cf.id));
-      dispatch({ type: 'PRUNE_CUSTOM_FIELDS', validFieldIds: currentCustomFieldIds });
+      dispatch({ type: 'PRUNE_CUSTOM_FIELDS', validFieldIds: Array.from(currentCustomFieldIds) });
     }
-  }, [attendee, customFields]);
+  }, [attendee?.id, customFields]);
 
   /**
    * Generates a unique barcode for an attendee
