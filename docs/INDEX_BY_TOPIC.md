@@ -2,13 +2,13 @@
 
 > Auto-generated index of active documentation files
 
-**Last Updated:** 2026-01-02
+**Last Updated:** 2026-01-03
 
-**Total Active Documents:** 157
+**Total Active Documents:** 159
 
 ## By Category
 
-### Docs (28)
+### Docs (26)
 
 - [Archival System Comprehensive Answer](./ARCHIVAL_SYSTEM_COMPREHENSIVE_ANSWER.md)
 - [Automated Documentation Sync Guide](./AUTOMATED_DOCS_SYNC_GUIDE.md)
@@ -19,12 +19,10 @@
 - [Documentation Archival Summary](./DOCUMENTATION_ARCHIVAL_SUMMARY.md)
 - [Documentation Audit Summary](./DOCUMENTATION_AUDIT_SUMMARY.md)
 - [Documentation Detailed Breakdown](./DOCUMENTATION_DETAILED_BREAKDOWN.md)
-- [Documentation Index by Topic](./INDEX_BY_TOPIC.md)
 - [Documentation Lifecycle and Archival System](./DOCUMENTATION_LIFECYCLE_AND_ARCHIVAL.md)
 - [Documentation Reorganization Complete](./REORGANIZATION_COMPLETE.md)
 - [Documentation Reorganization Project Complete](./DOCUMENTATION_REORGANIZATION_PROJECT_COMPLETE.md)
 - [Documentation Reorganization Summary](./DOCUMENTATION_REORGANIZED.md)
-- [Documentation Search Index](./SEARCH_INDEX.md)
 - [Documentation Status Report](./DOCUMENTATION_STATUS_REPORT.md)
 - [Documentation Sync Implementation Setup Guide](./IMPLEMENTATION_SETUP_GUIDE.md)
 - [Documentation Sync Options Comparison](./DOCS_SYNC_OPTIONS_COMPARISON.md)
@@ -39,7 +37,7 @@
 - [Phase 6 Complete Final Report](./PHASE_6_COMPLETE_FINAL_REPORT.md)
 - [Steering Update Summary](./STEERING_UPDATE_SUMMARY.md)
 
-### Enhancements (20)
+### Enhancements (21)
 
 - [Access Control Export Enhancement](./enhancements/ACCESS_CONTROL_EXPORT_ENHANCEMENT.md)
 - [Attendees Pagination Improvement](./enhancements/ATTENDEES_PAGINATION_IMPROVEMENT.md)
@@ -53,6 +51,7 @@
 - [Delete Logs Progress Indicator](./enhancements/DELETE_LOGS_PROGRESS_INDICATOR.md)
 - [Dialog Styling Consistency Update](./enhancements/DIALOG_STYLING_CONSISTENCY_UPDATE.md)
 - [Enhanced Credential Generation Error Messages - Implementation Summary](./enhancements/CREDENTIAL_GENERATION_ERROR_MESSAGES_IMPLEMENTATION.md)
+- [Enter Key Save Implementation for Attendee Forms](./enhancements/ENTER_KEY_SAVE_IMPLEMENTATION.md)
 - [Notes Export and Text Sanitization Enhancement](./enhancements/NOTES_EXPORT_SANITIZATION.md)
 - [Notes Field Credential Status Enhancement](./enhancements/NOTES_FIELD_CREDENTIAL_STATUS_ENHANCEMENT.md)
 - [Printable Field Configuration Change Messaging](./enhancements/PRINTABLE_FIELD_CONFIGURATION_MESSAGING.md)
@@ -62,11 +61,13 @@
 - [Time Until Event Display Enhancement](./enhancements/TIME_UNTIL_EVENT_DISPLAY_ENHANCEMENT.md)
 - [Universal Placeholder Support](./enhancements/UNIVERSAL_PLACEHOLDER_SUPPORT.md)
 
-### Fixes (20)
+### Fixes (22)
 
 - [Advanced Filter Dropdown Scrolling Fix](./fixes/ADVANCED_FILTER_DROPDOWN_SCROLLING_FIX.md)
 - [Appwrite Attribute Polling Fix](./fixes/APPWRITE_ATTRIBUTE_POLLING_FIX.md)
+- [Attendee Form Data Loss on Tab Switch Fix](./fixes/ATTENDEE_FORM_DATA_LOSS_FIX.md)
 - [Boolean Custom Field Data Corruption Fix](./fixes/BOOLEAN_FIELD_DATA_CORRUPTION_FIX.md)
+- [Bulk Clear Credentials Code Review Fixes](./fixes/BULK_CLEAR_CREDENTIALS_CODE_REVIEW_FIXES.md)
 - [Bulk Delete Timestamp Attribute Fix](./fixes/BULK_DELETE_TIMESTAMP_FIX.md)
 - [Complete React Optimization Summary](./fixes/COMPLETE_REACT_OPTIMIZATION_SUMMARY.md)
 - [CRITICAL: Bulk Edit Data Loss Fix](./fixes/CRITICAL_BULK_EDIT_DATA_LOSS_FIX.md)
@@ -85,7 +86,7 @@
 - [Password Reset Feature - Implementation Summary](./fixes/PASSWORD_RESET_FEATURE_SUMMARY.md)
 - [Roles Page Redesign Restoration](./fixes/ROLES_PAGE_REDESIGN_RESTORATION.md)
 
-### Guides (41)
+### Guides (42)
 
 - [Adding New Integration Guide](./guides/ADDING_NEW_INTEGRATION_GUIDE.md)
 - [Appwrite Attribute Polling Configuration](./guides/APPWRITE_ATTRIBUTE_POLLING_CONFIGURATION.md)
@@ -95,6 +96,7 @@
 - [Appwrite Transactions Quick Reference](./guides/TRANSACTIONS_QUICK_REFERENCE.md)
 - [Auth User Linking - Administrator Guide](./guides/AUTH_USER_LINKING_ADMIN_GUIDE.md)
 - [Auth User Linking API Guide](./guides/AUTH_USER_LINKING_API_GUIDE.md)
+- [Bulk Clear Credentials Implementation Guide](./guides/BULK_CLEAR_CREDENTIALS_IMPLEMENTATION.md)
 - [Bulk Credential Generation Logic](./guides/BULK_CREDENTIAL_GENERATION_LOGIC.md)
 - [Bulk Operations Performance](./guides/BULK_OPERATIONS_PERFORMANCE.md)
 - [Cache Usage Guide](./guides/CACHE_USAGE_GUIDE.md)
@@ -197,7 +199,7 @@
 
 - [Migration Lessons Learned](./migration/MIGRATION_LESSONS_LEARNED.md) - migration
 
-### Canonical (114)
+### Canonical (116)
 
 *Reference documentation, guides, and best practices*
 
@@ -212,6 +214,7 @@
 - [Appwrite Transactions Developer Guide](./guides/TRANSACTIONS_DEVELOPER_GUIDE.md) - guides
 - [Appwrite Transactions Quick Reference](./guides/TRANSACTIONS_QUICK_REFERENCE.md) - guides
 - [Archival System Comprehensive Answer](./ARCHIVAL_SYSTEM_COMPREHENSIVE_ANSWER.md) - docs
+- [Attendee Form Data Loss on Tab Switch Fix](./fixes/ATTENDEE_FORM_DATA_LOSS_FIX.md) - fixes
 - [Attendees Pagination Improvement](./enhancements/ATTENDEES_PAGINATION_IMPROVEMENT.md) - enhancements
 - [Attendees UI Improvements](./enhancements/ATTENDEES_UI_IMPROVEMENTS.md) - enhancements
 - [Auth User Linking - Administrator Guide](./guides/AUTH_USER_LINKING_ADMIN_GUIDE.md) - guides
@@ -219,6 +222,8 @@
 - [Bidirectional Sync Final Verification](./BIDIRECTIONAL_SYNC_FINAL_VERIFICATION.md) - docs
 - [Bidirectional Sync Triple Verified](./BIDIRECTIONAL_SYNC_TRIPLE_VERIFIED.md) - docs
 - [Boolean Custom Field Data Corruption Fix](./fixes/BOOLEAN_FIELD_DATA_CORRUPTION_FIX.md) - fixes
+- [Bulk Clear Credentials Code Review Fixes](./fixes/BULK_CLEAR_CREDENTIALS_CODE_REVIEW_FIXES.md) - fixes
+- [Bulk Clear Credentials Implementation Guide](./guides/BULK_CLEAR_CREDENTIALS_IMPLEMENTATION.md) - guides
 - [Bulk Credential Generation Logic](./guides/BULK_CREDENTIAL_GENERATION_LOGIC.md) - guides
 - [Bulk Delete Timestamp Attribute Fix](./fixes/BULK_DELETE_TIMESTAMP_FIX.md) - fixes
 - [Bulk Import API Key Enhancement](./enhancements/BULK_IMPORT_API_KEY_ENHANCEMENT.md) - enhancements
@@ -251,17 +256,16 @@
 - [Documentation Archival Summary](./DOCUMENTATION_ARCHIVAL_SUMMARY.md) - docs
 - [Documentation Audit Summary](./DOCUMENTATION_AUDIT_SUMMARY.md) - docs
 - [Documentation Detailed Breakdown](./DOCUMENTATION_DETAILED_BREAKDOWN.md) - docs
-- [Documentation Index by Topic](./INDEX_BY_TOPIC.md) - docs
 - [Documentation Lifecycle and Archival System](./DOCUMENTATION_LIFECYCLE_AND_ARCHIVAL.md) - docs
 - [Documentation Reorganization Complete](./REORGANIZATION_COMPLETE.md) - docs
 - [Documentation Reorganization Project Complete](./DOCUMENTATION_REORGANIZATION_PROJECT_COMPLETE.md) - docs
 - [Documentation Reorganization Summary](./DOCUMENTATION_REORGANIZED.md) - docs
-- [Documentation Search Index](./SEARCH_INDEX.md) - docs
 - [Documentation Status Report](./DOCUMENTATION_STATUS_REPORT.md) - docs
 - [Documentation Sync Options Comparison](./DOCS_SYNC_OPTIONS_COMPARISON.md) - docs
 - [Documentation System Quick Start Guide](./QUICK_START_GUIDE.md) - docs
 - [Email Verification Security Fix](./fixes/EMAIL_VERIFICATION_SECURITY_FIX.md) - fixes
 - [Enhanced Credential Generation Error Messages - Implementation Summary](./enhancements/CREDENTIAL_GENERATION_ERROR_MESSAGES_IMPLEMENTATION.md) - enhancements
+- [Enter Key Save Implementation for Attendee Forms](./enhancements/ENTER_KEY_SAVE_IMPLEMENTATION.md) - enhancements
 - [Error Handling Guide](./guides/ERROR_HANDLING_GUIDE.md) - guides
 - [Event Settings Cache Usage Example](./guides/CACHE_USAGE_EXAMPLE.md) - guides
 - [Event Settings Recreation Script - Safeguards Implementation](./misc/EVENT_SETTINGS_SCRIPT_SAFEGUARDS.md) - misc
