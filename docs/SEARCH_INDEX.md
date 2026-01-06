@@ -2,7 +2,7 @@
 
 > Searchable index of all active documentation
 
-**Last Updated:** 2026-01-05
+**Last Updated:** 2026-01-06
 
 ## Access Control Export Enhancement
 
