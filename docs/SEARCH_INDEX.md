@@ -239,7 +239,7 @@ related_code: []
 - **File:** `fixes/AUTO_GENERATED_INDEX_FRONTMATTER_FIX.md`
 - **Type:** canonical
 - **Category:** fixes
-- **Keywords:** (defense, and, auto, cause, depth), documentation, files, fix, frontmatter, generated, generation, impact, index, modified, permanent, present, problem, regenerate, related, remove, root, run, script, solution, testing, this, updated, validation, verify, why
+- **Keywords:** (defense, actions, and, auto, cause, commits, depth), documentation, files, fix, frontmatter, generated, generation, github, impact, index, modified, permanent, present, preventing, problem, regenerate, related, remove, root, run, script, solution, testing, this, unnecessary, updated, validation, verify, why, workflow
 
 [View Document](./fixes/AUTO_GENERATED_INDEX_FRONTMATTER_FIX.md)
 
