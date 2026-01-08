@@ -1,8 +1,18 @@
+---
+title: Documentation Search Index
+type: canonical
+status: active
+owner: "@team"
+last_verified: 2026-01-08
+review_interval_days: 90
+related_code: []
+---
+
 # Documentation Search Index
 
 > Searchable index of all active documentation
 
-**Last Updated:** 2026-01-02
+**Last Updated:** 2026-01-08
 
 ## Access Control Export Enhancement
 
@@ -147,6 +157,15 @@
 
 [View Document](./ARCHIVAL_SYSTEM_COMPREHENSIVE_ANSWER.md)
 
+## Attendee Form Data Loss on Tab Switch Fix
+
+- **File:** `fixes/ATTENDEE_FORM_DATA_LOSS_FIX.md`
+- **Type:** canonical
+- **Category:** fixes
+- **Keywords:** actually, affected, alternative, attendee, cause, changes, cloudinary, code, conclusion, considered, data, description, features, fix, form, impact, issues, loss, modal={false}?, not, notes, offs, other, photo, problem, related, root, solution, solutions, src/hooks/useattendeeform.ts, switch, tab, technical, testing, the, trade, upload, what, why, widget
+
+[View Document](./fixes/ATTENDEE_FORM_DATA_LOSS_FIX.md)
+
 ## Attendee Management API Tests Summary
 
 - **File:** `testing/ATTENDEE_API_TESTS_SUMMARY.md`
@@ -215,6 +234,15 @@
 
 [View Document](./testing/AUTH_USER_LINKING_INTEGRATION_TESTS_SUMMARY.md)
 
+## Auto-Generated Index Frontmatter Fix
+
+- **File:** `fixes/AUTO_GENERATED_INDEX_FRONTMATTER_FIX.md`
+- **Type:** canonical
+- **Category:** fixes
+- **Keywords:** (defense, and, auto, cause, depth), documentation, files, fix, frontmatter, generated, generation, impact, index, modified, permanent, present, problem, regenerate, related, remove, root, run, script, solution, testing, this, updated, validation, verify, why
+
+[View Document](./fixes/AUTO_GENERATED_INDEX_FRONTMATTER_FIX.md)
+
 ## Automated Documentation Sync Guide
 
 - **File:** `AUTOMATED_DOCS_SYNC_GUIDE.md`
@@ -265,6 +293,24 @@
 - **Keywords:** (35, (fix, action, after, archive, archived, automation, before, broken, category, create, documentation, enhancements, file, files, first), fix, fixes, fixes:, guide, guides, guides:, high, how, image, items, last), link, links, links), low, medium, migration, miscellaneous, missing, monitoring, next), option, other, overview, path, priority, progress, recommended, reference, references, referencing, remove, spec, sweetalert, testing, tracking, transaction, update
 
 [View Document](./BROKEN_LINKS_ACTION_ITEMS.md)
+
+## Bulk Clear Credentials Code Review Fixes
+
+- **File:** `fixes/BULK_CLEAR_CREDENTIALS_CODE_REVIEW_FIXES.md`
+- **Type:** canonical
+- **Category:** fixes
+- **Keywords:** #1:, #2:, #3:, and, api, applied, bulk, cause, clear, code, credentials, critical, dedicated, documentation, endpoint, enhancements, files, fix, fixed, fixes, found, frontend, future, high, issue, issues, learned, lessons, medium, mismatch, missing, modified, not, performed, permission, problem, recommendation, related, review, root, severity, summary, testing, using, why
+
+[View Document](./fixes/BULK_CLEAR_CREDENTIALS_CODE_REVIEW_FIXES.md)
+
+## Bulk Clear Credentials Implementation Guide
+
+- **File:** `guides/BULK_CLEAR_CREDENTIALS_IMPLEMENTATION.md`
+- **Type:** canonical
+- **Category:** guides
+- **Keywords:** "insufficient, (after, (in, (january, (line, 2025), `bulk, `handlebulkclearcredentials()`, `handlebulkgeneratecredentials`), actions, add, api, appear, bulk, checklist, clear, clearing, code, component, create, credentials, credentials.ts`, critical:, dashboard, dedicated, description, details, doesn't, dropdown, dropdown), endpoint, endpoint:, fails, feature, features, files, fixes, frontend, function, guide, handler, handler:, high:, implementation, integration, item, logging, menu, mismatch, modified/created, new, not, notes, operation, overview, permission, permissions", recommended:, related, requirements, review, state, step, testing, troubleshooting, using, variable, with, working, ~291)
+
+[View Document](./guides/BULK_CLEAR_CREDENTIALS_IMPLEMENTATION.md)
 
 ## Bulk Credential Generation Logic
 
@@ -675,7 +721,7 @@
 - **File:** `INDEX_BY_TOPIC.md`
 - **Type:** canonical
 - **Category:** docs
-- **Keywords:** (1), (114), (16), (20), (22), (28), (3), (41), (9), adr, canonical, category, docs, document, documentation, enhancements, fixes, guides, index, migration, misc, reference, runbook, testing, topic, type, worklog
+- **Keywords:** (1), (119), (16), (20), (21), (22), (23), (28), (3), (42), (9), adr, canonical, category, docs, document, documentation, enhancements, fixes, guides, index, migration, misc, reference, runbook, testing, topic, type, worklog
 
 [View Document](./INDEX_BY_TOPIC.md)
 
@@ -726,7 +772,7 @@
 - **File:** `SEARCH_INDEX.md`
 - **Type:** canonical
 - **Category:** docs
-- **Keywords:** access, accessibility, acknowledgment, action, adding, admin, administrator, advanced, aggregate, alignment, analysis, and, api, appwrite, architecture, atomic, attendee, attendees, attribute, audit, auth, automation, backend, best, boolean, breakdown, bulk, cache, caching, canonical, canvas, change, checkbox, checklist, code, collection, collections, columns, complete, comprehensive, configuration, consistency, control, correct, corruption, count, credential, credentialstudio, critical, critical:, custom, customization, dashboard, data, delete, deletion, design, detailed, developer, dialog, difference, documentation, dropdown, edit, email, end, enhanced, enhancement, enhancements, error, event, example, examples, export, feature, field, fields, filter, fix, fixes, flow, for, format, functionality, generation, guide, guide:, handling, html, implementation, import, improvement, improvements, index, indicator, inline, integration, internal, invitation, key, keys, layering, leak, learned, lessons, link, linking, log, logging, logic, logs, loss, management, manual, mapping, memory, messages, messaging, metrics, migration, mobile, modal, modals, multi, names, new, notes, onesimpleapi, operations, optimization, page, pagination, passcode, password, patterns, performance, permanent, permission, phase, photo, placeholder, plan, polling, practices, preventing, printable, progress, quick, react, real, reapplied, recreation, redesign, refactor, reference, regressions, removal, reorganization, report, reset, restoration, role, roles, running, safeguards, safety, sanitization, schema, script, scripts, scrolling, search, searchability, secrets, security, select, service, session, settings, setup, start:, status, storage, styling, summary, supabase, support, sweetalert2, switchboard, system, tablesdb, tablesdb:, tenancy, test, testing, tests, text, time, timestamp, topic, tracking, transactions, troubleshooting, truncation, type, universal, update, updaterows, upsertrows, usage, user, userform, utility, validation, verification, version, visibility, visual, yes/no
+- **Keywords:** access, accessibility, acknowledgment, action, actions, adding, admin, administrator, advanced, aggregate, alignment, analysis, and, answer, api, appwrite, architecture, archival, atomic, attendee, attendees, attribute, audit, auth, auto, automated, automatic, automation, backend, best, bidirectional, boolean, breakdown, broken, bulk, cache, caching, canonical, canvas, change, checkbox, checklist, clear, code, collection, collections, columns, comparison, complete, comprehensive, configuration, consistency, control, correct, corruption, count, credential, credentials, credentialstudio, critical, critical:, custom, customization, dashboard, data, delete, deletion, design, detailed, developer, dialog, difference, display, documentation, dropdown, edit, email, end, enhanced, enhancement, enhancements, enter, error, event, example, examples, export, feature, field, fields, filter, final, fix, fixes, flow, for, form, format, forms, frontmatter, functionality, generated, generation, github, guide, guide:, handling, html, implementation, import, improvement, improvements, index, indicator, inline, integration, internal, invitation, items, key, keys, layering, leak, learned, lessons, lifecycle, link, linking, links, log, logging, logic, logs, loss, management, manual, mapping, memory, messages, messaging, metrics, migration, mobile, modal, modals, multi, names, new, notes, onesimpleapi, operations, optimization, option, options, page, pagination, passcode, password, patterns, performance, permanent, permission, phase, photo, placeholder, plan, polling, practices, preventing, printable, progress, project, quick, react, ready, real, reapplied, recreation, redesign, refactor, reference, regressions, removal, reorganization, report, reset, restoration, review, role, roles, running, safeguards, safety, sanitization, save, schema, script, scripts, scrolling, search, searchability, secrets, security, select, service, session, settings, setup, start, start:, status, steering, storage, styling, summary, supabase, support, sweetalert2, switch, switchboard, sync, system, tab, tablesdb, tablesdb:, tenancy, test, testing, tests, text, time, timestamp, topic, tracking, transactions, triple, troubleshooting, truncation, type, universal, until, update, updaterows, upsertrows, usage, user, userform, utility, validation, verification, verified, version, visibility, visual, workflow, yes/no
 
 [View Document](./SEARCH_INDEX.md)
 
@@ -809,6 +855,15 @@
 - **Keywords:** (`src/pages/api/attendees/[id]/generate, (`src/pages/api/attendees/[id]/print.ts`), (`src/pages/dashboard.tsx`), after, api, before, benefits, bulk, changes, credential, credential.ts`), enhanced, enhancements, error, example, files, frontend, future, generate, generation, implementation, included, information, layer, made, messages, modified, notes, now, overview, print, single, summary, testing, usage
 
 [View Document](./enhancements/CREDENTIAL_GENERATION_ERROR_MESSAGES_IMPLEMENTATION.md)
+
+## Enter Key Save Implementation for Attendee Forms
+
+- **File:** `enhancements/ENTER_KEY_SAVE_IMPLEMENTATION.md`
+- **Type:** canonical
+- **Category:** enhancements
+- **Keywords:** "enter, (multi, `src/components/attendeeform/formactions.tsx`, `src/components/attendeeform/index.tsx`, add, adding, after, and, attendee, attribute, business, button, changes, checklist, cloudinary, configuration, considerations, create, data, details, dialogcontent, document, documentation, editing, element, enhancements, enter, event, experience, fields, files, flow, focus, for, form, forms, future, global, handler, handler?, hint, history, hook, implementation, instead, key, level, line), listener?, logic?, modified, not, notes, overview, photo, related, requestsubmit(), requirements, save, save", saves, saving, scenario, settimeout, submit()?, success, tabindex, taking, technical, testing, troubleshooting, typing, update, upload, usecallback, user, version, visual, when, why, working
+
+[View Document](./enhancements/ENTER_KEY_SAVE_IMPLEMENTATION.md)
 
 ## Error Handling Guide
 

@@ -49,10 +49,12 @@ docs/
 The documentation system includes automated validation and monitoring:
 
 ### Scripts
-- `scripts/validate-docs-frontmatter.ts` - Validates all frontmatter
+- `scripts/validate-docs-frontmatter.ts` - Validates all frontmatter (auto-generated index files are excluded)
 - `scripts/check-docs-staleness.ts` - Detects stale documentation
 - `scripts/check-docs-links.ts` - Validates internal links
-- `scripts/generate-docs-index.ts` - Generates searchable indexes
+- `scripts/generate-docs-index.ts` - Generates searchable indexes with proper frontmatter
+
+**Note:** The index generation script automatically adds required frontmatter to `INDEX_BY_TOPIC.md` and `SEARCH_INDEX.md`. These files are excluded from validation checks since they're always regenerated with correct frontmatter.
 
 ### GitHub Actions Workflow
 - `.github/workflows/docs-maintenance.yml` - Daily automated checks at 2 AM UTC

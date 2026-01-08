@@ -70,6 +70,10 @@ function walkDir(dir: string, callback: (file: string) => void): void {
     if (stat.isDirectory() && file !== '_archive') {
       walkDir(filePath, callback);
     } else if (stat.isFile() && file.endsWith('.md') && file !== 'README.md') {
+      // Skip auto-generated index files (they're always regenerated with correct frontmatter)
+      if (file === 'INDEX_BY_TOPIC.md' || file === 'SEARCH_INDEX.md') {
+        continue;
+      }
       callback(filePath);
     }
   }

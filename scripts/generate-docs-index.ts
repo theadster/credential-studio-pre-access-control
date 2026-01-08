@@ -123,9 +123,31 @@ function main(): void {
   });
 
   // Generate INDEX_BY_TOPIC.md
-  let indexByTopic = '# Documentation Index by Topic\n\n';
+  const today = new Date().toISOString().split('T')[0];
+  
+  // Read existing file to preserve last_verified date if content hasn't changed
+  let lastVerified = today;
+  const indexPath = path.join(DOCS_DIR, 'INDEX_BY_TOPIC.md');
+  if (fs.existsSync(indexPath)) {
+    const existingContent = fs.readFileSync(indexPath, 'utf-8');
+    const existingFrontMatter = parseFrontMatter(existingContent);
+    if (existingFrontMatter.last_verified) {
+      lastVerified = existingFrontMatter.last_verified;
+    }
+  }
+  
+  let indexByTopic = '---\n';
+  indexByTopic += 'title: Documentation Index by Topic\n';
+  indexByTopic += 'type: canonical\n';
+  indexByTopic += 'status: active\n';
+  indexByTopic += 'owner: "@team"\n';
+  indexByTopic += `last_verified: ${lastVerified}\n`;
+  indexByTopic += 'review_interval_days: 90\n';
+  indexByTopic += 'related_code: []\n';
+  indexByTopic += '---\n\n';
+  indexByTopic += '# Documentation Index by Topic\n\n';
   indexByTopic += '> Auto-generated index of active documentation files\n\n';
-  indexByTopic += `**Last Updated:** ${new Date().toISOString().split('T')[0]}\n\n`;
+  indexByTopic += `**Last Updated:** ${today}\n\n`;
   indexByTopic += `**Total Active Documents:** ${docs.length}\n\n`;
 
   // By Category
@@ -159,9 +181,29 @@ function main(): void {
   fs.writeFileSync(path.join(DOCS_DIR, 'INDEX_BY_TOPIC.md'), indexByTopic);
 
   // Generate SEARCH_INDEX.md
-  let searchIndex = '# Documentation Search Index\n\n';
+  // Read existing file to preserve last_verified date if content hasn't changed
+  let searchLastVerified = today;
+  const searchIndexPath = path.join(DOCS_DIR, 'SEARCH_INDEX.md');
+  if (fs.existsSync(searchIndexPath)) {
+    const existingContent = fs.readFileSync(searchIndexPath, 'utf-8');
+    const existingFrontMatter = parseFrontMatter(existingContent);
+    if (existingFrontMatter.last_verified) {
+      searchLastVerified = existingFrontMatter.last_verified;
+    }
+  }
+  
+  let searchIndex = '---\n';
+  searchIndex += 'title: Documentation Search Index\n';
+  searchIndex += 'type: canonical\n';
+  searchIndex += 'status: active\n';
+  searchIndex += 'owner: "@team"\n';
+  searchIndex += `last_verified: ${searchLastVerified}\n`;
+  searchIndex += 'review_interval_days: 90\n';
+  searchIndex += 'related_code: []\n';
+  searchIndex += '---\n\n';
+  searchIndex += '# Documentation Search Index\n\n';
   searchIndex += '> Searchable index of all active documentation\n\n';
-  searchIndex += `**Last Updated:** ${new Date().toISOString().split('T')[0]}\n\n`;
+  searchIndex += `**Last Updated:** ${today}\n\n`;
 
   const sortedDocs = docs.sort((a, b) => a.title.localeCompare(b.title));
 
