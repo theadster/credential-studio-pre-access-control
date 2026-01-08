@@ -1,3 +1,13 @@
+---
+title: Documentation Search Index
+type: canonical
+status: active
+owner: "@team"
+last_verified: 2026-01-08
+review_interval_days: 90
+related_code: []
+---
+
 # Documentation Search Index
 
 > Searchable index of all active documentation
@@ -223,6 +233,15 @@
 - **Keywords:** (recommended, and, api, approach, audit, auth, check, checks, complete, conclusion, coverage, creation, current, email, end, error, execution, file, files, flow, for, functionality, identified, immediate, implemented, integration, issues, limiting, linking, logging, membership, metrics, middleware, mock, modified, next, option, output, overview, pattern, patterns, permission, rate, recommendation, refine, remaining, requirements, requirements:, run, scenarios, search, setup, solutions, steps, success, summary, task, team, test, test), tests, tests), trail, unit, used, user, value), verbose, verification, with, work
 
 [View Document](./testing/AUTH_USER_LINKING_INTEGRATION_TESTS_SUMMARY.md)
+
+## Auto-Generated Index Frontmatter Fix
+
+- **File:** `fixes/AUTO_GENERATED_INDEX_FRONTMATTER_FIX.md`
+- **Type:** canonical
+- **Category:** fixes
+- **Keywords:** (defense, and, auto, cause, depth), documentation, files, fix, frontmatter, generated, generation, impact, index, modified, permanent, present, problem, regenerate, related, remove, root, run, script, solution, testing, this, updated, validation, verify, why
+
+[View Document](./fixes/AUTO_GENERATED_INDEX_FRONTMATTER_FIX.md)
 
 ## Automated Documentation Sync Guide
 
@@ -697,6 +716,15 @@
 
 [View Document](./DOCUMENTATION_DETAILED_BREAKDOWN.md)
 
+## Documentation Index by Topic
+
+- **File:** `INDEX_BY_TOPIC.md`
+- **Type:** canonical
+- **Category:** docs
+- **Keywords:** (1), (119), (16), (20), (21), (22), (23), (28), (3), (42), (9), adr, canonical, category, docs, document, documentation, enhancements, fixes, guides, index, migration, misc, reference, runbook, testing, topic, type, worklog
+
+[View Document](./INDEX_BY_TOPIC.md)
+
 ## Documentation Lifecycle and Archival System
 
 - **File:** `DOCUMENTATION_LIFECYCLE_AND_ARCHIVAL.md`
@@ -738,6 +766,15 @@
 - **Keywords:** (migration, (miscellaneous), (recent, (test, (user, `.kiro/specs/api, `.kiro/specs/integration, `.kiro/specs/multi, `.kiro/specs/supabase, `docs/fixes/`, `docs/guides/`, `docs/migration/`, `docs/misc/`, `docs/testing/`, access, appwrite, authentication/`, benefits, bug, category, documentation, documentation), fields, files, finding, fix/`, fixes), guides), links, locking/`, mapping, migration/`, moved, new, next, optimistic, optimization/`, performance, quick, remaining, reorganization, root, session, statistics, steps, structure, summaries), summary, topic, updating
 
 [View Document](./DOCUMENTATION_REORGANIZED.md)
+
+## Documentation Search Index
+
+- **File:** `SEARCH_INDEX.md`
+- **Type:** canonical
+- **Category:** docs
+- **Keywords:** access, accessibility, acknowledgment, action, actions, adding, admin, administrator, advanced, aggregate, alignment, analysis, and, answer, api, appwrite, architecture, archival, atomic, attendee, attendees, attribute, audit, auth, auto, automated, automatic, automation, backend, best, bidirectional, boolean, breakdown, broken, bulk, cache, caching, canonical, canvas, change, checkbox, checklist, clear, code, collection, collections, columns, comparison, complete, comprehensive, configuration, consistency, control, correct, corruption, count, credential, credentials, credentialstudio, critical, critical:, custom, customization, dashboard, data, delete, deletion, design, detailed, developer, dialog, difference, display, documentation, dropdown, edit, email, end, enhanced, enhancement, enhancements, enter, error, event, example, examples, export, feature, field, fields, filter, final, fix, fixes, flow, for, form, format, forms, frontmatter, functionality, generated, generation, github, guide, guide:, handling, html, implementation, import, improvement, improvements, index, indicator, inline, integration, internal, invitation, items, key, keys, layering, leak, learned, lessons, lifecycle, link, linking, links, log, logging, logic, logs, loss, management, manual, mapping, memory, messages, messaging, metrics, migration, mobile, modal, modals, multi, names, new, notes, onesimpleapi, operations, optimization, option, options, page, pagination, passcode, password, patterns, performance, permanent, permission, phase, photo, placeholder, plan, polling, practices, preventing, printable, progress, project, quick, react, ready, real, reapplied, recreation, redesign, refactor, reference, regressions, removal, reorganization, report, reset, restoration, review, role, roles, running, safeguards, safety, sanitization, save, schema, script, scripts, scrolling, search, searchability, secrets, security, select, service, session, settings, setup, start, start:, status, steering, storage, styling, summary, supabase, support, sweetalert2, switch, switchboard, sync, system, tab, tablesdb, tablesdb:, tenancy, test, testing, tests, text, time, timestamp, topic, tracking, transactions, triple, troubleshooting, truncation, type, universal, until, update, updaterows, upsertrows, usage, user, userform, utility, validation, verification, verified, version, visibility, visual, workflow, yes/no
+
+[View Document](./SEARCH_INDEX.md)
 
 ## Documentation Status Report
 

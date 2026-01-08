@@ -108,6 +108,10 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add docs/INDEX_BY_TOPIC.md docs/SEARCH_INDEX.md
-          git diff --quiet && git diff --staged --quiet || git commit -m "docs: update documentation index"
-          git push
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "docs: update documentation index"
+            git push
+          fi
         continue-on-error: true

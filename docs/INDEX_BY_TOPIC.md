@@ -1,14 +1,24 @@
+---
+title: Documentation Index by Topic
+type: canonical
+status: active
+owner: "@team"
+last_verified: 2026-01-08
+review_interval_days: 90
+related_code: []
+---
+
 # Documentation Index by Topic
 
 > Auto-generated index of active documentation files
 
 **Last Updated:** 2026-01-08
 
-**Total Active Documents:** 159
+**Total Active Documents:** 162
 
 ## By Category
 
-### Docs (26)
+### Docs (28)
 
 - [Archival System Comprehensive Answer](./ARCHIVAL_SYSTEM_COMPREHENSIVE_ANSWER.md)
 - [Automated Documentation Sync Guide](./AUTOMATED_DOCS_SYNC_GUIDE.md)
@@ -19,10 +29,12 @@
 - [Documentation Archival Summary](./DOCUMENTATION_ARCHIVAL_SUMMARY.md)
 - [Documentation Audit Summary](./DOCUMENTATION_AUDIT_SUMMARY.md)
 - [Documentation Detailed Breakdown](./DOCUMENTATION_DETAILED_BREAKDOWN.md)
+- [Documentation Index by Topic](./INDEX_BY_TOPIC.md)
 - [Documentation Lifecycle and Archival System](./DOCUMENTATION_LIFECYCLE_AND_ARCHIVAL.md)
 - [Documentation Reorganization Complete](./REORGANIZATION_COMPLETE.md)
 - [Documentation Reorganization Project Complete](./DOCUMENTATION_REORGANIZATION_PROJECT_COMPLETE.md)
 - [Documentation Reorganization Summary](./DOCUMENTATION_REORGANIZED.md)
+- [Documentation Search Index](./SEARCH_INDEX.md)
 - [Documentation Status Report](./DOCUMENTATION_STATUS_REPORT.md)
 - [Documentation Sync Implementation Setup Guide](./IMPLEMENTATION_SETUP_GUIDE.md)
 - [Documentation Sync Options Comparison](./DOCS_SYNC_OPTIONS_COMPARISON.md)
@@ -61,11 +73,12 @@
 - [Time Until Event Display Enhancement](./enhancements/TIME_UNTIL_EVENT_DISPLAY_ENHANCEMENT.md)
 - [Universal Placeholder Support](./enhancements/UNIVERSAL_PLACEHOLDER_SUPPORT.md)
 
-### Fixes (22)
+### Fixes (23)
 
 - [Advanced Filter Dropdown Scrolling Fix](./fixes/ADVANCED_FILTER_DROPDOWN_SCROLLING_FIX.md)
 - [Appwrite Attribute Polling Fix](./fixes/APPWRITE_ATTRIBUTE_POLLING_FIX.md)
 - [Attendee Form Data Loss on Tab Switch Fix](./fixes/ATTENDEE_FORM_DATA_LOSS_FIX.md)
+- [Auto-Generated Index Frontmatter Fix](./fixes/AUTO_GENERATED_INDEX_FRONTMATTER_FIX.md)
 - [Boolean Custom Field Data Corruption Fix](./fixes/BOOLEAN_FIELD_DATA_CORRUPTION_FIX.md)
 - [Bulk Clear Credentials Code Review Fixes](./fixes/BULK_CLEAR_CREDENTIALS_CODE_REVIEW_FIXES.md)
 - [Bulk Delete Timestamp Attribute Fix](./fixes/BULK_DELETE_TIMESTAMP_FIX.md)
@@ -199,7 +212,7 @@
 
 - [Migration Lessons Learned](./migration/MIGRATION_LESSONS_LEARNED.md) - migration
 
-### Canonical (116)
+### Canonical (119)
 
 *Reference documentation, guides, and best practices*
 
@@ -219,6 +232,7 @@
 - [Attendees UI Improvements](./enhancements/ATTENDEES_UI_IMPROVEMENTS.md) - enhancements
 - [Auth User Linking - Administrator Guide](./guides/AUTH_USER_LINKING_ADMIN_GUIDE.md) - guides
 - [Auth User Linking API Guide](./guides/AUTH_USER_LINKING_API_GUIDE.md) - guides
+- [Auto-Generated Index Frontmatter Fix](./fixes/AUTO_GENERATED_INDEX_FRONTMATTER_FIX.md) - fixes
 - [Bidirectional Sync Final Verification](./BIDIRECTIONAL_SYNC_FINAL_VERIFICATION.md) - docs
 - [Bidirectional Sync Triple Verified](./BIDIRECTIONAL_SYNC_TRIPLE_VERIFIED.md) - docs
 - [Boolean Custom Field Data Corruption Fix](./fixes/BOOLEAN_FIELD_DATA_CORRUPTION_FIX.md) - fixes
@@ -256,10 +270,12 @@
 - [Documentation Archival Summary](./DOCUMENTATION_ARCHIVAL_SUMMARY.md) - docs
 - [Documentation Audit Summary](./DOCUMENTATION_AUDIT_SUMMARY.md) - docs
 - [Documentation Detailed Breakdown](./DOCUMENTATION_DETAILED_BREAKDOWN.md) - docs
+- [Documentation Index by Topic](./INDEX_BY_TOPIC.md) - docs
 - [Documentation Lifecycle and Archival System](./DOCUMENTATION_LIFECYCLE_AND_ARCHIVAL.md) - docs
 - [Documentation Reorganization Complete](./REORGANIZATION_COMPLETE.md) - docs
 - [Documentation Reorganization Project Complete](./DOCUMENTATION_REORGANIZATION_PROJECT_COMPLETE.md) - docs
 - [Documentation Reorganization Summary](./DOCUMENTATION_REORGANIZED.md) - docs
+- [Documentation Search Index](./SEARCH_INDEX.md) - docs
 - [Documentation Status Report](./DOCUMENTATION_STATUS_REPORT.md) - docs
 - [Documentation Sync Options Comparison](./DOCS_SYNC_OPTIONS_COMPARISON.md) - docs
 - [Documentation System Quick Start Guide](./QUICK_START_GUIDE.md) - docs
