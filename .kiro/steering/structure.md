@@ -1,12 +1,16 @@
+---
+inclusion: fileMatch
+fileMatchPattern: "**/*.{ts,tsx,js,jsx},**/api/**/*"
+---
 # Project Structure & Organization
 
 ## Root Directory Structure
 ```
 ├── src/                    # Main source code
-├── prisma/                 # Database schema and migrations
+├── scripts/                # Database setup and migration scripts
 ├── public/                 # Static assets
 ├── .kiro/                  # Kiro configuration and steering
-└── [config files]          # Various configuration files
+└── [config files]          # See tech.md for config file details
 ```
 
 ## Source Code Organization (`src/`)
@@ -37,17 +41,15 @@ Organized by feature domains:
 - Use TypeScript interfaces for props
 
 ### Utilities & Libraries (`src/lib/`)
-- `prisma.ts` - Database client configuration
+- `appwrite.ts` - Appwrite client configuration
 - `utils.ts` - General utility functions (cn, etc.)
 - `permissions.ts` - Role-based access control logic
-- `appwrite.ts` - Appwrite client configuration
 - Custom validation and settings modules
 
 ### Other Directories
 - `contexts/` - React Context providers (AuthContext)
 - `hooks/` - Custom React hooks
 - `styles/` - Global CSS (globals.css with Tailwind)
-- `util/supabase/` - Supabase client utilities for different contexts
 
 ## Naming Conventions
 
@@ -63,14 +65,9 @@ Organized by feature domains:
 - **Imports**: Absolute imports using `@/` alias
 - **Components**: Export as default, use named exports for utilities
 
-## Database Schema (Prisma)
-- Models use PascalCase (e.g., `User`, `Attendee`)
-- Table names use snake_case mapping (e.g., `@@map("users")`)
-- Foreign keys follow `{model}Id` pattern
-- JSON fields for flexible data (permissions, custom field values)
-
-## Configuration Files
-- `components.json` - shadcn/ui configuration
-- `tailwind.config.js` - Tailwind CSS configuration
-- `next.config.mjs` - Next.js configuration
-- `tsconfig.json` - TypeScript configuration with path aliases
+## Database Schema (Appwrite)
+- Collections managed via `scripts/setup-appwrite.ts`
+- Collection names use snake_case (e.g., `attendees`, `custom_fields`)
+- Document IDs are auto-generated UUIDs
+- Attributes defined programmatically with type safety
+- Indexes created for query optimization

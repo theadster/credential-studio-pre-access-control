@@ -66,6 +66,14 @@ npm run vercel-build # Vercel deployment build
 - Webpack optimization disabled in preview environments
 - Image domains configured for images.unsplash.com
 
+## Configuration Files
+- `components.json` - shadcn/ui configuration
+- `tailwind.config.js` - Tailwind CSS configuration
+- `next.config.mjs` - Next.js configuration
+- `tsconfig.json` - TypeScript configuration with path aliases
+- `tsconfig.test.json` - Test-specific TypeScript config
+- `vitest.config.ts` - Vitest test runner configuration
+
 ## Command Execution Guidelines
 
 ### Running Commands
