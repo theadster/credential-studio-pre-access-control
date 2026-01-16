@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Inject Working Directory",
+  "description": "Runs pwd at the start of every agent session to provide the current working directory as ground truth, preventing path-related command failures",
+  "version": "1",
+  "when": {
+    "type": "promptSubmit"
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "pwd"
+  }
+}
