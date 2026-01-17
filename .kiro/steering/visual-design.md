@@ -1,6 +1,5 @@
 ---
-inclusion: fileMatch
-fileMatchPattern: "**/{components,pages,app}/**/*.{tsx,jsx},**/styles/**/*.css"
+inclusion: always
 ---
 
 # Visual Design System
@@ -172,19 +171,76 @@ Font: `system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-se
 ```
 
 
-### Dialogs
+### Dialogs (CRITICAL - Use Updated Styling)
+
+The project uses a consistent dialog styling with slate header/footer backgrounds and prominent borders.
+
+#### Standard Dialog Pattern
 ```tsx
-<Dialog>
+<Dialog open={open} onOpenChange={onOpenChange}>
   <DialogTrigger asChild><Button>Open</Button></DialogTrigger>
-  <DialogContent className="max-w-5xl max-h-[80vh] overflow-y-auto">
-    <DialogHeader>
-      <DialogTitle>Title</DialogTitle>
-      <DialogDescription>Description</DialogDescription>
+  <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 shadow-2xl p-0">
+    <DialogHeader className="border-b border-slate-200 dark:border-slate-700 pb-4 mb-0 bg-[#F1F5F9] dark:bg-slate-800 px-6 pt-6">
+      <DialogTitle className="text-2xl font-bold text-primary flex items-center gap-2">
+        <Icon className="h-6 w-6" />
+        Dialog Title
+      </DialogTitle>
+      <DialogDescription>Optional description text</DialogDescription>
     </DialogHeader>
-    <div className="space-y-6">Content</div>
+    <div className="px-6 py-4 space-y-4">
+      {/* Content */}
+    </div>
+    <DialogFooter className="px-6 pb-6 pt-4 border-t border-slate-200 dark:border-slate-700 bg-[#F1F5F9] dark:bg-slate-800">
+      <Button variant="outline" onClick={onClose}>Cancel</Button>
+      <Button>Save</Button>
+    </DialogFooter>
   </DialogContent>
 </Dialog>
 ```
+
+#### Dialog Styling Rules
+| Element | Classes |
+|---------|---------|
+| DialogContent | `bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 shadow-2xl p-0` |
+| DialogHeader | `border-b border-slate-200 dark:border-slate-700 pb-4 mb-0 bg-[#F1F5F9] dark:bg-slate-800 px-6 pt-6` |
+| DialogTitle | `text-2xl font-bold text-primary flex items-center gap-2` |
+| DialogFooter | `px-6 pb-6 pt-4 border-t border-slate-200 dark:border-slate-700 bg-[#F1F5F9] dark:bg-slate-800` |
+| Content area | `px-6 py-4` |
+
+#### Common Width Variants
+- Small dialogs: `max-w-md` or `max-w-sm`
+- Medium dialogs: `max-w-xl` or `max-w-lg`
+- Large dialogs: `max-w-4xl` or `max-w-5xl`
+- Always include: `max-h-[90vh] overflow-y-auto`
+
+#### AlertDialog Pattern (Destructive Actions)
+```tsx
+<AlertDialog open={open} onOpenChange={onOpenChange}>
+  <AlertDialogContent className="bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 shadow-2xl">
+    <AlertDialogHeader className="border-b border-slate-200 dark:border-slate-700 pb-4 mb-4">
+      <AlertDialogTitle className="text-xl font-bold text-destructive">
+        Delete Item
+      </AlertDialogTitle>
+      <AlertDialogDescription>
+        This action cannot be undone.
+      </AlertDialogDescription>
+    </AlertDialogHeader>
+    <AlertDialogFooter>
+      <AlertDialogCancel>Cancel</AlertDialogCancel>
+      <AlertDialogAction className="bg-destructive text-destructive-foreground">
+        Delete
+      </AlertDialogAction>
+    </AlertDialogFooter>
+  </AlertDialogContent>
+</AlertDialog>
+```
+
+#### Key Styling Notes
+- Header/footer use `bg-[#F1F5F9]` (light slate) in light mode
+- `p-0` on DialogContent, then manual padding on sections for clean borders
+- Title includes icon with `gap-2` spacing
+- Border separators between header, content, and footer
+- `shadow-2xl` for prominent elevation
 
 ### Tabs
 ```tsx
