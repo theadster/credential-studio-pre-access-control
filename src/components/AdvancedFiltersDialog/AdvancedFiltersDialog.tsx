@@ -47,6 +47,7 @@ import {
   hasActiveFilters,
   createEmptyFilters,
 } from '@/lib/filterUtils';
+import { isAccessControlEnabledForEvent } from '@/lib/accessControlFeature';
 import type { EventSettings } from '@/components/EventSettingsForm/types';
 import { useSweetAlert } from '@/hooks/useSweetAlert';
 
@@ -79,7 +80,7 @@ const SECTION_CONFIG: SectionConfig[] = [
     title: 'Access Control',
     icon: Shield,
     defaultExpanded: false,
-    condition: (settings) => settings?.accessControlEnabled === true,
+    condition: (settings) => isAccessControlEnabledForEvent(settings?.accessControlEnabled),
   },
   {
     id: 'custom',

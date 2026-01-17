@@ -3,9 +3,9 @@ title: "Advanced Filter Dropdown Scrolling Fix"
 type: canonical
 status: active
 owner: "@team"
-last_verified: 2025-12-31
+last_verified: 2026-01-17
 review_interval_days: 90
-related_code: ["src/components/AdvancedFilter.tsx"]
+related_code: ["src/components/AdvancedFiltersDialog/sections/CustomFieldsSection.tsx", "src/components/AdvancedFiltersDialog/IntegratedFilterInput.tsx"]
 ---
 
 # Advanced Filter Dropdown Scrolling Fix
@@ -41,7 +41,9 @@ Instead of using a plain div with `overflow-y-auto`, we now use Radix's ScrollAr
 
 ## Changes Made
 
-### File: `src/pages/dashboard.tsx`
+### File: `src/components/AdvancedFiltersDialog/IntegratedFilterInput.tsx`
+
+This component now handles the dropdown scrolling for custom field filters. The fix applies the same principles as before:
 
 1. **Added ScrollArea import:**
 ```tsx
@@ -50,26 +52,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 
 2. **Updated Popover configuration:**
 ```tsx
-// Before
-<Popover>
-
-// After
+// Uses modal={true} to properly isolate interactions
 <Popover modal={true}>
 ```
 
 3. **Wrapped CommandList with ScrollArea:**
 ```tsx
-// Before
-<PopoverContent className="w-[300px] p-0 max-h-[var(--radix-popover-content-available-height)]" align="start">
-  <Command>
-    <CommandInput placeholder={`Search ${field.fieldName.toLowerCase()}...`} />
-    <CommandList className="max-h-[min(300px,calc(var(--radix-popover-content-available-height)-3rem))]">
-      {/* options */}
-    </CommandList>
-  </Command>
-</PopoverContent>
-
-// After
 <PopoverContent className="w-[300px] p-0" align="start">
   <Command>
     <CommandInput placeholder={`Search ${field.fieldName.toLowerCase()}...`} />
@@ -81,6 +69,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
   </Command>
 </PopoverContent>
 ```
+
+### Previous Implementation Location
+In the previous monolithic dashboard implementation, this logic was in `src/pages/dashboard.tsx` (around line 3574). With the refactoring (commit `4073e758d8e90d36894363c716eba641abe71cce`), this has been extracted to the dedicated `IntegratedFilterInput` component for better maintainability and reusability.
 
 ## Technical Details
 
@@ -118,6 +109,8 @@ To verify the fix:
    - All options are accessible via scrolling
 
 ## Related Components
+- `src/components/AdvancedFiltersDialog/IntegratedFilterInput.tsx` - Reusable filter input with scrolling fix
+- `src/components/AdvancedFiltersDialog/sections/CustomFieldsSection.tsx` - Custom field filters
 - `src/components/ui/popover.tsx` - Popover component (Radix UI wrapper)
 - `src/components/ui/scroll-area.tsx` - ScrollArea component (Radix UI wrapper)
 - `src/components/ui/command.tsx` - Command component (cmdk wrapper)
@@ -135,3 +128,7 @@ To verify the fix:
 
 ## Date
 December 31, 2025
+
+## Update (January 17, 2026)
+
+The Advanced Filters feature has been refactored and extracted into a dedicated component architecture. See `docs/misc/ADVANCED_FILTERS_COMPONENT_EXTRACTION_REFACTOR.md` for details. The dropdown scrolling fix remains valid and is now implemented in the `IntegratedFilterInput` component.

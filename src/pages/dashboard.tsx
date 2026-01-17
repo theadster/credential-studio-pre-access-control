@@ -20,6 +20,7 @@ import {
   type ParsedCustomFieldValues,
 } from "@/types/customFields";
 import { formatForDisplay, formatDateTimeSeparate } from "@/lib/accessControlDates";
+import { isAccessControlEnabledForEvent } from "@/lib/accessControlFeature";
 import {
   Users,
   Settings,
@@ -581,7 +582,7 @@ export default function Dashboard() {
     if (canAccessTab(currentUser?.role, 'attendees')) tabs.push('attendees');
     if (canAccessTab(currentUser?.role, 'users')) tabs.push('users');
     if (canAccessTab(currentUser?.role, 'roles')) tabs.push('roles');
-    if (canAccessTab(currentUser?.role, 'settings')) tabs.push('settings');
+    if (canAccessTab(currentUser?.role, 'eventSettings')) tabs.push('settings');
     if (canAccessTab(currentUser?.role, 'logs')) tabs.push('logs');
     if (canAccessTab(currentUser?.role, 'monitoring')) tabs.push('monitoring');
     if (canAccessTab(currentUser?.role, 'accessControl')) tabs.push('accessControl');
@@ -659,7 +660,7 @@ export default function Dashboard() {
       try {
         // Load event settings FIRST so the loading screen can show the event name
         // This provides a better user experience during the loading animation
-        if (canAccessTab(currentUser.role, 'settings')) {
+        if (canAccessTab(currentUser.role, 'eventSettings')) {
           try {
             const settingsResponse = await fetch('/api/event-settings');
             if (settingsResponse.ok) {
@@ -1239,7 +1240,7 @@ export default function Dashboard() {
 
   // Advanced filter count
   const activeFilterCount = useMemo(() => {
-    const hasAccessControlFilters = eventSettings?.accessControlEnabled && (
+    const hasAccessControlFilters = isAccessControlEnabledForEvent(eventSettings?.accessControlEnabled) && (
       advancedSearchFilters.accessControl.accessStatus !== 'all' ||
       advancedSearchFilters.accessControl.validFromStart ||
       advancedSearchFilters.accessControl.validFromEnd ||
@@ -1575,9 +1576,9 @@ export default function Dashboard() {
           }
         });
 
-        // Access Control filter (only if access control is enabled)
+        // Access Control filter (only if access control is enabled globally AND for this event)
         let accessControlMatch = true;
-        if (eventSettings?.accessControlEnabled) {
+        if (isAccessControlEnabledForEvent(eventSettings?.accessControlEnabled)) {
           const { accessStatus, validFromStart, validFromEnd, validUntilStart, validUntilEnd } = advancedSearchFilters.accessControl;
           
           // Access status filter
@@ -3476,7 +3477,7 @@ export default function Dashboard() {
                   Attendees
                 </Button>
               )}
-              {canAccessTab(currentUser?.role, 'settings') && (
+              {canAccessTab(currentUser?.role, 'eventSettings') && (
                 <Button
                   type="button"
                   variant={activeTab === "settings" ? "default" : "ghost"}
@@ -4057,8 +4058,8 @@ export default function Dashboard() {
                                     </div>
                                   ))}
 
-                                {/* Access Control Fields - Only show when access control is enabled */}
-                                {eventSettings?.accessControlEnabled && (
+                                {/* Access Control Fields - Only show when access control is enabled globally AND for this event */}
+                                {isAccessControlEnabledForEvent(eventSettings?.accessControlEnabled) && (
                                   <div className="border-t pt-4 mt-4 space-y-4">
                                     <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                                       <Shield className="h-4 w-4" />
@@ -4165,14 +4166,14 @@ export default function Dashboard() {
                       <ImportDialog
                         onImportSuccess={refreshAttendees}
                         customFields={(eventSettings?.customFields || [])
-                          .filter(field => field.id) // Filter out fields without id
+                          .filter(field => field.id && field.internalFieldName)
                           .map(field => ({
                             ...field,
-                            id: field.id!, // Assert non-null since we filtered
-                            internalFieldName: field.internalFieldName || field.fieldName.toLowerCase().replace(/\s+/g, '_')
+                            id: field.id!,
+                            internalFieldName: field.internalFieldName!
                           }))}
                         accessControlSettings={{
-                          accessControlEnabled: eventSettings?.accessControlEnabled,
+                          accessControlEnabled: isAccessControlEnabledForEvent(eventSettings?.accessControlEnabled),
                           accessControlTimeMode: eventSettings?.accessControlTimeMode
                         }}
                       >
@@ -4267,7 +4268,7 @@ export default function Dashboard() {
                         <TableHead className="w-20 text-center">Credential</TableHead>
                         <TableHead className="w-24 text-center">Status</TableHead>
                         {/* Access Control Columns - Requirements 6.1, 6.2 */}
-                        {eventSettings?.accessControlEnabled && (
+                        {isAccessControlEnabledForEvent(eventSettings?.accessControlEnabled) && (
                           <>
                             <TableHead className="w-24 text-center">Valid From</TableHead>
                             <TableHead className="w-24 text-center">Valid Until</TableHead>
@@ -4443,28 +4444,33 @@ export default function Dashboard() {
                                 </div>
                               </TableCell>
                               {/* Access Control Cells - Requirements 6.1, 6.2, 6.3, 6.4 */}
-                              {eventSettings?.accessControlEnabled && (
+                              {isAccessControlEnabledForEvent(eventSettings?.accessControlEnabled) && (
                                 <>
                                   {/* Valid From Column - Requirement 6.3 */}
-                                  <TableCell className={`align-top ${eventSettings.accessControlTimeMode === 'date_time' ? 'pt-2' : 'pt-4'}`}>
+                                  <TableCell className={`align-top ${eventSettings?.accessControlTimeMode === 'date_time' ? 'pt-2' : 'pt-4'}`}>
                                     <div className="flex flex-col items-center justify-center">
                                       {attendee.validFrom ? (
-                                        eventSettings.accessControlTimeMode === 'date_time' ? (
-                                          <>
-                                            <span className="text-sm font-medium text-foreground">
-                                              {formatDateTimeSeparate(attendee.validFrom).date}
-                                            </span>
-                                            {formatDateTimeSeparate(attendee.validFrom).time && (
-                                              <span className="text-xs text-muted-foreground">
-                                                {formatDateTimeSeparate(attendee.validFrom).time}
-                                              </span>
-                                            )}
-                                          </>
+                                        eventSettings?.accessControlTimeMode === 'date_time' ? (
+                                          (() => {
+                                            const formatted = formatDateTimeSeparate(typeof attendee.validFrom === 'string' ? attendee.validFrom : null);
+                                            return (
+                                              <>
+                                                <span className="text-sm font-medium text-foreground">
+                                                  {formatted.date}
+                                                </span>
+                                                {formatted.time && (
+                                                  <span className="text-xs text-muted-foreground">
+                                                    {formatted.time}
+                                                  </span>
+                                                )}
+                                              </>
+                                            );
+                                          })()
                                         ) : (
                                           <span className="text-sm font-medium text-foreground">
                                             {formatForDisplay(
-                                              attendee.validFrom, 
-                                              eventSettings.accessControlTimeMode || 'date_only'
+                                              typeof attendee.validFrom === 'string' ? attendee.validFrom : null, 
+                                              eventSettings?.accessControlTimeMode || 'date_only'
                                             )}
                                           </span>
                                         )
@@ -4474,25 +4480,30 @@ export default function Dashboard() {
                                     </div>
                                   </TableCell>
                                   {/* Valid Until Column - Requirement 6.3 */}
-                                  <TableCell className={`align-top ${eventSettings.accessControlTimeMode === 'date_time' ? 'pt-2' : 'pt-4'}`}>
+                                  <TableCell className={`align-top ${eventSettings?.accessControlTimeMode === 'date_time' ? 'pt-2' : 'pt-4'}`}>
                                     <div className="flex flex-col items-center justify-center">
                                       {attendee.validUntil ? (
-                                        eventSettings.accessControlTimeMode === 'date_time' ? (
-                                          <>
-                                            <span className="text-sm font-medium text-foreground">
-                                              {formatDateTimeSeparate(attendee.validUntil).date}
-                                            </span>
-                                            {formatDateTimeSeparate(attendee.validUntil).time && (
-                                              <span className="text-xs text-muted-foreground">
-                                                {formatDateTimeSeparate(attendee.validUntil).time}
-                                              </span>
-                                            )}
-                                          </>
+                                        eventSettings?.accessControlTimeMode === 'date_time' ? (
+                                          (() => {
+                                            const formatted = formatDateTimeSeparate(typeof attendee.validUntil === 'string' ? attendee.validUntil : null);
+                                            return (
+                                              <>
+                                                <span className="text-sm font-medium text-foreground">
+                                                  {formatted.date}
+                                                </span>
+                                                {formatted.time && (
+                                                  <span className="text-xs text-muted-foreground">
+                                                    {formatted.time}
+                                                  </span>
+                                                )}
+                                              </>
+                                            );
+                                          })()
                                         ) : (
                                           <span className="text-sm font-medium text-foreground">
                                             {formatForDisplay(
-                                              attendee.validUntil, 
-                                              eventSettings.accessControlTimeMode || 'date_only'
+                                              typeof attendee.validUntil === 'string' ? attendee.validUntil : null, 
+                                              eventSettings?.accessControlTimeMode || 'date_only'
                                             )}
                                           </span>
                                         )
@@ -4658,7 +4669,7 @@ export default function Dashboard() {
                                   rows.forEach(row => row.classList.remove('attendee-row-hover'));
                                 }}
                               >
-                                <TableCell colSpan={eventSettings?.accessControlEnabled ? 8 : 5} className="pt-1 pb-6">
+                                <TableCell colSpan={isAccessControlEnabledForEvent(eventSettings?.accessControlEnabled) ? 8 : 5} className="pt-1 pb-6">
                                   <div className="border-t border-border/50 pt-2">
                                     <div className={`grid grid-cols-1 ${getGridColumns(customFieldsWithValues.length)} gap-x-6 gap-y-2`}>
                                       {customFieldsWithValues.map((field) => (
@@ -4668,18 +4679,29 @@ export default function Dashboard() {
                                           </span>
                                           <div className="text-sm font-medium text-foreground min-w-0" aria-labelledby={`field-label-${attendee.id}-${field.customFieldId}`}>
                                                 {field.fieldType === 'url' ? (
-                                                  <a
-                                                    href={field.value || ''}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="text-primary hover:text-primary/80 underline inline-flex items-center gap-1 max-w-full focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded"
-                                                    onClick={(e) => e.stopPropagation()}
-                                                    title={field.value || ''}
-                                                    aria-label={`${field.fieldName}: ${field.value}, opens in new tab`}
-                                                  >
-                                                    <Link className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
-                                                    <span className="truncate block min-w-0">{field.value}</span>
-                                                  </a>
+                                                  (() => {
+                                                    const url = field.value || '';
+                                                    // Only allow http:// and https:// protocols for security
+                                                    const isValidUrl = /^https?:\/\/.+/i.test(url);
+                                                    return isValidUrl ? (
+                                                      <a
+                                                        href={url}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-primary hover:text-primary/80 underline inline-flex items-center gap-1 max-w-full focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded"
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        title={url}
+                                                        aria-label={`${field.fieldName}: ${url}, opens in new tab`}
+                                                      >
+                                                        <Link className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
+                                                        <span className="truncate block min-w-0">{url}</span>
+                                                      </a>
+                                                    ) : (
+                                                      <span className="truncate block text-muted-foreground" title={url}>
+                                                        {url || '—'}
+                                                      </span>
+                                                    );
+                                                  })()
                                                 ) : field.fieldType === 'boolean' ? (
                                                   <Badge
                                                     variant="outline"

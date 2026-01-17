@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 import { useSweetAlert } from '@/hooks/useSweetAlert';
 import { FORM_LIMITS } from '@/constants/formLimits';
+import { isAccessControlEnabledForEvent } from '@/lib/accessControlFeature';
 
 interface CustomFieldValue {
   customFieldId: string;
@@ -81,9 +82,9 @@ const getInitialFormState = (eventSettings?: EventSettings, customFields: Custom
   let validFrom = '';
   let validUntil = '';
 
-  // Check if access control is enabled and defaults are available
+  // Check if access control is enabled (both globally and for this event) and defaults are available
   const defaults = eventSettings?.accessControlDefaults;
-  const shouldApplyDefaults = !!(eventSettings?.accessControlEnabled && defaults);
+  const shouldApplyDefaults = !!(isAccessControlEnabledForEvent(eventSettings?.accessControlEnabled) && defaults);
 
   if (shouldApplyDefaults) {
     // Apply default access status
@@ -120,6 +121,9 @@ const getInitialFormState = (eventSettings?: EventSettings, customFields: Custom
   }
 
   // Initialize custom field values with boolean defaults
+  // Note: All boolean fields default to 'no' since there's no default value
+  // configuration in the CustomField schema. This is a safe default that
+  // requires explicit user action for 'yes' values.
   const customFieldValues: Record<string, string> = {};
   customFields.forEach(field => {
     if (field.fieldType === 'boolean') {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,6 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { useSweetAlert } from '@/hooks/useSweetAlert';
 import { Calendar, Clock, Download, FileSpreadsheet, Funnel, Users } from 'lucide-react';
+import { isAccessControlEnabledForEvent } from '@/lib/accessControlFeature';
 
 interface ExportDialogProps {
   children: React.ReactNode;
@@ -66,6 +67,7 @@ export default function ExportDialog({
     'createdAt',
   ]);
   const [isExporting, setIsExporting] = useState(false);
+  const isExportingRef = useRef(false);
   const [dateFormat, setDateFormat] = useState<'iso' | 'us' | 'compact'>('compact');
   const [timeFormat, setTimeFormat] = useState<'24h' | '12h'>('12h');
 
@@ -85,8 +87,8 @@ export default function ExportDialog({
     { id: 'credentialGeneratedAt', name: 'Credential Generated', description: 'When the credential was generated', category: 'system' },
   ];
 
-  // Add Access Control fields if enabled
-  const accessControlFields: ExportField[] = eventSettings?.accessControlEnabled ? [
+  // Add Access Control fields if enabled (both globally and for this event)
+  const accessControlFields: ExportField[] = isAccessControlEnabledForEvent(eventSettings?.accessControlEnabled) ? [
     { id: 'accessEnabled', name: 'Access Status', description: 'Whether access is enabled (Active/Inactive)', category: 'access-control' },
     { id: 'validFrom', name: 'Valid From', description: 'Access validity start date/time', category: 'access-control' },
     { id: 'validUntil', name: 'Valid Until', description: 'Access validity end date/time', category: 'access-control' },
@@ -136,6 +138,9 @@ export default function ExportDialog({
   };
 
   const handleExport = async () => {
+    // Prevent double-clicks using ref (synchronous check)
+    if (isExportingRef.current) return;
+    isExportingRef.current = true;
     setIsExporting(true);
     
     try {
@@ -151,7 +156,7 @@ export default function ExportDialog({
             photoFilter,
             advancedFilters,
           },
-        })
+        }),
       };
 
       // Make API call to export endpoint
@@ -170,12 +175,20 @@ export default function ExportDialog({
       // Get the CSV data
       const csvData = await response.text();
       
-      // Create and download the file
+      // Create and download the file (browser-only)
+      if (typeof window === 'undefined' || typeof document === 'undefined') {
+        throw new Error('Export requires a browser environment');
+      }
       const blob = new Blob([csvData], { type: 'text/csv' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `attendees-export-${new Date().toISOString().split('T')[0]}.csv`;
+      // Use local date for filename to match user's timezone
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      a.download = `attendees-export-${year}-${month}-${day}.csv`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -187,6 +200,7 @@ export default function ExportDialog({
     } catch (err: any) {
       error("Export Failed", err.message || "An error occurred while exporting data.");
     } finally {
+      isExportingRef.current = false;
       setIsExporting(false);
     }
   };
@@ -339,7 +353,7 @@ export default function ExportDialog({
                     size="sm"
                     onClick={() => handleDeselectAll()}
                   >
-                    Deselect All
+                    Required Only
                   </Button>
                   <Separator orientation="vertical" className="h-4" />
                   <Button
@@ -356,7 +370,7 @@ export default function ExportDialog({
                   >
                     Select System
                   </Button>
-                  {eventSettings?.accessControlEnabled && (
+                  {isAccessControlEnabledForEvent(eventSettings?.accessControlEnabled) && (
                     <Button
                       variant="outline"
                       size="sm"
@@ -451,8 +465,8 @@ export default function ExportDialog({
                   </div>
                 </div>
 
-                {/* Access Control Fields Section (if enabled) */}
-                {eventSettings?.accessControlEnabled && accessControlFields.length > 0 && (
+                {/* Access Control Fields Section (if enabled globally and for this event) */}
+                {isAccessControlEnabledForEvent(eventSettings?.accessControlEnabled) && (
                   <>
                     <Separator />
                     <div>
@@ -571,7 +585,7 @@ export default function ExportDialog({
                     <Label htmlFor="dateFormat">Date Format</Label>
                     <Select value={dateFormat} onValueChange={(value: 'iso' | 'us' | 'compact') => setDateFormat(value)}>
                       <SelectTrigger id="dateFormat" className="w-full">
-                        <SelectValue />
+                        <SelectValue placeholder="Select date format" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="compact">Compact (3/15/24)</SelectItem>
@@ -590,7 +604,7 @@ export default function ExportDialog({
                     <Label htmlFor="timeFormat">Time Format</Label>
                     <Select value={timeFormat} onValueChange={(value: '24h' | '12h') => setTimeFormat(value)}>
                       <SelectTrigger id="timeFormat" className="w-full">
-                        <SelectValue />
+                        <SelectValue placeholder="Select time format" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="12h">12-Hour (2:30 PM)</SelectItem>
@@ -603,7 +617,9 @@ export default function ExportDialog({
                     </p>
                   </div>
 
-                  {eventSettings?.accessControlEnabled && eventSettings?.accessControlTimeMode && (
+                  {isAccessControlEnabledForEvent(eventSettings?.accessControlEnabled) && 
+                    eventSettings?.accessControlTimeMode &&
+                    (selectedFields.includes('validFrom') || selectedFields.includes('validUntil')) && (
                     <div className="bg-muted/50 p-3 rounded-md">
                       <p className="text-xs text-muted-foreground">
                         <strong>Note:</strong> Access Control is in{' '}

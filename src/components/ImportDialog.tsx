@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { useSweetAlert } from '@/hooks/useSweetAlert';
 import { useDropzone } from 'react-dropzone';
 import { Upload, FileText, AlertCircle, Download } from 'lucide-react';
+import { isAccessControlEnabledForEvent } from '@/lib/accessControlFeature';
 
 interface CustomField {
   id: string;
@@ -94,8 +95,8 @@ export default function ImportDialog({ children, onImportSuccess, customFields, 
     }))
   ];
 
-  // Add access control columns if enabled
-  const accessControlColumns = accessControlSettings?.accessControlEnabled ? [
+  // Add access control columns if enabled (both globally and for this event)
+  const accessControlColumns = isAccessControlEnabledForEvent(accessControlSettings?.accessControlEnabled) ? [
     { internalName: 'validFrom', description: 'Valid From' },
     { internalName: 'validUntil', description: 'Valid Until' },
     { internalName: 'accessEnabled', description: 'Access Status' }

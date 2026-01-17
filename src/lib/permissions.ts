@@ -1,3 +1,5 @@
+import { isAccessControlFeatureEnabled } from './accessControlFeature';
+
 interface Permission {
   create?: boolean;
   read?: boolean;
@@ -35,21 +37,21 @@ export function hasPermission(
   resource: keyof UserPermissions,
   action: keyof Permission
 ): boolean {
-  if (!userRole || !userRole.permissions) {
+  if (!userRole || !userRole.permissions || typeof userRole.permissions !== 'object') {
     return false;
   }
 
   const permissions = userRole.permissions as UserPermissions;
   const resourcePermissions = permissions[resource];
 
-  if (!resourcePermissions) {
+  if (!resourcePermissions || typeof resourcePermissions !== 'object') {
     return false;
   }
 
   return resourcePermissions[action] === true;
 }
 
-export function canAccessTab(userRole: any, tab: string): boolean {
+export function canAccessTab(userRole: any, tab: keyof UserPermissions): boolean {
   switch (tab) {
     case 'attendees':
       return hasPermission(userRole, 'attendees', 'read');
@@ -57,7 +59,7 @@ export function canAccessTab(userRole: any, tab: string): boolean {
       return hasPermission(userRole, 'users', 'read');
     case 'roles':
       return hasPermission(userRole, 'roles', 'read');
-    case 'settings':
+    case 'eventSettings':
       return hasPermission(userRole, 'eventSettings', 'read');
     case 'logs':
       return hasPermission(userRole, 'logs', 'read');
@@ -65,7 +67,12 @@ export function canAccessTab(userRole: any, tab: string): boolean {
       // Operator monitoring requires monitoring read access
       return hasPermission(userRole, 'monitoring', 'read');
     case 'accessControl':
-      // Access control tab requires accessControl, approvalProfiles, or scanLogs read permission
+      // Access control tab requires:
+      // 1. Global feature flag enabled via env variable
+      // 2. User has accessControl, approvalProfiles, or scanLogs read permission
+      if (!isAccessControlFeatureEnabled()) {
+        return false;
+      }
       return hasPermission(userRole, 'accessControl', 'read') || 
              hasPermission(userRole, 'approvalProfiles', 'read') ||
              hasPermission(userRole, 'scanLogs', 'read');

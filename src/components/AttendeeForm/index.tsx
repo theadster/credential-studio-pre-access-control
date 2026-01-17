@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useSweetAlert } from '@/hooks/useSweetAlert';
 import { useAttendeeForm } from '@/hooks/useAttendeeForm';
@@ -10,6 +10,7 @@ import { CustomFieldsSection } from './CustomFieldsSection';
 import { FormActions } from './FormActions';
 import { AccessControlFields } from './AccessControlFields';
 import { AccessControlTimeMode } from '@/lib/accessControlDates';
+import { isAccessControlEnabledForEvent } from '@/lib/accessControlFeature';
 
 interface CustomFieldOptions {
   uppercase?: boolean;
@@ -111,7 +112,7 @@ interface FocusTrapProps {
   allowCloudinary: boolean;
 }
 
-const FocusTrap = React.memo(function FocusTrap({ children, enabled, allowCloudinary }: FocusTrapProps) {
+const FocusTrap = React.memo(({ children, enabled, allowCloudinary }: FocusTrapProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -124,7 +125,7 @@ const FocusTrap = React.memo(function FocusTrap({ children, enabled, allowCloudi
       if (e.key !== 'Tab') return;
 
       const focusableElements = container.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
       );
 
       const firstElement = focusableElements[0];
@@ -152,7 +153,7 @@ const FocusTrap = React.memo(function FocusTrap({ children, enabled, allowCloudi
   return <div ref={containerRef}>{children}</div>;
 });
 
-const AttendeeForm = React.memo(function AttendeeForm({
+const AttendeeForm = React.memo(({
   isOpen,
   onClose,
   onSave,
@@ -160,7 +161,7 @@ const AttendeeForm = React.memo(function AttendeeForm({
   attendee,
   customFields,
   eventSettings
-}: AttendeeFormProps) {
+}: AttendeeFormProps) => {
   const { error, confirm } = useSweetAlert();
   const [loading, setLoading] = useState(false);
   const [loadingAndGenerate, setLoadingAndGenerate] = useState(false);
@@ -488,18 +489,17 @@ const AttendeeForm = React.memo(function AttendeeForm({
                     onChange={updateCustomField}
                   />
 
-                  {/* Access Control Fields - Only shown when access control is enabled */}
-                  {eventSettings?.accessControlEnabled && (
+                  {/* Access Control Fields - Only shown when access control is enabled globally AND for this event */}
+                  {isAccessControlEnabledForEvent(eventSettings?.accessControlEnabled) && (
                     <AccessControlFields
-                      accessControlEnabled={eventSettings.accessControlEnabled}
-                      accessControlTimeMode={eventSettings.accessControlTimeMode || 'date_only'}
-                      validFrom={formData.validFrom}
-                      validUntil={formData.validUntil}
+                      accessControlTimeMode={eventSettings?.accessControlTimeMode || 'date_only'}
+                      validFrom={formData.validFrom || null}
+                      validUntil={formData.validUntil || null}
                       accessEnabled={formData.accessEnabled}
-                      onValidFromChange={(value) => updateField('validFrom', value || '')}
-                      onValidUntilChange={(value) => updateField('validUntil', value || '')}
+                      onValidFromChange={(value) => updateField('validFrom', value ?? '')}
+                      onValidUntilChange={(value) => updateField('validUntil', value ?? '')}
                       onAccessEnabledChange={(value) => updateField('accessEnabled', value)}
-                      eventTimezone={eventSettings.timeZone || 'UTC'}
+                      eventTimezone={eventSettings?.timeZone || 'UTC'}
                     />
                   )}
                 </div>

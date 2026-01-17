@@ -25,8 +25,6 @@ import {
  * Props for the AccessControlFields component
  */
 export interface AccessControlFieldsProps {
-  /** Whether access control is enabled for the event */
-  accessControlEnabled: boolean;
   /** Time mode setting from event settings */
   accessControlTimeMode: AccessControlTimeMode;
   /** Valid from date/datetime value (ISO string or null) */
@@ -55,9 +53,11 @@ export interface AccessControlFieldsProps {
  * - Date range validation (validFrom must be before validUntil)
  * - Access status toggle (Active/Inactive)
  * - Visual feedback for validation errors
+ * 
+ * Note: This component should only be rendered when access control is enabled.
+ * The parent component is responsible for gating rendering using isAccessControlEnabledForEvent().
  */
 export function AccessControlFields({
-  accessControlEnabled,
   accessControlTimeMode,
   validFrom,
   validUntil,
@@ -72,21 +72,9 @@ export function AccessControlFields({
 
   // Validate date range whenever dates change
   useEffect(() => {
-    if (validFrom && validUntil) {
-      if (!isValidDateRange(validFrom, validUntil)) {
-        setValidationError('Valid From date must be before Valid Until date');
-      } else {
-        setValidationError(null);
-      }
-    } else {
-      setValidationError(null);
-    }
+    const isValid = isValidDateRange(validFrom ?? null, validUntil ?? null);
+    setValidationError(isValid ? null : 'Valid From date must be before Valid Until date');
   }, [validFrom, validUntil]);
-
-  // Don't render if access control is disabled
-  if (!accessControlEnabled) {
-    return null;
-  }
 
   const isDateOnly = accessControlTimeMode === 'date_only';
   const inputType = isDateOnly ? 'date' : 'datetime-local';
