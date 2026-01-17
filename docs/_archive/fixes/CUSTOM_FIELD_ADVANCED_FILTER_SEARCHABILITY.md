@@ -299,3 +299,14 @@ For detailed documentation and porting instructions, see:
 - [x] No TypeScript errors
 - [ ] Manual testing pending
 - [ ] User acceptance testing pending
+
+
+---
+
+## Update (January 17, 2026)
+
+This documentation has been archived. The Advanced Filters feature has been refactored and extracted into a dedicated component. See:
+- `docs/fixes/CUSTOM_FIELD_SEARCHABILITY_REAPPLIED.md` - Current implementation status
+- `docs/misc/ADVANCED_FILTERS_COMPONENT_EXTRACTION_REFACTOR.md` - Full refactoring details
+
+The custom field searchability fix remains valid - all custom fields (including hidden ones) are still returned by the API and searchable through the new Advanced Filters Dialog component.

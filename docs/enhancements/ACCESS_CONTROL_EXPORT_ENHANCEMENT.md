@@ -3,9 +3,9 @@ title: "Access Control Export Enhancement"
 type: canonical
 status: active
 owner: "@team"
-last_verified: 2025-12-31
+last_verified: 2026-01-17
 review_interval_days: 90
-related_code: ["src/pages/api/attendees/export.ts"]
+related_code: ["src/pages/api/attendees/export.ts", "src/components/ExportDialog.tsx"]
 ---
 
 # Access Control Export Enhancement
@@ -115,7 +115,9 @@ case 'validUntil':
 
 ### For Users
 
-1. **Enable Access Control** in Event Settings
+1. **Enable Access Control** via environment variable:
+   - Set `NEXT_PUBLIC_ENABLE_ACCESS_CONTROL=true` in your `.env.local` file
+   - Restart the application for the change to take effect
 2. Navigate to the Attendees tab
 3. Click the **Export** button
 4. In the Export Dialog:
@@ -151,10 +153,16 @@ Jane,Smith,Inactive,2024-03-16 10:30,2024-03-21 18:00
 ## Technical Details
 
 ### Conditional Rendering
-The Access Control section only appears when:
+The Access Control section only appears when access control is enabled both globally (via environment variable) AND for the specific event:
 ```typescript
-eventSettings?.accessControlEnabled === true
+// Check if Access Control is enabled using the helper function
+// This checks both the global environment variable AND the event-specific setting
+isAccessControlEnabledForEvent(eventSettings?.accessControlEnabled)
 ```
+
+The helper function `isAccessControlEnabledForEvent()` from `@/lib/accessControlFeature` ensures that:
+1. The global feature flag `NEXT_PUBLIC_ENABLE_ACCESS_CONTROL` is set to `'true'`
+2. The event has access control enabled (`eventSettings.accessControlEnabled === true`)
 
 The Date & Time Format card only appears when any date/time field is selected:
 ```typescript
@@ -208,14 +216,20 @@ This matches the pattern used in the main attendees API (`src/pages/api/attendee
 
 ## Dependencies
 
-- Existing Access Control feature (`.kiro/specs/access-control-feature/`)
+- Access Control feature enabled via `NEXT_PUBLIC_ENABLE_ACCESS_CONTROL=true` environment variable
 - `src/lib/accessControlDates.ts` - Date formatting utilities (referenced for consistency)
-- Event Settings with `accessControlEnabled` and `accessControlTimeMode` properties
+- Event Settings with `accessControlTimeMode` property
 
 ## Testing Recommendations
 
 1. **With Access Control Disabled**: Verify Access Control section doesn't appear
+   - Set `NEXT_PUBLIC_ENABLE_ACCESS_CONTROL=false` in `.env.local`
+   - Restart application
+   - Open Export Dialog and verify Access Control fields are hidden
 2. **With Access Control Enabled**: Verify all three fields are available
+   - Set `NEXT_PUBLIC_ENABLE_ACCESS_CONTROL=true` in `.env.local`
+   - Restart application
+   - Open Export Dialog and verify Access Control fields appear
 3. **Date-Only Mode**: Verify only dates are exported (no times)
 4. **Date-Time Mode**: Verify both dates and times are exported
 5. **Format Options**: Test all combinations of date and time formats
@@ -235,3 +249,7 @@ This matches the pattern used in the main attendees API (`src/pages/api/attendee
 - Add option to export access control status as boolean (true/false) instead of Active/Inactive
 - Add filtering by access control status in the export dialog
 - Add preview of formatted dates before export
+
+## Migration Note (January 17, 2026)
+
+Access Control is now enabled via the `NEXT_PUBLIC_ENABLE_ACCESS_CONTROL` environment variable instead of through Event Settings. This is a global feature flag that enables/disables the entire Access Control feature across the application. The `accessControlTimeMode` setting remains in Event Settings to control whether Access Control uses date-only or date-time mode.
