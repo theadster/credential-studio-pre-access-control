@@ -3,7 +3,7 @@ title: Documentation Search Index
 type: canonical
 status: active
 owner: "@team"
-last_verified: 2026-01-08
+last_verified: 2026-01-18
 review_interval_days: 90
 related_code: []
 ---
@@ -12,7 +12,19 @@ related_code: []
 
 > Searchable index of all active documentation
 
-**Last Updated:** 2026-01-08
+**Last Updated:** 2026-01-18
+
+## Access Control Environment Variable Migration
+
+- **File:** `migration/ACCESS_CONTROL_ENVIRONMENT_VARIABLE_MIGRATION.md`
+- **Type:** runbook
+- **Category:** migration
+- **Related Code:**
+  - `src/lib/accessControlFeature.ts`
+  - `.env.example`
+- **Keywords:** 'true', (disabled), ..., `.env.local`, access, affects, after, all, and, appearing, before, can, change, changed, changes, code, configuration, control, data, default:, deployment, dev, development, different, disable, disabled,, documentation, effect, enable, enabled?, environment, event, events?, example, existing, false, faq, feature, feature?, fields, flag, for, functionality, globally, happens, have, hidden, how, know, migration, need, not, other, overview, persistence, references, related, restart, rollback, runtime?, server, set, settings, settings?, shouldn't, site, steps, tab, taking, the, they, this, timeline, troubleshooting, update, variable, visible, what, when, will
+
+[View Document](./migration/ACCESS_CONTROL_ENVIRONMENT_VARIABLE_MIGRATION.md)
 
 ## Access Control Export Enhancement
 
@@ -21,7 +33,8 @@ related_code: []
 - **Category:** enhancements
 - **Related Code:**
   - `src/pages/api/attendees/export.ts`
-- **Keywords:** 'date, (`src/components/exportdialog.tsx`), (`src/pages/api/attendees/export.ts`), (accesscontroltimemode:, access, api, awareness, benefits, changes, component, conditional, control, data, date, dependencies, details, enhancement, enhancements, examples, export, exportdialog, features, fetching, field, files, for, format, formatting, functions, future, handling, hour, implementation, improvements, iso, logic, made, management, mappings, mode, modified, new, only, only'), overview, parameters, recommendations, rendering, request, sanitization, state, technical, testing, text, time, time'), usage, users, with
+  - `src/components/ExportDialog.tsx`
+- **Keywords:** 'date, (`src/components/exportdialog.tsx`), (`src/pages/api/attendees/export.ts`), (accesscontroltimemode:, (january, 17,, 2026), access, api, awareness, benefits, changes, component, conditional, control, data, date, dependencies, details, enhancement, enhancements, examples, export, exportdialog, features, fetching, field, files, for, format, formatting, functions, future, handling, hour, implementation, improvements, iso, logic, made, management, mappings, migration, mode, modified, new, note, only, only'), overview, parameters, recommendations, rendering, request, sanitization, state, technical, testing, text, time, time'), usage, users, with
 
 [View Document](./enhancements/ACCESS_CONTROL_EXPORT_ENHANCEMENT.md)
 
@@ -42,10 +55,24 @@ related_code: []
 - **Type:** canonical
 - **Category:** fixes
 - **Related Code:**
-  - `src/components/AdvancedFilter.tsx`
-- **Keywords:** `modal={true}`, `src/pages/dashboard.tsx`, added, advanced, cause, changes, commandlist, components, date, details, divs, dropdown, file:, filter, fix, issue, learned, lessons, made, plain, popover, problem, radix, references, related, replaced, root, scrollarea, scrolling, solution, technical, testing, the, why, with, works
+  - `src/components/AdvancedFiltersDialog/sections/CustomFieldsSection.tsx`
+  - `src/components/AdvancedFiltersDialog/IntegratedFilterInput.tsx`
+- **Keywords:** (january, 17,, 2026), `modal={true}`, `src/components/advancedfiltersdialog/integratedfilterinput.tsx`, added, advanced, cause, changes, commandlist, components, date, details, divs, dropdown, file:, filter, fix, implementation, issue, learned, lessons, location, made, plain, popover, previous, problem, radix, references, related, replaced, root, scrollarea, scrolling, solution, technical, testing, the, update, why, with, works
 
 [View Document](./fixes/ADVANCED_FILTER_DROPDOWN_SCROLLING_FIX.md)
+
+## Advanced Filters Component Extraction and Redesign
+
+- **File:** `misc/ADVANCED_FILTERS_COMPONENT_EXTRACTION_REFACTOR.md`
+- **Type:** canonical
+- **Category:** misc
+- **Related Code:**
+  - `src/components/AdvancedFiltersDialog/`
+  - `src/lib/filterUtils.ts`
+  - `src/pages/dashboard.tsx`
+- **Keywords:** (`src/lib/filterutils.ts`), accordion, active, advanced, after:, all, and, appearing, applying, architecture, backward, bar, before:, behaviors, benefits, breaking, changed, changes, code, collapsible, compatibility, component, comprehensive, coverage, created, custom, details, developer, developers, documentation, enhancements, expanding, experience, extraction, features, fields, file, files, filter, filters, for, future, guide, hierarchy, implementation, importing, improvements, inputs, integrated, issue:, key, known, management, migration, modified, modular, monolithic, new, non, not, overview, performance, qa/testing, quality, redesign, references, regressions, related, run, running, sections, showing, specific, state, structure, summary, technical, test, testing, tests, the, troubleshooting, updated, user, using, utilities, what, with
+
+[View Document](./misc/ADVANCED_FILTERS_COMPONENT_EXTRACTION_REFACTOR.md)
 
 ## API Keys Removal Migration
 
@@ -497,8 +524,9 @@ related_code: []
 - **Type:** canonical
 - **Category:** fixes
 - **Related Code:**
-  - `src/pages/api/attendees/search.ts`
-- **Keywords:** (`src/pages/api/attendees/index.ts`), advanced, api, applied, behavior, cause, changes, custom, date, description, documentation, endpoint, expected, field, files, filter, fix, how, impact, issue, made, manual, notes, now, performance, reapplied, related, root, running, searchability, solution, status, test, testing, tests, visibility, works
+  - `src/pages/api/attendees/index.ts`
+  - `src/components/AdvancedFiltersDialog/sections/CustomFieldsSection.tsx`
+- **Keywords:** (`src/pages/api/attendees/index.ts`), (january, 17,, 2026), advanced, api, applied, behavior, cause, changes, custom, date, description, documentation, endpoint, expected, field, files, filter, fix, how, impact, issue, made, manual, notes, now, performance, reapplied, related, root, running, searchability, solution, status, test, testing, tests, update, visibility, works
 
 [View Document](./fixes/CUSTOM_FIELD_SEARCHABILITY_REAPPLIED.md)
 
@@ -721,7 +749,7 @@ related_code: []
 - **File:** `INDEX_BY_TOPIC.md`
 - **Type:** canonical
 - **Category:** docs
-- **Keywords:** (1), (119), (16), (20), (21), (22), (23), (28), (3), (42), (9), adr, canonical, category, docs, document, documentation, enhancements, fixes, guides, index, migration, misc, reference, runbook, testing, topic, type, worklog
+- **Keywords:** (1), (10), (120), (17), (20), (21), (23), (28), (3), (42), adr, canonical, category, docs, document, documentation, enhancements, fixes, guides, index, migration, misc, reference, runbook, testing, topic, type, worklog
 
 [View Document](./INDEX_BY_TOPIC.md)
 
