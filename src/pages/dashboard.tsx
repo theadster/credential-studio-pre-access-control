@@ -3131,7 +3131,7 @@ export default function Dashboard() {
 
     const confirmed = await confirm({
       title: 'Clear Credentials',
-      text: `Are you sure you want to clear credentials for ${attendeesWithCredentials.length} attendee${attendeesWithCredentials.length !== 1 ? 's' : ''}?`,
+      text: `Are you sure you want to clear credentials for ${attendeesWithCredentials.length} attendee${attendeesWithCredentials.length !== 1 ? 's' : ''}? This action cannot be undone.`,
       icon: 'warning',
       confirmButtonText: 'Clear Credentials',
       cancelButtonText: 'Cancel'
