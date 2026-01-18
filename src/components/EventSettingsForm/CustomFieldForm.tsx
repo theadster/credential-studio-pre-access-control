@@ -1,34 +1,35 @@
 // CustomFieldForm Component
 // Modal form for creating and editing custom fields
 
-import React, { useState, useEffect, useRef, memo } from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import React, { memo, useEffect, useRef, useState } from 'react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Settings, Save, Plus, Type, Eye, Printer, CheckSquare, X } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { CheckSquare, Eye, FileText, Plus, Printer, Save, Settings, Type, X } from "lucide-react";
 import { generateInternalFieldName } from "@/util/string";
 import { FIELD_TYPES } from './constants';
 import { getFieldIcon, getFieldPlaceholder } from './utils';
 import { CustomField, FieldOptions, SelectFieldOptions, TextFieldOptions } from './types';
 import {
   DndContext,
-  closestCenter,
+  DragEndEvent,
   KeyboardSensor,
   PointerSensor,
+  closestCenter,
   useSensor,
   useSensors,
-  DragEndEvent,
 } from '@dnd-kit/core';
 import {
-  arrayMove,
   SortableContext,
+  arrayMove,
   sortableKeyboardCoordinates,
+  useSortable,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical } from "lucide-react";
 
@@ -39,15 +40,41 @@ interface CustomFieldFormProps {
   onCancel: () => void;
 }
 
+/** Field types that use the generic Input component for default values */
+const INPUT_FIELD_TYPES = ['text', 'number', 'email', 'date', 'url'] as const;
+
+/**
+ * Maps a custom field type to the appropriate HTML input type
+ */
+function getInputTypeForField(fieldType: string): 'number' | 'email' | 'date' | 'url' | 'text' {
+  switch (fieldType) {
+    case 'number':
+      return 'number';
+    case 'email':
+      return 'email';
+    case 'date':
+      return 'date';
+    case 'url':
+      return 'url';
+    case 'text':
+      return 'text';
+    default:
+      // Log warning for unexpected field types reaching this function
+      console.warn(`getInputTypeForField: unexpected fieldType "${fieldType}", defaulting to text`);
+      return 'text';
+  }
+}
+
 // Sortable Select Option Component
 interface SortableSelectOptionProps {
+  id: string;
   option: string;
   index: number;
   onUpdate: (index: number, value: string) => void;
   onRemove: (index: number) => void;
 }
 
-const SortableSelectOption = memo(function SortableSelectOption({ option, index, onUpdate, onRemove }: SortableSelectOptionProps) {
+const SortableSelectOption = memo(({ id, option, index, onUpdate, onRemove }: SortableSelectOptionProps) => {
   const {
     attributes,
     listeners,
@@ -55,7 +82,7 @@ const SortableSelectOption = memo(function SortableSelectOption({ option, index,
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: `option-${index}` });
+  } = useSortable({ id });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -91,7 +118,7 @@ const SortableSelectOption = memo(function SortableSelectOption({ option, index,
   );
 });
 
-export const CustomFieldForm = memo(function CustomFieldForm({ isOpen, field, onSave, onCancel }: CustomFieldFormProps) {
+export const CustomFieldForm = memo(({ isOpen, field, onSave, onCancel }: CustomFieldFormProps) => {
   const [fieldData, setFieldData] = useState<CustomField>({
     fieldName: "",
     fieldType: "text",
@@ -99,12 +126,15 @@ export const CustomFieldForm = memo(function CustomFieldForm({ isOpen, field, on
     order: 1,
     printable: false,
   });
-  const [selectOptions, setSelectOptions] = useState<string[]>([]);
+  const [selectOptions, setSelectOptions] = useState<{id: string; value: string}[]>([]);
   const [validationError, setValidationError] = useState<string>("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const optionIdCounter = useRef(0);
 
   // Focus management refs
   const firstInputRef = useRef<HTMLInputElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const isSubmittingRef = useRef(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -126,6 +156,9 @@ export const CustomFieldForm = memo(function CustomFieldForm({ isOpen, field, on
     } else {
       // Restore focus on close
       previousFocusRef.current?.focus();
+      // Reset submission state when dialog closes
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
     }
   }, [isOpen]);
 
@@ -137,7 +170,10 @@ export const CustomFieldForm = memo(function CustomFieldForm({ isOpen, field, on
         field.fieldOptions &&
         'options' in field.fieldOptions &&
         Array.isArray(field.fieldOptions.options)) {
-        setSelectOptions(field.fieldOptions.options);
+        setSelectOptions(field.fieldOptions.options.map(opt => ({
+          id: `opt-${optionIdCounter.current++}`,
+          value: opt
+        })));
       } else {
         setSelectOptions([]);
       }
@@ -151,17 +187,24 @@ export const CustomFieldForm = memo(function CustomFieldForm({ isOpen, field, on
       });
       setSelectOptions([]);
     }
+    // Only reset submitting state if not actively submitting
+    if (!isSubmittingRef.current) {
+      setIsSubmitting(false);
+    }
   }, [field]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Guard against double submission
+    if (isSubmitting) return;
 
     // Clear previous validation errors
     setValidationError("");
 
     // Validate select options
     if (fieldData.fieldType === "select") {
-      const nonEmptyOptions = selectOptions.filter(opt => opt.trim());
+      const nonEmptyOptions = selectOptions.filter(opt => opt.value.trim());
       if (nonEmptyOptions.length === 0) {
         setValidationError("Select fields must have at least one non-empty option.");
         return;
@@ -171,7 +214,7 @@ export const CustomFieldForm = memo(function CustomFieldForm({ isOpen, field, on
     let fieldOptions: FieldOptions | undefined;
 
     if (fieldData.fieldType === "select") {
-      fieldOptions = { options: selectOptions } as SelectFieldOptions;
+      fieldOptions = { options: selectOptions.map(opt => opt.value) } as SelectFieldOptions;
     } else if (fieldData.fieldType === "text") {
       // Type guard to safely access uppercase property
       const uppercase = fieldData.fieldOptions && 'uppercase' in fieldData.fieldOptions
@@ -185,16 +228,18 @@ export const CustomFieldForm = memo(function CustomFieldForm({ isOpen, field, on
       fieldOptions
     };
 
+    setIsSubmitting(true);
+    isSubmittingRef.current = true;
     onSave(finalFieldData);
   };
 
   const addSelectOption = () => {
-    setSelectOptions(prev => [...prev, ""]);
+    setSelectOptions(prev => [...prev, { id: `opt-${optionIdCounter.current++}`, value: "" }]);
     setValidationError(""); // Clear error when adding options
   };
 
   const updateSelectOption = (index: number, value: string) => {
-    setSelectOptions(prev => prev.map((opt, i) => i === index ? value : opt));
+    setSelectOptions(prev => prev.map((opt, i) => i === index ? { ...opt, value } : opt));
     setValidationError(""); // Clear error when updating options
   };
 
@@ -202,37 +247,12 @@ export const CustomFieldForm = memo(function CustomFieldForm({ isOpen, field, on
     setSelectOptions(prev => prev.filter((_, i) => i !== index));
   };
 
-  // Helper functions for option ID management
-  const getOptionId = (index: number): string => {
-    return `option-${index}`;
-  };
-
-  const parseOptionId = (id: string | number): number => {
-    const idStr = String(id);
-    const prefix = 'option-';
-
-    if (!idStr.startsWith(prefix)) {
-      console.error(`Invalid option ID format: "${idStr}". Expected format: "${prefix}N"`);
-      return 0; // Safe fallback
-    }
-
-    const indexStr = idStr.replace(prefix, '');
-    const index = parseInt(indexStr, 10);
-
-    if (isNaN(index) || index < 0) {
-      console.error(`Invalid option index in ID: "${idStr}". Parsed as: ${indexStr}`);
-      return 0; // Safe fallback
-    }
-
-    return index;
-  };
-
   const handleOptionDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (over && active.id !== over.id) {
       setSelectOptions((items) => {
-        const oldIndex = parseOptionId(active.id);
-        const newIndex = parseOptionId(over.id);
+        const oldIndex = items.findIndex(opt => opt.id === active.id);
+        const newIndex = items.findIndex(opt => opt.id === over.id);
         return arrayMove(items, oldIndex, newIndex);
       });
     }
@@ -318,14 +338,15 @@ export const CustomFieldForm = memo(function CustomFieldForm({ isOpen, field, on
                     onDragEnd={handleOptionDragEnd}
                   >
                     <SortableContext
-                      items={selectOptions.map((_, index) => getOptionId(index))}
+                      items={selectOptions.map(opt => opt.id)}
                       strategy={verticalListSortingStrategy}
                     >
                       {selectOptions.map((option, index) => (
                         <SortableSelectOption
-                          key={getOptionId(index)}
+                          key={option.id}
+                          id={option.id}
                           index={index}
-                          option={option}
+                          option={option.value}
                           onUpdate={updateSelectOption}
                           onRemove={removeSelectOption}
                         />
@@ -419,12 +440,83 @@ export const CustomFieldForm = memo(function CustomFieldForm({ isOpen, field, on
                 onCheckedChange={(checked) => setFieldData(prev => ({ ...prev, printable: checked }))}
               />
             </div>
+
+            {/* Default Value Section */}
+            <div>
+              <Label htmlFor="defaultValue" className="flex items-center gap-2 text-sm font-medium mb-2">
+                <FileText className="h-4 w-4" />
+                Default Value
+              </Label>
+              <div className="text-xs text-muted-foreground mb-2">
+                This value will be pre-filled when adding new attendees or importing records without this field.
+              </div>
+              {fieldData.fieldType === "boolean" ? (
+                <Select
+                  value={fieldData.defaultValue || "no"}
+                  onValueChange={(value) => setFieldData(prev => ({ ...prev, defaultValue: value }))}
+                >
+                  <SelectTrigger className="h-10">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="no">No</SelectItem>
+                    <SelectItem value="yes">Yes</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : fieldData.fieldType === "checkbox" ? (
+                <Select
+                  value={fieldData.defaultValue || "__none__"}
+                  onValueChange={(value) => setFieldData(prev => ({ ...prev, defaultValue: value === "__none__" ? "" : value }))}
+                >
+                  <SelectTrigger className="h-10">
+                    <SelectValue placeholder="No default" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">No default</SelectItem>
+                    <SelectItem value="unchecked">Unchecked</SelectItem>
+                    <SelectItem value="checked">Checked</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : fieldData.fieldType === "select" ? (
+                <Select
+                  value={fieldData.defaultValue || "__none__"}
+                  onValueChange={(value) => setFieldData(prev => ({ ...prev, defaultValue: value === "__none__" ? "" : value }))}
+                >
+                  <SelectTrigger className="h-10">
+                    <SelectValue placeholder="No default" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">No default</SelectItem>
+                    {selectOptions.filter(opt => opt.value.trim()).map((option) => (
+                      <SelectItem key={option.id} value={option.value}>{option.value}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : fieldData.fieldType === "textarea" ? (
+                <Textarea
+                  id="defaultValue"
+                  value={fieldData.defaultValue || ""}
+                  onChange={(e) => setFieldData(prev => ({ ...prev, defaultValue: e.target.value }))}
+                  placeholder="Enter default value (optional)"
+                  className="min-h-[80px]"
+                />
+              ) : (
+                <Input
+                  id="defaultValue"
+                  type={getInputTypeForField(fieldData.fieldType)}
+                  value={fieldData.defaultValue || ""}
+                  onChange={(e) => setFieldData(prev => ({ ...prev, defaultValue: e.target.value }))}
+                  placeholder="Enter default value (optional)"
+                  className="h-10"
+                />
+              )}
+            </div>
           </div>
           <DialogFooter className="px-6 pb-6 pt-4 border-t border-slate-200 dark:border-slate-700 bg-[#F1F5F9] dark:bg-slate-800">
             <Button type="button" variant="outline" onClick={onCancel}>
               Cancel
             </Button>
-            <Button type="submit">
+            <Button type="submit" disabled={isSubmitting}>
               <Save className="mr-2 h-4 w-4" />
               {field?.id ? "Update Field" : "Add Field"}
             </Button>

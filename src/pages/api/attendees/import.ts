@@ -124,7 +124,12 @@ const handler = async (req: AuthenticatedRequest, res: NextApiResponse) => {
                   fieldOptions = {};
                 }
               }
-              return [cf.internalFieldName, { fieldType: cf.fieldType, fieldOptions: fieldOptions }];
+              return [cf.internalFieldName, { 
+                fieldType: cf.fieldType, 
+                fieldOptions: fieldOptions,
+                defaultValue: cf.defaultValue,
+                fieldId: cf.$id
+              }];
             })
           );
 
@@ -202,6 +207,17 @@ const handler = async (req: AuthenticatedRequest, res: NextApiResponse) => {
 
             const customFieldsData: { [key: string]: string } = {};
 
+            // First, apply default values for all custom fields
+            customFieldOptionsMap.forEach((fieldInfo, internalName) => {
+              if (fieldInfo.defaultValue !== undefined && fieldInfo.defaultValue !== '') {
+                customFieldsData[fieldInfo.fieldId] = fieldInfo.defaultValue;
+              } else if (fieldInfo.fieldType === 'boolean') {
+                // Boolean fields default to 'no' if no default value is set
+                customFieldsData[fieldInfo.fieldId] = 'no';
+              }
+            });
+
+            // Then, override with values from the CSV
             Object.entries(customFieldValues).forEach(([internalName, value]) => {
               const customFieldId = customFieldMap.get(internalName);
               const fieldInfo = customFieldOptionsMap.get(internalName);

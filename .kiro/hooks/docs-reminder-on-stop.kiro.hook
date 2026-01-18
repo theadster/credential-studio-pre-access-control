@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Documentation Reminder",
+  "description": "Reminds the agent to check if documentation needs updating after completing feature work",
+  "version": "1",
+  "when": {
+    "type": "agentStop"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Before finishing, check if this session involved adding or modifying features. If so, ensure appropriate documentation exists in docs/ following the documentation-organization.md guidelines. Consider: 1) Does this feature need a new doc in docs/enhancements/? 2) Should existing guides in docs/guides/ be updated? 3) If this was a bug fix, should docs/fixes/ be updated? Only create documentation if the changes warrant it - minor tweaks don't need docs."
+  }
+}

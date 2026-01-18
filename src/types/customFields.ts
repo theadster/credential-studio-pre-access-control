@@ -21,6 +21,8 @@ export interface CustomField {
   required: boolean;
   order: number;
   showOnMainPage?: boolean;
+  /** Default value for this field when creating new attendees or importing */
+  defaultValue?: string;
 }
 
 /**

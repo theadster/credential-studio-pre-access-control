@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 import { useSweetAlert } from '@/hooks/useSweetAlert';
 import { FORM_LIMITS } from '@/constants/formLimits';
 import { isAccessControlEnabledForEvent } from '@/lib/accessControlFeature';
@@ -16,6 +16,8 @@ interface CustomField {
   fieldOptions?: { uppercase?: boolean; options?: string[] };
   required: boolean;
   order: number;
+  /** Default value for this field when creating new attendees */
+  defaultValue?: string;
 }
 
 interface Attendee {
@@ -101,7 +103,7 @@ const getInitialFormState = (eventSettings?: EventSettings, customFields: Custom
       const day = String(today.getDate()).padStart(2, '0');
       const dateStr = `${year}-${month}-${day}`;
       
-      if (eventSettings.accessControlTimeMode === 'date_time') {
+      if (eventSettings?.accessControlTimeMode === 'date_time') {
         // For date_time mode, use current date and time in local timezone
         const hours = String(today.getHours()).padStart(2, '0');
         const minutes = String(today.getMinutes()).padStart(2, '0');
@@ -120,13 +122,14 @@ const getInitialFormState = (eventSettings?: EventSettings, customFields: Custom
     }
   }
 
-  // Initialize custom field values with boolean defaults
-  // Note: All boolean fields default to 'no' since there's no default value
-  // configuration in the CustomField schema. This is a safe default that
-  // requires explicit user action for 'yes' values.
+  // Initialize custom field values with defaults
+  // Priority: 1) Custom field's defaultValue, 2) 'no' for boolean fields, 3) empty string
   const customFieldValues: Record<string, string> = {};
   customFields.forEach(field => {
-    if (field.fieldType === 'boolean') {
+    if (field.defaultValue !== undefined && field.defaultValue !== '') {
+      customFieldValues[field.id] = field.defaultValue;
+    } else if (field.fieldType === 'boolean') {
+      // Boolean fields default to 'no' if no default value is set
       customFieldValues[field.id] = 'no';
     }
   });
@@ -234,48 +237,67 @@ export function useAttendeeForm({ attendee, customFields, eventSettings }: UseAt
   const isInitializedRef = useRef(false);
   const attendeeIdRef = useRef<string | undefined>(undefined);
 
-  // Memoized initialization logic
+  // Create stable keys for dependency comparison to avoid re-renders from non-memoized props
+  const customFieldsKey = useMemo(
+    () => customFields.map(cf => `${cf.id}:${cf.defaultValue ?? ''}`).join(','),
+    [customFields]
+  );
+  const eventSettingsKey = useMemo(
+    () => JSON.stringify(eventSettings?.accessControlDefaults ?? {}),
+    [eventSettings?.accessControlDefaults]
+  );
+
+  // Store attendee in ref to avoid callback recreation on unrelated attendee prop changes
+  const attendeeRef = useRef(attendee);
+  attendeeRef.current = attendee;
+
+  // Memoized initialization logic - uses refs to avoid unnecessary recreations
   const initializeFormData = useCallback(() => {
-    if (attendee) {
+    const currentAttendee = attendeeRef.current;
+    if (currentAttendee) {
       const currentCustomFieldIds = new Set((customFields || []).map(cf => cf.id));
       const initialCustomFieldValues: Record<string, string> = {};
 
-      if (Array.isArray(attendee.customFieldValues)) {
-        attendee.customFieldValues.forEach((cfv: CustomFieldValue) => {
+      if (Array.isArray(currentAttendee.customFieldValues)) {
+        currentAttendee.customFieldValues.forEach((cfv: CustomFieldValue) => {
           if (currentCustomFieldIds.has(cfv.customFieldId)) {
             initialCustomFieldValues[cfv.customFieldId] = cfv.value;
           }
         });
       }
 
-      // CRITICAL: Boolean custom fields default to 'no' (NOT 'false')
-      // Boolean format: 'yes'/'no' (never 'true'/'false')
-      // This ensures consistency across the application and Switchboard integration
+      // CRITICAL: Apply default values for custom fields
+      // Priority: 1) Existing value from attendee, 2) Custom field's defaultValue, 3) 'no' for boolean fields
       (customFields || []).forEach(field => {
-        if (field.fieldType === 'boolean' && initialCustomFieldValues[field.id] === undefined) {
-          initialCustomFieldValues[field.id] = 'no';
+        if (initialCustomFieldValues[field.id] === undefined) {
+          if (field.defaultValue !== undefined && field.defaultValue !== '') {
+            initialCustomFieldValues[field.id] = field.defaultValue;
+          } else if (field.fieldType === 'boolean') {
+            // Boolean fields default to 'no' if no default value is set
+            initialCustomFieldValues[field.id] = 'no';
+          }
         }
       });
 
       dispatch({
         type: 'INITIALIZE_FORM',
         data: {
-          firstName: attendee.firstName || '',
-          lastName: attendee.lastName || '',
-          barcodeNumber: attendee.barcodeNumber || '',
-          notes: attendee.notes || '',
-          photoUrl: attendee.photoUrl || '',
+          firstName: currentAttendee.firstName || '',
+          lastName: currentAttendee.lastName || '',
+          barcodeNumber: currentAttendee.barcodeNumber || '',
+          notes: currentAttendee.notes || '',
+          photoUrl: currentAttendee.photoUrl || '',
           customFieldValues: initialCustomFieldValues,
           // Access control fields from existing attendee
-          validFrom: attendee.validFrom || '',
-          validUntil: attendee.validUntil || '',
-          accessEnabled: attendee.accessEnabled !== undefined ? attendee.accessEnabled : true,
+          validFrom: currentAttendee.validFrom || '',
+          validUntil: currentAttendee.validUntil || '',
+          accessEnabled: currentAttendee.accessEnabled !== undefined ? currentAttendee.accessEnabled : true,
         },
       });
       
       // Mark as initialized and track the attendee ID
       isInitializedRef.current = true;
-      attendeeIdRef.current = attendee.id;
+      attendeeIdRef.current = currentAttendee.id;
     } else {
       // New attendee - apply defaults from event settings
       dispatch({ type: 'RESET_FORM', eventSettings, customFields });
@@ -284,22 +306,26 @@ export function useAttendeeForm({ attendee, customFields, eventSettings }: UseAt
       isInitializedRef.current = true;
       attendeeIdRef.current = undefined;
     }
-  }, [attendee, customFields, eventSettings]);
+  }, [customFields, eventSettings]);
 
   // Initialize/reset form when attendee or customFields changes
   // Only reinitialize if:
   // 1. Form hasn't been initialized yet, OR
   // 2. We're switching to a different attendee (edit mode), OR
   // 3. We're switching between create and edit modes, OR
-  // 4. customFields or eventSettings change for a new attendee
+  // 4. customFields or eventSettings change for a new attendee (to apply new defaults)
   useEffect(() => {
     const attendeeChanged = attendeeIdRef.current !== attendee?.id;
     const isNewAttendee = !attendee;
     
-    if (!isInitializedRef.current || attendeeChanged || isNewAttendee) {
+    if (!isInitializedRef.current || attendeeChanged) {
+      initializeFormData();
+    } else if (isNewAttendee) {
+      // For new attendees, reinitialize when customFields or eventSettings change
+      // to apply updated defaults
       initializeFormData();
     }
-  }, [initializeFormData, attendee?.id]);
+  }, [initializeFormData, attendee?.id, customFieldsKey, eventSettingsKey]);
 
   // Prune deleted custom field values
   useEffect(() => {
@@ -307,7 +333,7 @@ export function useAttendeeForm({ attendee, customFields, eventSettings }: UseAt
       const currentCustomFieldIds = new Set(customFields.map(cf => cf.id));
       dispatch({ type: 'PRUNE_CUSTOM_FIELDS', validFieldIds: Array.from(currentCustomFieldIds) });
     }
-  }, [attendee?.id, customFields]);
+  }, [attendee?.id, customFieldsKey, customFields, dispatch]);
 
   /**
    * Generates a unique barcode for an attendee

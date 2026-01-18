@@ -33,6 +33,8 @@ export interface CustomField {
   order: number;
   showOnMainPage?: boolean;
   printable?: boolean;
+  /** Default value for this field when creating new attendees or importing */
+  defaultValue?: string;
 }
 
 export interface FieldMapping {
