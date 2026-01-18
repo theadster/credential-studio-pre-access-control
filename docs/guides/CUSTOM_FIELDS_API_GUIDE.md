@@ -82,7 +82,8 @@ Content-Type: application/json
   "fieldName": "Company Name",
   "fieldType": "text",
   "required": false,
-  "order": 1
+  "order": 1,
+  "defaultValue": "Acme Corp"
 }
 ```
 
@@ -93,7 +94,8 @@ Content-Type: application/json
   "fieldName": "Company Name",
   "fieldType": "text",
   "version": 0,
-  "order": 1
+  "order": 1,
+  "defaultValue": "Acme Corp"
 }
 ```
 
@@ -601,6 +603,7 @@ export function useCustomField(fieldId: string) {
 ```
 
 ## Related Documentation
+- [Custom Field Default Values](../enhancements/CUSTOM_FIELD_DEFAULT_VALUES.md)
 - [Custom Fields Optimistic Locking](../fixes/CUSTOM_FIELDS_OPTIMISTIC_LOCKING.md)
 - [Custom Fields Soft Delete](../fixes/CUSTOM_FIELDS_SOFT_DELETE.md)
 - [Custom Fields Enhancements Summary](../fixes/CUSTOM_FIELDS_ENHANCEMENTS_SUMMARY.md)
