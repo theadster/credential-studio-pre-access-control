@@ -25,6 +25,8 @@ interface CustomField {
   fieldOptions?: CustomFieldOptions;
   required: boolean;
   order: number;
+  /** Default value for this field when creating new attendees */
+  defaultValue?: string;
 }
 
 interface CustomFieldValue {
