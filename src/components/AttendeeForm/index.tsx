@@ -160,13 +160,21 @@ const AttendeeForm = React.memo(({
   onSaveAndGenerate,
   attendee,
   customFields,
-  eventSettings
+  eventSettings,
 }: AttendeeFormProps) => {
   const { error, confirm } = useSweetAlert();
   const [loading, setLoading] = useState(false);
   const [loadingAndGenerate, setLoadingAndGenerate] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const isClosingRef = React.useRef(false);
+  const loadingRef = useRef(false);
+  const loadingAndGenerateRef = useRef(false);
+  const dialogContentRef = useRef<HTMLDivElement>(null);
+  const dialogElementRef = useRef<HTMLDivElement>(null);
+
+  // Keep refs in sync with state for use in event handlers
+  loadingRef.current = loading;
+  loadingAndGenerateRef.current = loadingAndGenerate;
 
   const {
     formData,
@@ -177,7 +185,7 @@ const AttendeeForm = React.memo(({
     generateBarcode,
     validateForm,
     prepareAttendeeData,
-    resetForm
+    resetForm,
   } = useAttendeeForm({ attendee, customFields, eventSettings });
 
   // Handle photo upload success with auto-focus
@@ -185,16 +193,13 @@ const AttendeeForm = React.memo(({
     setPhotoUrl(url);
     // After photo upload, focus the dialog content to enable Enter key
     setTimeout(() => {
-      const dialogContent = document.querySelector('[role="dialog"]');
-      if (dialogContent instanceof HTMLElement) {
-        dialogContent.focus();
-      }
+      dialogContentRef.current?.focus();
     }, 100);
   }, [setPhotoUrl]);
 
   const { isCloudinaryOpen, openUploadWidget } = useCloudinaryUpload({
     eventSettings,
-    onUploadSuccess: handlePhotoUploadSuccess
+    onUploadSuccess: handlePhotoUploadSuccess,
   });
 
   // Access control fields are now managed by useAttendeeForm hook
@@ -227,22 +232,31 @@ const AttendeeForm = React.memo(({
 
       // Check custom field changes
       const customFieldsChanged = customFields.some(field => {
-        const currentValue = formData.customFieldValues[field.id] || '';
+        const currentValue = formData.customFieldValues[field.id] ?? '';
         const originalValue = attendee.customFieldValues?.find(
-          cfv => cfv.customFieldId === field.id
-        )?.value || '';
+          cfv => cfv.customFieldId === field.id,
+        )?.value ?? '';
         return currentValue !== originalValue;
       });
 
       setHasUnsavedChanges(hasChanges || customFieldsChanged);
     } else {
-      // For create mode: check if any user-entered data exists
+      // For create mode: check if any user-entered data differs from defaults
       const hasData =
         formData.firstName.trim() !== '' ||
         formData.lastName.trim() !== '' ||
         (formData.notes && formData.notes.trim() !== '') ||
         (formData.photoUrl && formData.photoUrl.trim() !== '') ||
-        Object.values(formData.customFieldValues).some((value: string) => value.trim() !== '');
+        customFields.some(field => {
+          const currentValue = formData.customFieldValues[field.id] ?? '';
+          // Determine the default value for this field
+          const defaultValue = field.defaultValue !== undefined && field.defaultValue !== ''
+            ? field.defaultValue
+            : field.fieldType === 'boolean'
+              ? 'no'
+              : '';
+          return currentValue !== defaultValue;
+        });
 
       setHasUnsavedChanges(hasData);
     }
@@ -301,20 +315,19 @@ const AttendeeForm = React.memo(({
     }
   }, [isOpen]);
 
-  // Global Enter key handler for the dialog
+  // Enter key handler for the dialog - attached to dialog element only
   useEffect(() => {
-    if (!isOpen || isCloudinaryOpen) return;
+    if (!isOpen || isCloudinaryOpen || !dialogElementRef.current) return;
+
+    const dialogElement = dialogElementRef.current;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       // Only handle Enter key
       if (e.key !== 'Enter') return;
 
-      // Don't trigger if user is in a textarea (allow line breaks)
+      // Don't trigger if user is in a form field (textarea, input, select, button)
       const target = e.target as HTMLElement;
-      if (target.tagName === 'TEXTAREA') return;
-
-      // Don't trigger if a button has focus (let the button handle it)
-      if (target.tagName === 'BUTTON') return;
+      if (['TEXTAREA', 'INPUT', 'SELECT', 'BUTTON'].includes(target.tagName)) return;
 
       // Don't trigger if user is holding Shift (Shift+Enter for line breaks)
       if (e.shiftKey) return;
@@ -323,22 +336,22 @@ const AttendeeForm = React.memo(({
       e.preventDefault();
       e.stopPropagation();
 
-      // Trigger the main submit button (Update/Create Attendee)
-      if (!loading && !loadingAndGenerate) {
-        const form = document.querySelector('[data-attendee-form]') as HTMLFormElement;
+      // Trigger the main submit button (Update/Create Attendee) - use refs for current state
+      if (!loadingRef.current && !loadingAndGenerateRef.current) {
+        const form = dialogElement.querySelector('[data-attendee-form]') as HTMLFormElement;
         if (form) {
           form.requestSubmit();
         }
       }
     };
 
-    // Add listener to the document to catch Enter from anywhere in the dialog
-    document.addEventListener('keydown', handleKeyDown);
+    // Add listener to the dialog element only (scoped to this dialog instance)
+    dialogElement.addEventListener('keydown', handleKeyDown);
 
     return () => {
-      document.removeEventListener('keydown', handleKeyDown);
+      dialogElement.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen, isCloudinaryOpen, loading, loadingAndGenerate]);
+  }, [isOpen, isCloudinaryOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -364,8 +377,9 @@ const AttendeeForm = React.memo(({
     } catch (err) {
       console.error('Form submission error:', err);
       error('Failed to submit attendee', err instanceof Error ? err.message : 'An unexpected error occurred');
-      // Reset closing flag on error
+      // Reset closing flag and restore unsaved changes state on error
       isClosingRef.current = false;
+      setHasUnsavedChanges(true);
     } finally {
       setLoading(false);
     }
@@ -396,8 +410,9 @@ const AttendeeForm = React.memo(({
     } catch (err) {
       console.error('Form submission error:', err);
       error('Failed to submit attendee', err instanceof Error ? err.message : 'An unexpected error occurred');
-      // Reset closing flag on error
+      // Reset closing flag and restore unsaved changes state on error
       isClosingRef.current = false;
+      setHasUnsavedChanges(true);
     } finally {
       setLoadingAndGenerate(false);
     }
@@ -420,6 +435,10 @@ const AttendeeForm = React.memo(({
         - onInteractOutside still prevents accidental dialog closure
       */}
       <DialogContent
+        ref={(element) => {
+          dialogContentRef.current = element;
+          dialogElementRef.current = element;
+        }}
         className="max-w-5xl max-h-[90vh] overflow-y-auto bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 shadow-2xl p-0"
         onInteractOutside={(e) => {
           // Prevent dialog from closing when Cloudinary widget is open
@@ -474,7 +493,7 @@ const AttendeeForm = React.memo(({
                     lastName={formData.lastName}
                     barcodeNumber={formData.barcodeNumber}
                     notes={formData.notes}
-                    isEditMode={!!attendee}
+                    isEditMode={Boolean(attendee)}
                     eventSettings={eventSettings}
                     onFirstNameChange={(value) => updateField('firstName', value)}
                     onLastNameChange={(value) => updateField('lastName', value)}
@@ -496,8 +515,8 @@ const AttendeeForm = React.memo(({
                       validFrom={formData.validFrom || null}
                       validUntil={formData.validUntil || null}
                       accessEnabled={formData.accessEnabled}
-                      onValidFromChange={(value) => updateField('validFrom', value ?? '')}
-                      onValidUntilChange={(value) => updateField('validUntil', value ?? '')}
+                      onValidFromChange={(value) => updateField('validFrom', value)}
+                      onValidUntilChange={(value) => updateField('validUntil', value)}
                       onAccessEnabledChange={(value) => updateField('accessEnabled', value)}
                       eventTimezone={eventSettings?.timeZone || 'UTC'}
                     />
@@ -507,10 +526,10 @@ const AttendeeForm = React.memo(({
             </div>
 
             <FormActions
-              isEditMode={!!attendee}
+              isEditMode={Boolean(attendee)}
               loading={loading}
               loadingAndGenerate={loadingAndGenerate}
-              showGenerateButton={!!attendee && !!onSaveAndGenerate}
+              showGenerateButton={Boolean(attendee) && Boolean(onSaveAndGenerate)}
               onCancel={handleCloseWithConfirmation}
               onSaveAndGenerate={handleSaveAndGenerate}
             />

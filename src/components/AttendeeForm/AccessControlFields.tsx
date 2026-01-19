@@ -27,16 +27,16 @@ import {
 export interface AccessControlFieldsProps {
   /** Time mode setting from event settings */
   accessControlTimeMode: AccessControlTimeMode;
-  /** Valid from date/datetime value (ISO string or null) */
+  /** Valid from date/datetime value (ISO string, empty string for no date, or null) */
   validFrom: string | null;
-  /** Valid until date/datetime value (ISO string or null) */
+  /** Valid until date/datetime value (ISO string, empty string for no date, or null) */
   validUntil: string | null;
   /** Whether access is enabled for this attendee */
   accessEnabled: boolean;
-  /** Callback when validFrom changes */
-  onValidFromChange: (date: string | null) => void;
-  /** Callback when validUntil changes */
-  onValidUntilChange: (date: string | null) => void;
+  /** Callback when validFrom changes (empty string means cleared) */
+  onValidFromChange: (date: string) => void;
+  /** Callback when validUntil changes (empty string means cleared) */
+  onValidUntilChange: (date: string) => void;
   /** Callback when accessEnabled changes */
   onAccessEnabledChange: (enabled: boolean) => void;
   /** Event timezone for date interpretation */
@@ -88,7 +88,7 @@ export function AccessControlFields({
   const handleValidFromChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     if (!value) {
-      onValidFromChange(null);
+      onValidFromChange('');
       return;
     }
 
@@ -111,7 +111,7 @@ export function AccessControlFields({
   const handleValidUntilChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     if (!value) {
-      onValidUntilChange(null);
+      onValidUntilChange('');
       return;
     }
 

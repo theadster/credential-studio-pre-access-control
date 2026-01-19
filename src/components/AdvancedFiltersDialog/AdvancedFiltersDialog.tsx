@@ -18,7 +18,7 @@
  */
 
 import * as React from 'react';
-import { Search, User, FileText, Shield, Settings } from 'lucide-react';
+import { Search, User, FileText, Shield, Settings, Info } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -34,6 +34,14 @@ import {
 } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { ActiveFiltersBar } from './ActiveFiltersBar';
 import {
   BasicInfoSection,
@@ -43,6 +51,8 @@ import {
 } from './sections';
 import {
   type AdvancedSearchFilters,
+  type FilterMatchMode,
+  type FilterSection,
   countSectionFilters,
   hasActiveFilters,
   createEmptyFilters,
@@ -55,7 +65,7 @@ import { useSweetAlert } from '@/hooks/useSweetAlert';
  * Section configuration for accordion
  */
 interface SectionConfig {
-  id: string;
+  id: FilterSection;
   title: string;
   icon: React.ElementType;
   defaultExpanded: boolean;
@@ -141,6 +151,8 @@ export function AdvancedFiltersDialog({
 
       if (key === 'photoFilter') {
         newFilters.photoFilter = value as 'all' | 'with' | 'without';
+      } else if (key === 'credentialFilter') {
+        newFilters.credentialFilter = value as 'all' | 'with' | 'without';
       } else if (property && (key === 'firstName' || key === 'lastName' || key === 'barcode')) {
         newFilters[key] = {
           ...newFilters[key],
@@ -220,21 +232,25 @@ export function AdvancedFiltersDialog({
           newFilters.photoFilter = 'all';
           hasChanged = true;
           break;
+        case 'credentialFilter':
+          newFilters.credentialFilter = 'all';
+          hasChanged = true;
+          break;
         case 'notes':
-          newFilters.notes = { ...newFilters.notes, value: '', operator: 'contains' };
+          newFilters.notes = { ...(newFilters.notes || {}), value: '', operator: 'contains' };
           hasChanged = true;
           break;
         case 'hasNotes':
-          newFilters.notes = { ...newFilters.notes, hasNotes: false };
+          newFilters.notes = { ...(newFilters.notes || {}), hasNotes: false };
           hasChanged = true;
           break;
         case 'accessStatus':
-          newFilters.accessControl = { ...newFilters.accessControl, accessStatus: 'all' };
+          newFilters.accessControl = { ...(newFilters.accessControl || {}), accessStatus: 'all' };
           hasChanged = true;
           break;
         case 'validFrom':
           newFilters.accessControl = {
-            ...newFilters.accessControl,
+            ...(newFilters.accessControl || {}),
             validFromStart: '',
             validFromEnd: '',
           };
@@ -242,7 +258,7 @@ export function AdvancedFiltersDialog({
           break;
         case 'validUntil':
           newFilters.accessControl = {
-            ...newFilters.accessControl,
+            ...(newFilters.accessControl || {}),
             validUntilStart: '',
             validUntilEnd: '',
           };
@@ -251,7 +267,7 @@ export function AdvancedFiltersDialog({
         case 'customField':
           if (customFieldId) {
             newFilters.customFields = {
-              ...newFilters.customFields,
+              ...(newFilters.customFields || {}),
               [customFieldId]: {
                 value: '',
                 operator: 'contains'
@@ -292,11 +308,8 @@ export function AdvancedFiltersDialog({
 
   // Get filter count for a section
   const getSectionFilterCount = React.useCallback(
-    (sectionId: string) => {
-      return countSectionFilters(
-        filters,
-        sectionId as 'basic' | 'notes' | 'access' | 'custom'
-      );
+    (sectionId: FilterSection) => {
+      return countSectionFilters(filters, sectionId);
     },
     [filters]
   );
@@ -317,6 +330,37 @@ export function AdvancedFiltersDialog({
 
         {/* Scrollable Content Area */}
         <div className="px-6 py-6 space-y-4 overflow-y-auto flex-1 min-h-0">
+          {/* Filter Match Mode Toggle */}
+          <div className="flex items-start gap-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <Label htmlFor="filter-matchMode" className="text-sm font-medium">
+                  Filter Match Mode
+                </Label>
+                <Info className="h-3.5 w-3.5 text-muted-foreground" />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {filters.matchMode === 'all' 
+                  ? 'Show attendees that match ALL of your filters. For example, if you filter by "First Name contains John" AND "Photo Status is Without Photo", only attendees named John without a photo will appear.' 
+                  : 'Show attendees that match ANY of your filters. For example, if you filter by "First Name contains John" OR "Photo Status is Without Photo", attendees named John OR attendees without a photo will appear.'}
+              </p>
+            </div>
+            <Select
+              value={filters.matchMode || 'all'}
+              onValueChange={(value: FilterMatchMode) => {
+                onFiltersChange({ ...filters, matchMode: value });
+              }}
+            >
+              <SelectTrigger id="filter-matchMode" className="w-32 bg-background">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Match All</SelectItem>
+                <SelectItem value="any">Match Any</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Active Filters Bar (Requirements 2.1, 2.3, 2.6) */}
           <ActiveFiltersBar
             filters={filters}
@@ -360,6 +404,7 @@ export function AdvancedFiltersDialog({
                         lastName={filters.lastName}
                         barcode={filters.barcode}
                         photoFilter={filters.photoFilter}
+                        credentialFilter={filters.credentialFilter}
                         onFilterChange={handleBasicInfoChange}
                       />
                     )}

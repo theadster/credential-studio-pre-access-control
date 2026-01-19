@@ -42,6 +42,11 @@ export interface AccessControlFilters {
 }
 
 /**
+ * Filter match mode - how multiple filters are combined
+ */
+export type FilterMatchMode = 'all' | 'any';
+
+/**
  * Complete advanced search filters state
  */
 export interface AdvancedSearchFilters {
@@ -50,8 +55,10 @@ export interface AdvancedSearchFilters {
   barcode: TextFilter;
   notes: NotesFilter;
   photoFilter: 'all' | 'with' | 'without';
+  credentialFilter: 'all' | 'with' | 'without';
   customFields: Record<string, CustomFieldFilter>;
   accessControl: AccessControlFilters;
+  matchMode: FilterMatchMode;
 }
 
 /**
@@ -124,6 +131,7 @@ export function countSectionFilters(
       if (isTextFilterActive(filters.lastName)) count++;
       if (isTextFilterActive(filters.barcode)) count++;
       if (filters.photoFilter !== 'all') count++;
+      if (filters.credentialFilter !== 'all') count++;
       return count;
     }
 
@@ -275,6 +283,15 @@ export function filtersToChips(
     });
   }
 
+  if (filters.credentialFilter !== 'all') {
+    chips.push({
+      id: 'credentialFilter',
+      label: 'Credential',
+      value: filters.credentialFilter === 'with' ? 'With Credential' : 'Without Credential',
+      filterKey: 'credentialFilter',
+    });
+  }
+
   // Notes filters
   if (isTextFilterActive(filters.notes)) {
     chips.push({
@@ -365,6 +382,7 @@ export function hasActiveFilters(filters: AdvancedSearchFilters): boolean {
   if (isTextFilterActive(filters.lastName)) return true;
   if (isTextFilterActive(filters.barcode)) return true;
   if (filters.photoFilter !== 'all') return true;
+  if (filters.credentialFilter !== 'all') return true;
 
   // Check notes filters
   if (isTextFilterActive(filters.notes)) return true;
@@ -396,6 +414,7 @@ export function createEmptyFilters(): AdvancedSearchFilters {
     barcode: { value: '', operator: 'contains' },
     notes: { value: '', operator: 'contains', hasNotes: false },
     photoFilter: 'all',
+    credentialFilter: 'all',
     customFields: {},
     accessControl: {
       accessStatus: 'all',
@@ -404,5 +423,6 @@ export function createEmptyFilters(): AdvancedSearchFilters {
       validUntilStart: '',
       validUntilEnd: '',
     },
+    matchMode: 'all',
   };
 }

@@ -70,8 +70,8 @@ interface SortableSelectOptionProps {
   id: string;
   option: string;
   index: number;
-  onUpdate: (index: number, value: string) => void;
-  onRemove: (index: number) => void;
+  onUpdate: (id: string, value: string) => void;
+  onRemove: (id: string) => void;
 }
 
 const SortableSelectOption = memo(({ id, option, index, onUpdate, onRemove }: SortableSelectOptionProps) => {
@@ -101,7 +101,7 @@ const SortableSelectOption = memo(({ id, option, index, onUpdate, onRemove }: So
       </div>
       <Input
         value={option}
-        onChange={(e) => onUpdate(index, e.target.value)}
+        onChange={(e) => onUpdate(id, e.target.value)}
         placeholder={`Option ${index + 1}`}
         className="h-9"
       />
@@ -109,7 +109,7 @@ const SortableSelectOption = memo(({ id, option, index, onUpdate, onRemove }: So
         type="button"
         variant="ghost"
         size="sm"
-        onClick={() => onRemove(index)}
+        onClick={() => onRemove(id)}
         className="h-9 w-9 p-0 text-destructive hover:text-destructive"
       >
         <X className="h-4 w-4" />
@@ -150,9 +150,11 @@ export const CustomFieldForm = memo(({ isOpen, field, onSave, onCancel }: Custom
       previousFocusRef.current = document.activeElement as HTMLElement;
 
       // Focus first input after dialog opens
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         firstInputRef.current?.focus();
       }, 100);
+
+      return () => clearTimeout(timeoutId);
     } else {
       // Restore focus on close
       previousFocusRef.current?.focus();
@@ -164,7 +166,9 @@ export const CustomFieldForm = memo(({ isOpen, field, onSave, onCancel }: Custom
 
   useEffect(() => {
     if (field) {
-      setFieldData(field);
+      setFieldData({ ...field });
+      // Reset counter when field changes to keep IDs predictable
+      optionIdCounter.current = 0;
       // Type guard to check if fieldOptions is SelectFieldOptions
       if (field.fieldType === "select" &&
         field.fieldOptions &&
@@ -184,7 +188,10 @@ export const CustomFieldForm = memo(({ isOpen, field, onSave, onCancel }: Custom
         required: false,
         order: 1,
         printable: false,
+        defaultValue: "",
+        internalFieldName: "",
       });
+      optionIdCounter.current = 0;
       setSelectOptions([]);
     }
     // Only reset submitting state if not actively submitting
@@ -196,8 +203,8 @@ export const CustomFieldForm = memo(({ isOpen, field, onSave, onCancel }: Custom
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Guard against double submission
-    if (isSubmitting) return;
+    // Guard against double submission using ref for synchronous check
+    if (isSubmittingRef.current) return;
 
     // Clear previous validation errors
     setValidationError("");
@@ -209,12 +216,18 @@ export const CustomFieldForm = memo(({ isOpen, field, onSave, onCancel }: Custom
         setValidationError("Select fields must have at least one non-empty option.");
         return;
       }
+      // Validate default value exists in non-empty options
+      if (fieldData.defaultValue && !nonEmptyOptions.some(opt => opt.value === fieldData.defaultValue)) {
+        setValidationError("Default value must be one of the available options.");
+        return;
+      }
     }
 
     let fieldOptions: FieldOptions | undefined;
 
     if (fieldData.fieldType === "select") {
-      fieldOptions = { options: selectOptions.map(opt => opt.value) } as SelectFieldOptions;
+      const nonEmptyOptions = selectOptions.filter(opt => opt.value.trim());
+      fieldOptions = { options: nonEmptyOptions.map(opt => opt.value) } as SelectFieldOptions;
     } else if (fieldData.fieldType === "text") {
       // Type guard to safely access uppercase property
       const uppercase = fieldData.fieldOptions && 'uppercase' in fieldData.fieldOptions
@@ -238,13 +251,13 @@ export const CustomFieldForm = memo(({ isOpen, field, onSave, onCancel }: Custom
     setValidationError(""); // Clear error when adding options
   };
 
-  const updateSelectOption = (index: number, value: string) => {
-    setSelectOptions(prev => prev.map((opt, i) => i === index ? { ...opt, value } : opt));
+  const updateSelectOption = (id: string, value: string) => {
+    setSelectOptions(prev => prev.map(opt => opt.id === id ? { ...opt, value } : opt));
     setValidationError(""); // Clear error when updating options
   };
 
-  const removeSelectOption = (index: number) => {
-    setSelectOptions(prev => prev.filter((_, i) => i !== index));
+  const removeSelectOption = (id: string) => {
+    setSelectOptions(prev => prev.filter(opt => opt.id !== id));
   };
 
   const handleOptionDragEnd = (event: DragEndEvent) => {
@@ -253,6 +266,7 @@ export const CustomFieldForm = memo(({ isOpen, field, onSave, onCancel }: Custom
       setSelectOptions((items) => {
         const oldIndex = items.findIndex(opt => opt.id === active.id);
         const newIndex = items.findIndex(opt => opt.id === over.id);
+        if (oldIndex === -1 || newIndex === -1) return items;
         return arrayMove(items, oldIndex, newIndex);
       });
     }

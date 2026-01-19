@@ -1,7 +1,7 @@
 /**
  * BasicInfoSection Component
  *
- * Filter section for basic attendee information: First Name, Last Name, Barcode, Photo Status.
+ * Filter section for basic attendee information: First Name, Last Name, Barcode, Photo Status, Credential Status.
  * Uses integrated filter inputs with operator selector inside the input container.
  *
  * Requirements:
@@ -14,7 +14,7 @@
  */
 
 import * as React from 'react';
-import { User, Barcode, Camera } from 'lucide-react';
+import { User, Barcode, Camera, CreditCard } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -35,6 +35,15 @@ const PHOTO_STATUS_OPTIONS = [
   { value: 'without', label: 'Without Photo' },
 ];
 
+/**
+ * Credential status options
+ */
+const CREDENTIAL_STATUS_OPTIONS = [
+  { value: 'all', label: 'All Attendees' },
+  { value: 'with', label: 'With Credential' },
+  { value: 'without', label: 'Without Credential' },
+];
+
 export interface BasicInfoSectionProps {
   /** First name filter state */
   firstName: TextFilter;
@@ -44,6 +53,8 @@ export interface BasicInfoSectionProps {
   barcode: TextFilter;
   /** Photo filter state */
   photoFilter: 'all' | 'with' | 'without';
+  /** Credential filter state */
+  credentialFilter: 'all' | 'with' | 'without';
   /** Callback when filter changes */
   onFilterChange: (key: string, value: string, property?: string) => void;
 }
@@ -56,6 +67,7 @@ export function BasicInfoSection({
   lastName,
   barcode,
   photoFilter,
+  credentialFilter,
   onFilterChange,
 }: BasicInfoSectionProps) {
   return (
@@ -114,6 +126,35 @@ export function BasicInfoSection({
           </SelectTrigger>
           <SelectContent>
             {PHOTO_STATUS_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Credential Status Filter */}
+      <div className="space-y-2">
+        <Label
+          htmlFor="filter-credentialStatus"
+          className="flex items-center gap-2 text-sm font-medium"
+        >
+          <CreditCard className="h-4 w-4 text-muted-foreground" />
+          <span>Credential Status</span>
+        </Label>
+        <Select
+          value={credentialFilter}
+          onValueChange={(value) => onFilterChange('credentialFilter', value)}
+        >
+          <SelectTrigger 
+            id="filter-credentialStatus" 
+            className="bg-background border-input focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {CREDENTIAL_STATUS_OPTIONS.map((option) => (
               <SelectItem key={option.value} value={option.value}>
                 {option.label}
               </SelectItem>

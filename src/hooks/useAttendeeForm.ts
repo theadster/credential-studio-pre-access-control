@@ -84,9 +84,10 @@ const getInitialFormState = (eventSettings?: EventSettings, customFields: Custom
   let validFrom = '';
   let validUntil = '';
 
-  // Check if access control is enabled (both globally and for this event) and defaults are available
+  // Check if access control defaults are available and should be applied
+  // Defaults are applied if they exist, regardless of global feature flag
   const defaults = eventSettings?.accessControlDefaults;
-  const shouldApplyDefaults = !!(isAccessControlEnabledForEvent(eventSettings?.accessControlEnabled) && defaults);
+  const shouldApplyDefaults = !!defaults;
 
   if (shouldApplyDefaults) {
     // Apply default access status
@@ -131,6 +132,9 @@ const getInitialFormState = (eventSettings?: EventSettings, customFields: Custom
     } else if (field.fieldType === 'boolean') {
       // Boolean fields default to 'no' if no default value is set
       customFieldValues[field.id] = 'no';
+    } else {
+      // Non-boolean fields without default value initialize to empty string
+      customFieldValues[field.id] = '';
     }
   });
 

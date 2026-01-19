@@ -12,28 +12,8 @@ import {
   createAllCustomFieldMappings,
   CustomFieldDefinition,
 } from '@/lib/customFieldMapping';
-
-/**
- * Helper function to extract field values using dot notation
- * Used by approval profile rule engine to evaluate rules
- */
-function extractFieldValue(obj: any, fieldPath: string): any {
-  if (!fieldPath || !fieldPath.trim()) {
-    return obj;
-  }
-  
-  const parts = fieldPath.split('.');
-  let value: any = obj;
-  
-  for (const part of parts) {
-    if (value === null || value === undefined) {
-      return null;
-    }
-    value = value[part];
-  }
-  
-  return value ?? null;
-}
+import { evaluateRule } from '@/lib/ruleEngine';
+import type { Rule } from '@/types/approvalProfile';
 
 describe('Custom Field Internal Name Mapping', () => {
   describe('Data Structure Verification', () => {
@@ -111,7 +91,7 @@ describe('Custom Field Internal Name Mapping', () => {
   describe('Approval Profile Rule Compatibility', () => {
     it('should provide correct field paths for approval profile rules', () => {
       // Simulate approval profile rule
-      const rule = {
+      const rule: Rule = {
         field: 'customFieldValues.vip_room', // Uses internal name
         operator: 'equals',
         value: 'Gold',
@@ -133,19 +113,15 @@ describe('Custom Field Internal Name Mapping', () => {
         validUntil: null,
       };
 
-      // Extract field value using helper (as rule engine does)
-      const value = extractFieldValue(cachedAttendee, rule.field);
+      // Evaluate rule using actual rule engine
+      const ruleResult = evaluateRule(rule, cachedAttendee);
 
-      // Should successfully extract the value
-      expect(value).toBe('Gold');
-      
       // Rule evaluation should pass
-      const ruleResult = value === rule.value;
       expect(ruleResult).toBe(true);
     });
 
     it('should support multiple custom field rules', () => {
-      const rules = [
+      const rules: Rule[] = [
         { field: 'customFieldValues.vip_room', operator: 'equals', value: 'Gold' },
         { field: 'customFieldValues.department', operator: 'equals', value: 'Engineering' },
         { field: 'customFieldValues.access_level', operator: 'equals', value: 'Premium' },
@@ -167,11 +143,8 @@ describe('Custom Field Internal Name Mapping', () => {
         validUntil: null,
       };
 
-      // Evaluate all rules using helper
-      const results = rules.map(rule => {
-        const value = extractFieldValue(cachedAttendee, rule.field);
-        return value === rule.value;
-      });
+      // Evaluate all rules using actual rule engine
+      const results = rules.map(rule => evaluateRule(rule, cachedAttendee));
 
       // All rules should pass
       expect(results).toEqual([true, true, true]);

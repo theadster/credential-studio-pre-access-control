@@ -285,6 +285,7 @@ export default function Dashboard() {
     barcode: { value: string; operator: string };
     notes: { value: string; operator: string; hasNotes: boolean };
     photoFilter: 'all' | 'with' | 'without';
+    credentialFilter: 'all' | 'with' | 'without';
     customFields: { [key: string]: { value: string | string[]; operator: string } };
     accessControl: {
       accessStatus: 'all' | 'active' | 'inactive';
@@ -293,12 +294,14 @@ export default function Dashboard() {
       validUntilStart: string;
       validUntilEnd: string;
     };
+    matchMode: 'all' | 'any';
   }>({
     firstName: { value: '', operator: 'contains' },
     lastName: { value: '', operator: 'contains' },
     barcode: { value: '', operator: 'contains' },
     notes: { value: '', operator: 'contains', hasNotes: false },
     photoFilter: 'all',
+    credentialFilter: 'all',
     customFields: {},
     accessControl: {
       accessStatus: 'all',
@@ -306,7 +309,8 @@ export default function Dashboard() {
       validFromEnd: '',
       validUntilStart: '',
       validUntilEnd: ''
-    }
+    },
+    matchMode: 'all'
   });
 
   const [showAttendeeForm, setShowAttendeeForm] = useState(false);
@@ -1255,6 +1259,7 @@ export default function Dashboard() {
     if (advancedSearchFilters.notes.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.notes.operator)) count++;
     if (advancedSearchFilters.notes.hasNotes) count++;
     if (advancedSearchFilters.photoFilter !== 'all') count++;
+    if (advancedSearchFilters.credentialFilter !== 'all') count++;
     if (hasAccessControlFilters) count++;
     
     // Count custom field filters
@@ -1501,13 +1506,18 @@ export default function Dashboard() {
         // Notes filter
         const notesMatch = applyTextFilter(attendee.notes || '', advancedSearchFilters.notes);
         const hasNotesMatch = !advancedSearchFilters.notes.hasNotes ||
-          (attendee.notes && attendee.notes.trim().length > 0);
+          Boolean(attendee.notes && attendee.notes.trim().length > 0);
         const notesFilterMatch = notesMatch && hasNotesMatch;
 
         // Photo filter
         const photoMatch = advancedSearchFilters.photoFilter === 'all' ||
-          (advancedSearchFilters.photoFilter === 'with' && attendee.photoUrl) ||
+          (advancedSearchFilters.photoFilter === 'with' && Boolean(attendee.photoUrl)) ||
           (advancedSearchFilters.photoFilter === 'without' && !attendee.photoUrl);
+
+        // Credential filter
+        const credentialMatch = advancedSearchFilters.credentialFilter === 'all' ||
+          (advancedSearchFilters.credentialFilter === 'with' && Boolean(attendee.credentialUrl)) ||
+          (advancedSearchFilters.credentialFilter === 'without' && !attendee.credentialUrl);
 
         // Custom fields filter
         const customFieldsMatch = Object.entries(advancedSearchFilters.customFields).every(([fieldId, filter]) => {
@@ -1618,7 +1628,52 @@ export default function Dashboard() {
           }
         }
 
-        return firstNameMatch && lastNameMatch && barcodeMatch && notesFilterMatch && photoMatch && customFieldsMatch && accessControlMatch;
+        // Apply match mode logic (AND vs OR)
+        const matchMode = advancedSearchFilters.matchMode || 'all';
+        
+        if (matchMode === 'all') {
+          // AND logic: all filters must match
+          return firstNameMatch && lastNameMatch && barcodeMatch && notesFilterMatch && photoMatch && credentialMatch && customFieldsMatch && accessControlMatch;
+        } else {
+          // OR logic: at least one active filter must match
+          // First, check which filters are actually active (not default/empty)
+          const activeFilters: boolean[] = [];
+          
+          // Text filters are active if they have a value or use isEmpty/isNotEmpty
+          const isFirstNameActive = advancedSearchFilters.firstName.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.firstName.operator);
+          const isLastNameActive = advancedSearchFilters.lastName.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.lastName.operator);
+          const isBarcodeActive = advancedSearchFilters.barcode.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.barcode.operator);
+          const isNotesActive = advancedSearchFilters.notes.value || ['isEmpty', 'isNotEmpty'].includes(advancedSearchFilters.notes.operator) || advancedSearchFilters.notes.hasNotes;
+          const isPhotoActive = advancedSearchFilters.photoFilter !== 'all';
+          const isCredentialActive = advancedSearchFilters.credentialFilter !== 'all';
+          const isCustomFieldsActive = Object.values(advancedSearchFilters.customFields).some(f => {
+            const hasValue = Array.isArray(f.value) ? f.value.length > 0 : !!f.value;
+            return hasValue || f.operator === 'isEmpty' || f.operator === 'isNotEmpty';
+          });
+          const isAccessControlActive = isAccessControlEnabledForEvent(eventSettings?.accessControlEnabled) && (
+            advancedSearchFilters.accessControl.accessStatus !== 'all' ||
+            advancedSearchFilters.accessControl.validFromStart ||
+            advancedSearchFilters.accessControl.validFromEnd ||
+            advancedSearchFilters.accessControl.validUntilStart ||
+            advancedSearchFilters.accessControl.validUntilEnd
+          );
+          
+          // Add active filter results
+          if (isFirstNameActive) activeFilters.push(firstNameMatch);
+          if (isLastNameActive) activeFilters.push(lastNameMatch);
+          if (isBarcodeActive) activeFilters.push(barcodeMatch);
+          if (isNotesActive) activeFilters.push(notesFilterMatch);
+          if (isPhotoActive) activeFilters.push(photoMatch);
+          if (isCredentialActive) activeFilters.push(credentialMatch);
+          if (isCustomFieldsActive) activeFilters.push(customFieldsMatch);
+          if (isAccessControlActive) activeFilters.push(accessControlMatch);
+          
+          // If no filters are active, show all results
+          if (activeFilters.length === 0) return true;
+          
+          // OR: at least one must be true
+          return activeFilters.some(match => match);
+        }
       } else {
         // Use simple search
         const basicMatch = `${attendee.firstName} ${attendee.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -1737,6 +1792,7 @@ export default function Dashboard() {
         barcode: { value: '', operator: 'contains' },
         notes: { value: '', operator: 'contains', hasNotes: false },
         photoFilter: 'all',
+        credentialFilter: 'all',
         customFields,
         accessControl: {
           accessStatus: 'all',
@@ -1744,7 +1800,8 @@ export default function Dashboard() {
           validFromEnd: '',
           validUntilStart: '',
           validUntilEnd: ''
-        }
+        },
+        matchMode: 'all'
       });
     }
   };
@@ -1822,6 +1879,7 @@ export default function Dashboard() {
       barcode: { value: '', operator: 'contains' },
       notes: { value: '', operator: 'contains', hasNotes: false },
       photoFilter: 'all',
+      credentialFilter: 'all',
       customFields,
       accessControl: {
         accessStatus: 'all',
@@ -1829,19 +1887,13 @@ export default function Dashboard() {
         validFromEnd: '',
         validUntilStart: '',
         validUntilEnd: ''
-      }
+      },
+      matchMode: 'all'
     });
   };
 
   // Remove individual filter by chip
   const removeIndividualFilter = (chip: FilterChip) => {
-    let shouldCollapse = false;
-    
-    // Look up field info outside the updater to avoid stale closure
-    const field = chip.customFieldId 
-      ? eventSettings?.customFields?.find((f: any) => f.id === chip.customFieldId)
-      : undefined;
-    
     setAdvancedSearchFilters(prev => {
       const updated = { ...prev };
       
@@ -1857,6 +1909,9 @@ export default function Dashboard() {
           break;
         case 'photoFilter':
           updated.photoFilter = 'all';
+          break;
+        case 'credentialFilter':
+          updated.credentialFilter = 'all';
           break;
         case 'notes':
           updated.notes = { ...updated.notes, value: '', operator: 'contains' };
@@ -1875,6 +1930,8 @@ export default function Dashboard() {
           break;
         case 'customField':
           if (chip.customFieldId) {
+            // Look up field type inside updater to use current eventSettings
+            const field = eventSettings?.customFields?.find((f: any) => f.id === chip.customFieldId);
             updated.customFields = {
               ...updated.customFields,
               [chip.customFieldId]: {
@@ -1886,16 +1943,13 @@ export default function Dashboard() {
           break;
       }
       
-      // Check if collapse is needed (computed outside updater)
-      shouldCollapse = !checkHasActiveFilters(updated);
+      // Collapse advanced search if no active filters remain after this update
+      if (!checkHasActiveFilters(updated)) {
+        setShowAdvancedSearch(false);
+      }
       
       return updated;
     });
-    
-    // Collapse advanced search after state update completes
-    if (shouldCollapse) {
-      setShowAdvancedSearch(false);
-    }
   };
 
   // Pagination handlers
@@ -4722,7 +4776,11 @@ export default function Dashboard() {
                                                       }`}
                                                     role="status"
                                                   >
-                                                    <Check className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
+                                                    {(field.value === 'Yes' || field.value === 'yes') ? (
+                                                      <Check className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
+                                                    ) : (
+                                                      <X className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
+                                                    )}
                                                     {(field.value === 'Yes' || field.value === 'yes') ? 'Yes' : 'No'}
                                                   </Badge>
                                                 ) : (
