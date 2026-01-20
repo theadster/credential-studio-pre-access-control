@@ -3,7 +3,7 @@ title: Documentation Index by Topic
 type: canonical
 status: active
 owner: "@team"
-last_verified: 2026-01-08
+last_verified: 2026-01-20
 review_interval_days: 90
 related_code: []
 ---
@@ -12,9 +12,9 @@ related_code: []
 
 > Auto-generated index of active documentation files
 
-**Last Updated:** 2026-01-08
+**Last Updated:** 2026-01-20
 
-**Total Active Documents:** 162
+**Total Active Documents:** 166
 
 ## By Category
 
@@ -49,9 +49,10 @@ related_code: []
 - [Phase 6 Complete Final Report](./PHASE_6_COMPLETE_FINAL_REPORT.md)
 - [Steering Update Summary](./STEERING_UPDATE_SUMMARY.md)
 
-### Enhancements (21)
+### Enhancements (23)
 
 - [Access Control Export Enhancement](./enhancements/ACCESS_CONTROL_EXPORT_ENHANCEMENT.md)
+- [Advanced Filters - Credential Status and Match Mode](./enhancements/ADVANCED_FILTERS_CREDENTIAL_AND_MATCH_MODE.md)
 - [Attendees Pagination Improvement](./enhancements/ATTENDEES_PAGINATION_IMPROVEMENT.md)
 - [Attendees UI Improvements](./enhancements/ATTENDEES_UI_IMPROVEMENTS.md)
 - [Bulk Import API Key Enhancement](./enhancements/BULK_IMPORT_API_KEY_ENHANCEMENT.md)
@@ -60,6 +61,7 @@ related_code: []
 - [Checkbox Field Yes/No Format](./enhancements/CHECKBOX_FIELD_YES_NO_FORMAT.md)
 - [Credential Generation Error Acknowledgment](./enhancements/CREDENTIAL_GENERATION_ERROR_ACKNOWLEDGMENT.md)
 - [Custom Field Columns Configuration - Implementation Complete](./enhancements/CUSTOM_FIELD_COLUMNS_IMPLEMENTATION_COMPLETE.md)
+- [Custom Field Default Values](./enhancements/CUSTOM_FIELD_DEFAULT_VALUES.md)
 - [Delete Logs Progress Indicator](./enhancements/DELETE_LOGS_PROGRESS_INDICATOR.md)
 - [Dialog Styling Consistency Update](./enhancements/DIALOG_STYLING_CONSISTENCY_UPDATE.md)
 - [Enhanced Credential Generation Error Messages - Implementation Summary](./enhancements/CREDENTIAL_GENERATION_ERROR_MESSAGES_IMPLEMENTATION.md)
@@ -144,8 +146,9 @@ related_code: []
 - [Switchboard Canvas Configuration Guide](./guides/SWITCHBOARD_CONFIGURATION_GUIDE.md)
 - [Z-Index Layering System](./guides/Z_INDEX_LAYERING_SYSTEM.md)
 
-### Migration (16)
+### Migration (17)
 
+- [Access Control Environment Variable Migration](./migration/ACCESS_CONTROL_ENVIRONMENT_VARIABLE_MIGRATION.md)
 - [API Keys Removal Migration](./migration/API_KEYS_REMOVAL_MIGRATION.md)
 - [Appwrite Configuration Reference](./migration/APPWRITE_CONFIGURATION.md)
 - [Complete Backend Migration Guide: Supabase to Appwrite](./migration/COMPLETE_MIGRATION_GUIDE.md)
@@ -163,8 +166,9 @@ related_code: []
 - [Migration Script Validation Tests Summary](./migration/MIGRATION_VALIDATION_TESTS_SUMMARY.md)
 - [Migration Scripts Alignment Summary](./migration/MIGRATION_SCRIPTS_ALIGNMENT_SUMMARY.md)
 
-### Misc (9)
+### Misc (10)
 
+- [Advanced Filters Component Extraction and Redesign](./misc/ADVANCED_FILTERS_COMPONENT_EXTRACTION_REFACTOR.md)
 - [Bulk Operations - Canonical Implementation](./misc/BULK_OPERATIONS_CANONICAL.md)
 - [Cache Memory Management Enhancement](./misc/CACHE_MEMORY_MANAGEMENT_ENHANCEMENT.md)
 - [Event Settings Recreation Script - Safeguards Implementation](./misc/EVENT_SETTINGS_SCRIPT_SAFEGUARDS.md)
@@ -212,13 +216,15 @@ related_code: []
 
 - [Migration Lessons Learned](./migration/MIGRATION_LESSONS_LEARNED.md) - migration
 
-### Canonical (119)
+### Canonical (122)
 
 *Reference documentation, guides, and best practices*
 
 - [Access Control Export Enhancement](./enhancements/ACCESS_CONTROL_EXPORT_ENHANCEMENT.md) - enhancements
 - [Adding New Integration Guide](./guides/ADDING_NEW_INTEGRATION_GUIDE.md) - guides
 - [Advanced Filter Dropdown Scrolling Fix](./fixes/ADVANCED_FILTER_DROPDOWN_SCROLLING_FIX.md) - fixes
+- [Advanced Filters - Credential Status and Match Mode](./enhancements/ADVANCED_FILTERS_CREDENTIAL_AND_MATCH_MODE.md) - enhancements
+- [Advanced Filters Component Extraction and Redesign](./misc/ADVANCED_FILTERS_COMPONENT_EXTRACTION_REFACTOR.md) - misc
 - [API Transactions Reference](./reference/API_TRANSACTIONS_REFERENCE.md) - reference
 - [Appwrite Attribute Polling Configuration](./guides/APPWRITE_ATTRIBUTE_POLLING_CONFIGURATION.md) - guides
 - [Appwrite Attribute Polling Fix](./fixes/APPWRITE_ATTRIBUTE_POLLING_FIX.md) - fixes
@@ -257,6 +263,7 @@ related_code: []
 - [Custom Field Columns - Visual Guide](./guides/CUSTOM_FIELD_COLUMNS_VISUAL_GUIDE.md) - guides
 - [Custom Field Columns Configuration](./guides/CUSTOM_FIELD_COLUMNS_CONFIGURATION.md) - guides
 - [Custom Field Columns Configuration - Implementation Complete](./enhancements/CUSTOM_FIELD_COLUMNS_IMPLEMENTATION_COMPLETE.md) - enhancements
+- [Custom Field Default Values](./enhancements/CUSTOM_FIELD_DEFAULT_VALUES.md) - enhancements
 - [Custom Field Format Permanent Fix](./fixes/CUSTOM_FIELD_FORMAT_PERMANENT_FIX.md) - fixes
 - [Custom Field Internal Names Implementation](./fixes/CUSTOM_FIELD_INTERNAL_NAMES_IMPLEMENTATION.md) - fixes
 - [Custom Field Storage Format Consistency Fix](./fixes/CUSTOM_FIELD_STORAGE_FORMAT_CONSISTENCY_FIX.md) - fixes
@@ -336,10 +343,11 @@ related_code: []
 - [User Management Enhancement for Appwrite](./misc/USER_MANAGEMENT_ENHANCEMENT.md) - misc
 - [Z-Index Layering System](./guides/Z_INDEX_LAYERING_SYSTEM.md) - guides
 
-### Runbook (22)
+### Runbook (23)
 
 *Operational runbooks and procedures*
 
+- [Access Control Environment Variable Migration](./migration/ACCESS_CONTROL_ENVIRONMENT_VARIABLE_MIGRATION.md) - migration
 - [API Keys Removal Migration](./migration/API_KEYS_REMOVAL_MIGRATION.md) - migration
 - [Appwrite Configuration Reference](./migration/APPWRITE_CONFIGURATION.md) - migration
 - [Automated Documentation Sync Guide](./AUTOMATED_DOCS_SYNC_GUIDE.md) - docs
