@@ -4,6 +4,21 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useRealtimeSubscription } from "@/hooks/useRealtimeSubscription";
 import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
 import { usePageVisibility } from "@/hooks/usePageVisibility";
+import { useConnectionHealth } from "@/hooks/useConnectionHealth";
+import { useDataFreshness } from "@/hooks/useDataFreshness";
+import { usePollingFallback } from "@/hooks/usePollingFallback";
+import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator";
+import { DataRefreshIndicator } from "@/components/DataRefreshIndicator";
+import {
+  showConnectionLostNotification,
+  showReconnectedNotification,
+  showMaxRetriesAlert,
+  recordDisconnectionStart,
+  clearDisconnectionTracking,
+  getDisconnectionDuration,
+} from "@/lib/connectionNotifications";
+import { DATA_FRESHNESS } from "@/lib/constants";
+import type { ConnectionStatus } from "@/types/connectionHealth";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -246,6 +261,27 @@ export default function Dashboard() {
     return action.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
   };
 
+  /**
+   * Maps activeTab string to a safe DataType union for usePollingFallback
+   * Returns undefined if the tab doesn't correspond to a valid data type
+   */
+  const mapTabToDataType = (tab: string): 'attendees' | 'users' | 'roles' | 'settings' | 'logs' | undefined => {
+    switch (tab) {
+      case 'attendees':
+        return 'attendees';
+      case 'users':
+        return 'users';
+      case 'roles':
+        return 'roles';
+      case 'settings':
+        return 'settings';
+      case 'logs':
+        return 'logs';
+      default:
+        return undefined;
+    }
+  };
+
   const [activeTab, setActiveTab] = useState("attendees");
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -343,6 +379,7 @@ export default function Dashboard() {
   const [qrModalOpen, setQrModalOpen] = useState(false);
   const [qrBarcodeNumber, setQrBarcodeNumber] = useState<string | null>(null);
   const [advancedFiltersDialogOpen, setAdvancedFiltersDialogOpen] = useState(false);
+  const [isPollingActive, setIsPollingActive] = useState(false);
 
   const refreshAttendees = useCallback(async () => {
     try {
@@ -363,6 +400,8 @@ export default function Dashboard() {
         } else {
           setAttendees([]);
         }
+        // Mark freshness only after successful fetch
+        attendeesFreshnessRef.current?.markFresh();
       } else {
         setAttendees([]);
       }
@@ -379,6 +418,8 @@ export default function Dashboard() {
         const usersData = await usersResponse.json();
         // API returns { users: [...], pagination: {...} }
         setUsers(usersData.users || []);
+        // Mark freshness only after successful fetch
+        usersFreshnessRef.current?.markFresh();
       } else {
         setUsers([]);
       }
@@ -393,6 +434,8 @@ export default function Dashboard() {
       if (rolesResponse.ok) {
         const rolesData = await rolesResponse.json();
         setRoles(Array.isArray(rolesData) ? rolesData : []);
+        // Mark freshness only after successful fetch
+        rolesFreshnessRef.current?.markFresh();
       } else {
         setRoles([]);
       }
@@ -417,6 +460,8 @@ export default function Dashboard() {
         }
         
         setEventSettings(settingsData);
+        // Mark freshness only after successful fetch
+        settingsFreshnessRef.current?.markFresh();
       }
     } catch (error) {
       console.error('Error refreshing event settings:', error);
@@ -926,12 +971,6 @@ export default function Dashboard() {
   // ============================================================================
 
   /**
-   * Track page visibility to pause subscriptions when page is hidden
-   * This prevents memory accumulation when the dashboard is idle in a background tab
-   */
-  const isPageVisible = usePageVisibility();
-
-  /**
    * Create debounced versions of refresh functions to prevent excessive API calls
    * This replaces the setTimeout pattern which could accumulate timeouts
    */
@@ -942,8 +981,197 @@ export default function Dashboard() {
   const debouncedLoadLogs = useDebouncedCallback(loadLogs, 1000);
 
   // ============================================================================
+  // CONNECTION HEALTH MONITORING
+  // ============================================================================
+
+  /**
+   * Ref to track dark mode for notifications (avoids re-renders)
+   */
+  const isDarkRef = useRef(isDark);
+  useEffect(() => {
+    isDarkRef.current = isDark;
+  }, [isDark]);
+
+  /**
+   * Connection health monitoring hook
+   * Tracks WebSocket connection status and manages reconnection
+   */
+  const connectionHealth = useConnectionHealth({
+    onStatusChange: useCallback((status: ConnectionStatus) => {
+      if (status === 'disconnected') {
+        recordDisconnectionStart();
+      } else if (status === 'connected') {
+        const duration = getDisconnectionDuration();
+        if (duration > DATA_FRESHNESS.BRIEF_DISCONNECT_THRESHOLD) {
+          showReconnectedNotification({ isDark: isDarkRef.current });
+        }
+        clearDisconnectionTracking();
+      }
+    }, []),
+    onReconnectFailure: useCallback((_error: Error) => {
+      // Derive attemptsMade from the connection health hook's maxReconnectAttempts
+      // Falls back to 0 if undefined (defensive programming)
+      const attemptsMade = connectionHealthRef.current?.maxReconnectAttempts ?? 0;
+      showMaxRetriesAlert({
+        attemptsMade,
+        onReconnect: () => connectionHealthRef.current?.reconnect(),
+        isDark: isDarkRef.current,
+      });
+    }, []),
+  });
+
+  // Ref to access connectionHealth.reconnect in callbacks
+  const connectionHealthRef = useRef(connectionHealth);
+  useEffect(() => {
+    connectionHealthRef.current = connectionHealth;
+  }, [connectionHealth]);
+
+  /**
+   * Data freshness hooks for each data type
+   * Track when data was last updated and provide refresh functionality
+   */
+  const attendeesFreshness = useDataFreshness(
+    { dataType: 'attendees' },
+    refreshAttendees
+  );
+
+  const usersFreshness = useDataFreshness(
+    { dataType: 'users' },
+    refreshUsers
+  );
+
+  const rolesFreshness = useDataFreshness(
+    { dataType: 'roles' },
+    refreshRoles
+  );
+
+  const settingsFreshness = useDataFreshness(
+    { dataType: 'settings' },
+    refreshEventSettings
+  );
+
+  const logsFreshness = useDataFreshness(
+    { dataType: 'logs' },
+    useCallback(async () => { await loadLogs(); }, [loadLogs])
+  );
+
+  /**
+   * Get the active freshness hook based on current tab
+   */
+  const getActiveFreshness = useCallback(() => {
+    switch (activeTab) {
+      case 'attendees': return attendeesFreshness;
+      case 'users': return usersFreshness;
+      case 'roles': return rolesFreshness;
+      case 'settings': return settingsFreshness;
+      case 'logs': return logsFreshness;
+      default: return attendeesFreshness;
+    }
+  }, [activeTab, attendeesFreshness, usersFreshness, rolesFreshness, settingsFreshness, logsFreshness]);
+
+  // Ref to access getActiveFreshness in callbacks without causing re-renders
+  const getActiveFreshnessRef = useRef(getActiveFreshness);
+  useEffect(() => {
+    getActiveFreshnessRef.current = getActiveFreshness;
+  }, [getActiveFreshness]);
+
+  /**
+   * Track page visibility with recovery callbacks
+   * Triggers reconnection and data refresh when page becomes visible
+   * Requirements: 4.1, 4.2, 4.3, 4.4, 4.5
+   */
+  const { isVisible: isPageVisible } = usePageVisibility({
+    onBecomeVisible: useCallback(() => {
+      // Trigger reconnection if disconnected (Requirement 4.2)
+      if (connectionHealthRef.current?.state.status === 'disconnected') {
+        connectionHealthRef.current.reconnect();
+      }
+      
+      // Trigger data refresh for active tab (Requirement 4.3)
+      const activeFreshness = getActiveFreshnessRef.current();
+      if (activeFreshness && activeFreshness.state.isStale) {
+        activeFreshness.refresh();
+      }
+    }, []),
+    debounceMs: DATA_FRESHNESS.VISIBILITY_DEBOUNCE_MS,
+    enableDebounce: true,
+  });
+
+  /**
+   * Polling fallback activation timer
+   * Activates after 60 seconds of disconnection to provide fallback data refresh
+   * Uses state instead of inline computation to avoid recalculating on every render
+   */
+  useEffect(() => {
+    // Only set up timer if disconnected
+    if (connectionHealth.state.status !== 'disconnected' || connectionHealth.state.lastDisconnectedAt === null) {
+      // Clear polling if reconnected
+      if (isPollingActive) {
+        setIsPollingActive(false);
+      }
+      return;
+    }
+
+    // Calculate time elapsed since disconnection
+    const timeSinceDisconnect = Date.now() - connectionHealth.state.lastDisconnectedAt.getTime();
+    const timeUntilPolling = DATA_FRESHNESS.POLLING_ACTIVATION_DELAY - timeSinceDisconnect;
+
+    // If already past the threshold, activate immediately
+    if (timeUntilPolling <= 0) {
+      setIsPollingActive(true);
+      return;
+    }
+
+    // Otherwise, schedule activation after remaining delay
+    const timer = setTimeout(() => {
+      setIsPollingActive(true);
+    }, timeUntilPolling);
+
+    return () => clearTimeout(timer);
+  }, [connectionHealth.state.status, connectionHealth.state.lastDisconnectedAt, isPollingActive]);
+
+  /**
+   * Polling fallback when connection is lost for extended period
+   * Only enabled when isPollingActive is true and activeTab maps to a valid data type
+   */
+  const pollingDataType = mapTabToDataType(activeTab);
+  
+  usePollingFallback({
+    enabled: isPollingActive && pollingDataType !== undefined,
+    dataType: pollingDataType || 'attendees', // Provide fallback for type safety, but won't be used if enabled is false
+    onPoll: useCallback(async () => {
+      const freshness = getActiveFreshness();
+      await freshness.refresh();
+    }, [getActiveFreshness]),
+  });
+
+  // ============================================================================
   // MEMORY LEAK PREVENTION: Conditional Realtime Subscriptions
   // ============================================================================
+
+  /**
+   * Refs for freshness hooks to avoid re-creating callbacks
+   * This prevents cascading re-renders that cause infinite loops
+   * 
+   * Using refs allows us to pass these to useRealtimeSubscription without
+   * causing the effect to re-run when the objects change
+   * 
+   * Note: connectionHealthRef is already declared above at line 991
+   */
+  const attendeesFreshnessRef = useRef(attendeesFreshness);
+  const usersFreshnessRef = useRef(usersFreshness);
+  const rolesFreshnessRef = useRef(rolesFreshness);
+  const settingsFreshnessRef = useRef(settingsFreshness);
+  const logsFreshnessRef = useRef(logsFreshness);
+
+  useEffect(() => {
+    attendeesFreshnessRef.current = attendeesFreshness;
+    usersFreshnessRef.current = usersFreshness;
+    rolesFreshnessRef.current = rolesFreshness;
+    settingsFreshnessRef.current = settingsFreshness;
+    logsFreshnessRef.current = logsFreshness;
+    connectionHealthRef.current = connectionHealth;
+  }, [attendeesFreshness, usersFreshness, rolesFreshness, settingsFreshness, logsFreshness, connectionHealth]);
 
   /**
    * Attendees subscription - Only active when:
@@ -951,6 +1179,11 @@ export default function Dashboard() {
    * 2. User is on the attendees tab
    * 
    * This prevents unnecessary WebSocket connections and memory accumulation
+   * Uses refs to pass connection health and freshness tracking without
+   * causing cascading re-renders
+   * 
+   * Note: markFresh() is called in refreshAttendees() after successful fetch,
+   * not here, to ensure freshness is only marked on successful data retrieval
    */
   useRealtimeSubscription({
     channels: [`databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID}.documents`],
@@ -958,13 +1191,19 @@ export default function Dashboard() {
       console.log('Attendee change received!', response);
       debouncedRefreshAttendees();
     }, [debouncedRefreshAttendees]),
-    enabled: isPageVisible && activeTab === 'attendees'
+    enabled: isPageVisible && activeTab === 'attendees',
+    onConnected: useCallback(() => {
+      connectionHealthRef.current?._internal?.markConnected();
+    }, []),
   });
 
   /**
    * Users subscription - Only active when:
    * 1. Page is visible
    * 2. User is on the users tab
+   * 
+   * Note: markFresh() is called in refreshUsers() after successful fetch,
+   * not here, to ensure freshness is only marked on successful data retrieval
    */
   useRealtimeSubscription({
     channels: [`databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID}.documents`],
@@ -972,13 +1211,19 @@ export default function Dashboard() {
       console.log('Users change received!', response);
       debouncedRefreshUsers();
     }, [debouncedRefreshUsers]),
-    enabled: isPageVisible && activeTab === 'users'
+    enabled: isPageVisible && activeTab === 'users',
+    onConnected: useCallback(() => {
+      connectionHealthRef.current?._internal?.markConnected();
+    }, []),
   });
 
   /**
    * Roles subscription - Only active when:
    * 1. Page is visible
    * 2. User is on the roles tab
+   * 
+   * Note: markFresh() is called in refreshRoles() after successful fetch,
+   * not here, to ensure freshness is only marked on successful data retrieval
    */
   useRealtimeSubscription({
     channels: [`databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID}.documents`],
@@ -986,7 +1231,10 @@ export default function Dashboard() {
       console.log('Roles change received!', response);
       debouncedRefreshRoles();
     }, [debouncedRefreshRoles]),
-    enabled: isPageVisible && activeTab === 'roles'
+    enabled: isPageVisible && activeTab === 'roles',
+    onConnected: useCallback(() => {
+      connectionHealthRef.current?._internal?.markConnected();
+    }, []),
   });
 
   /**
@@ -995,6 +1243,9 @@ export default function Dashboard() {
    * 2. User is on the settings tab
    * 
    * Monitors both event settings and custom fields collections
+   * 
+   * Note: markFresh() is called in refreshEventSettings() after successful fetch,
+   * not here, to ensure freshness is only marked on successful data retrieval
    */
   useRealtimeSubscription({
     channels: [
@@ -1005,7 +1256,10 @@ export default function Dashboard() {
       console.log('Event settings or custom fields change received!', response);
       debouncedRefreshEventSettings();
     }, [debouncedRefreshEventSettings]),
-    enabled: isPageVisible && activeTab === 'settings'
+    enabled: isPageVisible && activeTab === 'settings',
+    onConnected: useCallback(() => {
+      connectionHealthRef.current?._internal?.markConnected();
+    }, []),
   });
 
   /**
@@ -1028,8 +1282,12 @@ export default function Dashboard() {
     callback: useCallback((response: any) => {
       console.log('Logs change received!', response);
       debouncedLoadLogs();
+      logsFreshnessRef.current?.markFresh();
     }, [debouncedLoadLogs]),
-    enabled: isPageVisible && activeTab === 'logs' && !pauseLogsRealtime
+    enabled: isPageVisible && activeTab === 'logs' && !pauseLogsRealtime,
+    onConnected: useCallback(() => {
+      connectionHealthRef.current?._internal?.markConnected();
+    }, []),
   });
 
   // ============================================================================
@@ -3667,7 +3925,13 @@ export default function Dashboard() {
                 {activeTab === "accessControl" && "Manage approval profiles and view scan logs"}
               </p>
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-4">
+              {/* Connection Status Indicator */}
+              <ConnectionStatusIndicator
+                connectionState={connectionHealth.state}
+                onReconnect={connectionHealth.reconnect}
+              />
+              
               {activeTab === "attendees" && hasPermission(currentUser?.role, 'attendees', 'create') && (
                 <Button onClick={async () => {
                   await refreshEventSettings();
@@ -4281,7 +4545,18 @@ export default function Dashboard() {
 
               {/* Attendees Table */}
               <Card className="glass-effect border-0">
-                <CardContent className="pt-6">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg">Attendees</CardTitle>
+                    <DataRefreshIndicator
+                      freshnessState={attendeesFreshness.state}
+                      isRefreshing={attendeesFreshness.isRefreshing}
+                      onRefresh={attendeesFreshness.refresh}
+                      relativeTime={attendeesFreshness.getRelativeTime()}
+                    />
+                  </div>
+                </CardHeader>
+                <CardContent>
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -5042,7 +5317,15 @@ export default function Dashboard() {
               {/* Users Table */}
               <Card className="glass-effect border-0">
                 <CardHeader>
-                  <CardTitle>System Users</CardTitle>
+                  <div className="flex items-center justify-between">
+                    <CardTitle>System Users</CardTitle>
+                    <DataRefreshIndicator
+                      freshnessState={usersFreshness.state}
+                      isRefreshing={usersFreshness.isRefreshing}
+                      onRefresh={usersFreshness.refresh}
+                      relativeTime={usersFreshness.getRelativeTime()}
+                    />
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <Table>
@@ -5224,6 +5507,16 @@ export default function Dashboard() {
               {/* Roles List */}
               {roles.length > 0 && (
                 <div className="space-y-4">
+                  {/* Section header with Data Refresh Indicator */}
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-muted-foreground">Roles</h3>
+                    <DataRefreshIndicator
+                      freshnessState={rolesFreshness.state}
+                      isRefreshing={rolesFreshness.isRefreshing}
+                      onRefresh={rolesFreshness.refresh}
+                      relativeTime={rolesFreshness.getRelativeTime()}
+                    />
+                  </div>
                   {roles.map((role) => (
                     <RoleCard
                       key={role.id}
@@ -5262,6 +5555,17 @@ export default function Dashboard() {
                 </Alert>
               ) : (
                 <div className="space-y-6">
+                  {/* Section header with Data Refresh Indicator */}
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-muted-foreground">Event Settings</h3>
+                    <DataRefreshIndicator
+                      freshnessState={settingsFreshness.state}
+                      isRefreshing={settingsFreshness.isRefreshing}
+                      onRefresh={settingsFreshness.refresh}
+                      relativeTime={settingsFreshness.getRelativeTime()}
+                    />
+                  </div>
+                  
                   {/* Event Settings Summary Cards */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <Card className="bg-gradient-to-br from-blue-50 to-indigo-100 border-blue-200 dark:from-blue-950/50 dark:to-indigo-900/50 dark:border-blue-800/50 hover:shadow-lg transition-all duration-300 hover:scale-105">
@@ -5617,15 +5921,25 @@ export default function Dashboard() {
               {/* Logs Table */}
               <Card className="glass-effect border-0">
                 <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                    <span>Activity Logs</span>
-                    {logsLoading && (
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-                    )}
-                  </CardTitle>
-                  <CardDescription>
-                    Showing {logs.length} of {logsPagination.totalCount} activities
-                  </CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <span>Activity Logs</span>
+                        {logsLoading && (
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                        )}
+                      </CardTitle>
+                      <CardDescription>
+                        Showing {logs.length} of {logsPagination.totalCount} activities
+                      </CardDescription>
+                    </div>
+                    <DataRefreshIndicator
+                      freshnessState={logsFreshness.state}
+                      isRefreshing={logsFreshness.isRefreshing}
+                      onRefresh={logsFreshness.refresh}
+                      relativeTime={logsFreshness.getRelativeTime()}
+                    />
+                  </div>
                 </CardHeader>
                 <CardContent>
                   {logsLoading ? (

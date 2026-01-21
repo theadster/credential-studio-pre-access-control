@@ -100,6 +100,40 @@ export const FILE_CONSTANTS = {
 } as const;
 
 /**
+ * Connection health monitoring constants
+ * Used for WebSocket connection health tracking and automatic reconnection
+ */
+export const CONNECTION_HEALTH = {
+  /** Interval to check for heartbeat/activity (30 seconds) */
+  HEARTBEAT_INTERVAL: 30000,
+  /** Maximum number of automatic reconnection attempts */
+  MAX_RECONNECT_ATTEMPTS: 10,
+  /** Initial backoff delay for reconnection (1 second) */
+  INITIAL_BACKOFF: 1000,
+  /** Maximum backoff delay for reconnection (30 seconds) */
+  MAX_BACKOFF: 30000,
+  /** Multiplier for exponential backoff */
+  BACKOFF_MULTIPLIER: 2,
+} as const;
+
+/**
+ * Data freshness tracking constants
+ * Used for tracking data staleness and polling fallback
+ */
+export const DATA_FRESHNESS = {
+  /** Time after which data is considered stale (30 seconds) */
+  STALENESS_THRESHOLD: 30000,
+  /** Interval for polling fallback when real-time fails (30 seconds) */
+  POLLING_INTERVAL: 30000,
+  /** Delay before activating polling fallback after disconnect (60 seconds) */
+  POLLING_ACTIVATION_DELAY: 60000,
+  /** Brief disconnection threshold - don't notify for disconnections shorter than this (5 seconds) */
+  BRIEF_DISCONNECT_THRESHOLD: 5000,
+  /** Debounce window for visibility changes (500ms) */
+  VISIBILITY_DEBOUNCE_MS: 500,
+} as const;
+
+/**
  * Type exports for better TypeScript support
  */
 export type ValidationConstants = typeof VALIDATION_CONSTANTS;
@@ -107,3 +141,5 @@ export type PaginationConstants = typeof PAGINATION_CONSTANTS;
 export type RateLimitConstants = typeof RATE_LIMIT_CONSTANTS;
 export type UIConstants = typeof UI_CONSTANTS;
 export type FileConstants = typeof FILE_CONSTANTS;
+export type ConnectionHealthConstants = typeof CONNECTION_HEALTH;
+export type DataFreshnessConstants = typeof DATA_FRESHNESS;

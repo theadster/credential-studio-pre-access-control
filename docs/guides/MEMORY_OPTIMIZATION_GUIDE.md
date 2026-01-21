@@ -3,9 +3,9 @@ title: "Memory Optimization Guide"
 type: canonical
 status: active
 owner: "@team"
-last_verified: 2025-12-31
+last_verified: 2025-01-19
 review_interval_days: 90
-related_code: ["src/lib/cache.ts"]
+related_code: ["src/lib/cache.ts", "src/hooks/usePageVisibility.ts"]
 ---
 
 # Memory Optimization Guide
@@ -190,13 +190,14 @@ function MyComponent() {
 - Stopping animations in background tabs
 - Pausing realtime subscriptions
 - Reducing API polling frequency
+- Triggering data refresh when tab becomes visible (with debouncing)
 
-**Example:**
+**Basic Example:**
 ```typescript
 import { usePageVisibility } from '@/hooks/usePageVisibility';
 
 function MyComponent() {
-  const isVisible = usePageVisibility();
+  const { isVisible } = usePageVisibility();
   
   // Pause expensive operations when hidden
   useEffect(() => {
@@ -215,7 +216,36 @@ function MyComponent() {
 }
 ```
 
-**With Callbacks:**
+**With Recovery Callbacks (Enhanced API):**
+```typescript
+import { usePageVisibility } from '@/hooks/usePageVisibility';
+
+function MyComponent() {
+  const { isVisible, lastBecameVisibleAt, triggerVisibilityRecovery } = usePageVisibility({
+    onBecomeVisible: () => {
+      // Automatically debounced (500ms window by default)
+      // Prevents excessive refreshes during rapid tab switching
+      console.log('Page became visible - refreshing data');
+      refreshData();
+    },
+    onBecomeHidden: () => {
+      console.log('Page became hidden - pausing operations');
+      pauseOperations();
+    },
+    debounceMs: 500, // Optional: customize debounce window
+    enableDebounce: true, // Optional: disable debouncing if needed
+  });
+  
+  return (
+    <div>
+      <p>Last visible: {lastBecameVisibleAt?.toISOString()}</p>
+      <button onClick={triggerVisibilityRecovery}>Manual Refresh</button>
+    </div>
+  );
+}
+```
+
+**Legacy Callback API (still supported):**
 ```typescript
 import { usePageVisibilityChange } from '@/hooks/usePageVisibility';
 
@@ -232,6 +262,16 @@ function MyComponent() {
   );
   
   return <div>Content</div>;
+}
+```
+
+**Simple Boolean Hook (backward compatible):**
+```typescript
+import { usePageVisibilitySimple } from '@/hooks/usePageVisibility';
+
+function MyComponent() {
+  const isVisible = usePageVisibilitySimple(); // Returns just boolean
+  // ...
 }
 ```
 

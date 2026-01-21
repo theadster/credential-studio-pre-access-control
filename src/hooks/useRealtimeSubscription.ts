@@ -1,6 +1,13 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { createBrowserClient } from '@/lib/appwrite';
 import type { Models, RealtimeResponseEvent } from 'appwrite';
+import type { UseConnectionHealthReturn, UseDataFreshnessReturn, ConnectionHealthInternal } from '@/types/connectionHealth';
+
+/**
+ * Extended connection health return type with internal methods
+ * Note: UseConnectionHealthReturn now includes _internal as optional
+ */
+type ConnectionHealthWithInternal = UseConnectionHealthReturn;
 
 /**
  * Options for the realtime subscription hook
@@ -27,14 +34,62 @@ export interface RealtimeSubscriptionOptions<T extends Models.Document> {
    * Useful for conditional subscriptions
    */
   enabled?: boolean;
+  
+  /**
+   * Optional connection health hook for status tracking
+   * When provided, the subscription will update connection status
+   * @see useConnectionHealth
+   * @deprecated Use onConnected callback instead to avoid infinite loops
+   */
+  connectionHealth?: ConnectionHealthWithInternal;
+  
+  /**
+   * Optional data freshness hook for timestamp updates
+   * When provided, markFresh() will be called on successful events
+   * @see useDataFreshness
+   * @deprecated Use callback to call markFresh() via refs instead
+   */
+  dataFreshness?: UseDataFreshnessReturn;
+  
+  /**
+   * Whether to automatically reconnect on connection loss (default: true)
+   * When true, uses exponential backoff from connectionHealth
+   */
+  autoReconnect?: boolean;
+  
+  /**
+   * Callback to fetch missed data after reconnection
+   * Called when connection is restored to sync any missed updates
+   */
+  refreshOnReconnect?: () => Promise<void>;
+  
+  /**
+   * Callback fired when subscription successfully connects
+   * Use this to call connectionHealth.markConnected() via a ref
+   * This avoids infinite loops caused by passing connectionHealth directly
+   */
+  onConnected?: () => void;
+  
+  /**
+   * Callback fired when subscription disconnects
+   * Use this to call connectionHealth.markDisconnected() via a ref
+   */
+  onDisconnected?: (error?: Error) => void;
 }
 
 /**
  * Custom hook for subscribing to Appwrite Realtime events
  * Automatically handles subscription cleanup on unmount
  * 
+ * Enhanced with connection health monitoring and data freshness tracking:
+ * - Integrates with useConnectionHealth for connection status updates
+ * - Integrates with useDataFreshness for automatic timestamp updates
+ * - Supports automatic reconnection with exponential backoff
+ * - Can fetch missed data after reconnection
+ * 
  * @example
  * ```tsx
+ * // Basic usage
  * useRealtimeSubscription({
  *   channels: [`databases.${dbId}.collections.${collectionId}.documents`],
  *   callback: (response) => {
@@ -44,16 +99,45 @@ export interface RealtimeSubscriptionOptions<T extends Models.Document> {
  *   },
  *   onError: (error) => console.error('Realtime error:', error),
  * });
+ * 
+ * // With health monitoring
+ * const connectionHealth = useConnectionHealth({ onStatusChange: console.log });
+ * const dataFreshness = useDataFreshness({ dataType: 'attendees' }, fetchAttendees);
+ * 
+ * useRealtimeSubscription({
+ *   channels: [`databases.${dbId}.collections.${collectionId}.documents`],
+ *   callback: handleRealtimeEvent,
+ *   connectionHealth,
+ *   dataFreshness,
+ *   autoReconnect: true,
+ *   refreshOnReconnect: fetchAttendees,
+ * });
  * ```
  */
 export function useRealtimeSubscription<T extends Models.Document = Models.Document>(
   options: RealtimeSubscriptionOptions<T>
 ) {
-  const { channels, callback, onError, enabled = true } = options;
+  const { 
+    channels, 
+    callback, 
+    onError, 
+    enabled = true,
+    connectionHealth,
+    dataFreshness,
+    autoReconnect = true,
+    refreshOnReconnect,
+    onConnected,
+    onDisconnected,
+  } = options;
+  
   const unsubscribeRef = useRef<(() => void) | null>(null);
+  const isReconnectingRef = useRef(false);
+  const reconnectAttemptRef = useRef(0);
   
   // Memoize the callback to prevent unnecessary re-subscriptions
   const stableCallback = useCallback(callback, [callback]);
+  const stableOnConnected = useCallback(() => onConnected?.(), [onConnected]);
+  const stableOnDisconnected = useCallback((error?: Error) => onDisconnected?.(error), [onDisconnected]);
   const stableOnError = useCallback(
     (error: Error) => {
       if (onError) {
@@ -112,6 +196,11 @@ export function useRealtimeSubscription<T extends Models.Document = Models.Docum
           if (isSubscribed) {
             try {
               stableCallback(response);
+              
+              // Mark data as fresh on successful real-time event (Requirement 3.1)
+              if (dataFreshness) {
+                dataFreshness.markFresh();
+              }
             } catch (error) {
               stableOnError(
                 error instanceof Error 
@@ -125,17 +214,105 @@ export function useRealtimeSubscription<T extends Models.Document = Models.Docum
         // Store the unsubscribe function
         unsubscribeRef.current = unsubscribe;
         
+        // Mark connection as established (Requirement 1.1)
+        // Prefer the new onConnected callback to avoid infinite loops
+        if (onConnected) {
+          stableOnConnected();
+        } else if (connectionHealth?._internal) {
+          // Fallback to deprecated connectionHealth prop
+          connectionHealth._internal.markConnected();
+        }
+        
+        // Handle reconnection success
+        if (isReconnectingRef.current) {
+          isReconnectingRef.current = false;
+          reconnectAttemptRef.current = 0;
+          
+          // Notify connection health of successful reconnection (Requirement 2.3)
+          if (connectionHealth?._internal) {
+            connectionHealth._internal.handleReconnectSuccess();
+          }
+          
+          // Fetch missed data after reconnection (Requirement 4.3)
+          if (refreshOnReconnect) {
+            try {
+              await refreshOnReconnect();
+              // Mark fresh after fetching missed data
+              if (dataFreshness) {
+                dataFreshness.markFresh();
+              }
+            } catch (refreshError) {
+              console.error('Failed to refresh data after reconnection:', refreshError);
+            }
+          }
+        }
+        
         // Log subscription in development
         if (process.env.NODE_ENV === 'development') {
           console.debug('Realtime subscription active:', channels);
         }
       } catch (error) {
-        stableOnError(
-          error instanceof Error 
-            ? error 
-            : new Error('Failed to subscribe to realtime')
-        );
+        const subscriptionError = error instanceof Error 
+          ? error 
+          : new Error('Failed to subscribe to realtime');
+        
+        stableOnError(subscriptionError);
+        
+        // Mark connection as disconnected (Requirements 1.3, 1.5)
+        // Prefer the new onDisconnected callback to avoid infinite loops
+        if (onDisconnected) {
+          stableOnDisconnected(subscriptionError);
+        } else if (connectionHealth?._internal) {
+          // Fallback to deprecated connectionHealth prop
+          connectionHealth._internal.markDisconnected(subscriptionError);
+        }
+        
+        // Handle automatic reconnection (Requirement 2.1)
+        if (autoReconnect && isSubscribed) {
+          handleReconnect();
+        }
       }
+    };
+
+    /**
+     * Handles reconnection with exponential backoff
+     * Uses connectionHealth for backoff calculation if available
+     */
+    const handleReconnect = () => {
+      if (!isSubscribed || !autoReconnect) return;
+      
+      isReconnectingRef.current = true;
+      reconnectAttemptRef.current += 1;
+      
+      // Use connectionHealth's reconnection logic if available
+      if (connectionHealth?._internal) {
+        connectionHealth._internal.scheduleReconnect(reconnectAttemptRef.current);
+      }
+      
+      // Calculate backoff delay
+      const maxAttempts = 10;
+      if (reconnectAttemptRef.current > maxAttempts) {
+        console.error(`Maximum reconnection attempts (${maxAttempts}) reached`);
+        if (connectionHealth?._internal) {
+          connectionHealth._internal.handleReconnectFailure(
+            new Error(`Maximum reconnection attempts (${maxAttempts}) reached`)
+          );
+        }
+        return;
+      }
+      
+      // Exponential backoff: min(1000 * 2^(N-1), 30000)
+      const delay = Math.min(1000 * Math.pow(2, reconnectAttemptRef.current - 1), 30000);
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.debug(`Reconnecting in ${delay}ms (attempt ${reconnectAttemptRef.current})`);
+      }
+      
+      setTimeout(() => {
+        if (isSubscribed) {
+          subscribe();
+        }
+      }, delay);
     };
 
     subscribe();
@@ -156,7 +333,7 @@ export function useRealtimeSubscription<T extends Models.Document = Models.Docum
         unsubscribeRef.current = null;
       }
     };
-  }, [channelsKey, stableCallback, stableOnError, enabled]);
+  }, [channelsKey, stableCallback, stableOnError, stableOnConnected, stableOnDisconnected, enabled, connectionHealth, dataFreshness, autoReconnect, refreshOnReconnect]);
 }
 
 /**

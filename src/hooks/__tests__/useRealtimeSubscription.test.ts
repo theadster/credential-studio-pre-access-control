@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { useRealtimeSubscription, buildChannels, isEvent } from '../useRealtimeSubscription';
 import { resetAllMocks } from '@/test/mocks/appwrite';
+import type { UseConnectionHealthReturn, UseDataFreshnessReturn, FreshnessState } from '@/types/connectionHealth';
 
 describe('useRealtimeSubscription', () => {
   beforeEach(() => {
@@ -173,6 +174,166 @@ describe('useRealtimeSubscription', () => {
           })
         );
       }).not.toThrow();
+    });
+  });
+
+  describe('Health Integration', () => {
+    const createMockConnectionHealth = (): UseConnectionHealthReturn & {
+      _internal: {
+        markConnected: ReturnType<typeof vi.fn>;
+        markDisconnected: ReturnType<typeof vi.fn>;
+        handleReconnectSuccess: ReturnType<typeof vi.fn>;
+        handleReconnectFailure: ReturnType<typeof vi.fn>;
+        scheduleReconnect: ReturnType<typeof vi.fn>;
+      };
+    } => ({
+      state: {
+        status: 'connecting',
+        lastConnectedAt: null,
+        lastDisconnectedAt: null,
+        reconnectAttempt: 0,
+        nextReconnectAt: null,
+        error: null,
+      },
+      reconnect: vi.fn(),
+      resetBackoff: vi.fn(),
+      isHealthy: false,
+      _internal: {
+        markConnected: vi.fn(),
+        markDisconnected: vi.fn(),
+        handleReconnectSuccess: vi.fn(),
+        handleReconnectFailure: vi.fn(),
+        scheduleReconnect: vi.fn(),
+      },
+    });
+
+    const createMockDataFreshness = (): UseDataFreshnessReturn => ({
+      state: {
+        lastUpdatedAt: null,
+        isStale: true,
+        staleDuration: null,
+      } as FreshnessState,
+      markFresh: vi.fn(),
+      getRelativeTime: vi.fn(() => 'never'),
+      refresh: vi.fn(async () => {}),
+      isRefreshing: false,
+    });
+
+    it('should accept connectionHealth option', () => {
+      const callback = vi.fn();
+      const channels = ['databases.test-db.collections.test-collection.documents'];
+      const connectionHealth = createMockConnectionHealth();
+
+      expect(() => {
+        renderHook(() =>
+          useRealtimeSubscription({
+            channels,
+            callback,
+            connectionHealth,
+          })
+        );
+      }).not.toThrow();
+    });
+
+    it('should accept dataFreshness option', () => {
+      const callback = vi.fn();
+      const channels = ['databases.test-db.collections.test-collection.documents'];
+      const dataFreshness = createMockDataFreshness();
+
+      expect(() => {
+        renderHook(() =>
+          useRealtimeSubscription({
+            channels,
+            callback,
+            dataFreshness,
+          })
+        );
+      }).not.toThrow();
+    });
+
+    it('should accept autoReconnect option (default: true)', () => {
+      const callback = vi.fn();
+      const channels = ['databases.test-db.collections.test-collection.documents'];
+
+      expect(() => {
+        renderHook(() =>
+          useRealtimeSubscription({
+            channels,
+            callback,
+            autoReconnect: true,
+          })
+        );
+      }).not.toThrow();
+    });
+
+    it('should accept autoReconnect option set to false', () => {
+      const callback = vi.fn();
+      const channels = ['databases.test-db.collections.test-collection.documents'];
+
+      expect(() => {
+        renderHook(() =>
+          useRealtimeSubscription({
+            channels,
+            callback,
+            autoReconnect: false,
+          })
+        );
+      }).not.toThrow();
+    });
+
+    it('should accept refreshOnReconnect callback', () => {
+      const callback = vi.fn();
+      const channels = ['databases.test-db.collections.test-collection.documents'];
+      const refreshOnReconnect = vi.fn(async () => {});
+
+      expect(() => {
+        renderHook(() =>
+          useRealtimeSubscription({
+            channels,
+            callback,
+            refreshOnReconnect,
+          })
+        );
+      }).not.toThrow();
+    });
+
+    it('should accept all health integration options together', () => {
+      const callback = vi.fn();
+      const channels = ['databases.test-db.collections.test-collection.documents'];
+      const connectionHealth = createMockConnectionHealth();
+      const dataFreshness = createMockDataFreshness();
+      const refreshOnReconnect = vi.fn(async () => {});
+
+      expect(() => {
+        renderHook(() =>
+          useRealtimeSubscription({
+            channels,
+            callback,
+            connectionHealth,
+            dataFreshness,
+            autoReconnect: true,
+            refreshOnReconnect,
+          })
+        );
+      }).not.toThrow();
+    });
+
+    it('should unmount cleanly with health integration options', () => {
+      const callback = vi.fn();
+      const channels = ['databases.test-db.collections.test-collection.documents'];
+      const connectionHealth = createMockConnectionHealth();
+      const dataFreshness = createMockDataFreshness();
+
+      const { unmount } = renderHook(() =>
+        useRealtimeSubscription({
+          channels,
+          callback,
+          connectionHealth,
+          dataFreshness,
+        })
+      );
+
+      expect(() => unmount()).not.toThrow();
     });
   });
 });
