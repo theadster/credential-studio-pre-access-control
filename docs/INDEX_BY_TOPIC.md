@@ -3,7 +3,7 @@ title: Documentation Index by Topic
 type: canonical
 status: active
 owner: "@team"
-last_verified: 2026-01-08
+last_verified: 2026-01-22
 review_interval_days: 90
 related_code: []
 ---
@@ -12,9 +12,9 @@ related_code: []
 
 > Auto-generated index of active documentation files
 
-**Last Updated:** 2026-01-08
+**Last Updated:** 2026-01-22
 
-**Total Active Documents:** 162
+**Total Active Documents:** 182
 
 ## By Category
 
@@ -49,9 +49,10 @@ related_code: []
 - [Phase 6 Complete Final Report](./PHASE_6_COMPLETE_FINAL_REPORT.md)
 - [Steering Update Summary](./STEERING_UPDATE_SUMMARY.md)
 
-### Enhancements (21)
+### Enhancements (24)
 
 - [Access Control Export Enhancement](./enhancements/ACCESS_CONTROL_EXPORT_ENHANCEMENT.md)
+- [Advanced Filters - Credential Status and Match Mode](./enhancements/ADVANCED_FILTERS_CREDENTIAL_AND_MATCH_MODE.md)
 - [Attendees Pagination Improvement](./enhancements/ATTENDEES_PAGINATION_IMPROVEMENT.md)
 - [Attendees UI Improvements](./enhancements/ATTENDEES_UI_IMPROVEMENTS.md)
 - [Bulk Import API Key Enhancement](./enhancements/BULK_IMPORT_API_KEY_ENHANCEMENT.md)
@@ -60,6 +61,8 @@ related_code: []
 - [Checkbox Field Yes/No Format](./enhancements/CHECKBOX_FIELD_YES_NO_FORMAT.md)
 - [Credential Generation Error Acknowledgment](./enhancements/CREDENTIAL_GENERATION_ERROR_ACKNOWLEDGMENT.md)
 - [Custom Field Columns Configuration - Implementation Complete](./enhancements/CUSTOM_FIELD_COLUMNS_IMPLEMENTATION_COMPLETE.md)
+- [Custom Field Default Values](./enhancements/CUSTOM_FIELD_DEFAULT_VALUES.md)
+- [Data Refresh Monitoring Enhancement](./enhancements/DATA_REFRESH_MONITORING.md)
 - [Delete Logs Progress Indicator](./enhancements/DELETE_LOGS_PROGRESS_INDICATOR.md)
 - [Dialog Styling Consistency Update](./enhancements/DIALOG_STYLING_CONSISTENCY_UPDATE.md)
 - [Enhanced Credential Generation Error Messages - Implementation Summary](./enhancements/CREDENTIAL_GENERATION_ERROR_MESSAGES_IMPLEMENTATION.md)
@@ -73,7 +76,7 @@ related_code: []
 - [Time Until Event Display Enhancement](./enhancements/TIME_UNTIL_EVENT_DISPLAY_ENHANCEMENT.md)
 - [Universal Placeholder Support](./enhancements/UNIVERSAL_PLACEHOLDER_SUPPORT.md)
 
-### Fixes (23)
+### Fixes (38)
 
 - [Advanced Filter Dropdown Scrolling Fix](./fixes/ADVANCED_FILTER_DROPDOWN_SCROLLING_FIX.md)
 - [Appwrite Attribute Polling Fix](./fixes/APPWRITE_ATTRIBUTE_POLLING_FIX.md)
@@ -82,7 +85,13 @@ related_code: []
 - [Boolean Custom Field Data Corruption Fix](./fixes/BOOLEAN_FIELD_DATA_CORRUPTION_FIX.md)
 - [Bulk Clear Credentials Code Review Fixes](./fixes/BULK_CLEAR_CREDENTIALS_CODE_REVIEW_FIXES.md)
 - [Bulk Delete Timestamp Attribute Fix](./fixes/BULK_DELETE_TIMESTAMP_FIX.md)
+- [Code Review Fixes Session Complete](./fixes/CODE_REVIEW_FIXES_SESSION_COMPLETE.md)
 - [Complete React Optimization Summary](./fixes/COMPLETE_REACT_OPTIMIZATION_SUMMARY.md)
+- [Connection Health Invalid Attempt Validation Fix](./fixes/CONNECTION_HEALTH_INVALID_ATTEMPT_VALIDATION_FIX.md)
+- [Connection Health Stale Attempt Fix](./fixes/CONNECTION_HEALTH_STALE_ATTEMPT_FIX.md)
+- [Connection Health Status Notification Consistency Fix](./fixes/CONNECTION_HEALTH_STATUS_NOTIFICATION_CONSISTENCY_FIX.md)
+- [Connection Health Zero Max Attempts Fix](./fixes/CONNECTION_HEALTH_ZERO_MAX_ATTEMPTS_FIX.md)
+- [Connection Indicator Green State Fix](./fixes/CONNECTION_INDICATOR_GREEN_STATE_FIX.md)
 - [CRITICAL: Bulk Edit Data Loss Fix](./fixes/CRITICAL_BULK_EDIT_DATA_LOSS_FIX.md)
 - [Custom Field Advanced Filter Searchability Fix - Reapplied](./fixes/CUSTOM_FIELD_SEARCHABILITY_REAPPLIED.md)
 - [Custom Field Format Permanent Fix](./fixes/CUSTOM_FIELD_FORMAT_PERMANENT_FIX.md)
@@ -91,12 +100,21 @@ related_code: []
 - [Custom Fields API Enhancements Summary](./fixes/CUSTOM_FIELDS_ENHANCEMENTS_SUMMARY.md)
 - [Custom Fields Type Safety Implementation](./fixes/CUSTOM_FIELDS_TYPE_SAFETY_IMPLEMENTATION.md)
 - [Dashboard Aggregate Metrics Fix](./fixes/DASHBOARD_AGGREGATE_METRICS_FIX.md)
+- [Data Freshness Realtime Callback Fix](./fixes/DATA_FRESHNESS_REALTIME_CALLBACK_FIX.md)
+- [Data Refresh Monitoring Infinite Loop Fix](./fixes/DATA_REFRESH_MONITORING_INFINITE_LOOP_FIX.md)
+- [Debug Mode Button Not Appearing on Keyboard Shortcut](./fixes/DEBUG_MODE_BUTTON_VISIBILITY_FIX.md)
 - [Email Verification Security Fix](./fixes/EMAIL_VERIFICATION_SECURITY_FIX.md)
 - [Import Complete Fix Session Summary](./fixes/IMPORT_COMPLETE_FIX_SESSION_SUMMARY.md)
 - [Integration Architecture Fix](./fixes/INTEGRATION_ARCHITECTURE_FIX.md)
+- [Max Retries Alert Dynamic Configuration Fix](./fixes/MAX_RETRIES_ALERT_DYNAMIC_CONFIG_FIX.md)
 - [Memory Leak Fixes - Implementation Summary](./fixes/MEMORY_LEAK_FIXES_IMPLEMENTED.md)
 - [Multi-Select Filter Implementation Summary](./fixes/MULTI_SELECT_IMPLEMENTATION_SUMMARY.md)
+- [Page Visibility Property Test Cumulative Gap Fix](./fixes/PAGE_VISIBILITY_PROPERTY_TEST_CUMULATIVE_GAP_FIX.md)
+- [Page Visibility Property Test Division by Zero Fix](./fixes/PAGE_VISIBILITY_PROPERTY_TEST_DIVISION_BY_ZERO_FIX.md)
 - [Password Reset Feature - Implementation Summary](./fixes/PASSWORD_RESET_FEATURE_SUMMARY.md)
+- [Polling Fallback Stale State Fix](./fixes/POLLING_FALLBACK_STALE_STATE_FIX.md)
+- [Polling Fallback State and Type Safety Fix](./fixes/POLLING_FALLBACK_STATE_AND_TYPE_SAFETY_FIX.md)
+- [Realtime Subscription Fallback Logic Fix](./fixes/REALTIME_SUBSCRIPTION_FALLBACK_LOGIC_FIX.md)
 - [Roles Page Redesign Restoration](./fixes/ROLES_PAGE_REDESIGN_RESTORATION.md)
 
 ### Guides (42)
@@ -144,8 +162,9 @@ related_code: []
 - [Switchboard Canvas Configuration Guide](./guides/SWITCHBOARD_CONFIGURATION_GUIDE.md)
 - [Z-Index Layering System](./guides/Z_INDEX_LAYERING_SYSTEM.md)
 
-### Migration (16)
+### Migration (17)
 
+- [Access Control Environment Variable Migration](./migration/ACCESS_CONTROL_ENVIRONMENT_VARIABLE_MIGRATION.md)
 - [API Keys Removal Migration](./migration/API_KEYS_REMOVAL_MIGRATION.md)
 - [Appwrite Configuration Reference](./migration/APPWRITE_CONFIGURATION.md)
 - [Complete Backend Migration Guide: Supabase to Appwrite](./migration/COMPLETE_MIGRATION_GUIDE.md)
@@ -163,8 +182,9 @@ related_code: []
 - [Migration Script Validation Tests Summary](./migration/MIGRATION_VALIDATION_TESTS_SUMMARY.md)
 - [Migration Scripts Alignment Summary](./migration/MIGRATION_SCRIPTS_ALIGNMENT_SUMMARY.md)
 
-### Misc (9)
+### Misc (10)
 
+- [Advanced Filters Component Extraction and Redesign](./misc/ADVANCED_FILTERS_COMPONENT_EXTRACTION_REFACTOR.md)
 - [Bulk Operations - Canonical Implementation](./misc/BULK_OPERATIONS_CANONICAL.md)
 - [Cache Memory Management Enhancement](./misc/CACHE_MEMORY_MANAGEMENT_ENHANCEMENT.md)
 - [Event Settings Recreation Script - Safeguards Implementation](./misc/EVENT_SETTINGS_SCRIPT_SAFEGUARDS.md)
@@ -212,13 +232,15 @@ related_code: []
 
 - [Migration Lessons Learned](./migration/MIGRATION_LESSONS_LEARNED.md) - migration
 
-### Canonical (119)
+### Canonical (137)
 
 *Reference documentation, guides, and best practices*
 
 - [Access Control Export Enhancement](./enhancements/ACCESS_CONTROL_EXPORT_ENHANCEMENT.md) - enhancements
 - [Adding New Integration Guide](./guides/ADDING_NEW_INTEGRATION_GUIDE.md) - guides
 - [Advanced Filter Dropdown Scrolling Fix](./fixes/ADVANCED_FILTER_DROPDOWN_SCROLLING_FIX.md) - fixes
+- [Advanced Filters - Credential Status and Match Mode](./enhancements/ADVANCED_FILTERS_CREDENTIAL_AND_MATCH_MODE.md) - enhancements
+- [Advanced Filters Component Extraction and Redesign](./misc/ADVANCED_FILTERS_COMPONENT_EXTRACTION_REFACTOR.md) - misc
 - [API Transactions Reference](./reference/API_TRANSACTIONS_REFERENCE.md) - reference
 - [Appwrite Attribute Polling Configuration](./guides/APPWRITE_ATTRIBUTE_POLLING_CONFIGURATION.md) - guides
 - [Appwrite Attribute Polling Fix](./fixes/APPWRITE_ATTRIBUTE_POLLING_FIX.md) - fixes
@@ -250,6 +272,11 @@ related_code: []
 - [Checkbox Field Yes/No Format](./enhancements/CHECKBOX_FIELD_YES_NO_FORMAT.md) - enhancements
 - [Complete React Optimization Summary](./fixes/COMPLETE_REACT_OPTIMIZATION_SUMMARY.md) - fixes
 - [Comprehensive Transactions Analysis for CredentialStudio](./guides/TRANSACTIONS_COMPREHENSIVE_ANALYSIS.md) - guides
+- [Connection Health Invalid Attempt Validation Fix](./fixes/CONNECTION_HEALTH_INVALID_ATTEMPT_VALIDATION_FIX.md) - fixes
+- [Connection Health Stale Attempt Fix](./fixes/CONNECTION_HEALTH_STALE_ATTEMPT_FIX.md) - fixes
+- [Connection Health Status Notification Consistency Fix](./fixes/CONNECTION_HEALTH_STATUS_NOTIFICATION_CONSISTENCY_FIX.md) - fixes
+- [Connection Health Zero Max Attempts Fix](./fixes/CONNECTION_HEALTH_ZERO_MAX_ATTEMPTS_FIX.md) - fixes
+- [Connection Indicator Green State Fix](./fixes/CONNECTION_INDICATOR_GREEN_STATE_FIX.md) - fixes
 - [Credential Generation Error Acknowledgment](./enhancements/CREDENTIAL_GENERATION_ERROR_ACKNOWLEDGMENT.md) - enhancements
 - [CRITICAL: Bulk Edit Data Loss Fix](./fixes/CRITICAL_BULK_EDIT_DATA_LOSS_FIX.md) - fixes
 - [Custom Field Advanced Filter Searchability Fix - Reapplied](./fixes/CUSTOM_FIELD_SEARCHABILITY_REAPPLIED.md) - fixes
@@ -257,6 +284,7 @@ related_code: []
 - [Custom Field Columns - Visual Guide](./guides/CUSTOM_FIELD_COLUMNS_VISUAL_GUIDE.md) - guides
 - [Custom Field Columns Configuration](./guides/CUSTOM_FIELD_COLUMNS_CONFIGURATION.md) - guides
 - [Custom Field Columns Configuration - Implementation Complete](./enhancements/CUSTOM_FIELD_COLUMNS_IMPLEMENTATION_COMPLETE.md) - enhancements
+- [Custom Field Default Values](./enhancements/CUSTOM_FIELD_DEFAULT_VALUES.md) - enhancements
 - [Custom Field Format Permanent Fix](./fixes/CUSTOM_FIELD_FORMAT_PERMANENT_FIX.md) - fixes
 - [Custom Field Internal Names Implementation](./fixes/CUSTOM_FIELD_INTERNAL_NAMES_IMPLEMENTATION.md) - fixes
 - [Custom Field Storage Format Consistency Fix](./fixes/CUSTOM_FIELD_STORAGE_FORMAT_CONSISTENCY_FIX.md) - fixes
@@ -264,6 +292,10 @@ related_code: []
 - [Custom Fields API Guide](./guides/CUSTOM_FIELDS_API_GUIDE.md) - guides
 - [Custom Fields Type Safety Implementation](./fixes/CUSTOM_FIELDS_TYPE_SAFETY_IMPLEMENTATION.md) - fixes
 - [Dashboard Aggregate Metrics Fix](./fixes/DASHBOARD_AGGREGATE_METRICS_FIX.md) - fixes
+- [Data Freshness Realtime Callback Fix](./fixes/DATA_FRESHNESS_REALTIME_CALLBACK_FIX.md) - fixes
+- [Data Refresh Monitoring Enhancement](./enhancements/DATA_REFRESH_MONITORING.md) - enhancements
+- [Data Refresh Monitoring Infinite Loop Fix](./fixes/DATA_REFRESH_MONITORING_INFINITE_LOOP_FIX.md) - fixes
+- [Debug Mode Button Not Appearing on Keyboard Shortcut](./fixes/DEBUG_MODE_BUTTON_VISIBILITY_FIX.md) - fixes
 - [Delete Logs Progress Indicator](./enhancements/DELETE_LOGS_PROGRESS_INDICATOR.md) - enhancements
 - [Dialog Styling Consistency Update](./enhancements/DIALOG_STYLING_CONSISTENCY_UPDATE.md) - enhancements
 - [Documentation Action Plan](./DOCUMENTATION_ACTION_PLAN.md) - docs
@@ -302,6 +334,7 @@ related_code: []
 - [Link User Integration Guide](./misc/LINK_USER_INTEGRATION.md) - misc
 - [Log Settings to Action Mapping](./reference/LOG_SETTINGS_MAPPING.md) - reference
 - [Log Truncation Utility Refactor](./misc/LOG_TRUNCATION_REFACTOR.md) - misc
+- [Max Retries Alert Dynamic Configuration Fix](./fixes/MAX_RETRIES_ALERT_DYNAMIC_CONFIG_FIX.md) - fixes
 - [Memory Leak Fixes - Implementation Summary](./fixes/MEMORY_LEAK_FIXES_IMPLEMENTED.md) - fixes
 - [Memory Optimization Guide](./guides/MEMORY_OPTIMIZATION_GUIDE.md) - guides
 - [Mobile API Reference](./reference/MOBILE_API_REFERENCE.md) - reference
@@ -311,16 +344,21 @@ related_code: []
 - [Multi-Tenancy Setup Guide](./guides/MULTI_TENANCY_SETUP_GUIDE.md) - guides
 - [Notes Export and Text Sanitization Enhancement](./enhancements/NOTES_EXPORT_SANITIZATION.md) - enhancements
 - [Notes Field Credential Status Enhancement](./enhancements/NOTES_FIELD_CREDENTIAL_STATUS_ENHANCEMENT.md) - enhancements
+- [Page Visibility Property Test Cumulative Gap Fix](./fixes/PAGE_VISIBILITY_PROPERTY_TEST_CUMULATIVE_GAP_FIX.md) - fixes
+- [Page Visibility Property Test Division by Zero Fix](./fixes/PAGE_VISIBILITY_PROPERTY_TEST_DIVISION_BY_ZERO_FIX.md) - fixes
 - [Password Reset Admin Guide](./guides/PASSWORD_RESET_ADMIN_GUIDE.md) - guides
 - [Password Reset Feature - Implementation Summary](./fixes/PASSWORD_RESET_FEATURE_SUMMARY.md) - fixes
 - [Performance Best Practices](./guides/PERFORMANCE_BEST_PRACTICES.md) - guides
 - [Phase 3 Automation Setup Complete](./PHASE_3_AUTOMATION_SETUP_COMPLETE.md) - docs
 - [Phase 6 Complete Final Report](./PHASE_6_COMPLETE_FINAL_REPORT.md) - docs
 - [Photo Service Integration Guide](./guides/PHOTO_SERVICE_INTEGRATION_GUIDE.md) - guides
+- [Polling Fallback Stale State Fix](./fixes/POLLING_FALLBACK_STALE_STATE_FIX.md) - fixes
+- [Polling Fallback State and Type Safety Fix](./fixes/POLLING_FALLBACK_STATE_AND_TYPE_SAFETY_FIX.md) - fixes
 - [Preventing Performance Regressions](./guides/PREVENTING_PERFORMANCE_REGRESSIONS.md) - guides
 - [Printable Field Configuration Change Messaging](./enhancements/PRINTABLE_FIELD_CONFIGURATION_MESSAGING.md) - enhancements
 - [Printable Field Tracking Implementation](./enhancements/PRINTABLE_FIELD_TRACKING_IMPLEMENTATION.md) - enhancements
 - [Printable Fields User Guide](./guides/PRINTABLE_FIELDS_USER_GUIDE.md) - guides
+- [Realtime Subscription Fallback Logic Fix](./fixes/REALTIME_SUBSCRIPTION_FALLBACK_LOGIC_FIX.md) - fixes
 - [Role User Count Caching Implementation](./misc/ROLE_USER_COUNT_CACHE.md) - misc
 - [Roles Page Redesign Restoration](./fixes/ROLES_PAGE_REDESIGN_RESTORATION.md) - fixes
 - [SweetAlert2 Best Practices Guide](./guides/SWEETALERT_BEST_PRACTICES_GUIDE.md) - guides
@@ -336,10 +374,11 @@ related_code: []
 - [User Management Enhancement for Appwrite](./misc/USER_MANAGEMENT_ENHANCEMENT.md) - misc
 - [Z-Index Layering System](./guides/Z_INDEX_LAYERING_SYSTEM.md) - guides
 
-### Runbook (22)
+### Runbook (23)
 
 *Operational runbooks and procedures*
 
+- [Access Control Environment Variable Migration](./migration/ACCESS_CONTROL_ENVIRONMENT_VARIABLE_MIGRATION.md) - migration
 - [API Keys Removal Migration](./migration/API_KEYS_REMOVAL_MIGRATION.md) - migration
 - [Appwrite Configuration Reference](./migration/APPWRITE_CONFIGURATION.md) - migration
 - [Automated Documentation Sync Guide](./AUTOMATED_DOCS_SYNC_GUIDE.md) - docs
@@ -363,13 +402,14 @@ related_code: []
 - [Quick Test Guide](./testing/QUICK_TEST_GUIDE.md) - testing
 - [Running Integration Tests](./testing/RUNNING_INTEGRATION_TESTS.md) - testing
 
-### Worklog (20)
+### Worklog (21)
 
 *Work logs and progress tracking (high-churn, frequent updates)*
 
 - [Attendee Management API Tests Summary](./testing/ATTENDEE_API_TESTS_SUMMARY.md) - testing
 - [Auth User Linking Integration Tests Summary](./testing/AUTH_USER_LINKING_INTEGRATION_TESTS_SUMMARY.md) - testing
 - [Broken Links Action Items](./BROKEN_LINKS_ACTION_ITEMS.md) - docs
+- [Code Review Fixes Session Complete](./fixes/CODE_REVIEW_FIXES_SESSION_COMPLETE.md) - fixes
 - [Custom Field API Tests Summary](./testing/CUSTOM_FIELD_API_TESTS_SUMMARY.md) - testing
 - [Custom Field Columns Configuration - Testing Checklist](./testing/CUSTOM_FIELD_COLUMNS_TESTING_CHECKLIST.md) - testing
 - [End-to-End Tests Summary](./testing/E2E_TESTS_SUMMARY.md) - testing
