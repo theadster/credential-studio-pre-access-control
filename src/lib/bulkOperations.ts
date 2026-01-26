@@ -9,6 +9,51 @@
  */
 
 import { TablesDB, ID, Query } from 'node-appwrite';
+import { updateFields, FIELD_GROUPS, FieldGroupName } from './fieldUpdate';
+
+/**
+ * Detect if an error is transient/retryable
+ * Transient errors include network timeouts, connection resets, rate limits, etc.
+ */
+function isTransientError(error: any): boolean {
+  // Check for explicit transient flag
+  if (error.isTransient === true) {
+    return true;
+  }
+
+  // Check error code
+  const code = error.code || error.message || '';
+  const transientCodes = [
+    'ECONNRESET',
+    'ETIMEDOUT',
+    'ECONNREFUSED',
+    'EHOSTUNREACH',
+    'ENETUNREACH',
+    'ENOTFOUND',
+    'ECONNABORTED',
+  ];
+
+  if (transientCodes.some(transientCode => code.includes(transientCode))) {
+    return true;
+  }
+
+  // Check HTTP status codes for rate limiting and server errors
+  const status = error.status || error.statusCode || error.code;
+  if (status) {
+    // 429 = Too Many Requests (rate limit)
+    // 5xx = Server errors (transient)
+    if (status === 429 || (status >= 500 && status < 600)) {
+      return true;
+    }
+  }
+
+  // Check for Appwrite-specific transient errors
+  if (error.type === 'service_unavailable' || error.type === 'rate_limit_exceeded') {
+    return true;
+  }
+
+  return false;
+}
 
 /**
  * Configuration for bulk edit operation using TablesDB
@@ -31,6 +76,10 @@ interface BulkEditConfig {
     /** Additional details to log */
     details: any;
   };
+  /** Optional: Use field-specific updates in fallback mode to prevent overwriting concurrent changes */
+  useFieldSpecificUpdates?: boolean;
+  /** Optional: Field groups to update (used with useFieldSpecificUpdates) */
+  fieldGroups?: FieldGroupName[];
 }
 
 /**
@@ -70,6 +119,8 @@ export async function bulkEditWithFallback(
   updatedCount: number;
   usedTransactions: boolean;
   batchCount?: number;
+  errors?: Array<{ id: string; error: string; retryable?: boolean }>;
+  conflictCount?: number;
 }> {
   // Starting atomic bulk edit operation
 
@@ -148,23 +199,82 @@ export async function bulkEditWithFallback(
     // Atomic operation failed, falling back to sequential updates
 
     let updatedCount = 0;
-    const errors: Array<{ id: string; error: string }> = [];
+    const errors: Array<{ id: string; error: string; retryable?: boolean }> = [];
+    let conflictCount = 0;
 
     for (const update of config.updates) {
       try {
-        await databases.updateDocument(
-          config.databaseId,
-          config.tableId,
-          update.rowId,
-          update.data
-        );
-        updatedCount++;
+        // Use field-specific updates with optimistic locking if enabled
+        // This prevents overwriting concurrent changes (e.g., photo uploads during bulk edit)
+        if (config.useFieldSpecificUpdates) {
+          // Determine which fields to update based on fieldGroups config or data keys
+          let fieldsToUpdate: string[];
+          
+          if (config.fieldGroups && config.fieldGroups.length > 0) {
+            // Derive fields from the specified field groups
+            const fieldSet = new Set<string>();
+            for (const groupName of config.fieldGroups) {
+              const groupFields = FIELD_GROUPS[groupName];
+              if (groupFields) {
+                for (const field of groupFields) {
+                  fieldSet.add(field);
+                }
+              }
+            }
+            // Only include fields that are actually in the update data
+            fieldsToUpdate = Object.keys(update.data).filter(key => fieldSet.has(key));
+            // If no overlap, fall back to all data keys
+            if (fieldsToUpdate.length === 0) {
+              fieldsToUpdate = Object.keys(update.data);
+            }
+          } else {
+            // Fall back to using all keys from update data
+            fieldsToUpdate = Object.keys(update.data);
+          }
+          
+          const result = await updateFields(
+            databases,
+            config.databaseId,
+            config.tableId,
+            update.rowId,
+            update.data,
+            {
+              fields: fieldsToUpdate,
+              preserveOthers: true,
+              incrementVersion: true,
+            }
+          );
+
+          if (result.success) {
+            updatedCount++;
+          } else {
+            // Optimistic lock conflict - record as retryable error
+            conflictCount++;
+            errors.push({
+              id: update.rowId,
+              error: result.error?.message || 'Version conflict - record was modified by another operation',
+              retryable: true,
+            });
+          }
+        } else {
+          // Standard update without optimistic locking
+          await databases.updateDocument(
+            config.databaseId,
+            config.tableId,
+            update.rowId,
+            update.data
+          );
+          updatedCount++;
+        }
 
         // Delay to avoid rate limiting
         await new Promise(resolve => setTimeout(resolve, 50));
       } catch (updateError: any) {
-
-        errors.push({ id: update.rowId, error: updateError.message });
+        errors.push({
+          id: update.rowId,
+          error: updateError.message,
+          retryable: isTransientError(updateError),
+        });
       }
     }
 
@@ -177,7 +287,9 @@ export async function bulkEditWithFallback(
         details: JSON.stringify({
           ...config.auditLog.details,
           usedFallback: true,
-          errors: errors.length
+          errors: errors.length,
+          conflictCount,
+          usedFieldSpecificUpdates: config.useFieldSpecificUpdates || false,
         })
       };
       await databases.createDocument(
@@ -195,7 +307,9 @@ export async function bulkEditWithFallback(
     return {
       updatedCount,
       usedTransactions: false, // Used fallback
-      batchCount: undefined
+      batchCount: undefined,
+      errors,
+      conflictCount,
     };
   }
 }

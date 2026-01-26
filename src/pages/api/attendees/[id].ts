@@ -5,6 +5,14 @@ import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
 import { parseCustomFieldValues } from '@/util/customFields';
 import { shouldLog } from '@/lib/logSettings';
 import { normalizeCustomFieldValues, stringifyCustomFieldValues } from '@/lib/customFieldNormalization';
+import { updatePhotoFields } from '@/lib/fieldUpdate';
+import { 
+  ConcurrencyErrorCode, 
+  createConcurrencyErrorResponse, 
+  getHttpStatusForError,
+  mapLockErrorToCode 
+} from '@/lib/concurrencyErrors';
+import { OperationType } from '@/lib/conflictResolver';
 
 /**
  * Attendee Update API Endpoint
@@ -187,6 +195,109 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         }
 
         const { firstName, lastName, barcodeNumber, notes, photoUrl, customFieldValues, validFrom, validUntil, accessEnabled } = req.body;
+
+        /**
+         * Photo-Only Update Optimization
+         * 
+         * When only the photoUrl field is being updated, use the FieldUpdateService
+         * to ensure we don't overwrite credential fields that may have been modified
+         * by concurrent operations (e.g., bulk credential generation).
+         * 
+         * This prevents the race condition where:
+         * 1. User A starts bulk credential generation
+         * 2. User B uploads a photo to an attendee
+         * 3. User A's credential generation overwrites User B's photo
+         * 
+         * By using field-specific updates with optimistic locking, both operations
+         * can succeed without data loss.
+         */
+        const isPhotoOnlyUpdate = 
+          photoUrl !== undefined &&
+          firstName === undefined &&
+          lastName === undefined &&
+          barcodeNumber === undefined &&
+          notes === undefined &&
+          customFieldValues === undefined &&
+          validFrom === undefined &&
+          validUntil === undefined &&
+          accessEnabled === undefined;
+
+        if (isPhotoOnlyUpdate) {
+          console.log('[Attendee Update] Photo-only update detected, using field-specific update');
+          
+          // Fetch the document BEFORE update to capture the old photoUrl for logging
+          let oldPhotoUrl: string | null = null;
+          if (await shouldLog('attendeeUpdate')) {
+            try {
+              const preUpdateDoc = await databases.getDocument(dbId, attendeesCollectionId, id);
+              oldPhotoUrl = (preUpdateDoc.photoUrl as string) || null;
+            } catch (fetchError) {
+              console.error('[Attendee Update] Failed to fetch pre-update document for logging:', fetchError);
+            }
+          }
+          
+          const result = await updatePhotoFields(
+            databases,
+            dbId,
+            attendeesCollectionId,
+            id,
+            { photoUrl }
+          );
+
+          if (!result.success) {
+            console.error('[Attendee Update] Photo field update failed:', result.error);
+            const errorCode = result.error?.type 
+              ? mapLockErrorToCode(result.error.type) 
+              : ConcurrencyErrorCode.MAX_RETRIES_EXCEEDED;
+            const errorResponse = createConcurrencyErrorResponse({
+              code: errorCode,
+              documentId: id,
+              operationType: OperationType.PHOTO_UPLOAD,
+              retriesAttempted: typeof result.retriesUsed === 'number' ? result.retriesUsed : 0,
+              conflictingFields: ['photoUrl'],
+            });
+            return res.status(getHttpStatusForError(errorCode)).json(errorResponse);
+          }
+
+          // Log the photo update if enabled (respecting user logging settings)
+          if (await shouldLog('attendeeUpdate')) {
+            try {
+              const hadPhoto = oldPhotoUrl && oldPhotoUrl !== '';
+              const hasPhoto = photoUrl && photoUrl !== '';
+              const changeDetails = [`Photo: ${hadPhoto ? 'has photo' : 'no photo'} → ${hasPhoto ? 'has photo' : 'no photo'}`];
+
+              await databases.createDocument(
+                dbId,
+                logsCollectionId,
+                ID.unique(),
+                {
+                  userId: user.$id,
+                  attendeeId: id,
+                  action: 'update',
+                  details: JSON.stringify({
+                    changes: changeDetails,
+                    timestamp: new Date().toISOString()
+                  })
+                }
+              );
+            } catch (logError) {
+              console.error('[Attendee Update] Failed to log photo update:', logError);
+            }
+          }
+
+          // Return the updated attendee
+          if (!result.data) {
+            return res.status(500).json({ error: 'Photo update succeeded but no data returned' });
+          }
+          const updatedAttendee = result.data;
+          const customFieldValuesArray = parseCustomFieldValues(updatedAttendee.customFieldValues);
+
+          return res.status(200).json({
+            ...updatedAttendee,
+            id: updatedAttendee.$id,
+            customFieldValues: customFieldValuesArray
+          });
+        }
 
         // Check if attendee exists and get current values BEFORE making changes
         let existingAttendee;

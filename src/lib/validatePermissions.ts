@@ -22,6 +22,9 @@ const ALLOWED_PERMISSION_KEYS = [
   'logs',
   'system',
   'monitoring',
+  'accessControl',
+  'approvalProfiles',
+  'scanLogs',
   'all'
 ];
 

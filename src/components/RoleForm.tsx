@@ -263,10 +263,31 @@ export default function RoleForm({ isOpen, onClose, onSave, role }: RoleFormProp
 
   useEffect(() => {
     if (role) {
+      // Ensure permissions are properly parsed and merged
+      let rolePermissions = role.permissions;
+      
+      // If permissions is a string, parse it
+      if (typeof rolePermissions === 'string') {
+        try {
+          rolePermissions = JSON.parse(rolePermissions);
+        } catch {
+          rolePermissions = {};
+        }
+      }
+      
+      // Merge with defaults, ensuring all keys from defaultPermissions are present
+      const mergedPermissions: UserPermissions = {};
+      for (const key of Object.keys(defaultPermissions)) {
+        mergedPermissions[key as keyof UserPermissions] = {
+          ...defaultPermissions[key as keyof UserPermissions],
+          ...(rolePermissions[key as keyof UserPermissions] || {})
+        };
+      }
+      
       setFormData({
         name: role.name,
         description: role.description || "",
-        permissions: { ...defaultPermissions, ...role.permissions }
+        permissions: mergedPermissions
       });
     } else {
       setFormData({

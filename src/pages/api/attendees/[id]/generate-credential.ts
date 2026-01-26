@@ -1,10 +1,18 @@
 import { NextApiResponse } from 'next';
 import { createSessionClient } from '@/lib/appwrite';
-import { Query, ID } from 'appwrite';
+import { Query, ID, Models } from 'appwrite';
 import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
 import { getSwitchboardIntegration } from '@/lib/appwrite-integrations';
 import { shouldLog } from '@/lib/logSettings';
 import { createIncrement, dateOperators } from '@/lib/operators';
+import { updateCredentialFields } from '@/lib/fieldUpdate';
+import { 
+  ConcurrencyErrorCode, 
+  createConcurrencyErrorResponse, 
+  getHttpStatusForError,
+  mapLockErrorToCode 
+} from '@/lib/concurrencyErrors';
+import { OperationType } from '@/lib/conflictResolver';
 
 // Helper function to escape regex special characters
 const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -432,9 +440,10 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       }
 
       // Update the attendee record with the credential URL and timestamp
-      // Use atomic operators for count and timestamp
-      let updatedAttendee;
+      // Use field-specific update to prevent overwriting photo/profile fields during concurrent operations
+      let updatedAttendee: any;
       try {
+        // First try with atomic operators
         updatedAttendee = await databases.updateDocument(
           dbId,
           attendeesCollectionId,
@@ -454,25 +463,35 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
            operatorError.message.includes('Increment'));
         
         if (isOperatorError) {
-          console.error('Operator not supported, falling back to traditional update:', operatorError);
-          const now = new Date().toISOString();
+          console.error('Operator not supported, falling back to field-specific update with optimistic locking:', operatorError);
           
-          // Use the already-fetched attendee from line 43 to avoid race condition
-          const currentCount = typeof attendee.credentialCount === 'number'
-            ? attendee.credentialCount
-            : 0;
-          
-          updatedAttendee = await databases.updateDocument(
+          // Use FieldUpdateService for safe concurrent updates
+          // This ensures we only update credential fields and don't overwrite photo/profile changes
+          const result = await updateCredentialFields(
+            databases,
             dbId,
             attendeesCollectionId,
             id,
-            {
-              credentialUrl,
-              credentialGeneratedAt: now,
-              credentialCount: currentCount + 1,
-              lastCredentialGenerated: now
-            }
+            { credentialUrl }
           );
+          
+          if (!result.success) {
+            // If optimistic locking failed after retries, return error with user-friendly message
+            console.error('Field update failed after retries:', result.error);
+            const errorCode = result.error?.type 
+              ? mapLockErrorToCode(result.error.type) 
+              : ConcurrencyErrorCode.MAX_RETRIES_EXCEEDED;
+            const errorResponse = createConcurrencyErrorResponse({
+              code: errorCode,
+              documentId: id,
+              operationType: OperationType.CREDENTIAL_GENERATION,
+              retriesAttempted: result.retriesUsed,
+              conflictingFields: ['credentialUrl', 'credentialGeneratedAt'],
+            });
+            return res.status(getHttpStatusForError(errorCode)).json(errorResponse);
+          }
+          
+          updatedAttendee = result.data;
         } else {
           // Re-throw non-operator errors
           throw operatorError;

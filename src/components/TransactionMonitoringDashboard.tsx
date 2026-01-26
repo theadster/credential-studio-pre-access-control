@@ -5,7 +5,7 @@
  * This component is intended for administrators to monitor transaction health.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -14,11 +14,24 @@ import {
   AlertTriangle, 
   CheckCircle2, 
   Clock, 
-  RefreshCw, 
+  GitMerge, 
+  RefreshCw,
+  RotateCcw,
   TrendingUp,
   XCircle,
-  Zap
+  Zap,
 } from 'lucide-react';
+
+interface ConcurrencyConflictMetrics {
+  totalConflicts: number;
+  resolvedConflicts: number;
+  failedConflicts: number;
+  resolutionSuccessRate: number;
+  averageRetriesPerConflict: number;
+  conflictsByOperationType: Record<string, number>;
+  conflictsByStrategy: Record<string, number>;
+  conflictsByType: Record<string, number>;
+}
 
 interface TransactionMetrics {
   totalTransactions: number;
@@ -38,6 +51,7 @@ interface TransactionMetrics {
   rollbackFailures: number;
   fallbackUsageCount: number;
   fallbackUsageRate: number;
+  concurrencyConflicts?: ConcurrencyConflictMetrics;
 }
 
 interface Alert {
@@ -404,6 +418,172 @@ export function TransactionMonitoringDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Concurrency Conflict Metrics Section */}
+      {metrics.concurrencyConflicts && metrics.concurrencyConflicts.totalConflicts > 0 && (
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <GitMerge className="h-5 w-5" />
+            Concurrency Conflict Statistics
+          </h3>
+          
+          {/* Conflict Overview Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Total Conflicts</p>
+                    <p className="text-3xl font-bold">{metrics.concurrencyConflicts.totalConflicts}</p>
+                  </div>
+                  <AlertTriangle className="h-8 w-8 text-yellow-600" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Resolution Rate</p>
+                    <p className={`text-3xl font-bold ${metrics.concurrencyConflicts.resolutionSuccessRate >= 90 ? 'text-green-600' : metrics.concurrencyConflicts.resolutionSuccessRate >= 75 ? 'text-yellow-600' : 'text-red-600'}`}>
+                      {metrics.concurrencyConflicts.resolutionSuccessRate.toFixed(1)}%
+                    </p>
+                  </div>
+                  <CheckCircle2 className={`h-8 w-8 ${metrics.concurrencyConflicts.resolutionSuccessRate >= 90 ? 'text-green-600' : metrics.concurrencyConflicts.resolutionSuccessRate >= 75 ? 'text-yellow-600' : 'text-red-600'}`} />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Resolved</p>
+                    <p className="text-3xl font-bold text-green-600">{metrics.concurrencyConflicts.resolvedConflicts}</p>
+                  </div>
+                  <GitMerge className="h-8 w-8 text-green-600" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Avg Retries</p>
+                    <p className={`text-3xl font-bold ${metrics.concurrencyConflicts.averageRetriesPerConflict > 2 ? 'text-yellow-600' : 'text-green-600'}`}>
+                      {metrics.concurrencyConflicts.averageRetriesPerConflict.toFixed(1)}
+                    </p>
+                  </div>
+                  <RotateCcw className="h-8 w-8 text-muted-foreground" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Conflict Breakdown Cards */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Conflicts by Operation Type */}
+            <Card>
+              <CardHeader>
+                <CardTitle>By Operation Type</CardTitle>
+                <CardDescription>Which operations caused conflicts</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {(() => {
+                    const visibleByOperation = Object.entries(metrics.concurrencyConflicts.conflictsByOperationType)
+                      .filter(([_, count]) => count > 0)
+                      .sort(([, a], [, b]) => b - a);
+                    return (
+                      <>
+                        {visibleByOperation.map(([type, count]) => (
+                          <div key={type} className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground">{type.replace(/_/g, ' ')}</span>
+                            <span className="font-medium">{count}</span>
+                          </div>
+                        ))}
+                        {visibleByOperation.length === 0 && (
+                          <p className="text-sm text-muted-foreground text-center py-4">
+                            No data available
+                          </p>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Conflicts by Resolution Strategy */}
+            <Card>
+              <CardHeader>
+                <CardTitle>By Resolution Strategy</CardTitle>
+                <CardDescription>How conflicts were resolved</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {(() => {
+                    const visibleByStrategy = Object.entries(metrics.concurrencyConflicts.conflictsByStrategy)
+                      .filter(([_, count]) => count > 0)
+                      .sort(([, a], [, b]) => b - a);
+                    return (
+                      <>
+                        {visibleByStrategy.map(([strategy, count]) => (
+                          <div key={strategy} className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground">{strategy}</span>
+                            <Badge variant={strategy === 'MERGE' ? 'default' : strategy === 'RETRY' ? 'secondary' : 'outline'}>
+                              {count}
+                            </Badge>
+                          </div>
+                        ))}
+                        {visibleByStrategy.length === 0 && (
+                          <p className="text-sm text-muted-foreground text-center py-4">
+                            No data available
+                          </p>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Conflicts by Type */}
+            <Card>
+              <CardHeader>
+                <CardTitle>By Conflict Type</CardTitle>
+                <CardDescription>Types of conflicts detected</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {(() => {
+                    const visibleByType = Object.entries(metrics.concurrencyConflicts.conflictsByType)
+                      .filter(([_, count]) => count > 0)
+                      .sort(([, a], [, b]) => b - a);
+                    return (
+                      <>
+                        {visibleByType.map(([type, count]) => (
+                          <div key={type} className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground">{type.replace(/_/g, ' ')}</span>
+                            <span className="font-medium">{count}</span>
+                          </div>
+                        ))}
+                        {visibleByType.length === 0 && (
+                          <p className="text-sm text-muted-foreground text-center py-4">
+                            No data available
+                          </p>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -14,6 +14,7 @@ import {
   logPerformanceMetrics 
 } from '@/lib/operatorPerformance';
 import { normalizeCustomFieldValues, stringifyCustomFieldValues } from '@/lib/customFieldNormalization';
+import { generateOperationId, BulkOperationType } from '@/lib/bulkOperationBroadcast';
 
 export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   if (req.method !== 'POST') {
@@ -367,10 +368,13 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
     // Execute bulk edit with transaction and fallback support
     // Use admin TablesDB client for bulk operations (requires API key)
+    // Enable field-specific updates to prevent overwriting concurrent changes
+    // (e.g., photo uploads during bulk edit won't be lost)
     const result = await bulkEditWithFallback(adminTablesDB, databases, {
       databaseId: dbId,
       tableId: attendeesCollectionId,
       updates,
+      useFieldSpecificUpdates: true, // Use optimistic locking in fallback mode
       auditLog: {
         tableId: logsCollectionId,
         userId: user.$id,
@@ -392,35 +396,59 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     performanceMetrics.batchCount = result.batchCount;
     logPerformanceMetrics(performanceMetrics);
 
+    // Merge errors from preparation phase and execution phase
+    const allErrors = [
+      ...errors,
+      ...(result.errors || []).map(e => ({
+        id: e.id,
+        error: e.error,
+        retryable: e.retryable,
+      })),
+    ];
+
     // Determine appropriate status code and message
-    const hasFailures = errors.length > 0;
+    const hasFailures = allErrors.length > 0;
     const successCount = result.updatedCount;
+    const conflictCount = result.conflictCount || 0;
 
     let statusCode = 200;
     let message = 'Attendees updated successfully';
 
     if (hasFailures && successCount > 0) {
       statusCode = 207; // Multi-Status (partial success)
-      message = `Partially successful: ${successCount} updated, ${errors.length} failed`;
+      message = `Partially successful: ${successCount} updated, ${allErrors.length} failed`;
+      if (conflictCount > 0) {
+        message += ` (${conflictCount} conflicts)`;
+      }
     } else if (hasFailures && successCount === 0) {
       statusCode = 207; // Multi-Status (all failed)
       message = 'All attendee updates failed';
     }
+
+    // Generate operation ID for broadcast
+    const operationId = generateOperationId();
 
     res.status(statusCode).json({
       message,
       updatedCount: result.updatedCount,
       usedTransactions: result.usedTransactions,
       batchCount: result.batchCount,
-      errors,
+      errors: allErrors,
       totalRequested,
       successCount,
-      failureCount: errors.length,
+      failureCount: allErrors.length,
+      conflictCount,
       performance: {
         duration: performanceMetrics.duration,
         operationsPerSecond: performanceMetrics.operationsPerSecond,
         operatorUsageCount: performanceMetrics.operatorUsageCount,
         traditionalUpdateCount: performanceMetrics.traditionalUpdateCount
+      },
+      // Broadcast info for client-side notification (Requirement 5.5)
+      broadcast: {
+        operationId,
+        operationType: 'bulk_edit' as BulkOperationType,
+        affectedIds: updates.map(u => u.rowId),
       }
     });
 

@@ -64,6 +64,38 @@ export interface TransactionMetrics {
   
   /** Fallback usage rate as a percentage (0-100) */
   fallbackUsageRate: number;
+  
+  /** Concurrency conflict metrics */
+  concurrencyConflicts?: ConcurrencyConflictMetrics;
+}
+
+/**
+ * Metrics specific to concurrency conflicts
+ */
+export interface ConcurrencyConflictMetrics {
+  /** Total number of conflicts detected */
+  totalConflicts: number;
+  
+  /** Number of conflicts successfully resolved */
+  resolvedConflicts: number;
+  
+  /** Number of conflicts that failed to resolve */
+  failedConflicts: number;
+  
+  /** Conflict resolution success rate as a percentage (0-100) */
+  resolutionSuccessRate: number;
+  
+  /** Average retries per conflict */
+  averageRetriesPerConflict: number;
+  
+  /** Conflicts by operation type */
+  conflictsByOperationType: Record<string, number>;
+  
+  /** Conflicts by resolution strategy */
+  conflictsByStrategy: Record<string, number>;
+  
+  /** Conflicts by conflict type */
+  conflictsByType: Record<string, number>;
 }
 
 /**
@@ -577,3 +609,423 @@ export function logMetricsSummary(timeWindowMs?: number): void {
  * Export the TransactionMonitor class for testing
  */
 export { TransactionMonitor };
+
+
+// ============================================================================
+// Concurrency Conflict Monitoring
+// ============================================================================
+
+/**
+ * Record for tracking individual concurrency conflicts
+ */
+export interface ConflictRecord {
+  /** Unique conflict ID */
+  conflictId: string;
+  
+  /** Document ID affected by the conflict */
+  documentId: string;
+  
+  /** Type of operation that caused the conflict */
+  operationType: string;
+  
+  /** Type of conflict (VERSION_MISMATCH, FIELD_COLLISION, TRANSIENT) */
+  conflictType: string;
+  
+  /** Expected version */
+  expectedVersion: number;
+  
+  /** Actual version found */
+  actualVersion: number;
+  
+  /** Fields involved in the conflict */
+  conflictingFields: string[];
+  
+  /** Resolution strategy used */
+  resolutionStrategy: string;
+  
+  /** Whether resolution was successful */
+  resolutionSuccess: boolean;
+  
+  /** Number of retries used */
+  retriesUsed: number;
+  
+  /** Timestamp when conflict was detected */
+  timestamp: number;
+}
+
+/**
+ * Alert configuration for conflict monitoring
+ */
+export interface ConflictAlertConfig {
+  /** Alert when conflict rate exceeds this per minute */
+  maxConflictsPerMinute: number;
+  
+  /** Alert when resolution success rate drops below this percentage */
+  minResolutionSuccessRate: number;
+  
+  /** Alert when average retries per conflict exceeds this */
+  maxAverageRetries: number;
+}
+
+/**
+ * Conflict-specific alert
+ */
+export interface ConflictAlert {
+  /** Alert severity level */
+  severity: 'warning' | 'error' | 'critical';
+  
+  /** Alert type */
+  type: 'conflict_rate' | 'resolution_rate' | 'retry_rate';
+  
+  /** Alert message */
+  message: string;
+  
+  /** Current value that triggered the alert */
+  currentValue: number;
+  
+  /** Threshold that was exceeded */
+  threshold: number;
+  
+  /** Timestamp when alert was triggered */
+  timestamp: number;
+}
+
+/**
+ * In-memory conflict monitoring store
+ * 
+ * TODO: Implement persistent storage for conflict logs to meet 30-day retention requirement.
+ * Current implementation uses in-memory storage with a 5,000-record cap, which:
+ * - Does not survive application restarts
+ * - Cannot guarantee 30-day retention
+ * - May lose records when capacity is exceeded
+ * 
+ * Required work:
+ * 1. Persist conflict records to durable storage (database collection or S3)
+ * 2. Implement TTL/retention logic to keep logs for >=30 days
+ * 3. Add cleanup job to remove logs older than retention period
+ * 4. Update monitoring dashboard to query persistent storage
+ * 5. Maintain in-memory cache for performance while persisting to storage
+ */
+class ConflictMonitor {
+  private records: ConflictRecord[] = [];
+  private maxRecords: number = 5000; // Keep last 5k conflicts
+  private alertConfig: ConflictAlertConfig;
+  private alerts: ConflictAlert[] = [];
+  private conflictIdCounter: number = 0;
+  
+  constructor(alertConfig?: Partial<ConflictAlertConfig>) {
+    this.alertConfig = {
+      maxConflictsPerMinute: 10,
+      minResolutionSuccessRate: 90,
+      maxAverageRetries: 2,
+      ...alertConfig
+    };
+  }
+  
+  /**
+   * Record a conflict
+   */
+  recordConflict(record: Omit<ConflictRecord, 'conflictId' | 'timestamp'>): void {
+    const fullRecord: ConflictRecord = {
+      ...record,
+      conflictId: `conflict-${++this.conflictIdCounter}`,
+      timestamp: Date.now()
+    };
+    
+    this.records.push(fullRecord);
+    
+    // Trim old records if we exceed max
+    if (this.records.length > this.maxRecords) {
+      this.records = this.records.slice(-this.maxRecords);
+    }
+    
+    // Log the conflict
+    this.logConflict(fullRecord);
+    
+    // Check for alerts
+    this.checkAlerts();
+  }
+  
+  /**
+   * Log conflict details
+   */
+  private logConflict(record: ConflictRecord): void {
+    const status = record.resolutionSuccess ? '✓' : '✗';
+    const retries = record.retriesUsed > 0 ? ` [RETRIES: ${record.retriesUsed}]` : '';
+    
+    console.log(
+      `[ConflictMonitor] ${status} ${record.operationType} ` +
+      `(${record.conflictType}, v${record.expectedVersion}→v${record.actualVersion})` +
+      ` [${record.resolutionStrategy}]${retries}`
+    );
+  }
+  
+  /**
+   * Get conflict metrics
+   */
+  getMetrics(timeWindowMs?: number): ConcurrencyConflictMetrics {
+    const now = Date.now();
+    const records = timeWindowMs
+      ? this.records.filter(r => now - r.timestamp < timeWindowMs)
+      : this.records;
+    
+    if (records.length === 0) {
+      return this.getEmptyMetrics();
+    }
+    
+    const resolved = records.filter(r => r.resolutionSuccess).length;
+    const failed = records.filter(r => !r.resolutionSuccess).length;
+    const totalRetries = records.reduce((sum, r) => sum + r.retriesUsed, 0);
+    
+    // Count by operation type
+    const conflictsByOperationType: Record<string, number> = {};
+    records.forEach(r => {
+      conflictsByOperationType[r.operationType] = (conflictsByOperationType[r.operationType] || 0) + 1;
+    });
+    
+    // Count by resolution strategy
+    const conflictsByStrategy: Record<string, number> = {};
+    records.forEach(r => {
+      conflictsByStrategy[r.resolutionStrategy] = (conflictsByStrategy[r.resolutionStrategy] || 0) + 1;
+    });
+    
+    // Count by conflict type
+    const conflictsByType: Record<string, number> = {};
+    records.forEach(r => {
+      conflictsByType[r.conflictType] = (conflictsByType[r.conflictType] || 0) + 1;
+    });
+    
+    return {
+      totalConflicts: records.length,
+      resolvedConflicts: resolved,
+      failedConflicts: failed,
+      resolutionSuccessRate: records.length > 0 ? (resolved / records.length) * 100 : 0,
+      averageRetriesPerConflict: records.length > 0 ? totalRetries / records.length : 0,
+      conflictsByOperationType,
+      conflictsByStrategy,
+      conflictsByType
+    };
+  }
+  
+  /**
+   * Get empty metrics
+   */
+  private getEmptyMetrics(): ConcurrencyConflictMetrics {
+    return {
+      totalConflicts: 0,
+      resolvedConflicts: 0,
+      failedConflicts: 0,
+      resolutionSuccessRate: 0,
+      averageRetriesPerConflict: 0,
+      conflictsByOperationType: {},
+      conflictsByStrategy: {},
+      conflictsByType: {}
+    };
+  }
+  
+  /**
+   * Check for alert conditions
+   */
+  private checkAlerts(): void {
+    const now = Date.now();
+    const oneMinuteAgo = now - 60 * 1000;
+    const recentRecords = this.records.filter(r => r.timestamp > oneMinuteAgo);
+    
+    // Check conflicts per minute
+    if (recentRecords.length > this.alertConfig.maxConflictsPerMinute) {
+      this.addAlert({
+        severity: recentRecords.length > this.alertConfig.maxConflictsPerMinute * 2 ? 'error' : 'warning',
+        type: 'conflict_rate',
+        message: `Conflict rate (${recentRecords.length}/min) exceeds threshold (${this.alertConfig.maxConflictsPerMinute}/min)`,
+        currentValue: recentRecords.length,
+        threshold: this.alertConfig.maxConflictsPerMinute,
+        timestamp: now
+      });
+    }
+    
+    // Check resolution success rate (only if we have enough data)
+    if (recentRecords.length >= 5) {
+      const resolved = recentRecords.filter(r => r.resolutionSuccess).length;
+      const successRate = (resolved / recentRecords.length) * 100;
+      
+      if (successRate < this.alertConfig.minResolutionSuccessRate) {
+        this.addAlert({
+          severity: successRate < 80 ? 'critical' : 'error',
+          type: 'resolution_rate',
+          message: `Conflict resolution success rate (${successRate.toFixed(1)}%) is below threshold (${this.alertConfig.minResolutionSuccessRate}%)`,
+          currentValue: successRate,
+          threshold: this.alertConfig.minResolutionSuccessRate,
+          timestamp: now
+        });
+      }
+    }
+    
+    // Check average retries
+    if (recentRecords.length >= 5) {
+      const totalRetries = recentRecords.reduce((sum, r) => sum + r.retriesUsed, 0);
+      const avgRetries = totalRetries / recentRecords.length;
+      
+      if (avgRetries > this.alertConfig.maxAverageRetries) {
+        this.addAlert({
+          severity: 'warning',
+          type: 'retry_rate',
+          message: `Average retries per conflict (${avgRetries.toFixed(2)}) exceeds threshold (${this.alertConfig.maxAverageRetries})`,
+          currentValue: avgRetries,
+          threshold: this.alertConfig.maxAverageRetries,
+          timestamp: now
+        });
+      }
+    }
+  }
+  
+  /**
+   * Add an alert (with deduplication)
+   */
+  private addAlert(alert: ConflictAlert): void {
+    // Check if we already have a recent alert of this type (within last 5 minutes)
+    const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+    const recentAlert = this.alerts.find(
+      a => a.type === alert.type && a.timestamp > fiveMinutesAgo
+    );
+    
+    if (recentAlert) {
+      return; // Don't spam alerts
+    }
+    
+    this.alerts.push(alert);
+    
+    // Log the alert
+    const emoji = alert.severity === 'critical' ? '🚨' : alert.severity === 'error' ? '⚠️' : '⚡';
+    console.warn(`${emoji} [ConflictMonitor Alert] ${alert.severity.toUpperCase()}: ${alert.message}`);
+    
+    // Keep only last 100 alerts
+    if (this.alerts.length > 100) {
+      this.alerts = this.alerts.slice(-100);
+    }
+  }
+  
+  /**
+   * Get recent alerts
+   */
+  getAlerts(timeWindowMs?: number): ConflictAlert[] {
+    if (!timeWindowMs) {
+      return [...this.alerts];
+    }
+    
+    const cutoff = Date.now() - timeWindowMs;
+    return this.alerts.filter(a => a.timestamp > cutoff);
+  }
+  
+  /**
+   * Clear all alerts
+   */
+  clearAlerts(): void {
+    this.alerts = [];
+  }
+  
+  /**
+   * Get metrics summary for logging
+   */
+  getMetricsSummary(timeWindowMs?: number): string {
+    const metrics = this.getMetrics(timeWindowMs);
+    
+    if (metrics.totalConflicts === 0) {
+      return 'No conflict data available';
+    }
+    
+    const lines = [
+      `Concurrency Conflict Metrics Summary`,
+      `─────────────────────────────────────`,
+      `Total Conflicts: ${metrics.totalConflicts}`,
+      `Resolution Success Rate: ${metrics.resolutionSuccessRate.toFixed(1)}% (${metrics.resolvedConflicts}/${metrics.totalConflicts})`,
+      `Failed Resolutions: ${metrics.failedConflicts}`,
+      `Average Retries/Conflict: ${metrics.averageRetriesPerConflict.toFixed(2)}`,
+      ``,
+      `Conflicts by Operation Type:`,
+      ...Object.entries(metrics.conflictsByOperationType)
+        .map(([type, count]) => `  ${type}: ${count}`),
+      ``,
+      `Conflicts by Strategy:`,
+      ...Object.entries(metrics.conflictsByStrategy)
+        .map(([strategy, count]) => `  ${strategy}: ${count}`),
+      ``,
+      `Conflicts by Type:`,
+      ...Object.entries(metrics.conflictsByType)
+        .map(([type, count]) => `  ${type}: ${count}`)
+    ];
+    
+    return lines.join('\n');
+  }
+  
+  /**
+   * Reset all metrics (useful for testing)
+   */
+  reset(): void {
+    this.records = [];
+    this.alerts = [];
+    this.conflictIdCounter = 0;
+  }
+}
+
+// Singleton instance for conflict monitor
+let conflictMonitorInstance: ConflictMonitor | null = null;
+
+/**
+ * Get the conflict monitor instance
+ */
+export function getConflictMonitor(alertConfig?: Partial<ConflictAlertConfig>): ConflictMonitor {
+  if (!conflictMonitorInstance) {
+    conflictMonitorInstance = new ConflictMonitor(alertConfig);
+  }
+  return conflictMonitorInstance;
+}
+
+/**
+ * Helper function to record a conflict
+ */
+export function recordConflict(record: Omit<ConflictRecord, 'conflictId' | 'timestamp'>): void {
+  const monitor = getConflictMonitor();
+  monitor.recordConflict(record);
+}
+
+/**
+ * Helper function to get conflict metrics
+ */
+export function getConflictMetrics(timeWindowMs?: number): ConcurrencyConflictMetrics {
+  const monitor = getConflictMonitor();
+  return monitor.getMetrics(timeWindowMs);
+}
+
+/**
+ * Helper function to get conflict alerts
+ */
+export function getConflictAlerts(timeWindowMs?: number): ConflictAlert[] {
+  const monitor = getConflictMonitor();
+  return monitor.getAlerts(timeWindowMs);
+}
+
+/**
+ * Helper function to log conflict metrics summary
+ */
+export function logConflictMetricsSummary(timeWindowMs?: number): void {
+  const monitor = getConflictMonitor();
+  console.log('\n' + monitor.getMetricsSummary(timeWindowMs) + '\n');
+}
+
+/**
+ * Get combined metrics including conflict metrics
+ */
+export function getCombinedMetrics(timeWindowMs?: number): TransactionMetrics {
+  const transactionMetrics = getMetrics(timeWindowMs);
+  const conflictMetrics = getConflictMetrics(timeWindowMs);
+  
+  return {
+    ...transactionMetrics,
+    concurrencyConflicts: conflictMetrics
+  };
+}
+
+/**
+ * Export the ConflictMonitor class for testing
+ */
+export { ConflictMonitor };

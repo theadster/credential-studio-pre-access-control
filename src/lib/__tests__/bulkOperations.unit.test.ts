@@ -121,6 +121,7 @@ describe('bulkOperations', () => {
 
     it('should fall back to sequential updates on atomic operation failure', async () => {
       mockDatabases.getDocument.mockRejectedValue(new Error('Fetch failed'));
+      mockTablesDB.upsertRows.mockRejectedValue(new Error('Atomic operation failed'));
       mockDatabases.updateDocument.mockResolvedValue({ $id: 'id1' });
       mockDatabases.createDocument.mockResolvedValue({ $id: 'log1' });
 

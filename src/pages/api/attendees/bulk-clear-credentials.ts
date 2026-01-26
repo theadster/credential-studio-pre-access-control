@@ -3,6 +3,7 @@ import { createSessionClient } from '@/lib/appwrite';
 import { ID } from 'node-appwrite';
 import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
 import { shouldLog } from '@/lib/logSettings';
+import { generateOperationId, BulkOperationType } from '@/lib/bulkOperationBroadcast';
 
 export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   if (req.method !== 'POST') {
@@ -106,11 +107,20 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       }
     }
 
+    // Generate operation ID for broadcast
+    const operationId = generateOperationId();
+
     res.status(200).json({
       message: 'Bulk clear credentials completed',
       successCount,
       errorCount,
-      errors: errors.length > 0 ? errors : undefined
+      errors: errors.length > 0 ? errors : undefined,
+      // Broadcast info for client-side notification (Requirement 5.5)
+      broadcast: {
+        operationId,
+        operationType: 'bulk_clear_credentials' as BulkOperationType,
+        affectedIds: attendeeIds.filter((id: string) => !errors.some(e => e.attendeeId === id)),
+      }
     });
 
   } catch (error: any) {
