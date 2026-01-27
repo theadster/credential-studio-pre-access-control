@@ -3,7 +3,7 @@ title: Documentation Search Index
 type: canonical
 status: active
 owner: "@team"
-last_verified: 2026-01-08
+last_verified: 2026-01-27
 review_interval_days: 90
 related_code: []
 ---
@@ -12,7 +12,19 @@ related_code: []
 
 > Searchable index of all active documentation
 
-**Last Updated:** 2026-01-08
+**Last Updated:** 2026-01-27
+
+## Access Control Environment Variable Migration
+
+- **File:** `migration/ACCESS_CONTROL_ENVIRONMENT_VARIABLE_MIGRATION.md`
+- **Type:** runbook
+- **Category:** migration
+- **Related Code:**
+  - `src/lib/accessControlFeature.ts`
+  - `.env.example`
+- **Keywords:** 'true', (disabled), ..., `.env.local`, access, affects, after, all, and, appearing, before, can, change, changed, changes, code, configuration, control, data, default:, deployment, dev, development, different, disable, disabled,, documentation, effect, enable, enabled?, environment, event, events?, example, existing, false, faq, feature, feature?, fields, flag, for, functionality, globally, happens, have, hidden, how, know, migration, need, not, other, overview, persistence, references, related, restart, rollback, runtime?, server, set, settings, settings?, shouldn't, site, steps, tab, taking, the, they, this, timeline, troubleshooting, update, variable, visible, what, when, will
+
+[View Document](./migration/ACCESS_CONTROL_ENVIRONMENT_VARIABLE_MIGRATION.md)
 
 ## Access Control Export Enhancement
 
@@ -21,7 +33,8 @@ related_code: []
 - **Category:** enhancements
 - **Related Code:**
   - `src/pages/api/attendees/export.ts`
-- **Keywords:** 'date, (`src/components/exportdialog.tsx`), (`src/pages/api/attendees/export.ts`), (accesscontroltimemode:, access, api, awareness, benefits, changes, component, conditional, control, data, date, dependencies, details, enhancement, enhancements, examples, export, exportdialog, features, fetching, field, files, for, format, formatting, functions, future, handling, hour, implementation, improvements, iso, logic, made, management, mappings, mode, modified, new, only, only'), overview, parameters, recommendations, rendering, request, sanitization, state, technical, testing, text, time, time'), usage, users, with
+  - `src/components/ExportDialog.tsx`
+- **Keywords:** 'date, (`src/components/exportdialog.tsx`), (`src/pages/api/attendees/export.ts`), (accesscontroltimemode:, (january, 17,, 2026), access, api, awareness, benefits, changes, component, conditional, control, data, date, dependencies, details, enhancement, enhancements, examples, export, exportdialog, features, fetching, field, files, for, format, formatting, functions, future, handling, hour, implementation, improvements, iso, logic, made, management, mappings, migration, mode, modified, new, note, only, only'), overview, parameters, recommendations, rendering, request, sanitization, state, technical, testing, text, time, time'), usage, users, with
 
 [View Document](./enhancements/ACCESS_CONTROL_EXPORT_ENHANCEMENT.md)
 
@@ -42,10 +55,33 @@ related_code: []
 - **Type:** canonical
 - **Category:** fixes
 - **Related Code:**
-  - `src/components/AdvancedFilter.tsx`
-- **Keywords:** `modal={true}`, `src/pages/dashboard.tsx`, added, advanced, cause, changes, commandlist, components, date, details, divs, dropdown, file:, filter, fix, issue, learned, lessons, made, plain, popover, problem, radix, references, related, replaced, root, scrollarea, scrolling, solution, technical, testing, the, why, with, works
+  - `src/components/AdvancedFiltersDialog/sections/CustomFieldsSection.tsx`
+  - `src/components/AdvancedFiltersDialog/IntegratedFilterInput.tsx`
+- **Keywords:** (january, 17,, 2026), `modal={true}`, `src/components/advancedfiltersdialog/integratedfilterinput.tsx`, added, advanced, cause, changes, commandlist, components, date, details, divs, dropdown, file:, filter, fix, implementation, issue, learned, lessons, location, made, plain, popover, previous, problem, radix, references, related, replaced, root, scrollarea, scrolling, solution, technical, testing, the, update, why, with, works
 
 [View Document](./fixes/ADVANCED_FILTER_DROPDOWN_SCROLLING_FIX.md)
+
+## Advanced Filters - Credential Status and Match Mode
+
+- **File:** `enhancements/ADVANCED_FILTERS_CREDENTIAL_AND_MATCH_MODE.md`
+- **Type:** canonical
+- **Category:** enhancements
+- **Keywords:** advanced, and, credential, enhancement:, examples, filter, filters, match, mode, status, usage
+
+[View Document](./enhancements/ADVANCED_FILTERS_CREDENTIAL_AND_MATCH_MODE.md)
+
+## Advanced Filters Component Extraction and Redesign
+
+- **File:** `misc/ADVANCED_FILTERS_COMPONENT_EXTRACTION_REFACTOR.md`
+- **Type:** canonical
+- **Category:** misc
+- **Related Code:**
+  - `src/components/AdvancedFiltersDialog/`
+  - `src/lib/filterUtils.ts`
+  - `src/pages/dashboard.tsx`
+- **Keywords:** (`src/lib/filterutils.ts`), accordion, active, advanced, after:, all, and, appearing, applying, architecture, backward, bar, before:, behaviors, benefits, breaking, changed, changes, code, collapsible, compatibility, component, comprehensive, coverage, created, custom, details, developer, developers, documentation, enhancements, expanding, experience, extraction, features, fields, file, files, filter, filters, for, future, guide, hierarchy, implementation, importing, improvements, inputs, integrated, issue:, key, known, management, migration, modified, modular, monolithic, new, non, not, overview, performance, qa/testing, quality, redesign, references, regressions, related, run, running, sections, showing, specific, state, structure, summary, technical, test, testing, tests, the, troubleshooting, updated, user, using, utilities, what, with
+
+[View Document](./misc/ADVANCED_FILTERS_COMPONENT_EXTRACTION_REFACTOR.md)
 
 ## API Keys Removal Migration
 
@@ -156,6 +192,17 @@ related_code: []
 - **Keywords:** (180, (30, (90, (keep, (keeping, (superseded), (team, actions, active, active), add, alert, all, and, answer, architecture, archival, archive, archive?, archived, automated, automatic, available, been, broken, canonical, change:, check, checked, commit, complete, comprehensive, created, current, cycle, daily, date, days), decision, detection, docs, document, documentation, documents, driven), edit, example, file, for, frontmatter, generate/update, generation, gets, github, how, index, indexes, intervals, issues, keeps, key, last, link, links, maintenance, manual, mark, metrics, modern, modern), move, note, option, options, organization, outdated, overview, part, process, push, question, records, related, report, responsibilities, result, review, runbooks, scenario, scenarios, scripts, set, stale, staleness, state, status, status:, stays, structure, summary, superseded, system, team, the, this, three, to:, today, update, validate, validation, verified, what, what's, why, workflow, worklog, works, your
 
 [View Document](./ARCHIVAL_SYSTEM_COMPREHENSIVE_ANSWER.md)
+
+## Attendee API Sensitive Error Exposure Fix
+
+- **File:** `fixes/ATTENDEE_API_SENSITIVE_ERROR_EXPOSURE_FIX.md`
+- **Type:** canonical
+- **Category:** fixes
+- **Related Code:**
+  - `src/pages/api/attendees/[id].ts`
+- **Keywords:** api, attendee, benefits, client, codes, default, defaults, details, documentation, error, example, exposure, fix, flow, handling, implementation, improvements, logging, problem, recommendations, related, response, risk, safe, sanitized, security, sensitive, server, side, solution, structured, testing, values, vulnerable
+
+[View Document](./fixes/ATTENDEE_API_SENSITIVE_ERROR_EXPOSURE_FIX.md)
 
 ## Attendee Form Data Loss on Tab Switch Fix
 
@@ -323,6 +370,29 @@ related_code: []
 
 [View Document](./guides/BULK_CREDENTIAL_GENERATION_LOGIC.md)
 
+## Bulk Credential Photo Concurrency Fix
+
+- **File:** `fixes/BULK_CREDENTIAL_PHOTO_CONCURRENCY_FIX.md`
+- **Type:** canonical
+- **Category:** fixes
+- **Keywords:** api, backward, bulk, cause, changes, compatibility, concurrency, conflict, core, credential, documentation, edit, error, field, fix, generation, groups, handling, locking, monitoring, optimistic, photo, problem, related, resolution, root, services, solution, strategies, testing, upload
+
+[View Document](./fixes/BULK_CREDENTIAL_PHOTO_CONCURRENCY_FIX.md)
+
+## Bulk Credential Photo Concurrency Fix Verification
+
+- **File:** `misc/BULK_CREDENTIAL_PHOTO_CONCURRENCY_VERIFICATION.md`
+- **Type:** canonical
+- **Category:** misc
+- **Related Code:**
+  - `src/lib/optimisticLock.ts`
+  - `src/lib/fieldUpdate.ts`
+  - `src/lib/conflictResolver.ts`
+  - `src/pages/api/attendees/[id]/generate-credential.ts`
+- **Keywords:** (but, alone, analysis, appwrite, aren't, bulk, case, comparison:, complementary, components, conclusion, concurrency, core, correct, could, credential, docs, documentation, executive, findings, fix, for, from, help, implementation, issue, key, limitations, locking, necessary), operators, optimistic, original, photo, problem, provide, quotes, recommendation, references, solution, sufficient, summary, this, use, verification, verified, vs., what, where, why
+
+[View Document](./misc/BULK_CREDENTIAL_PHOTO_CONCURRENCY_VERIFICATION.md)
+
 ## Bulk Delete Timestamp Attribute Fix
 
 - **File:** `fixes/BULK_DELETE_TIMESTAMP_FIX.md`
@@ -345,6 +415,28 @@ related_code: []
 
 [View Document](./enhancements/BULK_IMPORT_API_KEY_ENHANCEMENT.md)
 
+## Bulk Operation Broadcast localStorage Race Condition Fix
+
+- **File:** `fixes/BULK_OPERATION_BROADCAST_LOCALSTORAGE_RACE_CONDITION_FIX.md`
+- **Type:** canonical
+- **Category:** fixes
+- **Related Code:**
+  - `src/lib/bulkOperationBroadcast.ts`
+- **Keywords:** (no, (race, after, based, before, benefits, broadcast, bulk, cleanup, condition, condition), documentation, example, fix, how, impact, keys, listener, localstorage, message, operation, per, performance, prefix, problem, race, recommendations, related, solution, storage, testing, unique, works
+
+[View Document](./fixes/BULK_OPERATION_BROADCAST_LOCALSTORAGE_RACE_CONDITION_FIX.md)
+
+## Bulk Operation Broadcast Singleton Configuration Fix
+
+- **File:** `fixes/BULK_OPERATION_BROADCAST_SINGLETON_CONFIG_FIX.md`
+- **Type:** canonical
+- **Category:** fixes
+- **Related Code:**
+  - `src/lib/bulkOperationBroadcast.ts`
+- **Keywords:** broadcast, bulk, call, comparison, config, configuration, details, different, documentation, examples, explicit, files, fix, function, implementation, isolation, method, modified, operation, per, place, problem, public, recommendations, recreation, related, reset, scenario, singleton, solution, test, testing, update, updateconfig, usage
+
+[View Document](./fixes/BULK_OPERATION_BROADCAST_SINGLETON_CONFIG_FIX.md)
+
 ## Bulk Operations - Canonical Implementation
 
 - **File:** `misc/BULK_OPERATIONS_CANONICAL.md`
@@ -357,6 +449,17 @@ related_code: []
 - **Keywords:** (removed), api, bulk, canonical, context, details, documentation, endpoints, exported, features, functions, historical, implementation, implementations, key, module, operations, overview, previous, support, technology, testing, this, usage, using
 
 [View Document](./misc/BULK_OPERATIONS_CANONICAL.md)
+
+## Bulk Operations Error Retryability Detection Fix
+
+- **File:** `fixes/BULK_OPERATIONS_ERROR_RETRYABILITY_DETECTION_FIX.md`
+- **Type:** canonical
+- **Category:** fixes
+- **Related Code:**
+  - `src/lib/bulkOperations.ts`
+- **Keywords:** (retryable:, benefits, bulk, categories, details, detection, documentation, error, errors, example, false), fix, implementation, operations, permanent, problem, recommendations, related, retryability, scenario, solution, testing, transient, true), usage
+
+[View Document](./fixes/BULK_OPERATIONS_ERROR_RETRYABILITY_DETECTION_FIX.md)
 
 ## Bulk Operations Performance
 
@@ -424,6 +527,15 @@ related_code: []
 
 [View Document](./enhancements/CHECKBOX_FIELD_YES_NO_FORMAT.md)
 
+## Code Review Fixes Session Complete
+
+- **File:** `fixes/CODE_REVIEW_FIXES_SESSION_COMPLETE.md`
+- **Type:** worklog
+- **Category:** fixes
+- **Keywords:** 10., and, applied, assertion, attempt, browser, cleanup, code, complete, completed, connection, created, cumulative, diagnostics, documentation, fallback, fixes, frontmatter, gap, health, import, issues, key, linting, logic, mismatch, overview, patterns, polling, property, realtime, related, results, review, safety, session, stale, state, subscription, systems, test, timer, title, type, update
+
+[View Document](./fixes/CODE_REVIEW_FIXES_SESSION_COMPLETE.md)
+
 ## Complete Backend Migration Guide: Supabase to Appwrite
 
 - **File:** `migration/COMPLETE_MIGRATION_GUIDE.md`
@@ -458,6 +570,54 @@ related_code: []
 
 [View Document](./guides/TRANSACTIONS_COMPREHENSIVE_ANALYSIS.md)
 
+## Connection Health Invalid Attempt Validation Fix
+
+- **File:** `fixes/CONNECTION_HEALTH_INVALID_ATTEMPT_VALIDATION_FIX.md`
+- **Type:** canonical
+- **Category:** fixes
+- **Keywords:** attempt, cause, changes, connection, fix, health, invalid, issue, made, related, requirements, results, root, solution, test, validation, verification
+
+[View Document](./fixes/CONNECTION_HEALTH_INVALID_ATTEMPT_VALIDATION_FIX.md)
+
+## Connection Health Stale Attempt Fix
+
+- **File:** `fixes/CONNECTION_HEALTH_STALE_ATTEMPT_FIX.md`
+- **Type:** canonical
+- **Category:** fixes
+- **Related Code:**
+  - `src/hooks/useConnectionHealth.ts`
+  - `src/__tests__/hooks/useConnectionHealth.test.ts`
+- **Keywords:** (line, (lines, 137, 177), 197, 205), 207, 216), 68), 99), `handlereconnectfailure`, `markconnected`, `reconnectattemptref`, `resetbackoff`, `schedulereconnect`, added, attempt, cause, changes, connection, documentation, files, fix, health, impact, made, modified, problem, related, root, solution, stale, testing, updated
+
+[View Document](./fixes/CONNECTION_HEALTH_STALE_ATTEMPT_FIX.md)
+
+## Connection Health Status Notification Consistency Fix
+
+- **File:** `fixes/CONNECTION_HEALTH_STATUS_NOTIFICATION_CONSISTENCY_FIX.md`
+- **Type:** canonical
+- **Category:** fixes
+- **Keywords:** cause, changes, connection, consistency, fix, health, issue, made, notification, related, requirements, results, root, solution, status, test, verification
+
+[View Document](./fixes/CONNECTION_HEALTH_STATUS_NOTIFICATION_CONSISTENCY_FIX.md)
+
+## Connection Health Zero Max Attempts Fix
+
+- **File:** `fixes/CONNECTION_HEALTH_ZERO_MAX_ATTEMPTS_FIX.md`
+- **Type:** canonical
+- **Category:** fixes
+- **Keywords:** attempts, cause, changes, connection, fix, health, issue, made, max, related, requirements, results, root, solution, test, verification, zero
+
+[View Document](./fixes/CONNECTION_HEALTH_ZERO_MAX_ATTEMPTS_FIX.md)
+
+## Connection Indicator Green State Fix
+
+- **File:** `fixes/CONNECTION_INDICATOR_GREEN_STATE_FIX.md`
+- **Type:** canonical
+- **Category:** fixes
+- **Keywords:** `onconnected`, `ondisconnected`, add, and, callbacks, cause, changes, connection, dashboard, definitions, documentation, fix, follow, green, indicator, made, problem, related, root, solution, state, step, steps, testing, this, type, update, use, verification, why, works
+
+[View Document](./fixes/CONNECTION_INDICATOR_GREEN_STATE_FIX.md)
+
 ## Credential Generation Error Acknowledgment
 
 - **File:** `enhancements/CREDENTIAL_GENERATION_ERROR_ACKNOWLEDGMENT.md`
@@ -468,6 +628,17 @@ related_code: []
 - **Keywords:** (all, (some, acknowledgment, alert, api, benefits, bulk, complete, configuration, credential, design, detailed, details, developers, display, documentation, enhancement, enhancements, error, examples, failed), failure, features, files, for, future, generation, guidelines, handling, hook, html, info, interaction, message, method, modified, network, new, overview, partial, problem, recommendations, related, signature, simple, single, solution, statement, styling, success, support, sweetalert, switchboard, technical, template, testing, usage, user, users, visual, with
 
 [View Document](./enhancements/CREDENTIAL_GENERATION_ERROR_ACKNOWLEDGMENT.md)
+
+## Credential Generation Type Safety Fix
+
+- **File:** `fixes/CREDENTIAL_GENERATION_TYPE_SAFETY_FIX.md`
+- **Type:** canonical
+- **Category:** fixes
+- **Related Code:**
+  - `src/pages/api/attendees/[id]/generate-credential.ts`
+- **Keywords:** cause, changes, credential, files, fix, generation, made, modified, notes, overview, problem, root, safety, solution, testing, type
+
+[View Document](./fixes/CREDENTIAL_GENERATION_TYPE_SAFETY_FIX.md)
 
 ## CredentialStudio Manual Testing Guide
 
@@ -497,8 +668,9 @@ related_code: []
 - **Type:** canonical
 - **Category:** fixes
 - **Related Code:**
-  - `src/pages/api/attendees/search.ts`
-- **Keywords:** (`src/pages/api/attendees/index.ts`), advanced, api, applied, behavior, cause, changes, custom, date, description, documentation, endpoint, expected, field, files, filter, fix, how, impact, issue, made, manual, notes, now, performance, reapplied, related, root, running, searchability, solution, status, test, testing, tests, visibility, works
+  - `src/pages/api/attendees/index.ts`
+  - `src/components/AdvancedFiltersDialog/sections/CustomFieldsSection.tsx`
+- **Keywords:** (`src/pages/api/attendees/index.ts`), (january, 17,, 2026), advanced, api, applied, behavior, cause, changes, custom, date, description, documentation, endpoint, expected, field, files, filter, fix, how, impact, issue, made, manual, notes, now, performance, reapplied, related, root, running, searchability, solution, status, test, testing, tests, update, visibility, works
 
 [View Document](./fixes/CUSTOM_FIELD_SEARCHABILITY_REAPPLIED.md)
 
@@ -568,6 +740,15 @@ related_code: []
 - **Keywords:** (10, (15+), (768px, (backward, 1.1:, 1.2:, 10., 10.1:, 10.2:, 10.3:, 10.4:, 1024px), 11., 11.1:, 11.2:, 11.3:, 11.4:, 12., 12.1:, 12.2:, 12.3:, 2.1:, 2.2:, 2.3:, 3.1:, 3.2:, 3.3:, 3.4:, 4.1:, 4.2:, 4.3:, 4.4:, 5.1:, 5.2:, 5.3:, 5.4:, 5.5:, 5.6:, 6.1:, 6.2:, 6.3:, 7.1:, 7.2:, 7.3:, 768px), 8.1:, 8.2:, 8.3:, 9.1:, 9.2:, 9.3:, 9.4:, access, accessibility, after, attendee, behavior, browser, bulk, cases, change, checklist, checks, chrome, color, columns, columns), compatibility, compatibility), configuration, contrast, custom, data, database, dataset, default, desktop, discoverability, documentation, dropdown, edge, error, errors, event, existing, experience, failed, feedback, field, fields, final, firefox, found, fresh, handling, higher, installation, integration, invalid, issues, keyboard, large, load, locate, logout/login, long, lower, many, maximum, migration, minimum, mixed, mobile, multiple, names, navigation, network, notes, off, one, operations, options, overview, page, passed, performance, persistence, post, pre, prerequisites, reader, recommendations, regression, resize, responsive, results, safari, screen, search/filter, sessions, setting, settings, setup, sign, sorting, speed, summary, tablet, test, testing, tests, time, types, usability, user, value, values, various, verification, view, visibility, visual, with
 
 [View Document](./testing/CUSTOM_FIELD_COLUMNS_TESTING_CHECKLIST.md)
+
+## Custom Field Default Values
+
+- **File:** `enhancements/CUSTOM_FIELD_DEFAULT_VALUES.md`
+- **Type:** canonical
+- **Category:** enhancements
+- **Keywords:** application, attendee, behavior, cases, configuration, creation, csv, custom, data, default, definitions, details, example, field, files, import, migration, modified, new, overview, priority, scenarios, setting, storage, technical, type, use, values
+
+[View Document](./enhancements/CUSTOM_FIELD_DEFAULT_VALUES.md)
 
 ## Custom Field Format Permanent Fix
 
@@ -658,6 +839,45 @@ related_code: []
 
 [View Document](./fixes/DASHBOARD_AGGREGATE_METRICS_FIX.md)
 
+## Data Freshness Realtime Callback Fix
+
+- **File:** `fixes/DATA_FRESHNESS_REALTIME_CALLBACK_FIX.md`
+- **Type:** canonical
+- **Category:** fixes
+- **Related Code:**
+  - `src/pages/dashboard.tsx`
+  - `src/hooks/useDataFreshness.ts`
+- **Keywords:** callback, callbacks, cause, changes, data, documentation, files, fix, freshness, functions, impact, made, modified, problem, realtime, refresh, related, root, solution, testing, updated
+
+[View Document](./fixes/DATA_FRESHNESS_REALTIME_CALLBACK_FIX.md)
+
+## Data Refresh Monitoring Enhancement
+
+- **File:** `enhancements/DATA_REFRESH_MONITORING.md`
+- **Type:** canonical
+- **Category:** enhancements
+- **Keywords:** components, configuration, connection, connectionstatusindicator, data, datarefreshindicator, enhancement, fallback, features, freshness, health, monitoring, notifications, overview, polling, recovery, refresh, related, specifications, tracking, usage, user, visibility
+
+[View Document](./enhancements/DATA_REFRESH_MONITORING.md)
+
+## Data Refresh Monitoring Infinite Loop Fix
+
+- **File:** `fixes/DATA_REFRESH_MONITORING_INFINITE_LOOP_FIX.md`
+- **Type:** canonical
+- **Category:** fixes
+- **Keywords:** cause, changes, data, fix, follow, infinite, key, loop, monitoring, prevention, problem, refresh, root, solution, testing
+
+[View Document](./fixes/DATA_REFRESH_MONITORING_INFINITE_LOOP_FIX.md)
+
+## Debug Mode Button Not Appearing on Keyboard Shortcut
+
+- **File:** `fixes/DEBUG_MODE_BUTTON_VISIBILITY_FIX.md`
+- **Type:** canonical
+- **Category:** fixes
+- **Keywords:** add, appearing, button, cause, causes, changes, code, connection, convert, debug, event, fix, for, impact, issue, issues, keyboard, listener, missing, mode, not, provider, quickly, repairs, root, shortcut, solution, switch, testing, toggle, too, tooltip, tooltipprovider, wrap
+
+[View Document](./fixes/DEBUG_MODE_BUTTON_VISIBILITY_FIX.md)
+
 ## Delete Logs Progress Indicator
 
 - **File:** `enhancements/DELETE_LOGS_PROGRESS_INDICATOR.md`
@@ -721,7 +941,7 @@ related_code: []
 - **File:** `INDEX_BY_TOPIC.md`
 - **Type:** canonical
 - **Category:** docs
-- **Keywords:** (1), (119), (16), (20), (21), (22), (23), (28), (3), (42), (9), adr, canonical, category, docs, document, documentation, enhancements, fixes, guides, index, migration, misc, reference, runbook, testing, topic, type, worklog
+- **Keywords:** (1), (11), (151), (17), (20), (21), (23), (25), (28), (3), (44), (48), adr, canonical, category, docs, document, documentation, enhancements, fixes, guides, index, migration, misc, reference, runbook, testing, topic, type, worklog
 
 [View Document](./INDEX_BY_TOPIC.md)
 
@@ -930,6 +1150,15 @@ related_code: []
 - **Keywords:** "delete", (recommended, automatic, backup, changes, cli, code, confirm, confirmation, date, details, dry, environment, error, event, example, examples, execute, features, first, flag, flags, functions, handling, implementation, improvements, interactive, made, mode, modified, new, overview, preview, prompt, prompt:, quality, recovery, recreation, run, safe, safeguards, safety, script, settings, step), structure, testing, type, usage, validation, variable, will, with
 
 [View Document](./misc/EVENT_SETTINGS_SCRIPT_SAFEGUARDS.md)
+
+## Field Update Service Guide
+
+- **File:** `guides/FIELD_UPDATE_SERVICE_GUIDE.md`
+- **Type:** canonical
+- **Category:** guides
+- **Keywords:** credential, documentation, field, fields, functions, generic, groups, guide, helper, locking, optimistic, overview, photo, problem, related, service, solved, update, updates, updating, usage
+
+[View Document](./guides/FIELD_UPDATE_SERVICE_GUIDE.md)
 
 ## GitHub Actions Sync Workflow Complete
 
@@ -1220,6 +1449,20 @@ related_code: []
 
 [View Document](./migration/LOGS_TIMESTAMP_MIGRATION_SUMMARY.md)
 
+## Max Retries Alert Dynamic Configuration Fix
+
+- **File:** `fixes/MAX_RETRIES_ALERT_DYNAMIC_CONFIG_FIX.md`
+- **Type:** canonical
+- **Category:** fixes
+- **Related Code:**
+  - `src/pages/dashboard.tsx`
+  - `src/hooks/useConnectionHealth.ts`
+  - `src/types/connectionHealth.ts`
+  - `src/lib/connectionNotifications.ts`
+- **Keywords:** alert, callback, cause, changes, configuration, dashboard, definition, documentation, dynamic, files, fix, hook, impact, made, max, modified, problem, related, retries, return, root, solution, testing, type, updated, value
+
+[View Document](./fixes/MAX_RETRIES_ALERT_DYNAMIC_CONFIG_FIX.md)
+
 ## Memory Leak Fixes - Implementation Summary
 
 - **File:** `fixes/MEMORY_LEAK_FIXES_IMPLEMENTED.md`
@@ -1239,6 +1482,7 @@ related_code: []
 - **Category:** guides
 - **Related Code:**
   - `src/lib/cache.ts`
+  - `src/hooks/usePageVisibility.ts`
 - **Keywords:** active, adding, always, arrays, avoid, bad:, callbacks, checklist, cleanup, common, computations, conditional, debounced, developers, development, enable, feature, features, for, good:, growing?, guide, hooks, issues?, large, leak, management, manual, memoized, memory, monitoring, new, not, optimization, patterns, performance, polling, profiling, proper, questions?, quick, realtime, reference, resources, scenario, scenarios, search, settimeout, state, still, subscription, subscriptions, the, timeout, tips, troubleshooting, uncontrolled, use, usedebouncedcallback, usepagevisibility, using, without, working?
 
 [View Document](./guides/MEMORY_OPTIMIZATION_GUIDE.md)
@@ -1321,6 +1565,15 @@ related_code: []
 
 [View Document](./guides/MOBILE_SETTINGS_PASSCODE_IMPLEMENTATION_GUIDE.md)
 
+## Monitoring API Permission Fix
+
+- **File:** `fixes/MONITORING_API_PERMISSION_FIX.md`
+- **Type:** canonical
+- **Category:** fixes
+- **Keywords:** api, cause, fix, impact, issue, monitoring, permission, root
+
+[View Document](./fixes/MONITORING_API_PERMISSION_FIX.md)
+
 ## Multi-Select Filter Implementation Summary
 
 - **File:** `fixes/MULTI_SELECT_IMPLEMENTATION_SUMMARY.md`
@@ -1397,6 +1650,59 @@ related_code: []
 - **Keywords:** (12, 1.3, 1.4, 2.4, 2.5, all, categories, combined, commands, conclusion, coverage, dangerous, details, development, display, documentation, during, elements, experience, fields, file, files, for, function, guarantees, html, implementation, mode, onesimpleapi, output, overview, placeholder, preservation, preserved, process, related, removal, removed, reopen, requirement, requirements, run, safe, sanitization, sanitized, scenarios, security, submit, summary, test, testing, tests, tests), typing, user, variable, verbose, watch, with
 
 [View Document](./testing/ONESIMPLEAPI_SANITIZATION_TESTS_SUMMARY.md)
+
+## Operator Monitoring Descriptions Enhancement
+
+- **File:** `enhancements/OPERATOR_MONITORING_DESCRIPTIONS_ENHANCEMENT.md`
+- **Type:** canonical
+- **Category:** enhancements
+- **Related Code:**
+  - `src/components/OperatorMonitoringDashboard.tsx`
+- **Keywords:** (credential, administrators, after, before, benefits, cards, changes, comprehension, descriptions, details, documentation, enhanced, enhancement, enhancements, examples, experience, feature, files, flag, for, future, header, health, implementation, improvements, made, maintenance, metrics, modified, monitoring, notes, operator, operators):, overview, performance, problem, readability, related, scannability, solution, system, testing, training, user
+
+[View Document](./enhancements/OPERATOR_MONITORING_DESCRIPTIONS_ENHANCEMENT.md)
+
+## Operator Monitoring User Guide
+
+- **File:** `guides/OPERATOR_MONITORING_USER_GUIDE.md`
+- **Type:** canonical
+- **Category:** guides
+- **Related Code:**
+  - `src/components/OperatorMonitoringDashboard.tsx`
+  - `src/lib/operatorMonitoring.ts`
+  - `src/lib/operators.ts`
+- **Keywords:** (when, active, alert, alerts, all, are, array, auto, average, avg, best, bulk, calls, can't, card, cards, change, common, credential, critical, data, database, details, disable, documentation, emergency, enable, error, fallback, feature, features, flag, flags, glossary, guide, header, healthy, high, impact, indicators, issues, latency, load, logging, management, master, metrics, monitoring, new, not, operator, operators, operators?, overview, p95, p99, page, performance, permissions, photo, practices, present), problem:, rate, refresh, regular, related, required, retention, scenario, scenarios, section, sections, signs, slow, success, switch:, system, technical, testing, total, troubleshooting, updating, user, warning, what, won't
+
+[View Document](./guides/OPERATOR_MONITORING_USER_GUIDE.md)
+
+## Optimistic Lock retriesUsed Accuracy Fix
+
+- **File:** `fixes/OPTIMISTIC_LOCK_RETRIES_USED_ACCURACY_FIX.md`
+- **Type:** canonical
+- **Category:** fixes
+- **Related Code:**
+  - `src/lib/optimisticLock.ts`
+- **Keywords:** `withoptimisticlock()`, accuracy, benefits, details, documentation, example, fix, function, how, implementation, lock, mechanism, optimistic, problem, recommendations, related, retriesused, scenario, scenarios, solution, testing, tracking, works
+
+[View Document](./fixes/OPTIMISTIC_LOCK_RETRIES_USED_ACCURACY_FIX.md)
+
+## Page Visibility Property Test Cumulative Gap Fix
+
+- **File:** `fixes/PAGE_VISIBILITY_PROPERTY_TEST_CUMULATIVE_GAP_FIX.md`
+- **Type:** canonical
+- **Category:** fixes
+- **Keywords:** cause, changes, cumulative, fix, gap, issue, made, page, property, related, requirements, results, root, solution, test, verification, visibility
+
+[View Document](./fixes/PAGE_VISIBILITY_PROPERTY_TEST_CUMULATIVE_GAP_FIX.md)
+
+## Page Visibility Property Test Division by Zero Fix
+
+- **File:** `fixes/PAGE_VISIBILITY_PROPERTY_TEST_DIVISION_BY_ZERO_FIX.md`
+- **Type:** canonical
+- **Category:** fixes
+- **Keywords:** cause, changes, division, fix, issue, made, page, property, related, requirements, results, root, solution, test, verification, visibility, zero
+
+[View Document](./fixes/PAGE_VISIBILITY_PROPERTY_TEST_DIVISION_BY_ZERO_FIX.md)
 
 ## Password Reset Admin Guide
 
@@ -1491,6 +1797,31 @@ related_code: []
 
 [View Document](./guides/PHOTO_SERVICE_INTEGRATION_GUIDE.md)
 
+## Polling Fallback Stale State Fix
+
+- **File:** `fixes/POLLING_FALLBACK_STALE_STATE_FIX.md`
+- **Type:** canonical
+- **Category:** fixes
+- **Related Code:**
+  - `src/hooks/usePollingFallback.ts`
+  - `src/__tests__/hooks/usePollingFallback.test.ts`
+- **Keywords:** (line, (lines, 125, 147), 149, 155), 157, 177), 179, 186), 67), `ispollingref`, `pollnow`, `scheduleretry`, `startpolling`, `stoppolling`, added, cause, changes, documentation, fallback, files, fix, impact, made, modified, polling, problem, related, root, solution, stale, state, testing, updated
+
+[View Document](./fixes/POLLING_FALLBACK_STALE_STATE_FIX.md)
+
+## Polling Fallback State and Type Safety Fix
+
+- **File:** `fixes/POLLING_FALLBACK_STATE_AND_TYPE_SAFETY_FIX.md`
+- **Type:** canonical
+- **Category:** fixes
+- **Related Code:**
+  - `src/pages/dashboard.tsx`
+  - `src/hooks/usePollingFallback.ts`
+  - `src/types/connectionHealth.ts`
+- **Keywords:** activation, added, and, based, call, cause, changes, created, documentation, fallback, files, fix, for, function, impact, implemented, made, mapping, modified, polling, problem, related, root, safe, safety, solution, state, testing, timer, type, updated, usepollingfallback
+
+[View Document](./fixes/POLLING_FALLBACK_STATE_AND_TYPE_SAFETY_FIX.md)
+
 ## Preventing Performance Regressions
 
 - **File:** `guides/PREVENTING_PERFORMANCE_REGRESSIONS.md`
@@ -1571,6 +1902,18 @@ related_code: []
 
 [View Document](./testing/REALTIME_TESTS_SUMMARY.md)
 
+## Realtime Subscription Fallback Logic Fix
+
+- **File:** `fixes/REALTIME_SUBSCRIPTION_FALLBACK_LOGIC_FIX.md`
+- **Type:** canonical
+- **Category:** fixes
+- **Related Code:**
+  - `src/hooks/useRealtimeSubscription.ts`
+  - `src/types/connectionHealth.ts`
+- **Keywords:** (line, cause, changes, connection, disconnection, documentation, fallback, files, fix, handler, impact, logic, made, modified, problem, realtime, related, root, solution, subscription, testing, ~139), ~167)
+
+[View Document](./fixes/REALTIME_SUBSCRIPTION_FALLBACK_LOGIC_FIX.md)
+
 ## Role and Permission API Tests Summary
 
 - **File:** `testing/ROLE_API_TESTS_SUMMARY.md`
@@ -1581,6 +1924,18 @@ related_code: []
 - **Keywords:** `/api/roles/[id].ts`, `/api/roles/index.ts`, `/api/roles/initialize.ts`, add, and, api, apis, cases, conclusion, coverage, covered, created, edge, enhancements, error, files, for, future, handling, http, integration, logging, methods, more, other, overview, performance, permission, recommendations, requirements, role, scenarios, statistics, summary, test, tested, tests, validation, with
 
 [View Document](./testing/ROLE_API_TESTS_SUMMARY.md)
+
+## Role Permissions Validation Fix
+
+- **File:** `fixes/ROLE_PERMISSIONS_VALIDATION_FIX.md`
+- **Type:** canonical
+- **Category:** fixes
+- **Related Code:**
+  - `src/lib/validatePermissions.ts`
+  - `src/pages/api/roles/[id].ts`
+- **Keywords:** cause, documentation, files, fix, issue, modified, permissions, prevention, related, role, root, solution, validation, verification
+
+[View Document](./fixes/ROLE_PERMISSIONS_VALIDATION_FIX.md)
 
 ## Role User Count Caching Implementation
 
@@ -1726,6 +2081,17 @@ related_code: []
 - **Keywords:** (`src/pages/dashboard.tsx`,, 1021, 1095), 2971, 2989), away, behavior, calculation, changes, considerations, details, display, ended, enhancement, enhancements, event, examples, files, future, has, hours, less, lines, logic, more, overview, problem, related, solution, statement, technical, testing, than, time, until
 
 [View Document](./enhancements/TIME_UNTIL_EVENT_DISPLAY_ENHANCEMENT.md)
+
+## Transaction Monitoring Dashboard Empty-State Logic Fix
+
+- **File:** `fixes/TRANSACTION_MONITORING_EMPTY_STATE_LOGIC_FIX.md`
+- **Type:** canonical
+- **Category:** fixes
+- **Related Code:**
+  - `src/components/TransactionMonitoringDashboard.tsx`
+- **Keywords:** all, applied, benefits, cards, dashboard, details, documentation, empty, example, fix, implementation, logic, monitoring, pattern, problem, recommendations, related, scenario, solution, state, testing, three, transaction, updated
+
+[View Document](./fixes/TRANSACTION_MONITORING_EMPTY_STATE_LOGIC_FIX.md)
 
 ## Transactions & Bulk Operations - Comprehensive Test Plan
 
