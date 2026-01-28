@@ -32,7 +32,6 @@ describe('useUserFormState', () => {
         email: '',
         name: '',
         roleId: undefined,
-        password: '',
         authUserId: '',
         addToTeam: true, // Default true in link mode
       });
@@ -47,7 +46,6 @@ describe('useUserFormState', () => {
         email: '',
         name: '',
         roleId: undefined,
-        password: '',
         authUserId: '',
         addToTeam: false, // Default false in edit mode
       });
@@ -62,7 +60,6 @@ describe('useUserFormState', () => {
         email: 'test@example.com',
         name: 'Test User',
         roleId: 'role-123',
-        password: '',
         authUserId: '',
         addToTeam: false,
       });
@@ -122,7 +119,6 @@ describe('useUserFormState', () => {
         email: 'john@example.com',
         name: 'John Doe',
         roleId: 'role-456',
-        password: '',
         authUserId: '',
         addToTeam: false,
       });
@@ -164,7 +160,6 @@ describe('useUserFormState', () => {
         email: 'test@example.com',
         name: 'Test User',
         roleId: 'role-123',
-        password: '',
         authUserId: '',
         addToTeam: false,
       });
@@ -190,7 +185,6 @@ describe('useUserFormState', () => {
         email: '',
         name: '',
         roleId: undefined,
-        password: '',
         authUserId: '',
         addToTeam: false,
       });
@@ -257,7 +251,6 @@ describe('useUserFormState', () => {
         email: 'direct@example.com',
         name: 'Direct User',
         roleId: 'role-789',
-        password: 'password123',
         authUserId: 'auth-789',
         addToTeam: true,
       };
