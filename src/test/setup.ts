@@ -33,3 +33,4 @@ process.env.NEXT_PUBLIC_APPWRITE_LOG_SETTINGS_COLLECTION_ID = 'test-log-settings
 process.env.NEXT_PUBLIC_APPWRITE_CLOUDINARY_COLLECTION_ID = 'test-cloudinary-collection';
 process.env.NEXT_PUBLIC_APPWRITE_SWITCHBOARD_COLLECTION_ID = 'test-switchboard-collection';
 process.env.NEXT_PUBLIC_APPWRITE_ONESIMPLEAPI_COLLECTION_ID = 'test-onesimpleapi-collection';
+process.env.NEXT_PUBLIC_APPWRITE_REPORTS_COLLECTION_ID = 'test-reports-collection';

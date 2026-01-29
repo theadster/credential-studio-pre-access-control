@@ -34,6 +34,7 @@ const COLLECTIONS = {
   EVENT_SETTINGS: 'event_settings',
   LOGS: 'logs',
   LOG_SETTINGS: 'log_settings',
+  REPORTS: 'reports',
 };
 
 /**
@@ -45,7 +46,7 @@ async function waitForAttribute(
   collectionId: string,
   attributeKey: string,
   maxAttempts: number = 30,
-  delayMs: number = 1000
+  delayMs: number = 1000,
 ): Promise<void> {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
@@ -58,6 +59,35 @@ async function waitForAttribute(
       }
       // Attribute not ready yet, wait and retry
       await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+}
+
+/**
+ * Create an attribute if it doesn't already exist
+ * Handles 409 conflicts (attribute already exists) gracefully
+ */
+async function createAttributeIfMissing(
+  databaseId: string,
+  collectionId: string,
+  key: string,
+  existingAttributes: string[],
+  createFn: () => Promise<any>,
+): Promise<void> {
+  if (existingAttributes.includes(key)) {
+    console.log(`  ✓ Attribute '${key}' already exists`);
+    return;
+  }
+
+  try {
+    console.log(`  Creating attribute '${key}'...`);
+    await createFn();
+    await waitForAttribute(databaseId, collectionId, key);
+  } catch (error: any) {
+    if (error.code === 409) {
+      console.log(`  ✓ Attribute '${key}' already exists`);
+    } else {
+      console.error(`  ✗ Error creating attribute '${key}':`, error.message);
     }
   }
 }
@@ -185,74 +215,51 @@ async function createAttendeesCollection(databaseId: string) {
       }
     }
 
-    // Helper to create attribute if it doesn't exist
-    async function createAttributeIfMissing(
-      key: string,
-      createFn: () => Promise<any>
-    ) {
-      if (existingAttributes.includes(key)) {
-        console.log(`  ✓ Attribute '${key}' already exists`);
-        return;
-      }
-
-      try {
-        console.log(`  Creating attribute '${key}'...`);
-        await createFn();
-        await waitForAttribute(databaseId, COLLECTIONS.ATTENDEES, key);
-      } catch (error: any) {
-        if (error.code === 409) {
-          console.log(`  ✓ Attribute '${key}' already exists`);
-        } else {
-          console.error(`  ✗ Error creating attribute '${key}':`, error.message);
-        }
-      }
-    }
-
     // Add all required attributes
-    await createAttributeIfMissing('firstName', () =>
-      databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'firstName', 255, true)
+    await createAttributeIfMissing(databaseId, COLLECTIONS.ATTENDEES, 'firstName', existingAttributes, () =>
+      databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'firstName', 255, true),
     );
-    await createAttributeIfMissing('lastName', () =>
-      databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'lastName', 255, true)
+    await createAttributeIfMissing(databaseId, COLLECTIONS.ATTENDEES, 'lastName', existingAttributes, () =>
+      databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'lastName', 255, true),
     );
-    await createAttributeIfMissing('barcodeNumber', () =>
-      databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'barcodeNumber', 255, true)
+    await createAttributeIfMissing(databaseId, COLLECTIONS.ATTENDEES, 'barcodeNumber', existingAttributes, () =>
+      databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'barcodeNumber', 255, true),
     );
-    await createAttributeIfMissing('notes', () =>
-      databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'notes', 5000, false)
+    await createAttributeIfMissing(databaseId, COLLECTIONS.ATTENDEES, 'notes', existingAttributes, () =>
+      databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'notes', 5000, false),
     );
-    await createAttributeIfMissing('photoUrl', () =>
-      databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'photoUrl', 1000, false)
+    await createAttributeIfMissing(databaseId, COLLECTIONS.ATTENDEES, 'photoUrl', existingAttributes, () =>
+      databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'photoUrl', 1000, false),
     );
-    await createAttributeIfMissing('credentialUrl', () =>
-      databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'credentialUrl', 1000, false)
+    await createAttributeIfMissing(databaseId, COLLECTIONS.ATTENDEES, 'credentialUrl', existingAttributes, () =>
+      databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'credentialUrl', 1000, false),
     );
-    await createAttributeIfMissing('credentialGeneratedAt', () =>
-      databases.createDatetimeAttribute(databaseId, COLLECTIONS.ATTENDEES, 'credentialGeneratedAt', false)
+    await createAttributeIfMissing(databaseId, COLLECTIONS.ATTENDEES, 'credentialGeneratedAt', existingAttributes, () =>
+      databases.createDatetimeAttribute(databaseId, COLLECTIONS.ATTENDEES, 'credentialGeneratedAt', false),
     );
-    await createAttributeIfMissing('customFieldValues', () =>
-      databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'customFieldValues', 10000, false)
+    await createAttributeIfMissing(databaseId, COLLECTIONS.ATTENDEES, 'customFieldValues', existingAttributes, () =>
+      databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'customFieldValues', 10000, false),
     );
-    await createAttributeIfMissing('lastSignificantUpdate', () =>
-      databases.createDatetimeAttribute(databaseId, COLLECTIONS.ATTENDEES, 'lastSignificantUpdate', false)
+    await createAttributeIfMissing(databaseId, COLLECTIONS.ATTENDEES, 'lastSignificantUpdate', existingAttributes, () =>
+      databases.createDatetimeAttribute(databaseId, COLLECTIONS.ATTENDEES, 'lastSignificantUpdate', false),
     );
 
     // Operator-managed fields for atomic operations
     console.log('  Checking operator-managed fields...');
-    await createAttributeIfMissing('credentialCount', () =>
-      databases.createIntegerAttribute(databaseId, COLLECTIONS.ATTENDEES, 'credentialCount', false, 0)
+    await createAttributeIfMissing(databaseId, COLLECTIONS.ATTENDEES, 'credentialCount', existingAttributes, () =>
+      databases.createIntegerAttribute(databaseId, COLLECTIONS.ATTENDEES, 'credentialCount', false, 0),
     );
-    await createAttributeIfMissing('photoUploadCount', () =>
-      databases.createIntegerAttribute(databaseId, COLLECTIONS.ATTENDEES, 'photoUploadCount', false, 0)
+    await createAttributeIfMissing(databaseId, COLLECTIONS.ATTENDEES, 'photoUploadCount', existingAttributes, () =>
+      databases.createIntegerAttribute(databaseId, COLLECTIONS.ATTENDEES, 'photoUploadCount', false, 0),
     );
-    await createAttributeIfMissing('viewCount', () =>
-      databases.createIntegerAttribute(databaseId, COLLECTIONS.ATTENDEES, 'viewCount', false, 0)
+    await createAttributeIfMissing(databaseId, COLLECTIONS.ATTENDEES, 'viewCount', existingAttributes, () =>
+      databases.createIntegerAttribute(databaseId, COLLECTIONS.ATTENDEES, 'viewCount', false, 0),
     );
-    await createAttributeIfMissing('lastCredentialGenerated', () =>
-      databases.createDatetimeAttribute(databaseId, COLLECTIONS.ATTENDEES, 'lastCredentialGenerated', false)
+    await createAttributeIfMissing(databaseId, COLLECTIONS.ATTENDEES, 'lastCredentialGenerated', existingAttributes, () =>
+      databases.createDatetimeAttribute(databaseId, COLLECTIONS.ATTENDEES, 'lastCredentialGenerated', false),
     );
-    await createAttributeIfMissing('lastPhotoUploaded', () =>
-      databases.createDatetimeAttribute(databaseId, COLLECTIONS.ATTENDEES, 'lastPhotoUploaded', false)
+    await createAttributeIfMissing(databaseId, COLLECTIONS.ATTENDEES, 'lastPhotoUploaded', existingAttributes, () =>
+      databases.createDatetimeAttribute(databaseId, COLLECTIONS.ATTENDEES, 'lastPhotoUploaded', false),
     );
 
     // Create indexes if they don't exist
@@ -429,6 +436,121 @@ async function createLogSettingsCollection(databaseId: string) {
   }
 }
 
+/**
+ * Create reports collection for saved filter configurations
+ * 
+ * Stores user-saved report configurations including:
+ * - Report name and description
+ * - User association (userId)
+ * - Serialized filter configuration (JSON)
+ * - Timestamps for creation, update, and last access
+ * 
+ * Requirements: 6.1, 6.2, 6.3, 6.4
+ */
+async function createReportsCollection(databaseId: string) {
+  try {
+    console.log('\nCreating reports collection...');
+    let collectionExists = false;
+
+    try {
+      await databases.createCollection(
+        databaseId,
+        COLLECTIONS.REPORTS,
+        'Reports',
+        [
+          Permission.read(Role.users()),
+          Permission.create(Role.users()),
+          Permission.update(Role.users()),
+          Permission.delete(Role.users()),
+        ]
+      );
+    } catch (error: any) {
+      if (error.code === 409) {
+        console.log('✓ Reports collection already exists');
+        collectionExists = true;
+      } else {
+        throw error;
+      }
+    }
+
+    // Get existing attributes if collection exists
+    let existingAttributes: string[] = [];
+    if (collectionExists) {
+      try {
+        const collection = await databases.getCollection(databaseId, COLLECTIONS.REPORTS);
+        existingAttributes = collection.attributes.map((attr: any) => attr.key);
+        console.log(`  Found ${existingAttributes.length} existing attributes`);
+      } catch (error) {
+        console.log('  Could not fetch existing attributes, will attempt to create all');
+      }
+    }
+
+    // Add attributes
+    // name: Report name (required, max 255 chars)
+    await createAttributeIfMissing(databaseId, COLLECTIONS.REPORTS, 'name', existingAttributes, () =>
+      databases.createStringAttribute(databaseId, COLLECTIONS.REPORTS, 'name', 255, true),
+    );
+
+    // description: Optional description (max 1000 chars)
+    await createAttributeIfMissing(databaseId, COLLECTIONS.REPORTS, 'description', existingAttributes, () =>
+      databases.createStringAttribute(databaseId, COLLECTIONS.REPORTS, 'description', 1000, false),
+    );
+
+    // userId: Owner's user ID (required for user association)
+    await createAttributeIfMissing(databaseId, COLLECTIONS.REPORTS, 'userId', existingAttributes, () =>
+      databases.createStringAttribute(databaseId, COLLECTIONS.REPORTS, 'userId', 255, true),
+    );
+
+    // filterConfiguration: JSON-serialized AdvancedSearchFilters (max 50000 chars for complex filters)
+    await createAttributeIfMissing(databaseId, COLLECTIONS.REPORTS, 'filterConfiguration', existingAttributes, () =>
+      databases.createStringAttribute(databaseId, COLLECTIONS.REPORTS, 'filterConfiguration', 50000, true),
+    );
+
+    // createdAt: Creation timestamp
+    await createAttributeIfMissing(databaseId, COLLECTIONS.REPORTS, 'createdAt', existingAttributes, () =>
+      databases.createDatetimeAttribute(databaseId, COLLECTIONS.REPORTS, 'createdAt', true),
+    );
+
+    // updatedAt: Last update timestamp
+    await createAttributeIfMissing(databaseId, COLLECTIONS.REPORTS, 'updatedAt', existingAttributes, () =>
+      databases.createDatetimeAttribute(databaseId, COLLECTIONS.REPORTS, 'updatedAt', true),
+    );
+
+    // lastAccessedAt: Last time report was loaded (optional)
+    await createAttributeIfMissing(databaseId, COLLECTIONS.REPORTS, 'lastAccessedAt', existingAttributes, () =>
+      databases.createDatetimeAttribute(databaseId, COLLECTIONS.REPORTS, 'lastAccessedAt', false),
+    );
+
+    // Create indexes for efficient querying (only if collection was just created)
+    if (!collectionExists) {
+      console.log('  Creating indexes...');
+      try {
+        // userId index for listing user's reports (Requirement 6.3)
+        await databases.createIndex(databaseId, COLLECTIONS.REPORTS, 'userId_idx', IndexType.Key, ['userId']);
+      } catch (error: any) {
+        if (error.code !== 409) console.error('  ✗ Error creating userId index:', error.message);
+      }
+      try {
+        // name index for search functionality (Requirement 6.4)
+        await databases.createIndex(databaseId, COLLECTIONS.REPORTS, 'name_idx', IndexType.Key, ['name']);
+      } catch (error: any) {
+        if (error.code !== 409) console.error('  ✗ Error creating name index:', error.message);
+      }
+      try {
+        // createdAt index for sorting by creation date
+        await databases.createIndex(databaseId, COLLECTIONS.REPORTS, 'createdAt_idx', IndexType.Key, ['createdAt']);
+      } catch (error: any) {
+        if (error.code !== 409) console.error('  ✗ Error creating createdAt index:', error.message);
+      }
+    }
+
+    console.log('✓ Reports collection setup complete');
+  } catch (error: any) {
+    console.error('✗ Error setting up reports collection:', error);
+    throw error;
+  }
+}
+
 
 
 async function printEnvironmentVariables(databaseId: string) {
@@ -445,6 +567,7 @@ NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID=${COLLECTIONS.CUSTOM_FIELDS}
 NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID=${COLLECTIONS.EVENT_SETTINGS}
 NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID=${COLLECTIONS.LOGS}
 NEXT_PUBLIC_APPWRITE_LOG_SETTINGS_COLLECTION_ID=${COLLECTIONS.LOG_SETTINGS}
+NEXT_PUBLIC_APPWRITE_REPORTS_COLLECTION_ID=${COLLECTIONS.REPORTS}
   `);
   console.log('='.repeat(80));
 }
@@ -483,6 +606,7 @@ async function main() {
     await createEventSettingsCollection(databaseId);
     await createLogsCollection(databaseId);
     await createLogSettingsCollection(databaseId);
+    await createReportsCollection(databaseId);
 
     // Print environment variables
     await printEnvironmentVariables(databaseId);

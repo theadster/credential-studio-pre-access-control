@@ -30,6 +30,7 @@ interface UserPermissions {
   accessControl?: Permission;
   approvalProfiles?: Permission;
   scanLogs?: Permission;
+  reports?: Permission;
 }
 
 export function hasPermission(

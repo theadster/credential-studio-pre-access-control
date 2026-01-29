@@ -426,3 +426,31 @@ export function createEmptyFilters(): AdvancedSearchFilters {
     matchMode: 'all',
   };
 }
+
+/**
+ * Clean filter configuration for saving by removing empty custom fields.
+ * This prevents stale parameter errors when loading reports that were saved
+ * with empty custom field entries.
+ *
+ * @param filters - The filter configuration to clean
+ * @returns A new filter configuration with empty custom fields removed
+ */
+export function cleanFilterConfigurationForSaving(
+  filters: AdvancedSearchFilters
+): AdvancedSearchFilters {
+  // Create a copy of the filters
+  const cleaned = { ...filters };
+
+  // Remove empty custom fields
+  const cleanedCustomFields: Record<string, CustomFieldFilter> = {};
+  Object.entries(filters.customFields || {}).forEach(([fieldId, filter]) => {
+    // Only include custom fields that have active filters
+    if (isCustomFieldFilterActive(filter)) {
+      cleanedCustomFields[fieldId] = filter;
+    }
+  });
+
+  cleaned.customFields = cleanedCustomFields;
+
+  return cleaned;
+}

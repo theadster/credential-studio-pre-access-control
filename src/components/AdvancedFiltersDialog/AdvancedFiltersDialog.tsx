@@ -15,10 +15,12 @@
  * - 2.3: Clear filter immediately when chip remove button clicked
  * - 2.6: Include Clear All button
  * - 5.8: Validate at least one filter is set before applying
+ * - 7.1: Display "Save Report" and "Load Report" buttons in dialog footer
+ * - 7.2: Disable "Save Report" when no filters are active
  */
 
 import * as React from 'react';
-import { Search, User, FileText, Shield, Settings, Info } from 'lucide-react';
+import { Search, User, FileText, Shield, Settings, Info, Save, FolderOpen } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -56,10 +58,16 @@ import {
   countSectionFilters,
   hasActiveFilters,
   createEmptyFilters,
+  cleanFilterConfigurationForSaving,
 } from '@/lib/filterUtils';
 import { isAccessControlEnabledForEvent } from '@/lib/accessControlFeature';
 import type { EventSettings } from '@/components/EventSettingsForm/types';
 import { useSweetAlert } from '@/hooks/useSweetAlert';
+import { useReports, type LoadReportResult } from '@/hooks/useReports';
+import { SaveReportDialog } from './components/SaveReportDialog';
+import { LoadReportDialog } from './components/LoadReportDialog';
+import { ReportCorrectionDialog } from './components/ReportCorrectionDialog';
+import type { SavedReport, ReportValidationResult } from '@/types/reports';
 
 /**
  * Section configuration for accordion
@@ -130,10 +138,34 @@ export function AdvancedFiltersDialog({
   open,
   onOpenChange,
 }: AdvancedFiltersDialogProps) {
-  const { error: showError } = useSweetAlert();
+  const { error: showError, success } = useSweetAlert();
 
   // Track expanded sections - Basic Information expanded by default (Requirement 1.10)
   const [expandedSections, setExpandedSections] = React.useState<string[]>(['basic']);
+
+  // Reports integration state (Requirements 7.1, 7.2)
+  const {
+    reports,
+    isLoading: isLoadingReports,
+    error: reportsError,
+    hasPermission: hasReportsPermission,
+    createReport,
+    updateReport,
+    deleteReport,
+    loadReport,
+    refreshReports,
+  } = useReports();
+
+  // Dialog states for Save/Load/Correction dialogs
+  const [saveDialogOpen, setSaveDialogOpen] = React.useState(false);
+  const [loadDialogOpen, setLoadDialogOpen] = React.useState(false);
+  const [correctionDialogOpen, setCorrectionDialogOpen] = React.useState(false);
+  const [isSavingReport, setIsSavingReport] = React.useState(false);
+  const [saveError, setSaveError] = React.useState<string | null>(null);
+
+  // State for report correction flow
+  const [pendingReport, setPendingReport] = React.useState<SavedReport | null>(null);
+  const [pendingValidation, setPendingValidation] = React.useState<ReportValidationResult | null>(null);
 
   // Get visible sections based on conditions (Requirement 1.8 - Access Control conditional)
   const visibleSections = React.useMemo(
@@ -306,6 +338,152 @@ export function AdvancedFiltersDialog({
     onOpenChange(false);
   }, [onOpenChange]);
 
+  // Check if save button should be disabled (Requirement 7.2)
+  const isSaveDisabled = !hasActiveFilters(filters);
+
+  /**
+   * Handle saving current filters as a report
+   * Requirements: 1.1, 1.2, 7.6
+   */
+  const handleSaveReport = React.useCallback(
+    async (name: string, description?: string) => {
+      setIsSavingReport(true);
+      setSaveError(null);
+      
+      // Clean the filter configuration to remove empty custom fields
+      // This prevents stale parameter errors when loading the report
+      const cleanedFilters = cleanFilterConfigurationForSaving(filters);
+      
+      const result = await createReport({
+        name,
+        description,
+        filterConfiguration: cleanedFilters,
+      });
+      
+      setIsSavingReport(false);
+      
+      if (result.success) {
+        setSaveDialogOpen(false);
+        success('Report Saved', `"${name}" has been saved successfully.`);
+      } else {
+        // Handle specific error codes
+        if (result.errorCode === 'DUPLICATE_NAME') {
+          setSaveError(`A report named "${name}" already exists. Please choose a different name.`);
+        } else {
+          showError('Save Failed', result.errorMessage || 'Failed to save report');
+        }
+      }
+    },
+    [filters, createReport, success, showError]
+  );
+
+  /**
+   * Handle loading a report - initiates validation flow
+   * Requirements: 2.2, 2.3, 4.3, 7.5
+   */
+  const handleLoadReport = React.useCallback(
+    async (report: SavedReport) => {
+      try {
+        const result: LoadReportResult = await loadReport(report.$id);
+
+        // Check if there are stale parameters
+        if (!result.validation.isValid) {
+          // Show correction dialog
+          setPendingReport(result.report);
+          setPendingValidation(result.validation);
+          setLoadDialogOpen(false);
+          setCorrectionDialogOpen(true);
+          return;
+        }
+
+        // No stale parameters - load directly
+        onFiltersChange(result.filterConfiguration);
+        setLoadDialogOpen(false);
+        success('Report Loaded', `"${report.name}" has been loaded.`);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to load report';
+        showError('Load Failed', message);
+        // Refresh reports list in case the report was deleted
+        refreshReports();
+      }
+    },
+    [loadReport, onFiltersChange, success, showError, refreshReports]
+  );
+
+  /**
+   * Handle editing a report's name/description
+   * Requirements: 3.2
+   */
+  const handleEditReport = React.useCallback(
+    async (id: string, name: string, description?: string) => {
+      try {
+        await updateReport(id, { name, description });
+        success('Report Updated', `"${name}" has been updated.`);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to update report';
+        showError('Update Failed', message);
+      }
+    },
+    [updateReport, success, showError]
+  );
+
+  /**
+   * Handle deleting a report
+   * Requirements: 3.4
+   */
+  const handleDeleteReport = React.useCallback(
+    async (id: string) => {
+      try {
+        await deleteReport(id);
+        success('Report Deleted', 'The report has been deleted.');
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to delete report';
+        showError('Delete Failed', message);
+      }
+    },
+    [deleteReport, success, showError]
+  );
+
+  /**
+   * Handle applying report with stale parameters removed
+   * Requirements: 4.8
+   */
+  const handleApplyWithRemoval = React.useCallback(
+    (validConfig: AdvancedSearchFilters) => {
+      onFiltersChange(validConfig);
+      setCorrectionDialogOpen(false);
+      setPendingReport(null);
+      setPendingValidation(null);
+      success('Report Loaded', 'Report loaded with valid filters only.');
+    },
+    [onFiltersChange, success]
+  );
+
+  /**
+   * Handle saving corrections to a report
+   * Requirements: 4.7
+   */
+  const handleSaveCorrections = React.useCallback(
+    async (correctedConfig: AdvancedSearchFilters) => {
+      if (!pendingReport) return;
+
+      try {
+        await updateReport(pendingReport.$id, {
+          filterConfiguration: correctedConfig,
+        });
+        onFiltersChange(correctedConfig);
+        setCorrectionDialogOpen(false);
+        setPendingReport(null);
+        setPendingValidation(null);
+        success('Report Updated', `"${pendingReport.name}" has been corrected and loaded.`);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to save corrections';
+        showError('Save Failed', message);
+      }
+    },
+    [pendingReport, updateReport, onFiltersChange, success, showError]
+  );
+
   // Get filter count for a section
   const getSectionFilterCount = React.useCallback(
     (sectionId: FilterSection) => {
@@ -434,18 +612,45 @@ export function AdvancedFiltersDialog({
           </Accordion>
         </div>
 
-        {/* Action Footer - Matches other dialogs */}
+        {/* Action Footer - Matches other dialogs (Requirements 7.1, 7.2) */}
         <div className="border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-6 py-4">
           <div className="flex w-full justify-between">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={handleClearAll}
-              className="text-muted-foreground hover:text-foreground"
-            >
-              Clear All Filters
-            </Button>
             <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={handleClearAll}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                Clear All Filters
+              </Button>
+            </div>
+            <div className="flex gap-2">
+              {/* Save/Load Report Buttons (Requirement 7.1) - Only show if user has permission */}
+              {hasReportsPermission && (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setLoadDialogOpen(true)}
+                    data-testid="load-report-btn"
+                  >
+                    <FolderOpen className="h-4 w-4 mr-2" />
+                    Load Report
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setSaveDialogOpen(true)}
+                    disabled={isSaveDisabled}
+                    title={isSaveDisabled ? 'Add filters before saving a report' : 'Save current filters as a report'}
+                    data-testid="save-report-btn"
+                  >
+                    <Save className="h-4 w-4 mr-2" />
+                    Save Report
+                  </Button>
+                </>
+              )}
               <Button
                 type="button"
                 variant="outline"
@@ -463,6 +668,39 @@ export function AdvancedFiltersDialog({
           </div>
         </div>
       </DialogContent>
+
+      {/* Save Report Dialog (Requirement 1.1) */}
+      <SaveReportDialog
+        open={saveDialogOpen}
+        onOpenChange={setSaveDialogOpen}
+        onSave={handleSaveReport}
+        isSaving={isSavingReport}
+        error={saveError}
+        onClearError={() => setSaveError(null)}
+      />
+
+      {/* Load Report Dialog (Requirement 2.1) */}
+      <LoadReportDialog
+        open={loadDialogOpen}
+        onOpenChange={setLoadDialogOpen}
+        reports={reports}
+        isLoading={isLoadingReports}
+        error={reportsError}
+        onLoad={handleLoadReport}
+        onEdit={handleEditReport}
+        onDelete={handleDeleteReport}
+      />
+
+      {/* Report Correction Dialog (Requirement 4.3) */}
+      <ReportCorrectionDialog
+        open={correctionDialogOpen}
+        onOpenChange={setCorrectionDialogOpen}
+        report={pendingReport}
+        validationResult={pendingValidation}
+        eventSettings={eventSettings}
+        onApplyWithRemoval={handleApplyWithRemoval}
+        onSaveCorrections={handleSaveCorrections}
+      />
     </Dialog>
   );
 }
