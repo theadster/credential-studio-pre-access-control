@@ -101,7 +101,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         if (!parseResult.success) {
           return res.status(400).json({
             error: 'Validation error',
-            details: parseResult.error.errors,
+            details: parseResult.error.issues,
           });
         }
 

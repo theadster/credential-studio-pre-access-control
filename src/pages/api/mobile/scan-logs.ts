@@ -54,7 +54,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         error: {
           code: 'VALIDATION_ERROR',
           message: 'Invalid request body',
-          details: parseResult.error.errors.map(e => ({
+          details: parseResult.error.issues.map(e => ({
             path: e.path.join('.'),
             message: e.message
           }))
