@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { ID, Query } from 'appwrite';
+import { ID, Query, Roles } from 'appwrite';
 import { createSessionClient, createAdminClient } from '@/lib/appwrite';
 import { hasPermission } from '@/lib/permissions';
 import { invalidateRoleUserCount } from '@/lib/roleUserCountCache';
@@ -133,7 +133,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           // Create team membership using admin client
           const membership = await adminClient.teams.createMembership({
             teamId,
-            roles: teamRoles,
+            roles: teamRoles as Roles[],
             userId: authUser.$id,
             email: authUser.email,
             name: authUser.name
