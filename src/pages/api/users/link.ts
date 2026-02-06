@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { ID, Query } from 'appwrite';
+import { ID, Query, Roles } from 'appwrite';
 import { createSessionClient, createAdminClient } from '@/lib/appwrite';
 import { hasPermission } from '@/lib/permissions';
 import { invalidateRoleUserCount } from '@/lib/roleUserCountCache';
@@ -119,16 +119,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       } else {
         try {
           // Map application role to team roles
-          const roleMapping: Record<string, string[]> = {
-            'Super Administrator': ['owner'],
-            'Event Manager': ['admin'],
-            'Registration Staff': ['member'],
-            'Viewer': ['member']
+          const roleMapping: Record<string, Roles[]> = {
+            'Super Administrator': [Roles.Owner],
+            'Event Manager': [Roles.Admin],
+            'Registration Staff': [Roles.Developer],
+            'Viewer': [Roles.Developer]
           };
 
           const teamRoles = assignedRole?.name 
-            ? roleMapping[assignedRole.name] || ['member'] 
-            : ['member'];
+            ? roleMapping[assignedRole.name] || [Roles.Developer] 
+            : [Roles.Developer];
 
           // Create team membership using admin client
           const membership = await adminClient.teams.createMembership({
