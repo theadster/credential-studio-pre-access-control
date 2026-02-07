@@ -151,6 +151,7 @@ const LoginPage = () => {
                         value={formik.values.email}
                         onChange={formik.handleChange}
                         onBlur={formik.handleBlur}
+                        autoComplete="username"
                       />
                       {formik.touched.email && formik.errors.email && (
                         <p className="text-destructive text-xs">{formik.errors.email}</p>
@@ -168,6 +169,7 @@ const LoginPage = () => {
                           value={formik.values.password}
                           onChange={formik.handleChange}
                           onBlur={formik.handleBlur}
+                          autoComplete="current-password"
                         />
                         <Button
                           type="button"

@@ -244,7 +244,7 @@ export const FieldMappingForm = memo(function FieldMappingForm({
                     {Object.entries(valueMapping).map(([key, value]) => (
                       <div key={key} className="flex items-center gap-3">
                         <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <code className="bg-muted px-2 py-1 rounded text-xs font-mono whitespace-nowrap">
+                          <code className="bg-muted px-2 py-1 rounded-sm text-xs font-mono whitespace-nowrap">
                             {key}
                           </code>
                           <span className="text-muted-foreground">→</span>
@@ -262,9 +262,9 @@ export const FieldMappingForm = memo(function FieldMappingForm({
                       <p className="text-xs text-blue-800 dark:text-blue-200">
                         <strong>Example:</strong> For a &quot;VIP Status&quot; boolean field, you might map:
                         <br />
-                        <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">yes</code> → <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">1</code>
+                        <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded-sm">yes</code> → <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded-sm">1</code>
                         <br />
-                        <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">no</code> → <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">0</code>
+                        <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded-sm">no</code> → <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded-sm">0</code>
                       </p>
                     </div>
                   </div>

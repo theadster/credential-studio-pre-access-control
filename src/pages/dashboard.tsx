@@ -4049,7 +4049,7 @@ export default function Dashboard() {
                           <button
                             type="button"
                             onClick={() => setSearchTerm('')}
-                            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded"
+                            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors focus:outline-hidden focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-sm"
                             aria-label="Clear search"
                           >
                             <X className="h-4 w-4" />
@@ -4124,7 +4124,7 @@ export default function Dashboard() {
                           <button
                             type="button"
                             onClick={() => removeIndividualFilter(chip)}
-                            className="ml-1 rounded-full p-0.5 hover:bg-violet-100 dark:hover:bg-violet-900/50 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
+                            className="ml-1 rounded-full p-0.5 hover:bg-violet-100 dark:hover:bg-violet-900/50 focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-1"
                             aria-label={`Remove ${chip.label} filter`}
                           >
                             <X className="h-3 w-3" />
@@ -4647,7 +4647,7 @@ export default function Dashboard() {
                               <TableCell className="align-top pt-4" rowSpan={customFieldsWithValues.length > 0 ? 2 : 1}>
                                 <div className="flex flex-col items-center gap-2">
                                   <div
-                                    className="relative w-24 h-32 bg-gradient-to-br from-violet-50 to-violet-100 dark:from-violet-950/30 dark:to-violet-900/30 rounded-lg overflow-hidden flex-shrink-0 border border-violet-200 dark:border-violet-800/50 shadow-sm hover:shadow-md transition-all duration-200"
+                                    className="relative w-24 h-32 bg-gradient-to-br from-violet-50 to-violet-100 dark:from-violet-950/30 dark:to-violet-900/30 rounded-lg overflow-hidden flex-shrink-0 border border-violet-200 dark:border-violet-800/50 shadow-xs hover:shadow-md transition-all duration-200"
                                     role="img"
                                     aria-label={attendee.photoUrl ? `Photo of ${attendee.firstName} ${attendee.lastName}` : `Initials for ${attendee.firstName} ${attendee.lastName}`}
                                   >
@@ -4665,7 +4665,11 @@ export default function Dashboard() {
                                           if (parent) {
                                             const initialsDiv = document.createElement('div');
                                             initialsDiv.className = 'w-full h-full flex items-center justify-center';
-                                            initialsDiv.innerHTML = `<span class="text-2xl font-bold text-violet-600 dark:text-violet-400" aria-hidden="true">${attendee.firstName.charAt(0)}${attendee.lastName.charAt(0)}</span>`;
+                                            const span = document.createElement('span');
+                                            span.className = 'text-2xl font-bold text-violet-600 dark:text-violet-400';
+                                            span.setAttribute('aria-hidden', 'true');
+                                            span.textContent = `${attendee.firstName.charAt(0)}${attendee.lastName.charAt(0)}`;
+                                            initialsDiv.appendChild(span);
                                             parent.appendChild(initialsDiv);
                                           }
                                         }}
@@ -4722,7 +4726,7 @@ export default function Dashboard() {
                                         });
                                     }
                                   }}
-                                  className="text-left group w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded px-2 py-1 -mx-2 -my-1"
+                                  className="text-left group w-full focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-sm px-2 py-1 -mx-2 -my-1"
                                   disabled={!hasPermission(currentUser?.role, 'attendees', 'update')}
                                   aria-label={`Edit ${attendee.firstName} ${attendee.lastName}${attendee.notes && attendee.notes.trim() !== '' ? ', has notes' : ''}`}
                                 >
@@ -4740,7 +4744,7 @@ export default function Dashboard() {
                                         setQrModalOpen(true);
                                       }
                                     }}
-                                    className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                                    className="p-1 rounded-sm hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors focus:outline-hidden focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                                     aria-label={`View QR code for barcode ${attendee.barcodeNumber || 'Not assigned'}`}
                                   >
                                     <QrCode className={`h-4 w-4 transition-colors ${attendee.barcodeNumber ? 'text-muted-foreground hover:text-primary' : 'text-muted-foreground'}`} aria-hidden="true" />
@@ -4755,7 +4759,7 @@ export default function Dashboard() {
                                   {attendee.credentialUrl ? (
                                     <button
                                       onClick={() => attendee.credentialUrl && window.open(`${attendee.credentialUrl}?v=${Date.now()}`, '_blank')}
-                                      className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                                      className="p-1 rounded-sm hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors focus:outline-hidden focus:ring-2 focus:ring-primary focus:ring-offset-2"
                                       aria-label={`View credential for ${attendee.firstName} ${attendee.lastName}, opens in new tab`}
                                     >
                                       <Image className="h-5 w-5 text-purple-600" aria-hidden="true" />
@@ -5017,7 +5021,7 @@ export default function Dashboard() {
                                                         href={url}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
-                                                        className="text-primary hover:text-primary/80 underline inline-flex items-center gap-1 max-w-full focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded"
+                                                        className="text-primary hover:text-primary/80 underline inline-flex items-center gap-1 max-w-full focus:outline-hidden focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-sm"
                                                         onClick={(e) => e.stopPropagation()}
                                                         title={url}
                                                         aria-label={`${field.fieldName}: ${url}, opens in new tab`}
@@ -5172,7 +5176,7 @@ export default function Dashboard() {
                     </DialogDescription>
                   </DialogHeader>
                   <div className="flex flex-col gap-4 py-4">
-                    <div className="flex items-center gap-3 p-4 border rounded-lg hover:bg-accent/50 transition-colors">
+                    <div className="flex items-center gap-3 p-4 border border-border rounded-lg hover:bg-accent/50 transition-colors">
                       <div className="flex-1">
                         <div className="font-medium">Current Page Only</div>
                         <div className="text-sm text-muted-foreground">
@@ -5189,7 +5193,7 @@ export default function Dashboard() {
                         Select Page
                       </Button>
                     </div>
-                    <div className="flex items-center gap-3 p-4 border rounded-lg hover:bg-accent/50 transition-colors">
+                    <div className="flex items-center gap-3 p-4 border border-border rounded-lg hover:bg-accent/50 transition-colors">
                       <div className="flex-1">
                         <div className="font-medium">All Matching Records</div>
                         <div className="text-sm text-muted-foreground">
@@ -5677,7 +5681,7 @@ export default function Dashboard() {
                           </h4>
                           <div className="space-y-3">
                             {/* Cloudinary Status */}
-                            <div className="flex items-center justify-between p-3 border rounded-lg">
+                            <div className="flex items-center justify-between p-3 border border-border rounded-lg">
                               <div className="flex items-center gap-3">
                                 <div className={`h-2 w-2 rounded-full ${eventSettings?.cloudinaryEnabled ? 'bg-green-500' : 'bg-gray-400'}`}></div>
                                 <div>
@@ -5695,7 +5699,7 @@ export default function Dashboard() {
                             </div>
 
                             {/* Switchboard Status */}
-                            <div className="flex items-center justify-between p-3 border rounded-lg">
+                            <div className="flex items-center justify-between p-3 border border-border rounded-lg">
                               <div className="flex items-center gap-3">
                                 <div className={`h-2 w-2 rounded-full ${eventSettings?.switchboardEnabled ? 'bg-green-500' : 'bg-gray-400'}`}></div>
                                 <div>
@@ -5713,7 +5717,7 @@ export default function Dashboard() {
                             </div>
 
                             {/* OneSimpleAPI Status */}
-                            <div className="flex items-center justify-between p-3 border rounded-lg">
+                            <div className="flex items-center justify-between p-3 border border-border rounded-lg">
                               <div className="flex items-center gap-3">
                                 <div className={`h-2 w-2 rounded-full ${eventSettings?.oneSimpleApiEnabled ? 'bg-green-500' : 'bg-gray-400'}`}></div>
                                 <div>
@@ -5761,7 +5765,7 @@ export default function Dashboard() {
                       <CardContent>
                         <div className="space-y-3">
                           {eventSettings.customFields.map((field) => (
-                            <div key={field.id} className="flex items-center justify-between p-3 border rounded-lg">
+                            <div key={field.id} className="flex items-center justify-between p-3 border border-border rounded-lg">
                               <div className="flex-1">
                                 <div className="flex items-center space-x-2">
                                   <span className="font-medium">{field.fieldName}</span>

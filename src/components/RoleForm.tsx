@@ -256,7 +256,7 @@ export default function RoleForm({ isOpen, onClose, onSave, role }: RoleFormProp
   const [formData, setFormData] = useState({
     name: "",
     description: "",
-    permissions: defaultPermissions
+    permissions: JSON.parse(JSON.stringify(defaultPermissions))
   });
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<any>({});
@@ -293,7 +293,7 @@ export default function RoleForm({ isOpen, onClose, onSave, role }: RoleFormProp
       setFormData({
         name: "",
         description: "",
-        permissions: defaultPermissions
+        permissions: JSON.parse(JSON.stringify(defaultPermissions))
       });
     }
     setErrors({});
@@ -353,18 +353,29 @@ export default function RoleForm({ isOpen, onClose, onSave, role }: RoleFormProp
   };
 
   const handleSelectAllForResource = (resource: keyof UserPermissions, value: boolean) => {
-    const resourcePermissions = { ...formData.permissions[resource] };
-    Object.keys(resourcePermissions).forEach(action => {
-      resourcePermissions[action as keyof Permission] = value;
-    });
+    setFormData(prev => {
+      const resourcePermissions = { ...prev.permissions[resource] };
+      Object.keys(resourcePermissions).forEach(action => {
+        resourcePermissions[action as keyof Permission] = value;
+      });
 
-    setFormData(prev => ({
-      ...prev,
-      permissions: {
-        ...prev.permissions,
-        [resource]: resourcePermissions
-      }
-    }));
+      return {
+        ...prev,
+        permissions: {
+          ...prev.permissions,
+          [resource]: resourcePermissions
+        },
+        errors: {
+          ...prev.errors,
+          permissions: undefined
+        }
+      };
+    });
+    
+    // Clear permission error when user makes changes
+    if (errors.permissions) {
+      setErrors((prev: any) => ({ ...prev, permissions: undefined }));
+    }
   };
 
   const getPermissionCount = (resource: keyof UserPermissions) => {
@@ -466,7 +477,7 @@ export default function RoleForm({ isOpen, onClose, onSave, role }: RoleFormProp
                 const allSelected = granted === total;
 
                 return (
-                  <AccordionItem key={resource} value={resource} className="border rounded-lg px-4">
+                  <AccordionItem key={resource} value={resource} className="border border-border rounded-lg px-4">
                     <div className="flex items-center justify-between w-full py-4">
                       <AccordionTrigger 
                         className="hover:no-underline flex-1 py-0" 
@@ -507,7 +518,7 @@ export default function RoleForm({ isOpen, onClose, onSave, role }: RoleFormProp
                           const isChecked = formData.permissions[resource as keyof UserPermissions]?.[action as keyof Permission] || false;
                           
                           return (
-                            <div key={action} className="flex items-center space-x-2 p-2 rounded border bg-muted/20">
+                            <div key={action} className="flex items-center space-x-2 p-2 rounded-sm border border-border bg-muted/20">
                               <Switch
                                 id={`${resource}-${action}`}
                                 checked={isChecked}

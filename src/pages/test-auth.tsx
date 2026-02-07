@@ -1,7 +1,30 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+
+/**
+ * Redact sensitive fields from response objects
+ */
+const redactSensitiveData = (obj: any): any => {
+  if (!obj || typeof obj !== 'object') return obj;
+  
+  const sensitiveKeys = [
+    'password', 'token', 'secret', 'apiKey', 'sessionId', 'refreshToken', 'accessToken',
+    'authorization', 'bearer', 'jwt', 'credential', 'privateKey', 'key', 'auth', 'passwd',
+    'ssn', 'appwriteApiKey', 'appwriteSecret', 'databaseUrl', 'cloudinarySecret'
+  ];
+  const redacted = Array.isArray(obj) ? [...obj] : { ...obj };
+  
+  for (const key in redacted) {
+    if (sensitiveKeys.some(sensitive => key.toLowerCase().includes(sensitive.toLowerCase()))) {
+      redacted[key] = '[REDACTED]';
+    } else if (typeof redacted[key] === 'object') {
+      redacted[key] = redactSensitiveData(redacted[key]);
+    }
+  }
+  return redacted;
+};
 
 export default function TestAuthPage() {
   const { user, userProfile } = useAuth();
@@ -79,8 +102,8 @@ export default function TestAuthPage() {
           <CardContent>
             <Button onClick={testSession} className="mb-4">Test Session</Button>
             {sessionTest && (
-              <pre className="bg-gray-100 p-4 rounded overflow-auto">
-                {JSON.stringify(sessionTest, null, 2)}
+              <pre className="bg-gray-100 p-4 rounded-sm overflow-auto">
+                {JSON.stringify(redactSensitiveData(sessionTest), null, 2)}
               </pre>
             )}
           </CardContent>
@@ -93,24 +116,10 @@ export default function TestAuthPage() {
           <CardContent>
             <Button onClick={testApiCall} className="mb-4">Test API Call</Button>
             {apiTest && (
-              <pre className="bg-gray-100 p-4 rounded overflow-auto">
-                {JSON.stringify(apiTest, null, 2)}
+              <pre className="bg-gray-100 p-4 rounded-sm overflow-auto">
+                {JSON.stringify(redactSensitiveData(apiTest), null, 2)}
               </pre>
             )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Cookie Information</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="mb-2"><strong>All Cookies:</strong></p>
-            <pre className="bg-gray-100 p-4 rounded overflow-auto">
-              {typeof window !== 'undefined'
-                ? document.cookie || 'No cookies found'
-                : 'Loading...'}
-            </pre>
           </CardContent>
         </Card>
       </div>

@@ -104,7 +104,7 @@ export default function DeleteUserDialog({ isOpen, onClose, onConfirm, user }: D
           }}>
             <div className="space-y-3">
               {/* Full Delete Option */}
-              <label htmlFor="full" className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-accent/50 cursor-pointer">
+              <label htmlFor="full" className="flex items-start space-x-3 p-3 border border-border rounded-lg hover:bg-accent/50 cursor-pointer">
                 <RadioGroupItem value="full" id="full" className="mt-1" />
                 <div className="flex-1">
                   <div className="font-medium flex items-center gap-2">
@@ -118,7 +118,7 @@ export default function DeleteUserDialog({ isOpen, onClose, onConfirm, user }: D
               </label>
 
               {/* Unlink Option */}
-              <label htmlFor="unlink" className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-accent/50 cursor-pointer">
+              <label htmlFor="unlink" className="flex items-start space-x-3 p-3 border border-border rounded-lg hover:bg-accent/50 cursor-pointer">
                 <RadioGroupItem value="unlink" id="unlink" className="mt-1" />
                 <div className="flex-1">
                   <div className="font-medium flex items-center gap-2">

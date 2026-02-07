@@ -43,7 +43,7 @@ export default function Home() {
       <div className="min-h-screen bg-background" style={{ fontFamily: 'Inter, sans-serif' }}>
         {/* Minimal Navigation */}
         <motion.nav 
-          className="border-b bg-background/80 backdrop-blur-sm sticky top-0 z-50"
+          className="border-b bg-background/80 backdrop-blur-xs sticky top-0 z-50"
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
@@ -156,7 +156,7 @@ export default function Home() {
             {/* Large Feature Card - Attendee Management */}
             <motion.div 
               variants={fadeIn}
-              className="md:col-span-2 lg:row-span-2 group relative overflow-hidden rounded-2xl border bg-card p-8 hover:shadow-xl transition-all duration-300"
+              className="md:col-span-2 lg:row-span-2 group relative overflow-hidden rounded-2xl border border-border bg-card p-8 hover:shadow-xl transition-all duration-300"
             >
               <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-primary/10 to-transparent rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
               <div className="relative z-10 h-full flex flex-col justify-between">
@@ -175,7 +175,7 @@ export default function Home() {
                     alt="Live music concert - Photo by Sebastian Ervi on Pexels"
                     width={800}
                     height={192}
-                    className="rounded-xl w-full h-48 object-cover border"
+                    className="rounded-xl w-full h-48 object-cover border border-border"
                   />
                 </div>
               </div>
@@ -184,7 +184,7 @@ export default function Home() {
             {/* Security Card */}
             <motion.div 
               variants={fadeIn}
-              className="group relative overflow-hidden rounded-2xl border bg-card p-8 hover:shadow-xl transition-all duration-300"
+              className="group relative overflow-hidden rounded-2xl border border-border bg-card p-8 hover:shadow-xl transition-all duration-300"
             >
               <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-primary/10 to-transparent rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
               <div className="relative z-10">
@@ -201,7 +201,7 @@ export default function Home() {
             {/* Photo Integration Card */}
             <motion.div 
               variants={fadeIn}
-              className="group relative overflow-hidden rounded-2xl border bg-card p-8 hover:shadow-xl transition-all duration-300"
+              className="group relative overflow-hidden rounded-2xl border border-border bg-card p-8 hover:shadow-xl transition-all duration-300"
             >
               <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-primary/10 to-transparent rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
               <div className="relative z-10">
@@ -218,7 +218,7 @@ export default function Home() {
             {/* Printing Card */}
             <motion.div 
               variants={fadeIn}
-              className="group relative overflow-hidden rounded-2xl border bg-card p-8 hover:shadow-xl transition-all duration-300"
+              className="group relative overflow-hidden rounded-2xl border border-border bg-card p-8 hover:shadow-xl transition-all duration-300"
             >
               <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-primary/10 to-transparent rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
               <div className="relative z-10">
@@ -235,7 +235,7 @@ export default function Home() {
             {/* Audit Trail Card */}
             <motion.div 
               variants={fadeIn}
-              className="md:col-span-2 group relative overflow-hidden rounded-2xl border bg-card p-8 hover:shadow-xl transition-all duration-300"
+              className="md:col-span-2 group relative overflow-hidden rounded-2xl border border-border bg-card p-8 hover:shadow-xl transition-all duration-300"
             >
               <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-primary/10 to-transparent rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
               <div className="relative z-10 flex items-center justify-between gap-8">
@@ -254,7 +254,7 @@ export default function Home() {
                     alt="Event credentials with lanyards - Photo by Pavel Danilyuk on Pexels"
                     width={192}
                     height={128}
-                    className="rounded-xl w-48 h-32 object-cover border"
+                    className="rounded-xl w-48 h-32 object-cover border border-border"
                   />
                 </div>
               </div>
@@ -355,7 +355,7 @@ export default function Home() {
         </section>
 
         {/* Minimal Footer */}
-        <footer className="border-t bg-background/50 backdrop-blur-sm">
+        <footer className="border-t bg-background/50 backdrop-blur-xs">
           <div className="container mx-auto px-6 py-8">
             <div className="flex flex-col md:flex-row justify-between items-center gap-4">
               <div className="flex items-center space-x-2">

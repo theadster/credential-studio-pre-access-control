@@ -217,7 +217,7 @@ export default function ImportDialog({ children, onImportSuccess, customFields, 
           </div>
 
           {file && (
-            <div className="flex items-center justify-between p-3 border rounded-lg bg-gray-50">
+            <div className="flex items-center justify-between p-3 border border-border rounded-lg bg-gray-50">
               <div className="flex items-center space-x-2">
                 <FileText className="h-4 w-4 text-green-600" />
                 <span className="text-sm font-medium">{file.name}</span>
@@ -239,7 +239,7 @@ export default function ImportDialog({ children, onImportSuccess, customFields, 
               <div className="grid grid-cols-1 gap-2">
                 {allColumns.map((column, index) => (
                   <div key={column.internalName} className="flex justify-between items-center py-1 border-b border-gray-200 last:border-b-0">
-                    <span className="font-mono text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded">{column.internalName}</span>
+                    <span className="font-mono text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded-sm">{column.internalName}</span>
                     <span className="text-xs text-gray-800 font-medium">{column.description}</span>
                   </div>
                 ))}

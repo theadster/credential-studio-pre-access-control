@@ -29,7 +29,7 @@ export function IntegrationTabContent({
 }: IntegrationTabContentProps) {
   return (
     <TabsContent value={value} className="space-y-4">
-      <div className="flex items-center justify-between p-4 border rounded-lg bg-card">
+      <div className="flex items-center justify-between p-4 border border-border rounded-lg bg-card">
         <div>
           <h3 className="font-semibold text-base">{title}</h3>
           <p className="text-sm text-muted-foreground">{description}</p>
@@ -45,7 +45,7 @@ export function IntegrationTabContent({
       {enabled && children}
 
       {!enabled && (
-        <div className="p-8 text-center border rounded-lg border-dashed">
+        <div className="p-8 text-center border border-border rounded-lg border-dashed">
           <Icon className="h-12 w-12 mx-auto text-muted-foreground mb-3 opacity-50" />
           <p className="text-muted-foreground">{placeholderText}</p>
         </div>

@@ -12,6 +12,23 @@ interface PhotoUploadSectionProps {
 }
 
 /**
+ * Validate that a URL is safe to use in img src
+ * Allows http/https URLs, relative paths, and protocol-relative URLs
+ * Rejects data: and javascript: URIs
+ */
+function isValidImageUrl(url: string): boolean {
+  if (!url) return false;
+  
+  // Reject data: and javascript: URIs
+  if (url.startsWith('data:') || url.startsWith('javascript:')) {
+    return false;
+  }
+  
+  // Allow relative paths (/path), protocol-relative (//host), and absolute URLs
+  return true;
+}
+
+/**
  * Compute safe initials from first and last names
  * Handles empty, null, or undefined values gracefully
  * 
@@ -58,8 +75,8 @@ export function PhotoUploadSection({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="w-full aspect-[3/4] bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden border">
-          {photoUrl ? (
+        <div className="w-full aspect-[3/4] bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden border border-border">
+          {photoUrl && isValidImageUrl(photoUrl) ? (
             <img
               src={photoUrl}
               alt={`Photo of ${firstName} ${lastName}`}

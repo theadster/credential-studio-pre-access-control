@@ -118,7 +118,7 @@ export const CloudinaryTab = memo(function CloudinaryTab({
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="flex items-center justify-between p-3 border rounded-lg">
+          <div className="flex items-center justify-between p-3 border border-border rounded-lg">
             <div className="space-y-1">
               <Label className="text-sm font-medium">Auto-optimize images</Label>
               <p className="text-xs text-muted-foreground">
@@ -131,7 +131,7 @@ export const CloudinaryTab = memo(function CloudinaryTab({
             />
           </div>
 
-          <div className="flex items-center justify-between p-3 border rounded-lg">
+          <div className="flex items-center justify-between p-3 border border-border rounded-lg">
             <div className="space-y-1">
               <Label className="text-sm font-medium">Generate thumbnails</Label>
               <p className="text-xs text-muted-foreground">
@@ -154,7 +154,7 @@ export const CloudinaryTab = memo(function CloudinaryTab({
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="flex items-center justify-between p-3 border rounded-lg">
+          <div className="flex items-center justify-between p-3 border border-border rounded-lg">
             <div className="space-y-1">
               <Label className="text-sm font-medium">Disable &quot;Skip Crop&quot; button</Label>
               <p className="text-xs text-muted-foreground">

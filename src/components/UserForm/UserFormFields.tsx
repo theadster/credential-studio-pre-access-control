@@ -59,7 +59,7 @@ export default function UserFormFields({
 
         {/* Optional Team Membership */}
         {PROJECT_TEAM_ID && (
-          <div className="flex items-center space-x-2 p-3 border rounded-md">
+          <div className="flex items-center space-x-2 p-3 border border-border rounded-md">
             <Checkbox
               id="addToTeam"
               checked={formData.addToTeam}
@@ -90,7 +90,8 @@ export default function UserFormFields({
         <Label htmlFor="email">Email Address *</Label>
         <Input
           id="email"
-          type="email"
+          type="text"
+          inputMode="email"
           value={formData.email}
           onChange={(e) => onChange('email', e.target.value.trim())}
           placeholder="user@example.com"
@@ -98,6 +99,7 @@ export default function UserFormFields({
           required
           autoComplete="off"
           data-form-type="other"
+          data-lpignore="true"
         />
       </div>
 
@@ -113,6 +115,7 @@ export default function UserFormFields({
           required
           autoComplete="off"
           data-form-type="other"
+          data-lpignore="true"
         />
       </div>
 

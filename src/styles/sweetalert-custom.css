@@ -150,34 +150,34 @@
 
 /* Customize icon colors to match theme */
 .swal2-icon.swal2-error {
-  border-color: hsl(var(--destructive));
-  color: hsl(var(--destructive));
+  border-color: var(--destructive, #ef4444);
+  color: var(--destructive, #ef4444);
 }
 
 .swal2-icon.swal2-error [class^='swal2-x-mark-line'] {
-  background-color: hsl(var(--destructive));
+  background-color: var(--destructive, #ef4444);
 }
 
 .swal2-icon.swal2-warning {
-  border-color: hsl(var(--warning));
-  color: hsl(var(--warning));
+  border-color: var(--warning, #f59e0b);
+  color: var(--warning, #f59e0b);
 }
 
 .swal2-icon.swal2-success {
-  border-color: hsl(var(--success));
+  border-color: var(--success, #16a34a);
 }
 
 .swal2-icon.swal2-success [class^='swal2-success-line'] {
-  background-color: hsl(var(--success));
+  background-color: var(--success, #16a34a);
 }
 
 .swal2-icon.swal2-success .swal2-success-ring {
-  border-color: hsl(var(--success));
+  border-color: var(--success, #16a34a);
 }
 
 .swal2-icon.swal2-info {
-  border-color: hsl(var(--info));
-  color: hsl(var(--info));
+  border-color: var(--info, #0ea5e9);
+  color: var(--info, #0ea5e9);
 }
 
 /* Center icon and title in modal dialogs */
@@ -237,18 +237,18 @@
 }
 
 .swal2-styled:focus {
-  outline: 2px solid hsl(var(--ring));
+  outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
 
 /* Timer progress bar */
 .swal2-timer-progress-bar {
-  background: hsl(var(--primary));
+  background: var(--primary);
 }
 
 /* Loading spinner */
 .swal2-loader {
-  border-color: hsl(var(--primary)) transparent hsl(var(--primary)) transparent;
+  border-color: var(--primary) transparent var(--primary) transparent;
   animation: swal2-rotate-loading 1.5s linear infinite;
   will-change: transform;
 }

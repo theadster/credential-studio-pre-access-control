@@ -1,13 +1,57 @@
-/* SweetAlert2 Custom Styles */
-@import './sweetalert-custom.css';
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "./sweetalert-custom.css";
 
-/* Tailwind CSS Directives */
-/* stylelint-disable-next-line at-rule-no-unknown */
-@tailwind base;
-/* stylelint-disable-next-line at-rule-no-unknown */
-@tailwind components;
-/* stylelint-disable-next-line at-rule-no-unknown */
-@tailwind utilities;
+@variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-surface: var(--surface);
+  --color-surface-variant: var(--surface-variant);
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+
+  @keyframes accordion-down {
+    from { height: 0; }
+    to { height: var(--radix-accordion-content-height); }
+  }
+  @keyframes accordion-up {
+    from { height: var(--radix-accordion-content-height); }
+    to { height: 0; }
+  }
+}
 
 :root {
   --mode: light;
@@ -16,86 +60,83 @@
 /* Theme: violet */
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 224 71.4% 4.1%;
-    --card: 0 0% 100%;
-    --card-foreground: 224 71.4% 4.1%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 224 71.4% 4.1%;
-    --primary: 262.1 83.3% 57.8%;
-    --primary-foreground: 210 20% 98%;
-    --secondary: 220 14.3% 95.9%;
-    --secondary-foreground: 220.9 39.3% 11%;
-    --muted: 220 14.3% 95.9%;
-    --muted-foreground: 220 8.9% 46.1%;
-    --accent: 220 14.3% 95.9%;
-    --accent-foreground: 220.9 39.3% 11%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 20% 98%;
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 262.1 83.3% 57.8%;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
+    --background: hsl(0 0% 100%);
+    --foreground: hsl(224 71.4% 4.1%);
+    --card: hsl(0 0% 100%);
+    --card-foreground: hsl(224 71.4% 4.1%);
+    --popover: hsl(0 0% 100%);
+    --popover-foreground: hsl(224 71.4% 4.1%);
+    --primary: hsl(262.1 83.3% 57.8%);
+    --primary-foreground: hsl(210 20% 98%);
+    --secondary: hsl(220 14.3% 95.9%);
+    --secondary-foreground: hsl(220.9 39.3% 11%);
+    --muted: hsl(220 14.3% 95.9%);
+    --muted-foreground: hsl(220 8.9% 46.1%);
+    --accent: hsl(220 14.3% 95.9%);
+    --accent-foreground: hsl(220.9 39.3% 11%);
+    --destructive: hsl(0 84.2% 60.2%);
+    --destructive-foreground: hsl(210 20% 98%);
+    --border: hsl(220 13% 91%);
+    --input: hsl(220 13% 91%);
+    --ring: hsl(262.1 83.3% 57.8%);
+    --chart-1: hsl(12 76% 61%);
+    --chart-2: hsl(173 58% 39%);
+    --chart-3: hsl(197 37% 24%);
+    --chart-4: hsl(43 74% 66%);
+    --chart-5: hsl(27 87% 67%);
     --radius: 0.5rem;
-    
+
     /* Complementary color palette for dashboard and notifications */
-    /* Success: Green with good contrast ratio (WCAG AA compliant) */
-    --success: 142 76% 36%;
-    --success-foreground: 355 100% 97%;
-    /* Info: Blue with good contrast ratio (WCAG AA compliant) */
-    --info: 199 89% 48%;
-    --info-foreground: 210 20% 98%;
-    /* Warning: Orange/Yellow with good contrast ratio (WCAG AA compliant) */
-    --warning: 38 92% 50%;
-    --warning-foreground: 48 96% 89%;
-    --surface: 220 14.3% 97%;
-    --surface-variant: 220 14.3% 95%;
+    --success: hsl(142 76% 36%);
+    --success-foreground: hsl(355 100% 97%);
+    --info: hsl(199 89% 48%);
+    --info-foreground: hsl(210 20% 98%);
+    --warning: hsl(38 92% 50%);
+    --warning-foreground: hsl(48 96% 89%);
+    --surface: hsl(220 14.3% 97%);
+    --surface-variant: hsl(220 14.3% 95%);
   }
+
   .dark {
-    --background: 224 71.4% 4.1%;
-    --foreground: 210 20% 98%;
-    --card: 224 71.4% 4.1%;
-    --card-foreground: 210 20% 98%;
-    --popover: 224 71.4% 4.1%;
-    --popover-foreground: 210 20% 98%;
-    --primary: 263.4 70% 50.4%;
-    --primary-foreground: 210 20% 98%;
-    --secondary: 215 27.9% 16.9%;
-    --secondary-foreground: 210 20% 98%;
-    --muted: 215 27.9% 16.9%;
-    --muted-foreground: 217.9 10.6% 64.9%;
-    --accent: 215 27.9% 16.9%;
-    --accent-foreground: 210 20% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 20% 98%;
-    --border: 215 27.9% 16.9%;
-    --input: 215 27.9% 16.9%;
-    --ring: 263.4 70% 50.4%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
+    --background: hsl(224 71.4% 4.1%);
+    --foreground: hsl(210 20% 98%);
+    --card: hsl(224 71.4% 4.1%);
+    --card-foreground: hsl(210 20% 98%);
+    --popover: hsl(224 71.4% 4.1%);
+    --popover-foreground: hsl(210 20% 98%);
+    --primary: hsl(263.4 70% 50.4%);
+    --primary-foreground: hsl(210 20% 98%);
+    --secondary: hsl(215 27.9% 16.9%);
+    --secondary-foreground: hsl(210 20% 98%);
+    --muted: hsl(215 27.9% 16.9%);
+    --muted-foreground: hsl(217.9 10.6% 64.9%);
+    --accent: hsl(215 27.9% 16.9%);
+    --accent-foreground: hsl(210 20% 98%);
+    --destructive: hsl(0 62.8% 30.6%);
+    --destructive-foreground: hsl(210 20% 98%);
+    --border: hsl(215 27.9% 16.9%);
+    --input: hsl(215 27.9% 16.9%);
+    --ring: hsl(263.4 70% 50.4%);
+    --chart-1: hsl(220 70% 50%);
+    --chart-2: hsl(160 60% 45%);
+    --chart-3: hsl(30 80% 55%);
+    --chart-4: hsl(280 65% 60%);
+    --chart-5: hsl(340 75% 55%);
     --radius: 0.5rem;
-    
-    /* Dark mode complementary colors - adjusted for dark backgrounds */
-    /* Success: Brighter green for dark mode visibility (WCAG AA compliant) */
-    --success: 142 71% 45%;
-    --success-foreground: 355 100% 97%;
-    /* Info: Brighter blue for dark mode visibility (WCAG AA compliant) */
-    --info: 199 89% 58%;
-    --info-foreground: 210 20% 98%;
-    /* Warning: Brighter orange for dark mode visibility (WCAG AA compliant) */
-    --warning: 38 92% 60%;
-    --warning-foreground: 48 96% 89%;
-    --surface: 215 27.9% 8%;
-    --surface-variant: 215 27.9% 12%;
+
+    /* Dark mode complementary colors */
+    --success: hsl(142 71% 45%);
+    --success-foreground: hsl(355 100% 97%);
+    --info: hsl(199 89% 58%);
+    --info-foreground: hsl(210 20% 98%);
+    --warning: hsl(38 92% 60%);
+    --warning-foreground: hsl(48 96% 89%);
+    --surface: hsl(215 27.9% 8%);
+    --surface-variant: hsl(215 27.9% 12%);
   }
 }
+
+/* Base styles */
 @layer base {
   * {
     @apply border-border;
@@ -103,74 +144,87 @@
   body {
     @apply bg-background text-foreground;
   }
+  button:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+/* Container utility replacement */
+@utility container {
+  width: 100%;
+  margin-inline: auto;
+  padding-inline: 2rem;
+  @media (width >= 1400px) {
+    max-width: 1400px;
+  }
 }
 
 /* Cloudinary Widget Z-Index Fix */
-@layer utilities {
-  /* Z-Index Layer System Extension
-   * Cloudinary widget needs to appear above SweetAlert
-   * - Cloudinary: 200 (above all app UI)
-   */
-  :root {
-    --z-index-cloudinary: 200;
-  }
+:root {
+  --z-index-cloudinary: 200;
+}
 
-  /* Ensure the Cloudinary widget and its overlay appear above all other content */
-  #cloudinary-overlay,
-  .cloudinary-widget {
-    z-index: var(--z-index-cloudinary) !important;
-  }
-  
-  /* Glass effect for cards */
-  .glass-effect {
-    backdrop-filter: blur(10px);
-    background: rgba(255, 255, 255, 0.8);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-  }
-  
-  .dark .glass-effect {
-    background: rgba(0, 0, 0, 0.4);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-  }
-  
-  /* Attendee row group hover effect - both rows highlight together */
-  /* Applied via JavaScript to ensure only matching attendee rows highlight */
+#cloudinary-overlay,
+.cloudinary-widget {
+  z-index: var(--z-index-cloudinary);
+}
+
+/* Glass effect for cards */
+.glass-effect {
+  backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.dark .glass-effect {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Attendee row group hover effect */
+tr.attendee-row-hover {
+  background-color: rgba(220, 214, 231, 0.5);
+}
+
+@supports (background-color: color-mix(in srgb, var(--muted) 50%, transparent)) {
   tr.attendee-row-hover {
-    background-color: hsl(var(--muted) / 0.5);
+    background-color: color-mix(in srgb, var(--muted) 50%, transparent);
   }
-  
-  /* Safari tooltip positioning fix */
-  /* Force Safari to use proper positioning context for Radix tooltips */
-  [data-radix-popper-content-wrapper] {
-    transform: translate3d(0, 0, 0);
-    will-change: transform;
-  }
+}
 
-  /* Date and datetime-local input styling for purple theme */
-  /* Light mode */
-  input[type="date"],
-  input[type="datetime-local"] {
-    accent-color: hsl(var(--primary));
-    color-scheme: light;
-  }
+/* Safari tooltip positioning fix */
+[data-radix-popper-content-wrapper] {
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+}
 
-  /* Dark mode */
-  .dark input[type="date"],
-  .dark input[type="datetime-local"] {
-    accent-color: hsl(var(--primary));
-    color-scheme: dark;
-  }
+/* Date and datetime-local input styling for purple theme */
+input[type="date"],
+input[type="datetime-local"] {
+  accent-color: var(--primary);
+  color-scheme: light;
+}
 
-  /* Webkit browsers (Chrome, Safari, Edge) - calendar icon and picker styling */
-  input[type="date"]::-webkit-calendar-picker-indicator,
-  input[type="datetime-local"]::-webkit-calendar-picker-indicator {
-    filter: invert(0.8) sepia(0.5) hue-rotate(250deg) saturate(1.5);
-    cursor: pointer;
-  }
+.dark input[type="date"],
+.dark input[type="datetime-local"] {
+  accent-color: var(--primary);
+  color-scheme: dark;
+}
 
-  .dark input[type="date"]::-webkit-calendar-picker-indicator,
-  .dark input[type="datetime-local"]::-webkit-calendar-picker-indicator {
-    filter: invert(0.2) sepia(0.5) hue-rotate(250deg) saturate(1.5);
-    cursor: pointer;
-  }
+/* Webkit browsers - calendar icon and picker styling */
+/* Light mode: invert(0.8) lightens the default dark icon, sepia adds warmth,
+   hue-rotate(250deg) shifts toward purple theme, saturate(1.5) enhances color vibrancy */
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.8) sepia(0.5) hue-rotate(250deg) saturate(1.5);
+  cursor: pointer;
+}
+
+/* Dark mode: invert(0.2) keeps icon mostly dark for contrast on dark background,
+   sepia and hue-rotate match light mode for consistent purple theme,
+   saturate(1.5) maintains color vibrancy in dark mode */
+.dark input[type="date"]::-webkit-calendar-picker-indicator,
+.dark input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.2) sepia(0.5) hue-rotate(250deg) saturate(1.5);
+  cursor: pointer;
 }

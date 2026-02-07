@@ -257,7 +257,7 @@ export default function LinkUserDialog({ isOpen, onClose, onLink, roles }: LinkU
 
             {/* Team Membership Option */}
             {process.env.NEXT_PUBLIC_APPWRITE_PROJECT_TEAM_ID && (
-              <div className="flex items-center space-x-2 p-3 border rounded-md">
+              <div className="flex items-center space-x-2 p-3 border border-border rounded-md">
                 <Checkbox
                   id="addToTeam"
                   checked={addToTeam}

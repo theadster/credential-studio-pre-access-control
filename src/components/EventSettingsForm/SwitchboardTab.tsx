@@ -169,15 +169,15 @@ export const SwitchboardTab = memo(function SwitchboardTab({
               <div>
                 <p className="font-medium text-green-900 dark:text-green-100 text-xs mb-1">Standard Fields:</p>
                 <ul className="space-y-1 text-green-800 dark:text-green-200">
-                  <li><code className="bg-green-100 dark:bg-green-900 px-1 rounded">{'{{template_id}}'}</code> - Template ID</li>
-                  <li><code className="bg-green-100 dark:bg-green-900 px-1 rounded">{'{{firstName}}'}</code> - First name</li>
-                  <li><code className="bg-green-100 dark:bg-green-900 px-1 rounded">{'{{lastName}}'}</code> - Last name</li>
-                  <li><code className="bg-green-100 dark:bg-green-900 px-1 rounded">{'{{barcodeNumber}}'}</code> - Barcode</li>
-                  <li><code className="bg-green-100 dark:bg-green-900 px-1 rounded">{'{{photoUrl}}'}</code> - Photo URL</li>
-                  <li><code className="bg-green-100 dark:bg-green-900 px-1 rounded">{'{{eventName}}'}</code> - Event name</li>
-                  <li><code className="bg-green-100 dark:bg-green-900 px-1 rounded">{'{{eventDate}}'}</code> - Event date</li>
-                  <li><code className="bg-green-100 dark:bg-green-900 px-1 rounded">{'{{eventTime}}'}</code> - Event time</li>
-                  <li><code className="bg-green-100 dark:bg-green-900 px-1 rounded">{'{{eventLocation}}'}</code> - Event location</li>
+                  <li><code className="bg-green-100 dark:bg-green-900 px-1 rounded-sm">{'{{template_id}}'}</code> - Template ID</li>
+                  <li><code className="bg-green-100 dark:bg-green-900 px-1 rounded-sm">{'{{firstName}}'}</code> - First name</li>
+                  <li><code className="bg-green-100 dark:bg-green-900 px-1 rounded-sm">{'{{lastName}}'}</code> - Last name</li>
+                  <li><code className="bg-green-100 dark:bg-green-900 px-1 rounded-sm">{'{{barcodeNumber}}'}</code> - Barcode</li>
+                  <li><code className="bg-green-100 dark:bg-green-900 px-1 rounded-sm">{'{{photoUrl}}'}</code> - Photo URL</li>
+                  <li><code className="bg-green-100 dark:bg-green-900 px-1 rounded-sm">{'{{eventName}}'}</code> - Event name</li>
+                  <li><code className="bg-green-100 dark:bg-green-900 px-1 rounded-sm">{'{{eventDate}}'}</code> - Event date</li>
+                  <li><code className="bg-green-100 dark:bg-green-900 px-1 rounded-sm">{'{{eventTime}}'}</code> - Event time</li>
+                  <li><code className="bg-green-100 dark:bg-green-900 px-1 rounded-sm">{'{{eventLocation}}'}</code> - Event location</li>
                 </ul>
               </div>
               {customFields.length > 0 && (
@@ -186,7 +186,7 @@ export const SwitchboardTab = memo(function SwitchboardTab({
                   <ul className="space-y-1 text-green-800 dark:text-green-200">
                     {customFields.map((field) => (
                       <li key={field.id}>
-                        <code className="bg-green-100 dark:bg-green-900 px-1 rounded">
+                        <code className="bg-green-100 dark:bg-green-900 px-1 rounded-sm">
                           {`{{${field.internalFieldName || field.fieldName}}}`}
                         </code>
                         <span className="text-xs ml-1 opacity-75">({field.fieldType})</span>
@@ -219,7 +219,7 @@ export const SwitchboardTab = memo(function SwitchboardTab({
           </Button>
         </div>
 
-        <div className="p-4 border rounded-lg bg-purple-50 dark:bg-purple-950/20">
+        <div className="p-4 border border-border rounded-lg bg-purple-50 dark:bg-purple-950/20">
           <p className="text-sm text-purple-800 dark:text-purple-200 mb-3">
             <strong>Field Mappings</strong> allow you to map custom field responses to different variable names in your JSON request.
             This is especially useful for boolean (Yes/No) and select fields where you want to transform the values.
@@ -236,7 +236,7 @@ export const SwitchboardTab = memo(function SwitchboardTab({
               {fieldMappings.map((mapping) => (
                 <div 
                   key={`${mapping.fieldId}-${mapping.jsonVariable}`} 
-                  className="flex items-center justify-between p-3 bg-background border rounded-lg"
+                  className="flex items-center justify-between p-3 bg-background border border-border rounded-lg"
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
@@ -244,13 +244,13 @@ export const SwitchboardTab = memo(function SwitchboardTab({
                       <Badge variant="outline" className="text-xs">{mapping.fieldType}</Badge>
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      Maps to: <code className="bg-muted px-1 rounded">{mapping.jsonVariable}</code>
+                      Maps to: <code className="bg-muted px-1 rounded-sm">{mapping.jsonVariable}</code>
                     </div>
                     {mapping.valueMapping && Object.keys(mapping.valueMapping).length > 0 && (
                       <div className="text-xs text-muted-foreground mt-1">
                         Value mappings: {Object.entries(mapping.valueMapping).map(([key, value]) => (
                           <span key={key} className="inline-block mr-2">
-                            <code className="bg-muted px-1 rounded">{key}</code> → <code className="bg-muted px-1 rounded">{value}</code>
+                            <code className="bg-muted px-1 rounded-sm">{key}</code> → <code className="bg-muted px-1 rounded-sm">{value}</code>
                           </span>
                         ))}
                       </div>

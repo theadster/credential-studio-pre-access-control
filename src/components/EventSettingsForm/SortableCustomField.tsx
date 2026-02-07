@@ -20,7 +20,7 @@ export function SortableCustomField({ field, onEdit, onDelete }: SortableCustomF
   // Guard against missing field.id - render non-draggable fallback
   if (!field.id) {
     return (
-      <div className="flex items-center justify-between p-3 border rounded-lg bg-background opacity-50">
+      <div className="flex items-center justify-between p-3 border border-border rounded-lg bg-background opacity-50">
         <div className="flex items-center space-x-3 flex-1">
           <div className="p-1">
             <GripVertical className="h-4 w-4 text-muted-foreground" />
@@ -77,14 +77,14 @@ export function SortableCustomField({ field, onEdit, onDelete }: SortableCustomF
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-center justify-between p-3 border rounded-lg bg-background ${isDragging ? 'shadow-lg' : ''
+      className={`flex items-center justify-between p-3 border border-border rounded-lg bg-background ${isDragging ? 'shadow-lg' : ''
         }`}
     >
       <div className="flex items-center space-x-3 flex-1">
         <div
           {...attributes}
           {...listeners}
-          className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded"
+          className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded-sm"
         >
           <GripVertical className="h-4 w-4 text-muted-foreground" />
         </div>
@@ -102,10 +102,12 @@ export function SortableCustomField({ field, onEdit, onDelete }: SortableCustomF
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Badge variant="outline" className="text-xs">
-                      <Eye className="h-3 w-3 mr-1" />
-                      Visible
-                    </Badge>
+                    <div>
+                      <Badge variant="outline" className="text-xs">
+                        <Eye className="h-3 w-3 mr-1" />
+                        Visible
+                      </Badge>
+                    </div>
                   </TooltipTrigger>
                   <TooltipContent>
                     <p>This field is visible on the main attendees page</p>
@@ -117,10 +119,12 @@ export function SortableCustomField({ field, onEdit, onDelete }: SortableCustomF
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Badge variant="outline" className="text-xs">
-                      <Printer className="h-3 w-3 mr-1" />
-                      Printable
-                    </Badge>
+                    <div>
+                      <Badge variant="outline" className="text-xs">
+                        <Printer className="h-3 w-3 mr-1" />
+                        Printable
+                      </Badge>
+                    </div>
                   </TooltipTrigger>
                   <TooltipContent>
                     <p>This field appears on printed credentials</p>

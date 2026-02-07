@@ -95,7 +95,7 @@ const SortableSelectOption = memo(({ id, option, index, onUpdate, onRemove }: So
       <div
         {...attributes}
         {...listeners}
-        className="cursor-grab active:cursor-grabbing p-2 hover:bg-muted rounded"
+        className="cursor-grab active:cursor-grabbing p-2 hover:bg-muted rounded-sm"
       >
         <GripVertical className="h-4 w-4 text-muted-foreground" />
       </div>
@@ -307,7 +307,7 @@ export const CustomFieldForm = memo(({ isOpen, field, onSave, onCancel }: Custom
                 aria-required="true"
               />
               {fieldData.fieldName && (
-                <div className="text-xs text-muted-foreground mt-2 p-2 bg-muted/50 rounded">
+                <div className="text-xs text-muted-foreground mt-2 p-2 bg-muted/50 rounded-sm">
                   <span className="font-medium">Internal name:</span> {generateInternalFieldName(fieldData.fieldName)}
                 </div>
               )}

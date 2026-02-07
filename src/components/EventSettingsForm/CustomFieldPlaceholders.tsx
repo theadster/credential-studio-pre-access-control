@@ -26,7 +26,7 @@ export function CustomFieldPlaceholders({
       <ul className={`space-y-1 ${listClass}`}>
         {customFields.map((field) => (
           <li key={field.id}>
-            <code className={`${codeBgClass} px-1 rounded`}>
+            <code className={`${codeBgClass} px-1 rounded-sm`}>
               {`{{${field.internalFieldName || field.fieldName}}}`}
             </code>
             <span className="text-xs ml-1 opacity-75">({field.fieldType})</span>

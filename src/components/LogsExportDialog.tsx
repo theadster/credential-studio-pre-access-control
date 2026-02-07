@@ -340,7 +340,7 @@ export default function LogsExportDialog({
 
               {/* Custom Filters Section */}
               {exportScope === 'custom' && (
-                <div className="mt-4 p-4 border rounded-lg bg-muted/20">
+                <div className="mt-4 p-4 border border-border rounded-lg bg-muted/20">
                   <h4 className="font-medium mb-3 flex items-center gap-2">
                     <Filter className="h-4 w-4" />
                     Custom Export Filters

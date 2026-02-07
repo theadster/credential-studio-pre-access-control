@@ -89,7 +89,7 @@ export function ActiveFiltersBar({
                 <button
                   type="button"
                   onClick={() => handleRemoveChip(chip)}
-                  className="ml-1 hover:bg-muted rounded-full p-0.5 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
+                  className="ml-1 hover:bg-muted rounded-full p-0.5 focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-1"
                   aria-label={`Remove ${chip.label} filter`}
                 >
                   <X className="h-3 w-3" />

@@ -169,7 +169,8 @@ export const CustomFieldInput = memo(function CustomFieldInput({
     case 'email':
       return (
         <Input
-          type="email"
+          type="text"
+          inputMode="email"
           value={value}
           onChange={(e) => {
             const sanitized = sanitizeEmail(e.target.value);
@@ -181,6 +182,7 @@ export const CustomFieldInput = memo(function CustomFieldInput({
           aria-required={field.required}
           autoComplete="off"
           data-form-type="other"
+          data-lpignore="true"
         />
       );
 

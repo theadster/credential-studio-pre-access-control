@@ -23,7 +23,7 @@ export function FormActions({
     <div className="pt-6 pb-6 border-t-2 border-slate-200 dark:border-slate-700 bg-[#F1F5F9] dark:bg-slate-800 -mx-6 -mb-6 px-6">
       <div className="flex justify-between items-center">
         <div className="text-sm text-muted-foreground flex items-center gap-1.5">
-          <kbd className="px-2 py-1 text-xs font-semibold text-slate-800 bg-white border border-slate-300 rounded dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600">
+          <kbd className="px-2 py-1 text-xs font-semibold text-slate-800 bg-white border border-slate-300 rounded-sm dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600">
             Enter
           </kbd>
           <span>to save</span>

@@ -8,10 +8,7 @@ interface IntegrationStatusIndicatorProps {
 
 export function IntegrationStatusIndicator({ isReady, statusMessage }: IntegrationStatusIndicatorProps) {
   return (
-    <div className="p-4 border rounded-lg" style={{
-      backgroundColor: isReady ? 'rgba(34, 197, 94, 0.05)' : 'rgba(239, 68, 68, 0.05)',
-      borderColor: isReady ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)'
-    }}>
+    <div className={`p-4 border rounded-lg ${isReady ? 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/20' : 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/20'}`}>
       <div className="flex items-center gap-3">
         <div className={`w-3 h-3 rounded-full ${isReady ? 'bg-green-500' : 'bg-red-500'}`}></div>
         <div>

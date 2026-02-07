@@ -82,11 +82,11 @@ export const OneSimpleApiTab = memo(function OneSimpleApiTab({
                 <div>
                   <p className="font-medium text-amber-900 dark:text-amber-100 text-xs mb-1">Standard Fields:</p>
                   <ul className="space-y-1 text-amber-800 dark:text-amber-200">
-                    <li><code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">{'{{credentialRecords}}'}</code> - All records (required)</li>
-                    <li><code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">{'{{eventName}}'}</code> - Event name</li>
-                    <li><code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">{'{{eventDate}}'}</code> - Event date</li>
-                    <li><code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">{'{{eventTime}}'}</code> - Event time</li>
-                    <li><code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">{'{{eventLocation}}'}</code> - Event location</li>
+                    <li><code className="bg-amber-100 dark:bg-amber-900 px-1 rounded-sm">{'{{credentialRecords}}'}</code> - All records (required)</li>
+                    <li><code className="bg-amber-100 dark:bg-amber-900 px-1 rounded-sm">{'{{eventName}}'}</code> - Event name</li>
+                    <li><code className="bg-amber-100 dark:bg-amber-900 px-1 rounded-sm">{'{{eventDate}}'}</code> - Event date</li>
+                    <li><code className="bg-amber-100 dark:bg-amber-900 px-1 rounded-sm">{'{{eventTime}}'}</code> - Event time</li>
+                    <li><code className="bg-amber-100 dark:bg-amber-900 px-1 rounded-sm">{'{{eventLocation}}'}</code> - Event location</li>
                   </ul>
                 </div>
                 <CustomFieldPlaceholders
@@ -117,7 +117,7 @@ export const OneSimpleApiTab = memo(function OneSimpleApiTab({
             className="min-h-[150px] font-mono text-sm"
           />
           <p className="text-xs text-muted-foreground mb-3">
-            The HTML template for each individual attendee record. This template is repeated for every attendee and inserted into the Form Data Value Template where <code className="bg-muted px-1 rounded">{'{{credentialRecords}}'}</code> appears.
+            The HTML template for each individual attendee record. This template is repeated for every attendee and inserted into the Form Data Value Template where <code className="bg-muted px-1 rounded-sm">{'{{credentialRecords}}'}</code> appears.
           </p>
           <div className="p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
             <div className="text-xs space-y-2">
@@ -126,15 +126,15 @@ export const OneSimpleApiTab = memo(function OneSimpleApiTab({
                 <div>
                   <p className="font-medium text-blue-900 dark:text-blue-100 text-xs mb-1">Standard Fields:</p>
                   <ul className="space-y-1 text-blue-800 dark:text-blue-200">
-                    <li><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{'{{firstName}}'}</code> - First name</li>
-                    <li><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{'{{lastName}}'}</code> - Last name</li>
-                    <li><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{'{{barcodeNumber}}'}</code> - Barcode</li>
-                    <li><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{'{{photoUrl}}'}</code> - Photo URL</li>
-                    <li><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{'{{credentialUrl}}'}</code> - Credential URL</li>
-                    <li><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{'{{eventName}}'}</code> - Event name</li>
-                    <li><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{'{{eventDate}}'}</code> - Event date</li>
-                    <li><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{'{{eventTime}}'}</code> - Event time</li>
-                    <li><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{'{{eventLocation}}'}</code> - Event location</li>
+                    <li><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded-sm">{'{{firstName}}'}</code> - First name</li>
+                    <li><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded-sm">{'{{lastName}}'}</code> - Last name</li>
+                    <li><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded-sm">{'{{barcodeNumber}}'}</code> - Barcode</li>
+                    <li><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded-sm">{'{{photoUrl}}'}</code> - Photo URL</li>
+                    <li><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded-sm">{'{{credentialUrl}}'}</code> - Credential URL</li>
+                    <li><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded-sm">{'{{eventName}}'}</code> - Event name</li>
+                    <li><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded-sm">{'{{eventDate}}'}</code> - Event date</li>
+                    <li><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded-sm">{'{{eventTime}}'}</code> - Event time</li>
+                    <li><code className="bg-blue-100 dark:bg-blue-900 px-1 rounded-sm">{'{{eventLocation}}'}</code> - Event location</li>
                   </ul>
                 </div>
                 <CustomFieldPlaceholders

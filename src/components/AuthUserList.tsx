@@ -112,7 +112,7 @@ export default function AuthUserList({
   }
 
   return (
-    <div className="space-y-2 max-h-[400px] overflow-y-auto border rounded-md">
+    <div className="space-y-2 max-h-[400px] overflow-y-auto border border-border rounded-md">
       {users.map((user) => {
         const isLinked = user.isLinked || linkedUserIds.includes(user.$id);
         const isSelected = selectedUserId === user.$id;

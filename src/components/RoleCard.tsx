@@ -201,7 +201,7 @@ const RoleCard = memo(({ role, users, canEdit, canDelete, onEdit, onDelete }: Ro
             <AccordionContent>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
                 {permissionCategories.map((category: any) => (
-                  <div key={category.resource} className="flex flex-col space-y-2 p-3 bg-muted/30 rounded-lg border">
+                  <div key={category.resource} className="flex flex-col space-y-2 p-3 bg-muted/30 rounded-lg border border-border">
                     <div className="flex items-center space-x-2">
                       <div className={`h-2 w-2 rounded-full ${category.permissions.length > 0 ? 'bg-green-500' : 'bg-gray-400'}`}></div>
                       <span className="text-sm font-medium capitalize">{category.resource}</span>

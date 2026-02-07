@@ -131,7 +131,7 @@ export const GeneralTab = memo(function GeneralTab({ formData, onInputChange }: 
           <CardDescription>Configure how attendee names are handled</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between p-3 border rounded-lg">
+          <div className="flex items-center justify-between p-3 border border-border rounded-lg">
             <div className="space-y-1">
               <Label className="text-sm font-medium">Force First Name to Uppercase</Label>
               <p className="text-xs text-muted-foreground">
@@ -144,7 +144,7 @@ export const GeneralTab = memo(function GeneralTab({ formData, onInputChange }: 
             />
           </div>
 
-          <div className="flex items-center justify-between p-3 border rounded-lg">
+          <div className="flex items-center justify-between p-3 border border-border rounded-lg">
             <div className="space-y-1">
               <Label className="text-sm font-medium">Force Last Name to Uppercase</Label>
               <p className="text-xs text-muted-foreground">

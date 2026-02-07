@@ -1,28 +1,33 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { account } from '@/lib/appwrite';
 import { Models } from 'appwrite';
 
 export default function AppwriteExample() {
   const [user, setUser] = useState<Models.User<Models.Preferences> | null>(null);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    checkUser();
-  }, []);
+  const isMountedRef = useRef(true);
 
   const checkUser = async () => {
     try {
       const currentUser = await account.get();
-      setUser(currentUser);
+      if (isMountedRef.current) setUser(currentUser);
     } catch (_error) {
       console.log('No user logged in');
-      setUser(null);
+      if (isMountedRef.current) setUser(null);
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) setLoading(false);
     }
   };
+
+  useEffect(() => {
+    checkUser();
+
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const login = async () => {
     try {
@@ -37,7 +42,7 @@ export default function AppwriteExample() {
   const logout = async () => {
     try {
       await account.deleteSession('current');
-      setUser(null);
+      if (isMountedRef.current) setUser(null);
     } catch (error) {
       console.error('Logout failed:', error);
     }
@@ -57,7 +62,7 @@ export default function AppwriteExample() {
           <p className="mb-4">Email: {user.email || 'Anonymous'}</p>
           <button 
             onClick={logout}
-            className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+            className="bg-red-500 text-white px-4 py-2 rounded-sm hover:bg-red-600"
           >
             Logout
           </button>
@@ -67,7 +72,7 @@ export default function AppwriteExample() {
           <p className="mb-4">Not logged in</p>
           <button 
             onClick={login}
-            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+            className="bg-blue-500 text-white px-4 py-2 rounded-sm hover:bg-blue-600"
           >
             Login (Anonymous)
           </button>

@@ -29,6 +29,17 @@ export const IntegrationSection = memo(function IntegrationSection({
   children,
   statusIndicator
 }: IntegrationSectionProps) {
+  // Sanitize title to valid HTML ID: lowercase, replace spaces/special chars with hyphens
+  // Ensure title is a string before calling string methods
+  const titleStr = typeof title === 'string' ? title : String(title || '');
+  const sanitized = titleStr
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  
+  // Fallback to hash if sanitization produces empty string (non-ASCII chars, etc.)
+  const sanitizedId = sanitized || `integration-${Math.abs(titleStr.split('').reduce((a, c) => ((a << 5) - a) + c.charCodeAt(0), 0)).toString(36)}`;
+
   return (
     <Card>
       <CardHeader>
@@ -40,15 +51,15 @@ export const IntegrationSection = memo(function IntegrationSection({
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Enable Toggle */}
-        <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/50">
+        <div className="flex items-center justify-between p-4 border border-border rounded-lg bg-muted/50">
           <div className="space-y-1">
-            <Label htmlFor={`${title}-enabled`} className="text-base font-medium">
+            <Label htmlFor={`${sanitizedId}-enabled`} className="text-base font-medium">
               Enable {title}
             </Label>
             <p className="text-sm text-muted-foreground">{description}</p>
           </div>
           <Switch
-            id={`${title}-enabled`}
+            id={`${sanitizedId}-enabled`}
             checked={enabled}
             onCheckedChange={onEnabledChange}
           />
@@ -61,7 +72,7 @@ export const IntegrationSection = memo(function IntegrationSection({
 
             {/* Status Indicator */}
             {statusIndicator && (
-              <div className={`p-4 border rounded-lg ${statusIndicator.isReady
+              <div className={`p-4 border border-border rounded-lg ${statusIndicator.isReady
                   ? "bg-green-50 dark:bg-green-950/20"
                   : "bg-yellow-50 dark:bg-yellow-950/20"
                 }`}>
