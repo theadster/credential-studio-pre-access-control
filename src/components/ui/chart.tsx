@@ -128,6 +128,7 @@ const ChartTooltipContent = ({
 }: React.ComponentProps<"div"> & {
   active?: boolean
   payload?: Payload<ValueType, NameType>[]
+  label?: string
   hideLabel?: boolean
   hideIndicator?: boolean
   indicator?: "line" | "dot" | "dashed"
