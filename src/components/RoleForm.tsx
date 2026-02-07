@@ -370,7 +370,7 @@ export default function RoleForm({ isOpen, onClose, onSave, role }: RoleFormProp
     
     // Clear permission error when user makes changes
     if (errors.permissions) {
-      setErrors(prev => ({ ...prev, permissions: undefined }));
+      setErrors((prev: any) => ({ ...prev, permissions: undefined }));
     }
   };
 
