@@ -3,7 +3,7 @@ title: Documentation Search Index
 type: canonical
 status: active
 owner: "@team"
-last_verified: 2026-02-10
+last_verified: 2026-02-11
 review_interval_days: 90
 related_code: []
 ---
@@ -12,7 +12,7 @@ related_code: []
 
 > Searchable index of all active documentation
 
-**Last Updated:** 2026-02-10
+**Last Updated:** 2026-02-11
 
 ## Access Control Environment Variable Migration
 
