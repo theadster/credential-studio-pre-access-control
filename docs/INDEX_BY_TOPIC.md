@@ -3,7 +3,7 @@ title: Documentation Index by Topic
 type: canonical
 status: active
 owner: "@team"
-last_verified: 2026-02-16
+last_verified: 2026-02-17
 review_interval_days: 90
 related_code: []
 ---
@@ -12,7 +12,7 @@ related_code: []
 
 > Auto-generated index of active documentation files
 
-**Last Updated:** 2026-02-16
+**Last Updated:** 2026-02-17
 
 **Total Active Documents:** 224
 
