@@ -17,8 +17,8 @@ This document describes the security improvement made to CredentialStudio's hand
 ## Security Issue
 
 **Problem:** The migration script `migrate-with-integration-collections.ts` was persisting integration API credentials as plain text:
-- Cloudinary: `cloudinaryApiKey`, `cloudinaryApiSecret` in `cloudinary_integrations` collection
-- Switchboard: `switchboardApiKey` in `switchboard_integrations` collection
+- Cloudinary: `cloudinaryApiKey`, `cloudinaryApiSecret` in `cloudinary_integrations` table
+- Switchboard: `switchboardApiKey` in `switchboard_integrations` table
 
 **Risk:** 
 - Database breaches would expose API credentials
@@ -138,12 +138,12 @@ const switchboardSecrets = await getIntegrationCredentials(eventId, 'switchboard
 
 ### Database Schema Changes
 
-**Removed Fields:**
+**Removed Columns:**
 - `cloudinary_integrations.apiKey` (removed)
 - `cloudinary_integrations.apiSecret` (removed)
 - `switchboard_integrations.apiKey` (removed)
 
-**Retained Fields:**
+**Retained Columns:**
 - `cloudinary_integrations.enabled`
 - `cloudinary_integrations.cloudName`
 - `cloudinary_integrations.uploadPreset`

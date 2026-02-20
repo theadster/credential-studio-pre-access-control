@@ -31,7 +31,7 @@ Added a new datetime field to track when significant (non-notes) updates occur:
 ```typescript
 await databases.createDatetimeAttribute(
   databaseId, 
-  COLLECTIONS.ATTENDEES, 
+  TABLES.ATTENDEES, 
   'lastSignificantUpdate', 
   false
 );
@@ -41,7 +41,7 @@ Also added the missing `notes` field:
 ```typescript
 await databases.createStringAttribute(
   databaseId, 
-  COLLECTIONS.ATTENDEES, 
+  TABLES.ATTENDEES, 
   'notes', 
   5000, 
   false
@@ -154,7 +154,7 @@ npm run setup:appwrite
 You have two options:
 
 **Option 1: Add field manually in Appwrite Console**
-1. Go to Appwrite Console → Database → Attendees Collection
+1. Go to Appwrite Console → Database → Attendees Table
 2. Add new attribute:
    - Key: `lastSignificantUpdate`
    - Type: DateTime
@@ -165,7 +165,7 @@ You have two options:
 ```bash
 npm run setup:appwrite
 ```
-The script will skip existing collections and only add missing attributes.
+The script will skip existing tables and only add missing columns.
 
 ## Backward Compatibility
 

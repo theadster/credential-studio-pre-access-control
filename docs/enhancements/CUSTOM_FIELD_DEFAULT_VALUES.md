@@ -91,21 +91,22 @@ When importing attendees via CSV:
 
 ## Migration
 
-For existing installations, run the migration script to add the `defaultValue` attribute:
+For existing installations, run the migration script to add the `defaultValue` column:
 
 ```bash
 npx tsx scripts/add-default-value-attribute.ts
 ```
 
-This adds the attribute to the Appwrite custom_fields collection. Existing fields will have no default value (null) until configured.
+This adds the column to the Appwrite custom_fields table. Existing fields will have no default value (null) until configured.
 
 ## Technical Details
 
 ### Data Storage
 
-- Default values are stored as strings in the `defaultValue` attribute
+- Default values are stored as strings in the `defaultValue` column
 - Maximum length: 1000 characters
-- Null/empty means no default
+- `null` means no default configured
+- Empty string (`""`) is a valid default that pre-fills fields with no value
 
 ### Type Definitions
 

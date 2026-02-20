@@ -21,7 +21,7 @@ The Access Control feature has been migrated from being configured through the E
 ### Before
 - Access Control was enabled/disabled through the Event Settings form in the UI
 - Each event could have its own Access Control configuration
-- The toggle was stored in the `event_settings` collection
+- The toggle was stored in the `event_settings` table
 
 ### After
 - Access Control is now enabled/disabled via the `NEXT_PUBLIC_ENABLE_ACCESS_CONTROL` environment variable

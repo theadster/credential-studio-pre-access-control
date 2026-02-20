@@ -25,7 +25,7 @@ The report "Front of House Only" contains 1 filter that references data that no 
 
 ## Root Cause
 
-The reports API (`/api/reports/[id]`) was attempting to read custom fields from `doc.customFields` on the event settings document. However, custom fields are stored in a **separate Appwrite collection** (`customFields`), not embedded in the event settings document.
+The reports API (`/api/reports/[id]`) was attempting to read custom fields from `doc.customFields` on the event settings row. However, custom fields are stored in a **separate Appwrite table** (`customFields`), not embedded in the event settings row.
 
 This caused the validation to receive an empty or undefined custom fields array, making all custom field filters appear as "stale" (deleted).
 
@@ -33,7 +33,7 @@ This caused the validation to receive an empty or undefined custom fields array,
 
 Updated `src/pages/api/reports/[id].ts` to:
 
-1. Fetch custom fields from the correct collection using `Query.equal('eventSettingsId', doc.$id)`
+1. Fetch custom fields from the correct table using `Query.equal('eventSettingsId', doc.$id)`
 2. Map Appwrite's `$id` to `id` for consistency with frontend expectations
 3. Parse `fieldOptions` if stored as a JSON string
 4. Filter out soft-deleted fields with `Query.isNull('deletedAt')`

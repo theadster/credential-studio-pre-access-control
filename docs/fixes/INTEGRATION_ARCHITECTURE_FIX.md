@@ -23,19 +23,19 @@ The application uses a **normalized database design** with separate collections 
 3. **cloudinary_integrations** - Cloudinary settings  
 4. **onesimpleapi_integrations** - OneSimpleAPI settings
 
-The credential generation code was incorrectly trying to read Switchboard settings from the `event_settings` collection instead of the `switchboard_integrations` collection.
+The credential generation code was incorrectly trying to read Switchboard settings from the `event_settings` table instead of the `switchboard_integrations` table.
 
 ## Database Architecture
 
-### Event Settings Collection
+### Event Settings Table
 Contains core event configuration:
 - Event name, date, time, location
 - Barcode settings
 - Display preferences
 - **Does NOT contain integration settings**
 
-### Integration Collections
-Each integration has its own collection linked to event settings via `eventSettingsId`:
+### Integration Tables
+Each integration has its own table linked to event settings via `eventSettingsId`:
 
 **Switchboard Integration**:
 ```typescript
@@ -91,7 +91,7 @@ Each integration has its own collection linked to event settings via `eventSetti
 
 **src/pages/api/attendees/[id]/generate-credential.ts**:
 1. Added import for `getSwitchboardIntegration` helper
-2. Fetch Switchboard integration from separate collection
+2. Fetch Switchboard integration from separate table
 3. Updated all references from `eventSettings.switchboard*` to `switchboardIntegration.*`
 4. Parse `fieldMappings` from JSON string
 
@@ -107,7 +107,7 @@ if (!eventSettings.switchboardEnabled) {
 
 **After**:
 ```typescript
-// ✅ Correct - fetch from switchboard_integrations collection
+// ✅ Correct - fetch from switchboard_integrations table
 const switchboardIntegration = await getSwitchboardIntegration(
   databases, 
   eventSettings.$id
@@ -137,7 +137,7 @@ if (!switchboardIntegration || !switchboardIntegration.enabled) {
 
 ### 4. Performance
 - Only fetch integrations when needed
-- Smaller document sizes
+- Smaller row sizes
 - Better query performance
 
 ## Environment Variables Required
@@ -145,10 +145,10 @@ if (!switchboardIntegration || !switchboardIntegration.enabled) {
 Make sure these are set in your `.env.local`:
 
 ```env
-# Integration Collection IDs
-NEXT_PUBLIC_APPWRITE_SWITCHBOARD_COLLECTION_ID=switchboard_integrations
-NEXT_PUBLIC_APPWRITE_CLOUDINARY_COLLECTION_ID=cloudinary_integrations
-NEXT_PUBLIC_APPWRITE_ONESIMPLEAPI_COLLECTION_ID=onesimpleapi_integrations
+# Integration Table IDs
+NEXT_PUBLIC_APPWRITE_SWITCHBOARD_TABLE_ID=switchboard_integrations
+NEXT_PUBLIC_APPWRITE_CLOUDINARY_TABLE_ID=cloudinary_integrations
+NEXT_PUBLIC_APPWRITE_ONESIMPLEAPI_TABLE_ID=onesimpleapi_integrations
 ```
 
 ## Helper Functions Available
@@ -187,7 +187,7 @@ Once configured, credential generation will work correctly.
 ## Similar Issues
 
 If you encounter similar errors with Cloudinary or OneSimpleAPI integrations, the same pattern applies:
-- Fetch the integration from its dedicated collection
+- Fetch the integration from its dedicated table
 - Check the `enabled` flag
 - Use the integration-specific fields
 

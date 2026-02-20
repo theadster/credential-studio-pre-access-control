@@ -204,10 +204,10 @@ The export respects the event's `accessControlTimeMode`:
 
 ### Access Control Data Fetching
 
-The Access Control data is stored in a separate collection (`access_control`) and needs to be joined with attendee data during export. The export API now:
+The Access Control data is stored in a separate table (`access_control`) and needs to be joined with attendee data during export. The export API now:
 
 1. Fetches all attendees based on export scope and filters
-2. Fetches Access Control records from the separate collection in batches
+2. Fetches Access Control records from the separate table in batches
 3. Maps Access Control data by attendeeId
 4. Attaches Access Control fields (accessEnabled, validFrom, validUntil) to each attendee
 5. Formats and exports the combined data
