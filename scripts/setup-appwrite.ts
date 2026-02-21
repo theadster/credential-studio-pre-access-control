@@ -1,32 +1,32 @@
 #!/usr/bin/env tsx
 /**
  * Appwrite Infrastructure Setup Script
- * 
- * This script creates the database and all required collections with proper
- * attributes, indexes, and permissions for the CredentialStudio application.
- * 
+ *
+ * This script creates the database and all required tables with proper
+ * columns, indexes, and permissions for the CredentialStudio application.
+ *
  * Prerequisites:
  * - Appwrite project created at https://cloud.appwrite.io
  * - Environment variables configured in .env.local
  * - npm install appwrite node-appwrite
- * 
+ *
  * Usage:
  * npx tsx scripts/setup-appwrite.ts
  */
 
-import { Client, Databases, ID, Permission, Role, IndexType } from 'node-appwrite';
+import { Client, TablesDB, ID, Permission, Role, IndexType } from 'node-appwrite';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
 // Load environment variables
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 
-// Databases instance will be initialized in main() after environment validation
-let databases: Databases;
+// TablesDB instance will be initialized in main() after environment validation
+let tablesDB: TablesDB;
 
-// Database and Collection IDs
+// Database and Table IDs
 const DATABASE_ID = 'credentialstudio';
-const COLLECTIONS = {
+const TABLES = {
   USERS: 'users',
   ROLES: 'roles',
   ATTENDEES: 'attendees',
@@ -38,56 +38,56 @@ const COLLECTIONS = {
 };
 
 /**
- * Wait for an attribute to be available (polling mechanism)
- * Appwrite creates attributes asynchronously, so we need to wait for them to be ready
+ * Wait for a column to be available (polling mechanism)
+ * Appwrite creates columns asynchronously, so we need to wait for them to be ready
  */
-async function waitForAttribute(
+async function waitForColumn(
   databaseId: string,
-  collectionId: string,
-  attributeKey: string,
+  tableId: string,
+  columnKey: string,
   maxAttempts: number = 30,
   delayMs: number = 1000,
 ): Promise<void> {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      await databases.getAttribute(databaseId, collectionId, attributeKey);
-      console.log(`  ✓ Attribute '${attributeKey}' is ready`);
+      await tablesDB.getColumn({ databaseId, tableId, key: columnKey });
+      console.log(`  ✓ Column '${columnKey}' is ready`);
       return;
     } catch (error: any) {
       if (attempt === maxAttempts) {
-        throw new Error(`Timeout waiting for attribute '${attributeKey}' to be ready`);
+        throw new Error(`Timeout waiting for column '${columnKey}' to be ready`);
       }
-      // Attribute not ready yet, wait and retry
+      // Column not ready yet, wait and retry
       await new Promise(resolve => setTimeout(resolve, delayMs));
     }
   }
 }
 
 /**
- * Create an attribute if it doesn't already exist
- * Handles 409 conflicts (attribute already exists) gracefully
+ * Create a column if it doesn't already exist
+ * Handles 409 conflicts (column already exists) gracefully
  */
-async function createAttributeIfMissing(
+async function createColumnIfMissing(
   databaseId: string,
-  collectionId: string,
+  tableId: string,
   key: string,
-  existingAttributes: string[],
+  existingColumns: string[],
   createFn: () => Promise<any>,
 ): Promise<void> {
-  if (existingAttributes.includes(key)) {
-    console.log(`  ✓ Attribute '${key}' already exists`);
+  if (existingColumns.includes(key)) {
+    console.log(`  ✓ Column '${key}' already exists`);
     return;
   }
 
   try {
-    console.log(`  Creating attribute '${key}'...`);
+    console.log(`  Creating column '${key}'...`);
     await createFn();
-    await waitForAttribute(databaseId, collectionId, key);
+    await waitForColumn(databaseId, tableId, key);
   } catch (error: any) {
     if (error.code === 409) {
-      console.log(`  ✓ Attribute '${key}' already exists`);
+      console.log(`  ✓ Column '${key}' already exists`);
     } else {
-      console.error(`  ✗ Error creating attribute '${key}':`, error.message);
+      console.error(`  ✗ Error creating column '${key}':`, error.message);
     }
   }
 }
@@ -95,7 +95,7 @@ async function createAttributeIfMissing(
 async function createDatabase() {
   try {
     console.log('Creating database...');
-    await databases.create(DATABASE_ID, 'CredentialStudio Database');
+    await tablesDB.create({ databaseId: DATABASE_ID, name: 'CredentialStudio Database' });
     console.log('✓ Database created successfully');
     return DATABASE_ID;
   } catch (error: any) {
@@ -107,329 +107,333 @@ async function createDatabase() {
   }
 }
 
-async function createUsersCollection(databaseId: string) {
+async function createUsersTable(databaseId: string) {
   try {
-    console.log('\nCreating users collection...');
-    const collectionId = await databases.createCollection(
+    console.log('\nCreating users table...');
+    const permissions = [
+      Permission.read(Role.any()),
+      Permission.create(Role.users()),
+      Permission.update(Role.users()),
+      Permission.delete(Role.users()),
+    ];
+
+    await tablesDB.createTable({
       databaseId,
-      COLLECTIONS.USERS,
-      'Users',
-      [
-        Permission.read(Role.any()),
-        Permission.create(Role.users()), // Only authenticated users can create profiles
-        Permission.update(Role.users()),
-        Permission.delete(Role.users()),
-      ]
-    );
+      tableId: TABLES.USERS,
+      name: 'Users',
+      permissions,
+      columns: [
+        { key: 'userId', type: 'varchar', size: 255, required: true },
+        { key: 'email', type: 'varchar', size: 255, required: true },
+        { key: 'name', type: 'varchar', size: 255, required: false },
+        { key: 'roleId', type: 'varchar', size: 255, required: false },
+        { key: 'isInvited', type: 'boolean', required: false },
+      ],
+      indexes: [
+        { key: 'email_idx', type: 'unique', attributes: ['email'] },
+        { key: 'userId_idx', type: 'key', attributes: ['userId'] },
+        { key: 'roleId_idx', type: 'key', attributes: ['roleId'] },
+      ],
+    });
 
-    // Add attributes
-    await databases.createStringAttribute(databaseId, COLLECTIONS.USERS, 'userId', 255, true);
-    await databases.createStringAttribute(databaseId, COLLECTIONS.USERS, 'email', 255, true);
-    await databases.createStringAttribute(databaseId, COLLECTIONS.USERS, 'name', 255, false);
-    await databases.createStringAttribute(databaseId, COLLECTIONS.USERS, 'roleId', 255, false);
-    await databases.createBooleanAttribute(databaseId, COLLECTIONS.USERS, 'isInvited', false, false);
-
-    // Create indexes
-    await databases.createIndex(databaseId, COLLECTIONS.USERS, 'email_idx', IndexType.Unique, ['email']);
-    await databases.createIndex(databaseId, COLLECTIONS.USERS, 'userId_idx', IndexType.Key, ['userId']);
-    await databases.createIndex(databaseId, COLLECTIONS.USERS, 'roleId_idx', IndexType.Key, ['roleId']);
-
-    console.log('✓ Users collection created');
+    console.log('✓ Users table created');
   } catch (error: any) {
     if (error.code === 409) {
-      console.log('✓ Users collection already exists');
+      console.log('✓ Users table already exists');
     } else {
       throw error;
     }
   }
 }
 
-async function createRolesCollection(databaseId: string) {
+async function createRolesTable(databaseId: string) {
   try {
-    console.log('\nCreating roles collection...');
-    await databases.createCollection(
+    console.log('\nCreating roles table...');
+    const permissions = [
+      Permission.read(Role.any()),
+      Permission.create(Role.users()),
+      Permission.update(Role.users()),
+      Permission.delete(Role.users()),
+    ];
+
+    await tablesDB.createTable({
       databaseId,
-      COLLECTIONS.ROLES,
-      'Roles',
-      [
-        Permission.read(Role.any()),
-        Permission.create(Role.users()),
-        Permission.update(Role.users()),
-        Permission.delete(Role.users()),
-      ]
-    );
+      tableId: TABLES.ROLES,
+      name: 'Roles',
+      permissions,
+      columns: [
+        { key: 'name', type: 'varchar', size: 255, required: true },
+        { key: 'description', type: 'varchar', size: 1000, required: false },
+        { key: 'permissions', type: 'varchar', size: 10000, required: true },
+      ],
+      indexes: [
+        { key: 'name_idx', type: 'unique', attributes: ['name'] },
+      ],
+    });
 
-    // Add attributes
-    await databases.createStringAttribute(databaseId, COLLECTIONS.ROLES, 'name', 255, true);
-    await databases.createStringAttribute(databaseId, COLLECTIONS.ROLES, 'description', 1000, false);
-    await databases.createStringAttribute(databaseId, COLLECTIONS.ROLES, 'permissions', 10000, true);
-
-    // Create indexes
-    await databases.createIndex(databaseId, COLLECTIONS.ROLES, 'name_idx', IndexType.Unique, ['name']);
-
-    console.log('✓ Roles collection created');
+    console.log('✓ Roles table created');
   } catch (error: any) {
     if (error.code === 409) {
-      console.log('✓ Roles collection already exists');
+      console.log('✓ Roles table already exists');
     } else {
       throw error;
     }
   }
 }
 
-async function createAttendeesCollection(databaseId: string) {
+async function createAttendeesTable(databaseId: string) {
   try {
-    console.log('\nCreating attendees collection...');
-    let collectionExists = false;
+    console.log('\nCreating attendees table...');
+    let tableExists = false;
 
     try {
-      await databases.createCollection(
+      await tablesDB.createTable({
         databaseId,
-        COLLECTIONS.ATTENDEES,
-        'Attendees',
-        [
+        tableId: TABLES.ATTENDEES,
+        name: 'Attendees',
+        permissions: [
           Permission.read(Role.any()),
           Permission.create(Role.users()),
           Permission.update(Role.users()),
           Permission.delete(Role.users()),
-        ]
-      );
+        ],
+      });
     } catch (error: any) {
       if (error.code === 409) {
-        console.log('✓ Attendees collection already exists');
-        collectionExists = true;
+        console.log('✓ Attendees table already exists');
+        tableExists = true;
       } else {
         throw error;
       }
     }
 
-    // Get existing attributes if collection exists
-    let existingAttributes: string[] = [];
-    if (collectionExists) {
+    // Get existing columns if table exists
+    let existingColumns: string[] = [];
+    if (tableExists) {
       try {
-        const collection = await databases.getCollection(databaseId, COLLECTIONS.ATTENDEES);
-        existingAttributes = collection.attributes.map((attr: any) => attr.key);
-        console.log(`  Found ${existingAttributes.length} existing attributes`);
+        const table = await tablesDB.getTable({ databaseId, tableId: TABLES.ATTENDEES });
+        existingColumns = (table as any).columns?.map((col: any) => col.key) ?? [];
+        console.log(`  Found ${existingColumns.length} existing columns`);
       } catch (error) {
-        console.log('  Could not fetch existing attributes, will attempt to create all');
+        console.log('  Could not fetch existing columns, will attempt to create all');
       }
     }
 
-    // Add all required attributes
-    await createAttributeIfMissing(databaseId, COLLECTIONS.ATTENDEES, 'firstName', existingAttributes, () =>
-      databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'firstName', 255, true),
+    // Add all required columns
+    await createColumnIfMissing(databaseId, TABLES.ATTENDEES, 'firstName', existingColumns, () =>
+      tablesDB.createVarcharColumn({ databaseId, tableId: TABLES.ATTENDEES, key: 'firstName', size: 255, required: true }),
     );
-    await createAttributeIfMissing(databaseId, COLLECTIONS.ATTENDEES, 'lastName', existingAttributes, () =>
-      databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'lastName', 255, true),
+    await createColumnIfMissing(databaseId, TABLES.ATTENDEES, 'lastName', existingColumns, () =>
+      tablesDB.createVarcharColumn({ databaseId, tableId: TABLES.ATTENDEES, key: 'lastName', size: 255, required: true }),
     );
-    await createAttributeIfMissing(databaseId, COLLECTIONS.ATTENDEES, 'barcodeNumber', existingAttributes, () =>
-      databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'barcodeNumber', 255, true),
+    await createColumnIfMissing(databaseId, TABLES.ATTENDEES, 'barcodeNumber', existingColumns, () =>
+      tablesDB.createVarcharColumn({ databaseId, tableId: TABLES.ATTENDEES, key: 'barcodeNumber', size: 255, required: true }),
     );
-    await createAttributeIfMissing(databaseId, COLLECTIONS.ATTENDEES, 'notes', existingAttributes, () =>
-      databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'notes', 5000, false),
+    await createColumnIfMissing(databaseId, TABLES.ATTENDEES, 'notes', existingColumns, () =>
+      tablesDB.createVarcharColumn({ databaseId, tableId: TABLES.ATTENDEES, key: 'notes', size: 5000, required: false }),
     );
-    await createAttributeIfMissing(databaseId, COLLECTIONS.ATTENDEES, 'photoUrl', existingAttributes, () =>
-      databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'photoUrl', 1000, false),
+    await createColumnIfMissing(databaseId, TABLES.ATTENDEES, 'photoUrl', existingColumns, () =>
+      tablesDB.createVarcharColumn({ databaseId, tableId: TABLES.ATTENDEES, key: 'photoUrl', size: 1000, required: false }),
     );
-    await createAttributeIfMissing(databaseId, COLLECTIONS.ATTENDEES, 'credentialUrl', existingAttributes, () =>
-      databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'credentialUrl', 1000, false),
+    await createColumnIfMissing(databaseId, TABLES.ATTENDEES, 'credentialUrl', existingColumns, () =>
+      tablesDB.createVarcharColumn({ databaseId, tableId: TABLES.ATTENDEES, key: 'credentialUrl', size: 1000, required: false }),
     );
-    await createAttributeIfMissing(databaseId, COLLECTIONS.ATTENDEES, 'credentialGeneratedAt', existingAttributes, () =>
-      databases.createDatetimeAttribute(databaseId, COLLECTIONS.ATTENDEES, 'credentialGeneratedAt', false),
+    await createColumnIfMissing(databaseId, TABLES.ATTENDEES, 'credentialGeneratedAt', existingColumns, () =>
+      tablesDB.createDatetimeColumn({ databaseId, tableId: TABLES.ATTENDEES, key: 'credentialGeneratedAt', required: false }),
     );
-    await createAttributeIfMissing(databaseId, COLLECTIONS.ATTENDEES, 'customFieldValues', existingAttributes, () =>
-      databases.createStringAttribute(databaseId, COLLECTIONS.ATTENDEES, 'customFieldValues', 10000, false),
+    await createColumnIfMissing(databaseId, TABLES.ATTENDEES, 'customFieldValues', existingColumns, () =>
+      tablesDB.createVarcharColumn({ databaseId, tableId: TABLES.ATTENDEES, key: 'customFieldValues', size: 10000, required: false }),
     );
-    await createAttributeIfMissing(databaseId, COLLECTIONS.ATTENDEES, 'lastSignificantUpdate', existingAttributes, () =>
-      databases.createDatetimeAttribute(databaseId, COLLECTIONS.ATTENDEES, 'lastSignificantUpdate', false),
-    );
-
-    // Operator-managed fields for atomic operations
-    console.log('  Checking operator-managed fields...');
-    await createAttributeIfMissing(databaseId, COLLECTIONS.ATTENDEES, 'credentialCount', existingAttributes, () =>
-      databases.createIntegerAttribute(databaseId, COLLECTIONS.ATTENDEES, 'credentialCount', false, 0),
-    );
-    await createAttributeIfMissing(databaseId, COLLECTIONS.ATTENDEES, 'photoUploadCount', existingAttributes, () =>
-      databases.createIntegerAttribute(databaseId, COLLECTIONS.ATTENDEES, 'photoUploadCount', false, 0),
-    );
-    await createAttributeIfMissing(databaseId, COLLECTIONS.ATTENDEES, 'viewCount', existingAttributes, () =>
-      databases.createIntegerAttribute(databaseId, COLLECTIONS.ATTENDEES, 'viewCount', false, 0),
-    );
-    await createAttributeIfMissing(databaseId, COLLECTIONS.ATTENDEES, 'lastCredentialGenerated', existingAttributes, () =>
-      databases.createDatetimeAttribute(databaseId, COLLECTIONS.ATTENDEES, 'lastCredentialGenerated', false),
-    );
-    await createAttributeIfMissing(databaseId, COLLECTIONS.ATTENDEES, 'lastPhotoUploaded', existingAttributes, () =>
-      databases.createDatetimeAttribute(databaseId, COLLECTIONS.ATTENDEES, 'lastPhotoUploaded', false),
+    await createColumnIfMissing(databaseId, TABLES.ATTENDEES, 'lastSignificantUpdate', existingColumns, () =>
+      tablesDB.createDatetimeColumn({ databaseId, tableId: TABLES.ATTENDEES, key: 'lastSignificantUpdate', required: false }),
     );
 
-    // Create indexes if they don't exist
-    if (!collectionExists) {
+    // Operator-managed columns for atomic operations
+    console.log('  Checking operator-managed columns...');
+    await createColumnIfMissing(databaseId, TABLES.ATTENDEES, 'credentialCount', existingColumns, () =>
+      tablesDB.createIntegerColumn({ databaseId, tableId: TABLES.ATTENDEES, key: 'credentialCount', required: false, xdefault: 0 }),
+    );
+    await createColumnIfMissing(databaseId, TABLES.ATTENDEES, 'photoUploadCount', existingColumns, () =>
+      tablesDB.createIntegerColumn({ databaseId, tableId: TABLES.ATTENDEES, key: 'photoUploadCount', required: false, xdefault: 0 }),
+    );
+    await createColumnIfMissing(databaseId, TABLES.ATTENDEES, 'viewCount', existingColumns, () =>
+      tablesDB.createIntegerColumn({ databaseId, tableId: TABLES.ATTENDEES, key: 'viewCount', required: false, xdefault: 0 }),
+    );
+    await createColumnIfMissing(databaseId, TABLES.ATTENDEES, 'lastCredentialGenerated', existingColumns, () =>
+      tablesDB.createDatetimeColumn({ databaseId, tableId: TABLES.ATTENDEES, key: 'lastCredentialGenerated', required: false }),
+    );
+    await createColumnIfMissing(databaseId, TABLES.ATTENDEES, 'lastPhotoUploaded', existingColumns, () =>
+      tablesDB.createDatetimeColumn({ databaseId, tableId: TABLES.ATTENDEES, key: 'lastPhotoUploaded', required: false }),
+    );
+
+    // Create indexes if table was just created
+    if (!tableExists) {
       console.log('  Creating indexes...');
       try {
-        await databases.createIndex(databaseId, COLLECTIONS.ATTENDEES, 'barcodeNumber_idx', IndexType.Unique, ['barcodeNumber']);
+        await tablesDB.createIndex({ databaseId, tableId: TABLES.ATTENDEES, key: 'barcodeNumber_idx', type: IndexType.Unique, columns: ['barcodeNumber'] });
       } catch (error: any) {
         if (error.code !== 409) console.error('  ✗ Error creating barcodeNumber index:', error.message);
       }
       try {
-        await databases.createIndex(databaseId, COLLECTIONS.ATTENDEES, 'lastName_idx', IndexType.Key, ['lastName']);
+        await tablesDB.createIndex({ databaseId, tableId: TABLES.ATTENDEES, key: 'lastName_idx', type: IndexType.Key, columns: ['lastName'] });
       } catch (error: any) {
         if (error.code !== 409) console.error('  ✗ Error creating lastName index:', error.message);
       }
       try {
-        await databases.createIndex(databaseId, COLLECTIONS.ATTENDEES, 'firstName_idx', IndexType.Key, ['firstName']);
+        await tablesDB.createIndex({ databaseId, tableId: TABLES.ATTENDEES, key: 'firstName_idx', type: IndexType.Key, columns: ['firstName'] });
       } catch (error: any) {
         if (error.code !== 409) console.error('  ✗ Error creating firstName index:', error.message);
       }
     }
 
-    console.log('✓ Attendees collection setup complete');
+    console.log('✓ Attendees table setup complete');
   } catch (error: any) {
-    console.error('✗ Error setting up attendees collection:', error);
+    console.error('✗ Error setting up attendees table:', error);
     throw error;
   }
 }
 
-async function createCustomFieldsCollection(databaseId: string) {
+async function createCustomFieldsTable(databaseId: string) {
   try {
-    console.log('\nCreating custom_fields collection...');
-    await databases.createCollection(
+    console.log('\nCreating custom_fields table...');
+    await tablesDB.createTable({
       databaseId,
-      COLLECTIONS.CUSTOM_FIELDS,
-      'Custom Fields',
-      [
+      tableId: TABLES.CUSTOM_FIELDS,
+      name: 'Custom Fields',
+      permissions: [
         Permission.read(Role.any()),
         Permission.create(Role.users()),
         Permission.update(Role.users()),
         Permission.delete(Role.users()),
-      ]
-    );
+      ],
+      columns: [
+        { key: 'eventSettingsId', type: 'varchar', size: 255, required: true },
+        { key: 'fieldName', type: 'varchar', size: 255, required: true },
+        { key: 'internalFieldName', type: 'varchar', size: 255, required: false },
+        { key: 'fieldType', type: 'varchar', size: 50, required: true },
+        { key: 'fieldOptions', type: 'varchar', size: 5000, required: false },
+        { key: 'required', type: 'boolean', required: false },
+        { key: 'fieldOrder', type: 'integer', required: true },
+        { key: 'showOnMainPage', type: 'boolean', required: false, xdefault: true },
+        { key: 'printable', type: 'boolean', required: false },
+      ],
+      indexes: [
+        { key: 'eventSettingsId_idx', type: 'key', attributes: ['eventSettingsId'] },
+        { key: 'fieldOrder_idx', type: 'key', attributes: ['fieldOrder'] },
+        { key: 'showOnMainPage_idx', type: 'key', attributes: ['showOnMainPage'] },
+      ],
+    });
 
-    // Add attributes
-    await databases.createStringAttribute(databaseId, COLLECTIONS.CUSTOM_FIELDS, 'eventSettingsId', 255, true);
-    await databases.createStringAttribute(databaseId, COLLECTIONS.CUSTOM_FIELDS, 'fieldName', 255, true);
-    await databases.createStringAttribute(databaseId, COLLECTIONS.CUSTOM_FIELDS, 'internalFieldName', 255, false);
-    await databases.createStringAttribute(databaseId, COLLECTIONS.CUSTOM_FIELDS, 'fieldType', 50, true);
-    await databases.createStringAttribute(databaseId, COLLECTIONS.CUSTOM_FIELDS, 'fieldOptions', 5000, false);
-    await databases.createBooleanAttribute(databaseId, COLLECTIONS.CUSTOM_FIELDS, 'required', false, false);
-    await databases.createIntegerAttribute(databaseId, COLLECTIONS.CUSTOM_FIELDS, 'fieldOrder', true);
-    await databases.createBooleanAttribute(databaseId, COLLECTIONS.CUSTOM_FIELDS, 'showOnMainPage', false, true);
-    await databases.createBooleanAttribute(databaseId, COLLECTIONS.CUSTOM_FIELDS, 'printable', false, false);
-
-    // Create indexes
-    await databases.createIndex(databaseId, COLLECTIONS.CUSTOM_FIELDS, 'eventSettingsId_idx', IndexType.Key, ['eventSettingsId']);
-    await databases.createIndex(databaseId, COLLECTIONS.CUSTOM_FIELDS, 'fieldOrder_idx', IndexType.Key, ['fieldOrder']);
-    await databases.createIndex(databaseId, COLLECTIONS.CUSTOM_FIELDS, 'showOnMainPage_idx', IndexType.Key, ['showOnMainPage']);
-
-    console.log('✓ Custom fields collection created');
+    console.log('✓ Custom fields table created');
   } catch (error: any) {
     if (error.code === 409) {
-      console.log('✓ Custom fields collection already exists');
+      console.log('✓ Custom fields table already exists');
     } else {
       throw error;
     }
   }
 }
 
-async function createEventSettingsCollection(databaseId: string) {
+async function createEventSettingsTable(databaseId: string) {
   try {
-    console.log('\nCreating event_settings collection...');
-    await databases.createCollection(
+    console.log('\nCreating event_settings table...');
+    await tablesDB.createTable({
       databaseId,
-      COLLECTIONS.EVENT_SETTINGS,
-      'Event Settings',
-      [
+      tableId: TABLES.EVENT_SETTINGS,
+      name: 'Event Settings',
+      permissions: [
         Permission.read(Role.any()),
         Permission.create(Role.users()),
         Permission.update(Role.users()),
         Permission.delete(Role.users()),
-      ]
-    );
+      ],
+      columns: [
+        { key: 'eventName', type: 'varchar', size: 255, required: false },
+        { key: 'eventLogo', type: 'varchar', size: 1000, required: false },
+        { key: 'barcodeType', type: 'varchar', size: 50, required: false },
+        { key: 'barcodeLength', type: 'integer', required: false },
+        { key: 'enableSwitchboard', type: 'boolean', required: false },
+        { key: 'switchboardApiKey', type: 'varchar', size: 500, required: false },
+        { key: 'switchboardTemplateId', type: 'varchar', size: 255, required: false },
+        { key: 'switchboardFieldMappings', type: 'varchar', size: 10000, required: false },
+        { key: 'customFieldColumns', type: 'integer', required: false, xdefault: 7, min: 0, max: 10 },
+      ],
+    });
 
-    // Add attributes based on Prisma schema
-    await databases.createStringAttribute(databaseId, COLLECTIONS.EVENT_SETTINGS, 'eventName', 255, false);
-    await databases.createStringAttribute(databaseId, COLLECTIONS.EVENT_SETTINGS, 'eventLogo', 1000, false);
-    await databases.createStringAttribute(databaseId, COLLECTIONS.EVENT_SETTINGS, 'barcodeType', 50, false);
-    await databases.createIntegerAttribute(databaseId, COLLECTIONS.EVENT_SETTINGS, 'barcodeLength', false);
-    await databases.createBooleanAttribute(databaseId, COLLECTIONS.EVENT_SETTINGS, 'enableSwitchboard', false, false);
-    await databases.createStringAttribute(databaseId, COLLECTIONS.EVENT_SETTINGS, 'switchboardApiKey', 500, false);
-    await databases.createStringAttribute(databaseId, COLLECTIONS.EVENT_SETTINGS, 'switchboardTemplateId', 255, false);
-    await databases.createStringAttribute(databaseId, COLLECTIONS.EVENT_SETTINGS, 'switchboardFieldMappings', 10000, false);
-    await databases.createIntegerAttribute(databaseId, COLLECTIONS.EVENT_SETTINGS, 'customFieldColumns', false, 0, 10, 7);
-
-    console.log('✓ Event settings collection created');
+    console.log('✓ Event settings table created');
   } catch (error: any) {
     if (error.code === 409) {
-      console.log('✓ Event settings collection already exists');
+      console.log('✓ Event settings table already exists');
     } else {
       throw error;
     }
   }
 }
 
-async function createLogsCollection(databaseId: string) {
+async function createLogsTable(databaseId: string) {
   try {
-    console.log('\nCreating logs collection...');
-    await databases.createCollection(
+    console.log('\nCreating logs table...');
+    await tablesDB.createTable({
       databaseId,
-      COLLECTIONS.LOGS,
-      'Logs',
-      [
+      tableId: TABLES.LOGS,
+      name: 'Logs',
+      permissions: [
         Permission.read(Role.any()),
         Permission.create(Role.any()),
         Permission.update(Role.users()),
         Permission.delete(Role.users()),
-      ]
-    );
+      ],
+      columns: [
+        { key: 'userId', type: 'varchar', size: 255, required: true },
+        { key: 'attendeeId', type: 'varchar', size: 255, required: false },
+        { key: 'action', type: 'varchar', size: 255, required: true },
+        { key: 'details', type: 'varchar', size: 10000, required: false },
+        { key: 'timestamp', type: 'datetime', required: false },
+      ],
+      indexes: [
+        { key: 'userId_idx', type: 'key', attributes: ['userId'] },
+        { key: 'attendeeId_idx', type: 'key', attributes: ['attendeeId'] },
+        { key: 'timestamp_idx', type: 'key', attributes: ['timestamp'] },
+      ],
+    });
 
-    // Add attributes
-    await databases.createStringAttribute(databaseId, COLLECTIONS.LOGS, 'userId', 255, true);
-    await databases.createStringAttribute(databaseId, COLLECTIONS.LOGS, 'attendeeId', 255, false);
-    await databases.createStringAttribute(databaseId, COLLECTIONS.LOGS, 'action', 255, true);
-    await databases.createStringAttribute(databaseId, COLLECTIONS.LOGS, 'details', 10000, false);
-    await databases.createDatetimeAttribute(databaseId, COLLECTIONS.LOGS, 'timestamp', false);
-
-    // Create indexes
-    await databases.createIndex(databaseId, COLLECTIONS.LOGS, 'userId_idx', IndexType.Key, ['userId']);
-    await databases.createIndex(databaseId, COLLECTIONS.LOGS, 'attendeeId_idx', IndexType.Key, ['attendeeId']);
-    await databases.createIndex(databaseId, COLLECTIONS.LOGS, 'timestamp_idx', IndexType.Key, ['timestamp']);
-
-    console.log('✓ Logs collection created');
+    console.log('✓ Logs table created');
   } catch (error: any) {
     if (error.code === 409) {
-      console.log('✓ Logs collection already exists');
+      console.log('✓ Logs table already exists');
     } else {
       throw error;
     }
   }
 }
 
-async function createLogSettingsCollection(databaseId: string) {
+async function createLogSettingsTable(databaseId: string) {
   try {
-    console.log('\nCreating log_settings collection...');
-    await databases.createCollection(
+    console.log('\nCreating log_settings table...');
+    await tablesDB.createTable({
       databaseId,
-      COLLECTIONS.LOG_SETTINGS,
-      'Log Settings',
-      [
+      tableId: TABLES.LOG_SETTINGS,
+      name: 'Log Settings',
+      permissions: [
         Permission.read(Role.any()),
         Permission.create(Role.users()),
         Permission.update(Role.users()),
         Permission.delete(Role.users()),
-      ]
-    );
+      ],
+      columns: [
+        { key: 'logUserLogin', type: 'boolean', required: false, xdefault: true },
+        { key: 'logUserLogout', type: 'boolean', required: false, xdefault: true },
+        { key: 'logAttendeeCreate', type: 'boolean', required: false, xdefault: true },
+        { key: 'logAttendeeUpdate', type: 'boolean', required: false, xdefault: true },
+        { key: 'logAttendeeDelete', type: 'boolean', required: false, xdefault: true },
+        { key: 'logCredentialGenerate', type: 'boolean', required: false, xdefault: true },
+      ],
+    });
 
-    // Add boolean attributes for log settings
-    await databases.createBooleanAttribute(databaseId, COLLECTIONS.LOG_SETTINGS, 'logUserLogin', false, true);
-    await databases.createBooleanAttribute(databaseId, COLLECTIONS.LOG_SETTINGS, 'logUserLogout', false, true);
-    await databases.createBooleanAttribute(databaseId, COLLECTIONS.LOG_SETTINGS, 'logAttendeeCreate', false, true);
-    await databases.createBooleanAttribute(databaseId, COLLECTIONS.LOG_SETTINGS, 'logAttendeeUpdate', false, true);
-    await databases.createBooleanAttribute(databaseId, COLLECTIONS.LOG_SETTINGS, 'logAttendeeDelete', false, true);
-    await databases.createBooleanAttribute(databaseId, COLLECTIONS.LOG_SETTINGS, 'logCredentialGenerate', false, true);
-
-    console.log('✓ Log settings collection created');
+    console.log('✓ Log settings table created');
   } catch (error: any) {
     if (error.code === 409) {
-      console.log('✓ Log settings collection already exists');
+      console.log('✓ Log settings table already exists');
     } else {
       throw error;
     }
@@ -437,121 +441,102 @@ async function createLogSettingsCollection(databaseId: string) {
 }
 
 /**
- * Create reports collection for saved filter configurations
- * 
+ * Create reports table for saved filter configurations
+ *
  * Stores user-saved report configurations including:
  * - Report name and description
  * - User association (userId)
  * - Serialized filter configuration (JSON)
  * - Timestamps for creation, update, and last access
- * 
+ *
  * Requirements: 6.1, 6.2, 6.3, 6.4
  */
-async function createReportsCollection(databaseId: string) {
+async function createReportsTable(databaseId: string) {
   try {
-    console.log('\nCreating reports collection...');
-    let collectionExists = false;
+    console.log('\nCreating reports table...');
+    let tableExists = false;
 
     try {
-      await databases.createCollection(
+      await tablesDB.createTable({
         databaseId,
-        COLLECTIONS.REPORTS,
-        'Reports',
-        [
+        tableId: TABLES.REPORTS,
+        name: 'Reports',
+        permissions: [
           Permission.read(Role.users()),
           Permission.create(Role.users()),
           Permission.update(Role.users()),
           Permission.delete(Role.users()),
-        ]
-      );
+        ],
+      });
     } catch (error: any) {
       if (error.code === 409) {
-        console.log('✓ Reports collection already exists');
-        collectionExists = true;
+        console.log('✓ Reports table already exists');
+        tableExists = true;
       } else {
         throw error;
       }
     }
 
-    // Get existing attributes if collection exists
-    let existingAttributes: string[] = [];
-    if (collectionExists) {
+    // Get existing columns if table exists
+    let existingColumns: string[] = [];
+    if (tableExists) {
       try {
-        const collection = await databases.getCollection(databaseId, COLLECTIONS.REPORTS);
-        existingAttributes = collection.attributes.map((attr: any) => attr.key);
-        console.log(`  Found ${existingAttributes.length} existing attributes`);
+        const table = await tablesDB.getTable({ databaseId, tableId: TABLES.REPORTS });
+        existingColumns = (table as any).columns?.map((col: any) => col.key) ?? [];
+        console.log(`  Found ${existingColumns.length} existing columns`);
       } catch (error) {
-        console.log('  Could not fetch existing attributes, will attempt to create all');
+        console.log('  Could not fetch existing columns, will attempt to create all');
       }
     }
 
-    // Add attributes
-    // name: Report name (required, max 255 chars)
-    await createAttributeIfMissing(databaseId, COLLECTIONS.REPORTS, 'name', existingAttributes, () =>
-      databases.createStringAttribute(databaseId, COLLECTIONS.REPORTS, 'name', 255, true),
+    await createColumnIfMissing(databaseId, TABLES.REPORTS, 'name', existingColumns, () =>
+      tablesDB.createVarcharColumn({ databaseId, tableId: TABLES.REPORTS, key: 'name', size: 255, required: true }),
+    );
+    await createColumnIfMissing(databaseId, TABLES.REPORTS, 'description', existingColumns, () =>
+      tablesDB.createVarcharColumn({ databaseId, tableId: TABLES.REPORTS, key: 'description', size: 1000, required: false }),
+    );
+    await createColumnIfMissing(databaseId, TABLES.REPORTS, 'userId', existingColumns, () =>
+      tablesDB.createVarcharColumn({ databaseId, tableId: TABLES.REPORTS, key: 'userId', size: 255, required: true }),
+    );
+    await createColumnIfMissing(databaseId, TABLES.REPORTS, 'filterConfiguration', existingColumns, () =>
+      tablesDB.createVarcharColumn({ databaseId, tableId: TABLES.REPORTS, key: 'filterConfiguration', size: 16381, required: true }),
+    );
+    await createColumnIfMissing(databaseId, TABLES.REPORTS, 'createdAt', existingColumns, () =>
+      tablesDB.createDatetimeColumn({ databaseId, tableId: TABLES.REPORTS, key: 'createdAt', required: true }),
+    );
+    await createColumnIfMissing(databaseId, TABLES.REPORTS, 'updatedAt', existingColumns, () =>
+      tablesDB.createDatetimeColumn({ databaseId, tableId: TABLES.REPORTS, key: 'updatedAt', required: true }),
+    );
+    await createColumnIfMissing(databaseId, TABLES.REPORTS, 'lastAccessedAt', existingColumns, () =>
+      tablesDB.createDatetimeColumn({ databaseId, tableId: TABLES.REPORTS, key: 'lastAccessedAt', required: false }),
     );
 
-    // description: Optional description (max 1000 chars)
-    await createAttributeIfMissing(databaseId, COLLECTIONS.REPORTS, 'description', existingAttributes, () =>
-      databases.createStringAttribute(databaseId, COLLECTIONS.REPORTS, 'description', 1000, false),
-    );
-
-    // userId: Owner's user ID (required for user association)
-    await createAttributeIfMissing(databaseId, COLLECTIONS.REPORTS, 'userId', existingAttributes, () =>
-      databases.createStringAttribute(databaseId, COLLECTIONS.REPORTS, 'userId', 255, true),
-    );
-
-    // filterConfiguration: JSON-serialized AdvancedSearchFilters (max 50000 chars for complex filters)
-    await createAttributeIfMissing(databaseId, COLLECTIONS.REPORTS, 'filterConfiguration', existingAttributes, () =>
-      databases.createStringAttribute(databaseId, COLLECTIONS.REPORTS, 'filterConfiguration', 50000, true),
-    );
-
-    // createdAt: Creation timestamp
-    await createAttributeIfMissing(databaseId, COLLECTIONS.REPORTS, 'createdAt', existingAttributes, () =>
-      databases.createDatetimeAttribute(databaseId, COLLECTIONS.REPORTS, 'createdAt', true),
-    );
-
-    // updatedAt: Last update timestamp
-    await createAttributeIfMissing(databaseId, COLLECTIONS.REPORTS, 'updatedAt', existingAttributes, () =>
-      databases.createDatetimeAttribute(databaseId, COLLECTIONS.REPORTS, 'updatedAt', true),
-    );
-
-    // lastAccessedAt: Last time report was loaded (optional)
-    await createAttributeIfMissing(databaseId, COLLECTIONS.REPORTS, 'lastAccessedAt', existingAttributes, () =>
-      databases.createDatetimeAttribute(databaseId, COLLECTIONS.REPORTS, 'lastAccessedAt', false),
-    );
-
-    // Create indexes for efficient querying (only if collection was just created)
-    if (!collectionExists) {
+    // Create indexes if table was just created
+    if (!tableExists) {
       console.log('  Creating indexes...');
       try {
-        // userId index for listing user's reports (Requirement 6.3)
-        await databases.createIndex(databaseId, COLLECTIONS.REPORTS, 'userId_idx', IndexType.Key, ['userId']);
+        await tablesDB.createIndex({ databaseId, tableId: TABLES.REPORTS, key: 'userId_idx', type: IndexType.Key, columns: ['userId'] });
       } catch (error: any) {
         if (error.code !== 409) console.error('  ✗ Error creating userId index:', error.message);
       }
       try {
-        // name index for search functionality (Requirement 6.4)
-        await databases.createIndex(databaseId, COLLECTIONS.REPORTS, 'name_idx', IndexType.Key, ['name']);
+        await tablesDB.createIndex({ databaseId, tableId: TABLES.REPORTS, key: 'name_idx', type: IndexType.Key, columns: ['name'] });
       } catch (error: any) {
         if (error.code !== 409) console.error('  ✗ Error creating name index:', error.message);
       }
       try {
-        // createdAt index for sorting by creation date
-        await databases.createIndex(databaseId, COLLECTIONS.REPORTS, 'createdAt_idx', IndexType.Key, ['createdAt']);
+        await tablesDB.createIndex({ databaseId, tableId: TABLES.REPORTS, key: 'createdAt_idx', type: IndexType.Key, columns: ['createdAt'] });
       } catch (error: any) {
         if (error.code !== 409) console.error('  ✗ Error creating createdAt index:', error.message);
       }
     }
 
-    console.log('✓ Reports collection setup complete');
+    console.log('✓ Reports table setup complete');
   } catch (error: any) {
-    console.error('✗ Error setting up reports collection:', error);
+    console.error('✗ Error setting up reports table:', error);
     throw error;
   }
 }
-
-
 
 async function printEnvironmentVariables(databaseId: string) {
   console.log('\n' + '='.repeat(80));
@@ -560,14 +545,14 @@ async function printEnvironmentVariables(databaseId: string) {
   console.log(`
 # Appwrite Database IDs
 NEXT_PUBLIC_APPWRITE_DATABASE_ID=${databaseId}
-NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID=${COLLECTIONS.USERS}
-NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID=${COLLECTIONS.ROLES}
-NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID=${COLLECTIONS.ATTENDEES}
-NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID=${COLLECTIONS.CUSTOM_FIELDS}
-NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID=${COLLECTIONS.EVENT_SETTINGS}
-NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID=${COLLECTIONS.LOGS}
-NEXT_PUBLIC_APPWRITE_LOG_SETTINGS_COLLECTION_ID=${COLLECTIONS.LOG_SETTINGS}
-NEXT_PUBLIC_APPWRITE_REPORTS_COLLECTION_ID=${COLLECTIONS.REPORTS}
+NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID=${TABLES.USERS}
+NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID=${TABLES.ROLES}
+NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID=${TABLES.ATTENDEES}
+NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID=${TABLES.CUSTOM_FIELDS}
+NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID=${TABLES.EVENT_SETTINGS}
+NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID=${TABLES.LOGS}
+NEXT_PUBLIC_APPWRITE_LOG_SETTINGS_TABLE_ID=${TABLES.LOG_SETTINGS}
+NEXT_PUBLIC_APPWRITE_REPORTS_TABLE_ID=${TABLES.REPORTS}
   `);
   console.log('='.repeat(80));
 }
@@ -593,29 +578,29 @@ async function main() {
       .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!)
       .setKey(process.env.APPWRITE_API_KEY!);
 
-    databases = new Databases(client);
+    tablesDB = new TablesDB(client);
 
     // Create database
     const databaseId = await createDatabase();
 
-    // Create all collections
-    await createUsersCollection(databaseId);
-    await createRolesCollection(databaseId);
-    await createAttendeesCollection(databaseId);
-    await createCustomFieldsCollection(databaseId);
-    await createEventSettingsCollection(databaseId);
-    await createLogsCollection(databaseId);
-    await createLogSettingsCollection(databaseId);
-    await createReportsCollection(databaseId);
+    // Create all tables
+    await createUsersTable(databaseId);
+    await createRolesTable(databaseId);
+    await createAttendeesTable(databaseId);
+    await createCustomFieldsTable(databaseId);
+    await createEventSettingsTable(databaseId);
+    await createLogsTable(databaseId);
+    await createLogSettingsTable(databaseId);
+    await createReportsTable(databaseId);
 
     // Print environment variables
     await printEnvironmentVariables(databaseId);
 
-    console.log('\n✓ All collections created successfully!');
+    console.log('\n✓ All tables created successfully!');
     console.log('\nNext steps:');
     console.log('1. Copy the environment variables above to your .env.local file');
     console.log('2. Configure OAuth providers in Appwrite Console (if using Google login)');
-    console.log('3. Review collection permissions in Appwrite Console');
+    console.log('3. Review table permissions in Appwrite Console');
     console.log('4. Run the data migration script when ready');
 
   } catch (error) {

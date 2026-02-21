@@ -13,7 +13,7 @@ related_code: ["scripts/setup-appwrite.ts"]
 ## ✅ Completed
 
 ### Infrastructure
-- [x] Created 4 Appwrite collections (event_settings, cloudinary_integrations, switchboard_integrations, onesimpleapi_integrations)
+- [x] Created 4 Appwrite tables (event_settings, cloudinary_integrations, switchboard_integrations, onesimpleapi_integrations)
 - [x] Migrated all data from Supabase to Appwrite
 - [x] Added environment variables to `.env.local`
 - [x] Created helper library (`src/lib/appwrite-integrations.ts`)
@@ -21,7 +21,7 @@ related_code: ["scripts/setup-appwrite.ts"]
 - [x] Created migration documentation
 
 ### Migration Script
-- [x] `src/scripts/migrate-with-integration-collections.ts` - Successfully migrated 1 event setting + 3 integrations
+- [x] `src/scripts/migrate-with-integration-tables.ts` - Successfully migrated 1 event setting + 3 integrations
 
 ## 📋 Files Requiring Updates
 
@@ -29,12 +29,12 @@ related_code: ["scripts/setup-appwrite.ts"]
 
 1. **`src/pages/api/switchboard/test.ts`**
    - ✅ Updated to use Appwrite
-   - ✅ Fetches switchboard integration from separate collection
+   - ✅ Fetches switchboard integration from separate table
    - Status: ✅ Complete
 
 2. **`src/pages/api/attendees/bulk-export-pdf.ts`**
    - ✅ Updated to use Appwrite
-   - ✅ Fetches oneSimpleApi integration from separate collection
+   - ✅ Fetches oneSimpleApi integration from separate table
    - Status: ✅ Complete
 
 ### Medium Priority - Event Settings Management
@@ -53,7 +53,7 @@ related_code: ["scripts/setup-appwrite.ts"]
 
 5. **Event Settings Forms/Components**
    - Need to find and update any forms that edit integration settings
-   - Should use helper functions to update separate collections
+   - Should use helper functions to update separate tables
    - Status: ⏳ Needs investigation
 
 ## 🔧 Update Strategy

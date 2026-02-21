@@ -16,10 +16,10 @@ This document provides a quick reference for the Appwrite infrastructure setup f
 
 **Database ID**: `credentialstudio`
 
-### Collections Overview
+### Tables Overview
 
-| Collection | ID | Purpose | Key Attributes |
-|------------|----|---------|--------------------|
+| Table | ID | Purpose | Key Columns |
+|-------|----|---------|--------------------|
 | Users | `users` | User profiles linked to Appwrite Auth | userId, email, name, roleId, isInvited |
 | Roles | `roles` | Role definitions with permissions | name, description, permissions (JSON) |
 | Attendees | `attendees` | Event attendee records | firstName, lastName, barcodeNumber, customFieldValues (JSON) |
@@ -29,17 +29,17 @@ This document provides a quick reference for the Appwrite infrastructure setup f
 | Log Settings | `log_settings` | Logging preferences | logUserLogin, logAttendeeCreate, etc. |
 | Invitations | `invitations` | User invitation tokens | token, expiresAt, usedAt |
 
-## Collection Details
+## Table Details
 
-### 1. Users Collection (`users`)
+### 1. Users Table (`users`)
 
 **Purpose**: Store user profile information linked to Appwrite Auth accounts.
 
-**Attributes**:
+**Columns**:
 - `userId` (string, required) - Appwrite Auth user ID
 - `email` (string, required, unique)
 - `name` (string, optional)
-- `roleId` (string, optional) - Reference to roles collection
+- `roleId` (string, optional) - Reference to roles table
 - `isInvited` (boolean, default: false)
 
 **Indexes**:
@@ -53,11 +53,11 @@ This document provides a quick reference for the Appwrite infrastructure setup f
 
 ---
 
-### 2. Roles Collection (`roles`)
+### 2. Roles Table (`roles`)
 
 **Purpose**: Define user roles with granular permissions.
 
-**Attributes**:
+**Columns**:
 - `name` (string, required, unique) - Role name (e.g., "Super Administrator")
 - `description` (string, optional) - Role description
 - `permissions` (string, JSON, required) - Serialized permissions object
@@ -93,11 +93,11 @@ This document provides a quick reference for the Appwrite infrastructure setup f
 
 ---
 
-### 3. Attendees Collection (`attendees`)
+### 3. Attendees Table (`attendees`)
 
 **Purpose**: Store event attendee information with custom fields.
 
-**Attributes**:
+**Columns**:
 - `firstName` (string, required)
 - `lastName` (string, required)
 - `barcodeNumber` (string, required, unique)
@@ -125,11 +125,11 @@ This document provides a quick reference for the Appwrite infrastructure setup f
 
 ---
 
-### 4. Custom Fields Collection (`custom_fields`)
+### 4. Custom Fields Table (`custom_fields`)
 
-**Purpose**: Define dynamic form fields for attendee data collection.
+**Purpose**: Define dynamic form fields for attendee data.
 
-**Attributes**:
+**Columns**:
 - `eventSettingsId` (string, required) - Reference to event settings
 - `fieldName` (string, required) - Display name
 - `internalFieldName` (string, optional) - Internal identifier
@@ -153,11 +153,11 @@ This document provides a quick reference for the Appwrite infrastructure setup f
 
 ---
 
-### 5. Event Settings Collection (`event_settings`)
+### 5. Event Settings Table (`event_settings`)
 
 **Purpose**: Store global event configuration.
 
-**Attributes**:
+**Columns**:
 - `eventName` (string, optional)
 - `eventLogo` (string, optional) - Logo URL
 - `barcodeType` (string, optional) - "numerical" or "alphanumerical"
@@ -182,11 +182,11 @@ This document provides a quick reference for the Appwrite infrastructure setup f
 
 ---
 
-### 6. Logs Collection (`logs`)
+### 6. Logs Table (`logs`)
 
 **Purpose**: Audit trail of all user actions.
 
-**Attributes**:
+**Columns**:
 - `userId` (string, required) - User who performed action
 - `attendeeId` (string, optional) - Related attendee (if applicable)
 - `action` (string, required) - Action type (e.g., "ATTENDEE_CREATED")
@@ -217,11 +217,11 @@ This document provides a quick reference for the Appwrite infrastructure setup f
 
 ---
 
-### 7. Log Settings Collection (`log_settings`)
+### 7. Log Settings Table (`log_settings`)
 
 **Purpose**: Configure which actions should be logged.
 
-**Attributes**:
+**Columns**:
 - `logUserLogin` (boolean, default: true)
 - `logUserLogout` (boolean, default: true)
 - `logAttendeeCreate` (boolean, default: true)
@@ -235,11 +235,11 @@ This document provides a quick reference for the Appwrite infrastructure setup f
 
 ---
 
-### 8. Invitations Collection (`invitations`)
+### 8. Invitations Table (`invitations`)
 
 **Purpose**: Manage user invitation tokens.
 
-**Attributes**:
+**Columns**:
 - `userId` (string, required) - Invited user ID (once accepted)
 - `token` (string, required, unique) - Unique invitation token
 - `expiresAt` (datetime, required) - Expiration timestamp
@@ -264,24 +264,31 @@ All environment variables are configured in `.env.local`:
 # Appwrite Configuration
 NEXT_PUBLIC_APPWRITE_ENDPOINT=https://cloud.appwrite.io/v1
 NEXT_PUBLIC_APPWRITE_PROJECT_ID=your_project_id
-APPWRITE_API_KEY=your_api_key
+APPWRITE_API_KEY=your_api_key  # ⚠️ SENSITIVE: Server-side only, never expose to client
 
-# Appwrite Database IDs
+# Appwrite TablesDB IDs
 NEXT_PUBLIC_APPWRITE_DATABASE_ID=credentialstudio
-NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID=users
-NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID=roles
-NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID=attendees
-NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID=custom_fields
-NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID=event_settings
-NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID=logs
-NEXT_PUBLIC_APPWRITE_LOG_SETTINGS_COLLECTION_ID=log_settings
+NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID=users
+NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID=roles
+NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID=attendees
+NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID=custom_fields
+NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID=event_settings
+NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID=logs
+NEXT_PUBLIC_APPWRITE_LOG_SETTINGS_TABLE_ID=log_settings
 ```
+
+**⚠️ SECURITY WARNINGS:**
+- `APPWRITE_API_KEY` is sensitive and must NOT have `NEXT_PUBLIC_` prefix
+- `.env.local` is gitignored - never commit it to source control
+- Rotate API keys regularly in production
+- Use different keys for dev/staging/production environments
+- Never share API keys in logs, error messages, or documentation
 
 ## Important Notes
 
 ### Reserved Keywords
 - `order` is a reserved keyword in Appwrite - use `fieldOrder` instead
-- Always check [Appwrite's reserved keywords](https://appwrite.io/docs/advanced/platform/reserved-keywords) when creating attributes
+- Always check [Appwrite's reserved keywords](https://appwrite.io/docs/advanced/platform/reserved-keywords) when creating columns
 
 ### JSON Fields
 - Store complex data as JSON strings
@@ -290,12 +297,12 @@ NEXT_PUBLIC_APPWRITE_LOG_SETTINGS_COLLECTION_ID=log_settings
 
 ### Relationships
 - Appwrite doesn't support traditional foreign keys
-- Use document IDs to reference related documents
-- Fetch related documents separately or use Appwrite's relationship attributes
+- Use row IDs to reference related rows
+- Fetch related rows separately or use Appwrite's relationship columns
 
 ### Permissions
-- Collection-level permissions are set during creation
-- Document-level permissions can be set per document
+- Table-level permissions are set during creation
+- Row-level permissions can be set per row
 - Use role-based permissions for fine-grained access control
 
 ### Indexes

@@ -48,11 +48,11 @@ The Saved Reports feature enables users to persist, recall, and manage complex s
 
 ### Database Schema
 
-Reports are stored in the Appwrite `reports` collection with the following structure:
+Reports are stored in the Appwrite `reports` table with the following structure:
 
 ```typescript
 interface SavedReport {
-  $id: string;                    // Appwrite document ID
+  $id: string;                    // Appwrite row ID
   name: string;                   // User-provided report name
   description?: string;           // Optional description
   userId: string;                 // Owner's user ID
@@ -149,16 +149,18 @@ The complete workflow has been tested and verified:
 ### Prerequisites
 
 1. Appwrite project configured with environment variables
-2. Reports collection created in Appwrite database
-3. Environment variable configured: `NEXT_PUBLIC_APPWRITE_REPORTS_COLLECTION_ID=reports`
+2. Reports table created in Appwrite database
+3. Environment variable configured: `APPWRITE_REPORTS_TABLE_ID=reports` (server-side only, no NEXT_PUBLIC_ prefix)
 
-### Creating the Reports Collection
+**⚠️ SECURITY:** Do NOT use `NEXT_PUBLIC_` prefix for table IDs. These are internal infrastructure details that should only be accessible server-side.
+
+### Creating the Reports Table
 
 ```bash
 npm run setup:appwrite
 ```
 
-This script creates the reports collection with all required attributes and indexes.
+This script creates the reports table with all required columns and indexes.
 
 ### Adding Permissions to Existing Roles
 
@@ -192,8 +194,8 @@ This adds the following permissions:
 
 - `src/components/AdvancedFiltersDialog/AdvancedFiltersDialog.tsx` - Added Save/Load buttons and integration
 - `src/lib/permissions.ts` - Added reports resource permissions
-- `.env.example` - Added NEXT_PUBLIC_APPWRITE_REPORTS_COLLECTION_ID variable
-- `scripts/setup-appwrite.ts` - Added reports collection creation
+- `.env.example` - Added APPWRITE_REPORTS_TABLE_ID variable (server-side only)
+- `scripts/setup-appwrite.ts` - Added reports table creation
 
 ## Documentation
 

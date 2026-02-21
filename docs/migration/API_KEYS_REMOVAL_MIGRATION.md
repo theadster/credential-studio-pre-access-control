@@ -14,25 +14,27 @@ related_code: ["scripts/setup-appwrite.ts"]
 
 This migration removes API key storage from the database and moves them to environment variables for improved security.
 
+**⚠️ ARCHITECTURAL CHANGE:** This migration moves from per-record credentials to global environment variables. This means all events/integrations share the same API credentials. If you need different credentials per event or integration instance, do not proceed with this migration.
+
 ## Changes Made
 
 ### 1. Database Schema Updates
 
-#### Cloudinary Integration Collection
-**Removed attributes:**
+#### Cloudinary Integration Table
+**Removed columns:**
 - `apiKey` - Moved to `CLOUDINARY_API_KEY` environment variable
 - `apiSecret` - Moved to `CLOUDINARY_API_SECRET` environment variable
 
-**Remaining attributes:**
+**Remaining columns:**
 - `$id`, `eventSettingsId`, `version`, `enabled`
 - `cloudName`, `uploadPreset`
 - `autoOptimize`, `generateThumbnails`, `disableSkipCrop`, `cropAspectRatio`
 
-#### Switchboard Integration Collection
-**Removed attributes:**
+#### Switchboard Integration Table
+**Removed columns:**
 - `apiKey` - Moved to `SWITCHBOARD_API_KEY` environment variable
 
-**Remaining attributes:**
+**Remaining columns:**
 - `$id`, `eventSettingsId`, `version`, `enabled`
 - `apiEndpoint`, `authHeaderType`
 - `requestBody`, `templateId`, `fieldMappings`
@@ -165,11 +167,35 @@ const switchboardApiKey = process.env.SWITCHBOARD_API_KEY;
 ✅ **Version control safe** - `.env.local` is gitignored  
 ✅ **Audit trail** - Changes to environment variables are tracked separately  
 
+## Limitations & Alternatives
+
+### Current Limitation
+This migration supports **only one set of credentials per integration type** (one Cloudinary account, one Switchboard account). All events share the same credentials.
+
+### If You Need Per-Event Credentials
+
+**Option 1: Keep API Keys in Database (Not Recommended)**
+- Skip this migration
+- Store API keys in the integration tables
+- Implement encryption at rest in Appwrite
+- Requires careful access control
+
+**Option 2: Use Appwrite Secrets (Recommended)**
+- Store credentials in Appwrite Secrets API instead of environment variables
+- Allows per-event credential management
+- Better audit trail and rotation capabilities
+- Requires code changes to read from Appwrite Secrets
+
+**Option 3: Multi-Tenant Environment Variables**
+- Use environment variables with event identifiers (e.g., `CLOUDINARY_API_KEY_EVENT_1`)
+- Requires code changes to select correct credentials per event
+- More complex but maintains security benefits
+
 ## Rollback Plan
 
 If you need to rollback this migration:
 
-1. Re-add the attributes to the collections using Appwrite console or API
+1. Re-add the columns to the tables using Appwrite console or API
 2. Update the TypeScript interfaces to include the fields
 3. Update the API routes to handle the fields
 4. Migrate data from environment variables back to database (not recommended)

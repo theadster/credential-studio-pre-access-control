@@ -26,9 +26,9 @@ Successfully implemented a configurable setting that allows administrators to co
 - [x] Created migration script for existing installations
 
 ### Database
-- [x] Added `customFieldColumns` integer attribute to event_settings collection
+- [x] Added `customFieldColumns` integer column to event_settings table
 - [x] Set default value to 7 (maintains current behavior)
-- [x] Set range to 0-10
+- [x] Set range to 3-10
 - [x] Ran migration script successfully
 
 ### Documentation
@@ -157,7 +157,7 @@ const maxColumns = eventSettings?.customFieldColumns || 7;
 customFieldColumns: {
   type: 'integer',
   required: false,
-  min: 0,
+  min: 3,
   max: 10,
   default: 7
 }

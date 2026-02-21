@@ -9,7 +9,7 @@
  */
 
 import { config } from 'dotenv';
-import { Client, Databases, ID } from 'node-appwrite';
+import { Client, TablesDB, ID } from 'node-appwrite';
 import {
   createAttendeeLogDetails,
   createUserLogDetails,
@@ -36,13 +36,13 @@ if (!apiKey) {
 }
 client.setKey(apiKey);
 
-const databases = new Databases(client);
+const tablesDB = new TablesDB(client);
 
 // Configuration
 const DATABASE_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-const LOGS_COLLECTION_ID = process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!;
-const USERS_COLLECTION_ID = process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!;
-const ATTENDEES_COLLECTION_ID = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID!;
+const LOGS_TABLE_ID = process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!;
+const USERS_TABLE_ID = process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID!;
+const ATTENDEES_TABLE_ID = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID!;
 
 // Test data
 const LOG_ACTIONS = [
@@ -212,21 +212,21 @@ async function fetchExistingData() {
   console.log('Fetching existing users and attendees...');
 
   try {
-    const usersResponse = await databases.listDocuments(
+    const usersResponse = await tablesDB.listRows(
       DATABASE_ID,
-      USERS_COLLECTION_ID,
+      USERS_TABLE_ID,
       []
     );
 
-    const attendeesResponse = await databases.listDocuments(
+    const attendeesResponse = await tablesDB.listRows(
       DATABASE_ID,
-      ATTENDEES_COLLECTION_ID,
+      ATTENDEES_TABLE_ID,
       []
     );
 
     return {
-      users: usersResponse.documents.map(doc => doc.userId),
-      attendees: attendeesResponse.documents.map(doc => doc.$id)
+      users: usersResponse.rows.map(doc => doc.userId),
+      attendees: attendeesResponse.rows.map(doc => doc.$id)
     };
   } catch (error) {
     console.error('Error fetching existing data:', error);
@@ -248,9 +248,9 @@ async function createLogEntry(
     // Note: Appwrite doesn't allow setting $createdAt directly via API
     // We'll create the document and it will use the current timestamp
     // For testing purposes, we'll include the intended date in the details
-    await databases.createDocument(
+    await tablesDB.createRow(
       DATABASE_ID,
-      LOGS_COLLECTION_ID,
+      LOGS_TABLE_ID,
       ID.unique(),
       {
         userId,

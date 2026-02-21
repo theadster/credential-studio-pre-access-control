@@ -16,11 +16,13 @@ related_code: ["scripts/"]
 
 **Resolution:** ✅ **Both scripts already use identical schemas.** No changes were needed to the code.
 
+**⚠️ SECURITY NOTE:** This migration stores API secrets (`cloudinaryApiSecret`, `switchboardApiKey`) in JSON fields. **These should NOT be stored in the database.** Credentials must be moved to environment variables or encrypted storage. See `INTEGRATION_SECRETS_MIGRATION.md` for the recommended secure approach. Storing API secrets in plaintext in the database poses a critical security risk and violates compliance requirements.
+
 ## Verification Results
 
 ### Schema Comparison
 
-Both scripts create Event Settings documents with **exactly 16 attributes**:
+Both scripts create Event Settings rows with **exactly 16 columns**:
 
 | Category | Attributes | Count |
 |----------|-----------|-------|
@@ -30,12 +32,12 @@ Both scripts create Event Settings documents with **exactly 16 attributes**:
 | Consolidated JSON | `cloudinaryConfig`, `oneSimpleApiConfig`, `additionalSettings` | 3 |
 | **Total** | | **16** |
 
-### Document Payload Comparison
+### Row Payload Comparison
 
-Both scripts use identical document creation logic:
+Both scripts use identical row creation logic:
 
 ```typescript
-const documentData: any = {
+const rowData: any = {
   // Core event info
   eventName: settings.eventName || '',
   eventDate: settings.eventDate ? settings.eventDate.toISOString() : new Date().toISOString(),
@@ -65,6 +67,12 @@ const documentData: any = {
 ### JSON Consolidation
 
 Both scripts consolidate the same fields into JSON:
+
+**⚠️ SECURITY WARNING:** The following fields contain sensitive credentials and should NOT be stored in the database:
+- `cloudinaryApiSecret` (in `cloudinaryConfig`)
+- `switchboardApiKey` (direct field)
+
+These should be stored in environment variables or encrypted storage instead. See `API_KEYS_REMOVAL_MIGRATION.md` for migration guidance.
 
 **cloudinaryConfig:**
 - `cloudinaryEnabled` → `enabled`
@@ -104,27 +112,27 @@ The only difference between the two scripts is their **scope and purpose**:
 - **Purpose:** Full setup with attribute creation
 - **Scope:** Event Settings only
 - **Steps:**
-  1. Clear existing documents
-  2. **Create missing attributes** (if needed)
-  3. Wait for Appwrite to process attributes
+  1. Clear existing rows
+  2. **Create missing columns** (if needed)
+  3. Wait for Appwrite to process columns
   4. Migrate data
   5. Verify all 16 attributes exist
 
 **Use when:**
 - First-time setup
-- Attributes are missing or incomplete
-- Need to rebuild the collection structure
+- Columns are missing or incomplete
+- Need to rebuild the table structure
 
 ### `migrate-event-and-log-settings.ts`
 - **Purpose:** Data-only migration
 - **Scope:** Event Settings + Log Settings
 - **Steps:**
-  1. Clear existing documents
-  2. Migrate Event Settings data (assumes attributes exist)
+  1. Clear existing rows
+  2. Migrate Event Settings data (assumes columns exist)
   3. Migrate Log Settings data
 
 **Use when:**
-- Attributes already exist
+- Columns already exist
 - Need to re-migrate data
 - Want to migrate both Event Settings and Log Settings together
 
@@ -145,8 +153,8 @@ The only difference between the two scripts is their **scope and purpose**:
 ### Updated
 1. **`src/scripts/migrate-event-and-log-settings.ts`**
    - Added comprehensive header comment
-   - Documents the 16-attribute schema
-   - Notes that attributes must exist
+   - Documents the 16-column schema
+   - Notes that columns must exist
    - References the complete migration script
 
 2. **`docs/README.md`**

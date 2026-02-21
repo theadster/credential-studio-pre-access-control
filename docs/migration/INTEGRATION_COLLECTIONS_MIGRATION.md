@@ -12,7 +12,7 @@ related_code: ["scripts/setup-appwrite.ts"]
 
 ## Overview
 
-The Event Settings have been normalized into separate collections to work within Appwrite's attribute limits. Integration settings (Cloudinary, Switchboard, OneSimpleAPI) are now stored in their own collections.
+The Event Settings have been normalized into separate tables to work within Appwrite's column limits. Integration settings (Cloudinary, Switchboard, OneSimpleAPI) are now stored in their own tables.
 
 ## Database Structure
 
@@ -30,10 +30,14 @@ The Event Settings have been normalized into separate collections to work within
 Add these to your `.env.local`:
 
 ```env
-NEXT_PUBLIC_APPWRITE_CLOUDINARY_COLLECTION_ID=cloudinary_integrations
-NEXT_PUBLIC_APPWRITE_SWITCHBOARD_COLLECTION_ID=switchboard_integrations
-NEXT_PUBLIC_APPWRITE_ONESIMPLEAPI_COLLECTION_ID=onesimpleapi_integrations
+# Server-side only (no NEXT_PUBLIC_ prefix)
+# These table IDs should NOT be exposed to client-side code
+APPWRITE_CLOUDINARY_TABLE_ID=cloudinary_integrations
+APPWRITE_SWITCHBOARD_TABLE_ID=switchboard_integrations
+APPWRITE_ONESIMPLEAPI_TABLE_ID=onesimpleapi_integrations
 ```
+
+**⚠️ SECURITY:** Do NOT use `NEXT_PUBLIC_` prefix for table IDs. These are internal infrastructure details that should only be accessible server-side.
 
 ## Helper Library
 
@@ -107,7 +111,7 @@ console.log(flatSettings.switchboardApiKey);
 
 - ✅ `src/lib/appwrite-integrations.ts` - New helper library created
 - ✅ `src/lib/customFieldValidation.ts` - Updated to work with new structure
-- ✅ `.env.local` - Added integration collection IDs
+- ✅ `.env.local` - Added integration table IDs
 
 ### Files That Need Updating
 
@@ -200,7 +204,7 @@ if (legacyFormat.cloudinaryEnabled) {
 
 ## Benefits of New Structure
 
-✅ **Stays within Appwrite limits** - Each collection has < 27 attributes
+✅ **Stays within Appwrite limits** - Each table has < 27 columns
 ✅ **Better organization** - Related settings grouped together
 ✅ **Easier to maintain** - Integration logic is isolated
 ✅ **Scalable** - Easy to add new integrations
@@ -233,7 +237,7 @@ After updating your code:
 For questions or issues with the migration, refer to:
 - This guide
 - `src/lib/appwrite-integrations.ts` - Helper library with TypeScript types
-- `src/scripts/migrate-with-integration-collections.ts` - Migration script
+- `src/scripts/migrate-with-integration-tables.ts` - Migration script
 
 ## Next Steps
 
