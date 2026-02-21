@@ -33,11 +33,11 @@ async function waitForAttribute(
 
 async function addTimestampAttribute() {
   // Validate environment variables
-  const endpoint = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT;
-  const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
-  const apiKey = process.env.APPWRITE_API_KEY;
-  const databaseId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
-  const logsTableId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID;
+  const endpoint = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!;
+  const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!;
+  const apiKey = process.env.APPWRITE_API_KEY!;
+  const databaseId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
+  const logsTableId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!;
 
   if (!endpoint || !projectId || !apiKey || !databaseId || !logsTableId) {
     console.error('❌ Missing required environment variables:');

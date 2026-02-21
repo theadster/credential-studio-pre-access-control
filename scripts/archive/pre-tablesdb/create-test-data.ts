@@ -157,9 +157,9 @@ async function main() {
 
   // Initialize Appwrite client after validation
   const client = new Client()
-    .setEndpoint(APPWRITE_ENDPOINT)
-    .setProject(APPWRITE_PROJECT_ID)
-    .setKey(APPWRITE_API_KEY);
+    .setEndpoint(APPWRITE_ENDPOINT!)
+    .setProject(APPWRITE_PROJECT_ID!)
+    .setKey(APPWRITE_API_KEY!);
 
   databases = new Databases(client);
 

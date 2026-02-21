@@ -48,9 +48,9 @@ async function diagnoseCustomFieldSearch() {
 
   // Initialize Appwrite client
   const client = new Client()
-    .setEndpoint(APPWRITE_ENDPOINT)
-    .setProject(APPWRITE_PROJECT_ID)
-    .setKey(APPWRITE_API_KEY);
+    .setEndpoint(APPWRITE_ENDPOINT!)
+    .setProject(APPWRITE_PROJECT_ID!)
+    .setKey(APPWRITE_API_KEY!);
 
   const databases = new Databases(client);
 
