@@ -61,12 +61,12 @@ async function runAllTests() {
   console.log('='.repeat(80));
 
   const endpoint = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || 'https://nyc.cloud.appwrite.io/v1';
-  const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
-  const apiKey = process.env.APPWRITE_API_KEY;
-  const databaseId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
-  const attendeesTableId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID;
-  const customFieldsTableId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID;
-  const logsTableId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID;
+  const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!;
+  const apiKey = process.env.APPWRITE_API_KEY!;
+  const databaseId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
+  const attendeesTableId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID!;
+  const customFieldsTableId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID!;
+  const logsTableId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!;
 
   console.log('\n📋 Configuration:');
   console.log(`   Endpoint: ${endpoint}`);

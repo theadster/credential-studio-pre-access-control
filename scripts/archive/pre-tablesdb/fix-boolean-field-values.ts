@@ -45,9 +45,9 @@ if (missingVars.length > 0) {
 }
 
 const client = new Client()
-  .setEndpoint(NEXT_PUBLIC_APPWRITE_ENDPOINT)
-  .setProject(NEXT_PUBLIC_APPWRITE_PROJECT_ID)
-  .setKey(APPWRITE_API_KEY);
+  .setEndpoint(NEXT_PUBLIC_APPWRITE_ENDPOINT!)
+  .setProject(NEXT_PUBLIC_APPWRITE_PROJECT_ID!)
+  .setKey(APPWRITE_API_KEY!);
 
 const databases = new Databases(client);
 
