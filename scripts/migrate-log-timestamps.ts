@@ -1,4 +1,4 @@
-import { Client, Databases, Query } from 'node-appwrite';
+import { Client, TablesDB, Query } from 'node-appwrite';
 import * as dotenv from 'dotenv';
 
 // Load environment variables
@@ -18,15 +18,15 @@ async function migrateLogTimestamps() {
   const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
   const apiKey = process.env.APPWRITE_API_KEY;
   const databaseId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
-  const logsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID;
+  const logsTableId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID;
 
-  if (!endpoint || !projectId || !apiKey || !databaseId || !logsCollectionId) {
+  if (!endpoint || !projectId || !apiKey || !databaseId || !logsTableId) {
     console.error('❌ Missing required environment variables:');
     if (!endpoint) console.error('  - NEXT_PUBLIC_APPWRITE_ENDPOINT');
     if (!projectId) console.error('  - NEXT_PUBLIC_APPWRITE_PROJECT_ID');
     if (!apiKey) console.error('  - APPWRITE_API_KEY');
     if (!databaseId) console.error('  - NEXT_PUBLIC_APPWRITE_DATABASE_ID');
-    if (!logsCollectionId) console.error('  - NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID');
+    if (!logsTableId) console.error('  - NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID');
     process.exit(1);
   }
 
@@ -36,7 +36,7 @@ async function migrateLogTimestamps() {
     .setProject(projectId)
     .setKey(apiKey);
 
-  const databases = new Databases(client);
+  const tablesDB = new TablesDB(client);
 
   const stats: MigrationStats = {
     totalProcessed: 0,
@@ -51,16 +51,16 @@ async function migrateLogTimestamps() {
 
   console.log('🚀 Starting log timestamp migration...');
   console.log(`📊 Database: ${databaseId}`);
-  console.log(`📊 Collection: ${logsCollectionId}`);
+  console.log(`📊 Table: ${logsTableId}`);
   console.log(`📊 Batch size: ${limit}`);
   console.log('');
 
   try {
     while (true) {
       // Fetch logs in batches
-      const response = await databases.listDocuments(
+      const response = await tablesDB.listRows(
         databaseId,
-        logsCollectionId,
+        logsTableId,
         [
           Query.limit(limit),
           Query.offset(offset),
@@ -68,23 +68,23 @@ async function migrateLogTimestamps() {
         ]
       );
 
-      if (response.documents.length === 0) {
+      if (response.rows.length === 0) {
         break;
       }
 
-      console.log(`📦 Processing batch: ${offset + 1} to ${offset + response.documents.length}`);
+      console.log(`📦 Processing batch: ${offset + 1} to ${offset + response.rows.length}`);
 
       // Process each log
-      for (const log of response.documents) {
+      for (const log of response.rows) {
         stats.totalProcessed++;
 
         // Check if timestamp is missing or null (only null/undefined, not falsy values like "" or 0)
         if (log.timestamp == null) {
           try {
             // Update timestamp to match $createdAt
-            await databases.updateDocument(
+            await tablesDB.updateRow(
               databaseId,
-              logsCollectionId,
+              logsTableId,
               log.$id,
               {
                 timestamp: log.$createdAt
@@ -109,7 +109,7 @@ async function migrateLogTimestamps() {
       offset += limit;
 
       // Break if we've processed all documents
-      if (response.documents.length < limit) {
+      if (response.rows.length < limit) {
         break;
       }
     }

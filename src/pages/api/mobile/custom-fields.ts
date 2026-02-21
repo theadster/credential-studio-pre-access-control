@@ -24,7 +24,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
   }
 
   const { user, userProfile } = req;
-  const { databases } = createSessionClient(req);
+  const { tablesDB } = createSessionClient(req);
 
   // Check permissions - scanner operators need custom field read permission
   const permissions = userProfile.role ? userProfile.role.permissions : {};
@@ -38,7 +38,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
   }
 
   const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-  const customFieldsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID!;
+  const customFieldsTableId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID!;
 
   try {
     // Fetch all non-deleted custom fields, ordered by their display order
@@ -48,14 +48,14 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       Query.limit(100) // Reasonable limit for custom fields
     ];
 
-    const customFieldsResult = await databases.listDocuments(
-      dbId,
-      customFieldsCollectionId,
+    const customFieldsResult = await tablesDB.listRows({
+      databaseId: dbId,
+      tableId: customFieldsTableId,
       queries
-    );
+    });
 
     // Map custom fields to mobile-friendly format
-    const fields = customFieldsResult.documents.map((field: any) => {
+    const fields = customFieldsResult.rows.map((field: any) => {
       // Parse field options if they exist
       let fieldOptions = null;
       if (field.fieldOptions) {

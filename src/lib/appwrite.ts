@@ -1,5 +1,5 @@
-import { Client, Account, Databases, Storage, Functions } from 'appwrite';
-import { Client as AdminClient, Account as AdminAccount, Databases as AdminDatabases, Storage as AdminStorage, Functions as AdminFunctions, Users, Teams, TablesDB } from 'node-appwrite';
+import { Client, Account, TablesDB as BrowserTablesDB, Storage, Functions } from 'appwrite';
+import { Client as AdminClient, Account as AdminAccount, Storage as AdminStorage, Functions as AdminFunctions, Users, Teams, TablesDB } from 'node-appwrite';
 import type { NextApiRequest } from 'next';
 
 /**
@@ -19,7 +19,7 @@ export const createBrowserClient = () => {
   return {
     client,
     account: new Account(client),
-    databases: new Databases(client),
+    tablesDB: new BrowserTablesDB(client),
     storage: new Storage(client),
     functions: new Functions(client),
   };
@@ -64,7 +64,6 @@ export const createSessionClient = (req: NextApiRequest) => {
   return {
     client,
     account: new AdminAccount(client),
-    databases: new AdminDatabases(client),
     tablesDB: new TablesDB(client),
     storage: new AdminStorage(client),
     functions: new AdminFunctions(client),
@@ -90,7 +89,6 @@ export const createAdminClient = () => {
   return {
     client,
     account: new AdminAccount(client),
-    databases: new AdminDatabases(client),
     tablesDB: new TablesDB(client),
     storage: new AdminStorage(client),
     functions: new AdminFunctions(client),
@@ -105,6 +103,6 @@ const defaultClient = createBrowserClient();
 
 export const client = defaultClient.client;
 export const account = defaultClient.account;
-export const databases = defaultClient.databases;
+export const tablesDB = defaultClient.tablesDB;
 export const storage = defaultClient.storage;
 export const functions = defaultClient.functions;

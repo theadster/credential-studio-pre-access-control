@@ -17,6 +17,9 @@ vi.mock('@/lib/appwrite', () => ({
       get: mockGetAccount,
     },
   }),
+  createAdminClient: vi.fn(() => ({
+    tablesDB: { listRows: vi.fn(), getRow: vi.fn(), createRow: vi.fn(), updateRow: vi.fn(), deleteRow: vi.fn() },
+  })),
 }));
 
 // Now import the modules that depend on the mock

@@ -12,7 +12,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { Account, Client, Databases, Models } from 'appwrite';
+import { Account, Client, TablesDB, Models } from 'appwrite';
 
 // Mock Appwrite
 vi.mock('appwrite', () => {
@@ -22,10 +22,10 @@ vi.mock('appwrite', () => {
     deleteSession: vi.fn(),
   };
 
-  const mockDatabases = {
-    listDocuments: vi.fn(),
-    getDocument: vi.fn(),
-    createDocument: vi.fn(),
+  const mockTablesDB = {
+    listRows: vi.fn(),
+    getRow: vi.fn(),
+    createRow: vi.fn(),
   };
 
   const mockClient = {
@@ -37,7 +37,7 @@ vi.mock('appwrite', () => {
   return {
     Client: vi.fn(() => mockClient),
     Account: vi.fn(() => mockAccount),
-    Databases: vi.fn(() => mockDatabases),
+    TablesDB: vi.fn(() => mockTablesDB),
   };
 });
 
@@ -47,11 +47,14 @@ import { createSessionClient } from '@/lib/appwrite';
 // Mock the createSessionClient function
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn(),
+  createAdminClient: vi.fn(() => ({
+    tablesDB: { listRows: vi.fn(), getRow: vi.fn(), createRow: vi.fn(), updateRow: vi.fn(), deleteRow: vi.fn() },
+  })),
 }));
 
 describe('Session Lifecycle Integration Tests', () => {
   let mockAccount: any;
-  let mockDatabases: any;
+  let mockTablesDB: any;
   let mockClient: any;
 
   const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID || 'test-project-id';
@@ -90,7 +93,7 @@ describe('Session Lifecycle Integration Tests', () => {
     vi.clearAllMocks();
     mockClient = new Client();
     mockAccount = new Account(mockClient);
-    mockDatabases = new Databases(mockClient);
+    mockTablesDB = new TablesDB(mockClient);
   });
 
   afterEach(() => {
@@ -200,15 +203,15 @@ describe('Session Lifecycle Integration Tests', () => {
       (createSessionClient as any).mockReturnValueOnce({
         client: mockClient,
         account: mockAccount,
-        databases: mockDatabases,
+        tablesDB: mockTablesDB,
       });
 
       mockAccount.get.mockResolvedValueOnce(mockUser);
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockUserProfile],
         total: 1,
       });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockRole);
 
       // Simulate API route authentication
       const { account, databases } = createSessionClient(mockReq as NextApiRequest);
@@ -221,12 +224,12 @@ describe('Session Lifecycle Integration Tests', () => {
       expect(user.$id).toBe(mockUser.$id);
 
       // Verify we can fetch user profile
-      const profile = await databases.listDocuments(
-        'db-id',
-        'users-collection',
-        []
-      );
-      expect(profile.documents[0].userId).toBe(mockUser.$id);
+      const profile = await mockTablesDB.listRows({
+        databaseId: 'db-id',
+        tableId: 'users-table',
+        queries: []
+      });
+      expect(profile.rows[0].userId).toBe(mockUser.$id);
     });
 
     it('should successfully make multiple authenticated API calls with same session', async () => {
@@ -239,12 +242,12 @@ describe('Session Lifecycle Integration Tests', () => {
       (createSessionClient as any).mockReturnValue({
         client: mockClient,
         account: mockAccount,
-        databases: mockDatabases,
+        tablesDB: mockTablesDB,
       });
 
       mockAccount.get.mockResolvedValue(mockUser);
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockUserProfile],
         total: 1,
       });
 
@@ -277,7 +280,7 @@ describe('Session Lifecycle Integration Tests', () => {
       (createSessionClient as any).mockReturnValueOnce({
         client: mockClient,
         account: mockAccount,
-        databases: mockDatabases,
+        tablesDB: mockTablesDB,
       });
 
       // Mock authentication failure
@@ -306,7 +309,7 @@ describe('Session Lifecycle Integration Tests', () => {
       (createSessionClient as any).mockReturnValueOnce({
         client: mockClient,
         account: mockAccount,
-        databases: mockDatabases,
+        tablesDB: mockTablesDB,
       });
 
       // Mock authentication failure for invalid session
@@ -340,7 +343,7 @@ describe('Session Lifecycle Integration Tests', () => {
       (createSessionClient as any).mockReturnValueOnce({
         client: mockClient,
         account: mockAccount,
-        databases: mockDatabases,
+        tablesDB: mockTablesDB,
       });
 
       mockAccount.get.mockResolvedValueOnce(mockUser);
@@ -399,7 +402,7 @@ describe('Session Lifecycle Integration Tests', () => {
       (createSessionClient as any).mockReturnValueOnce({
         client: mockClient,
         account: mockAccount,
-        databases: mockDatabases,
+        tablesDB: mockTablesDB,
       });
 
       mockAccount.get.mockResolvedValueOnce(mockUser);
@@ -422,7 +425,7 @@ describe('Session Lifecycle Integration Tests', () => {
       (createSessionClient as any).mockReturnValueOnce({
         client: mockClient,
         account: mockAccount,
-        databases: mockDatabases,
+        tablesDB: mockTablesDB,
       });
 
       const authError = new Error('Unauthorized');
@@ -455,7 +458,7 @@ describe('Session Lifecycle Integration Tests', () => {
       (createSessionClient as any).mockReturnValueOnce({
         client: mockClient,
         account: mockAccount,
-        databases: mockDatabases,
+        tablesDB: mockTablesDB,
       });
 
       const authError = new Error('Unauthorized');
@@ -485,7 +488,7 @@ describe('Session Lifecycle Integration Tests', () => {
       (createSessionClient as any).mockReturnValueOnce({
         client: mockClient,
         account: mockAccount,
-        databases: mockDatabases,
+        tablesDB: mockTablesDB,
       });
 
       const expiredError = new Error('Session expired');
@@ -508,7 +511,7 @@ describe('Session Lifecycle Integration Tests', () => {
       (createSessionClient as any).mockReturnValue({
         client: mockClient,
         account: mockAccount,
-        databases: mockDatabases,
+        tablesDB: mockTablesDB,
       });
 
       const authError = new Error('Unauthorized');
@@ -546,7 +549,7 @@ describe('Session Lifecycle Integration Tests', () => {
       (createSessionClient as any).mockReturnValueOnce({
         client: mockClient,
         account: mockAccount,
-        databases: mockDatabases,
+        tablesDB: mockTablesDB,
       });
 
       const authError = new Error('Unauthorized');
@@ -591,7 +594,7 @@ describe('Session Lifecycle Integration Tests', () => {
       (createSessionClient as any).mockReturnValueOnce({
         client: mockClient,
         account: mockAccount,
-        databases: mockDatabases,
+        tablesDB: mockTablesDB,
       });
 
       createSessionClient(mockReq as NextApiRequest);
@@ -617,7 +620,7 @@ describe('Session Lifecycle Integration Tests', () => {
       (createSessionClient as any).mockReturnValue({
         client: mockClient,
         account: mockAccount,
-        databases: mockDatabases,
+        tablesDB: mockTablesDB,
       });
 
       mockAccount.get.mockResolvedValue(mockUser);
@@ -664,7 +667,7 @@ describe('Session Lifecycle Integration Tests', () => {
       (createSessionClient as any).mockReturnValue({
         client: mockClient,
         account: mockAccount,
-        databases: mockDatabases,
+        tablesDB: mockTablesDB,
       });
 
       mockAccount.get.mockResolvedValue(mockUser);

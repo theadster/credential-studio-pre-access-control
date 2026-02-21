@@ -100,12 +100,12 @@ function canAccessReport(
 
 export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   const { user, userProfile } = req;
-  const { databases } = createSessionClient(req);
+  const { tablesDB } = createSessionClient(req);
   const role = userProfile.role;
 
   const databaseId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
-  const reportsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_REPORTS_COLLECTION_ID;
-  const eventSettingsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID;
+  const reportsTableId = process.env.NEXT_PUBLIC_APPWRITE_REPORTS_TABLE_ID;
+  const eventSettingsTableId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID;
 
   // Validate environment variables
   if (!databaseId) {
@@ -116,16 +116,16 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     } as ReportErrorResponse);
   }
 
-  if (!reportsCollectionId) {
-    console.error('[Reports API] Missing NEXT_PUBLIC_APPWRITE_REPORTS_COLLECTION_ID');
+  if (!reportsTableId) {
+    console.error('[Reports API] Missing NEXT_PUBLIC_APPWRITE_REPORTS_TABLE_ID');
     return res.status(500).json({
       code: 'DATABASE_ERROR',
       message: 'Server configuration error',
     } as ReportErrorResponse);
   }
 
-  if (!eventSettingsCollectionId) {
-    console.error('[Reports API] Missing NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID');
+  if (!eventSettingsTableId) {
+    console.error('[Reports API] Missing NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID');
     return res.status(500).json({
       code: 'DATABASE_ERROR',
       message: 'Server configuration error',
@@ -156,7 +156,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         // Fetch the report
         let reportDoc;
         try {
-          reportDoc = await databases.getDocument(databaseId, reportsCollectionId, id);
+          reportDoc = await tablesDB.getRow({
+            databaseId,
+            tableId: reportsTableId,
+            rowId: id
+          });
         } catch (error: any) {
           if (error.code === 404) {
             return res.status(404).json({
@@ -190,35 +194,43 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         // Fetch event settings for validation
         // Requirements: 4.1 - Validate filter parameters against current system
         let eventSettings: EventSettings | null = null;
-        const customFieldsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID;
+        const customFieldsTableId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID;
+
+        // Validate customFieldsTableId before using it
+        if (!customFieldsTableId) {
+          console.error('[Reports API] Missing NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID');
+          return res.status(500).json({
+            code: 'DATABASE_ERROR',
+            message: 'Server configuration error',
+          } as ReportErrorResponse);
+        }
         
         try {
-          const eventSettingsResponse = await databases.listDocuments(
+          const eventSettingsResponse = await tablesDB.listRows({
             databaseId,
-            eventSettingsCollectionId,
-            [Query.limit(1)]
-          );
-          if (eventSettingsResponse.documents.length > 0) {
-            const doc = eventSettingsResponse.documents[0];
+            tableId: eventSettingsTableId,
+            queries: [Query.limit(1)]
+          });
+          if (eventSettingsResponse.rows.length > 0) {
+            const doc = eventSettingsResponse.rows[0];
             
             // Fetch custom fields from the separate collection
             // Custom fields are stored in their own collection, not embedded in event settings
             let customFields: EventSettings['customFields'] = [];
-            if (customFieldsCollectionId) {
-              try {
-                const customFieldsResponse = await databases.listDocuments(
-                  databaseId,
-                  customFieldsCollectionId,
-                  [
-                    Query.equal('eventSettingsId', doc.$id),
-                    Query.isNull('deletedAt'),
-                    Query.orderAsc('order'),
-                    Query.limit(100),
-                  ]
-                );
+            try {
+              const customFieldsResponse = await tablesDB.listRows({
+                databaseId,
+                tableId: customFieldsTableId,
+                queries: [
+                  Query.equal('eventSettingsId', doc.$id),
+                  Query.isNull('deletedAt'),
+                  Query.orderAsc('order'),
+                  Query.limit(100),
+                ]
+              });
                 
                 // Map $id to id for consistency with frontend expectations
-                customFields = customFieldsResponse.documents.map((field: any) => {
+                customFields = customFieldsResponse.rows.map((field: any) => {
                   // Parse fieldOptions if stored as JSON string
                   let fieldOptions = field.fieldOptions;
                   if (typeof fieldOptions === 'string') {
@@ -246,7 +258,6 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
                 console.warn('[Reports API] Failed to fetch custom fields:', cfError);
                 // Continue with empty custom fields
               }
-            }
             
             // Build EventSettings object with required fields
             eventSettings = {
@@ -274,8 +285,13 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         // Requirements: 2.4 - Record last accessed timestamp
         const now = new Date().toISOString();
         try {
-          await databases.updateDocument(databaseId, reportsCollectionId, id, {
-            lastAccessedAt: now,
+          await tablesDB.updateRow({
+            databaseId,
+            tableId: reportsTableId,
+            rowId: id,
+            data: {
+              lastAccessedAt: now,
+            }
           });
         } catch (error) {
           console.warn('[Reports API] Failed to update lastAccessedAt:', error);
@@ -322,7 +338,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         // Fetch the existing report
         let reportDoc;
         try {
-          reportDoc = await databases.getDocument(databaseId, reportsCollectionId, id);
+          reportDoc = await tablesDB.getRow({
+            databaseId,
+            tableId: reportsTableId,
+            rowId: id
+          });
         } catch (error: any) {
           if (error.code === 404) {
             return res.status(404).json({
@@ -355,13 +375,17 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           }
 
           // Check for duplicate name (excluding current report)
-          const existingReports = await databases.listDocuments(databaseId, reportsCollectionId, [
-            Query.equal('userId', reportDoc.userId),
-            Query.equal('name', body.name.trim()),
-            Query.notEqual('$id', id),
-          ]);
+          const existingReports = await tablesDB.listRows({
+            databaseId,
+            tableId: reportsTableId,
+            queries: [
+              Query.equal('userId', reportDoc.userId),
+              Query.equal('name', body.name.trim()),
+              Query.notEqual('$id', id),
+            ]
+          });
 
-          if (existingReports.documents.length > 0) {
+          if (existingReports.rows.length > 0) {
             return res.status(409).json({
               code: 'DUPLICATE_NAME',
               message: 'A report with this name already exists',
@@ -394,12 +418,12 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         updateData.updatedAt = new Date().toISOString();
 
         // Perform update
-        const updatedDoc = await databases.updateDocument(
+        const updatedDoc = await tablesDB.updateRow({
           databaseId,
-          reportsCollectionId,
-          id,
-          updateData
-        );
+          tableId: reportsTableId,
+          rowId: id,
+          data: updateData
+        });
 
         const updatedReport: SavedReport = {
           $id: updatedDoc.$id,
@@ -436,7 +460,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         // Fetch the existing report
         let reportDoc;
         try {
-          reportDoc = await databases.getDocument(databaseId, reportsCollectionId, id);
+          reportDoc = await tablesDB.getRow({
+            databaseId,
+            tableId: reportsTableId,
+            rowId: id
+          });
         } catch (error: any) {
           if (error.code === 404) {
             return res.status(404).json({
@@ -457,7 +485,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
         // Delete the report
         // Requirements: 3.4 - Remove report from database
-        await databases.deleteDocument(databaseId, reportsCollectionId, id);
+        await tablesDB.deleteRow({
+          databaseId,
+          tableId: reportsTableId,
+          rowId: id
+        });
 
         return res.status(200).json({ message: 'Report deleted successfully' });
       } catch (error: any) {

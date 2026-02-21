@@ -12,30 +12,30 @@ import { userProfileCache } from '@/lib/userProfileCache';
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     // Create session client
-    const { account, databases, tablesDB } = createSessionClient(req);
+    const { account, tablesDB } = createSessionClient(req);
 
     // Verify authentication
     const user = await account.get();
 
     // Get user profile with role
-    const userDocs = await databases.listDocuments(
+    const userDocs = await tablesDB.listRows(
       process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-      process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+      process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID!,
       [Query.equal('userId', user.$id)]
     );
 
-    if (userDocs.documents.length === 0) {
+    if (userDocs.rows.length === 0) {
       return res.status(404).json({ error: 'User profile not found' });
     }
 
-    const userProfile = userDocs.documents[0];
+    const userProfile = userDocs.rows[0];
 
     // Get role if exists
     let currentUserRole = null;
     if (userProfile.roleId) {
-      currentUserRole = await databases.getDocument(
+      currentUserRole = await tablesDB.getRow(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+        process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
         userProfile.roleId
       );
       // Parse permissions JSON
@@ -66,9 +66,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // Get the role
         let role;
         try {
-          role = await databases.getDocument(
+          role = await tablesDB.getRow(
             process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-            process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+            process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
             id
           );
         } catch (error: any) {
@@ -79,7 +79,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
 
         // Get user count for this role (with caching)
-        const userCount = await getRoleUserCount(databases, role.$id);
+        const userCount = await getRoleUserCount(tablesDB, role.$id);
 
         const roleWithCount = {
           id: role.$id,
@@ -96,9 +96,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         // Log the view action
         try {
-          await databases.createDocument(
+          await tablesDB.createRow(
             process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-            process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+            process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
             ID.unique(),
             {
               userId: user.$id,
@@ -144,9 +144,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // Check if role exists
         let existingRole;
         try {
-          existingRole = await databases.getDocument(
+          existingRole = await tablesDB.getRow(
             process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-            process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+            process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
             id
           );
         } catch (error: any) {
@@ -158,13 +158,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         // Check if new name conflicts with another role
         if (name !== existingRole.name) {
-          const nameConflictDocs = await databases.listDocuments(
+          const nameConflictDocs = await tablesDB.listRows(
             process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-            process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+            process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
             [Query.equal('name', name)]
           );
 
-          if (nameConflictDocs.documents.length > 0) {
+          if (nameConflictDocs.rows.length > 0) {
             return res.status(400).json({ error: 'Role name already exists' });
           }
         }
@@ -187,7 +187,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           {
             action: 'update',
             databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-            tableId: process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+            tableId: process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
             rowId: id,
             data: {
               name,
@@ -198,7 +198,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           {
             action: 'create',
             databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-            tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+            tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
             rowId: logId,
             data: {
               userId: user.$id,
@@ -225,13 +225,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         userProfileCache.invalidateByRole(id);
 
         // Get updated role and user count
-        const updatedRole = await databases.getDocument(
+        const updatedRole = await tablesDB.getRow(
           process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+          process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
           id
         );
 
-        const updatedUserCount = await getRoleUserCount(databases, updatedRole.$id);
+        const updatedUserCount = await getRoleUserCount(tablesDB, updatedRole.$id);
 
         const updatedRoleWithCount = {
           id: updatedRole.$id,
@@ -257,9 +257,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // Get the role to delete
         let roleToDelete;
         try {
-          roleToDelete = await databases.getDocument(
+          roleToDelete = await tablesDB.getRow(
             process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-            process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+            process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
             id
           );
         } catch (error: any) {
@@ -275,7 +275,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
 
         // Check if role has users assigned (with caching)
-        const userCountToDelete = await getRoleUserCount(databases, roleToDelete.$id);
+        const userCountToDelete = await getRoleUserCount(tablesDB, roleToDelete.$id);
 
         if (userCountToDelete > 0) {
           return res.status(400).json({
@@ -294,13 +294,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           {
             action: 'delete',
             databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-            tableId: process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+            tableId: process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
             rowId: id
           },
           {
             action: 'create',
             databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-            tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+            tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
             rowId: deleteLogId,
             data: {
               userId: user.$id,

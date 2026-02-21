@@ -37,7 +37,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
   }
 
   const { userProfile } = req;
-  const { databases } = createSessionClient(req);
+  const { tablesDB } = createSessionClient(req);
 
   // Check permissions - need scan logs read permission
   const permissions = userProfile.role ? userProfile.role.permissions : {};
@@ -53,7 +53,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
   }
 
   const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-  const scanLogsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_SCAN_LOGS_COLLECTION_ID!;
+  const scanLogsTableId = process.env.NEXT_PUBLIC_APPWRITE_SCAN_LOGS_TABLE_ID!;
 
   try {
     // Parse query parameters
@@ -124,14 +124,14 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     queries.push(Query.orderDesc('scannedAt'));
 
     // Fetch scan logs
-    const logsResult = await databases.listDocuments(
+    const logsResult = await tablesDB.listRows(
       dbId,
-      scanLogsCollectionId,
+      scanLogsTableId,
       queries
     );
 
     // Map logs to response format
-    const logs = logsResult.documents.map((doc: any) => ({
+    const logs = logsResult.rows.map((doc: any) => ({
       id: doc.$id,
       localId: doc.localId,
       attendeeId: doc.attendeeId,

@@ -3,17 +3,17 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import usersHandler from '@/pages/api/users/index';
 import searchHandler from '@/pages/api/users/search';
 import verifyEmailHandler from '@/pages/api/users/verify-email';
-import { mockAccount, mockDatabases, mockUsers, mockTeams, resetAllMocks } from '@/test/mocks/appwrite';
+import { mockAccount, mockTablesDB, mockAdminTablesDB, mockUsers, mockTeams, resetAllMocks } from '@/test/mocks/appwrite';
 
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn((req: NextApiRequest) => ({
     account: mockAccount,
-    databases: mockDatabases,
+    tablesDB: mockTablesDB,
   })),
   createAdminClient: vi.fn(() => ({
     users: mockUsers,
-    databases: mockDatabases,
+    tablesDB: mockTablesDB,
     teams: mockTeams,
   })),
 }));
@@ -108,12 +108,13 @@ describe('Auth User Linking System - Integration Tests', () => {
 
     // Default mock implementations
     mockAccount.get.mockResolvedValue(mockAuthUser);
-    mockDatabases.listDocuments.mockResolvedValue({
-      documents: [mockUserProfile],
+    mockTablesDB.listRows.mockResolvedValue({
+      rows: [mockUserProfile],
       total: 1,
     });
-    mockDatabases.getDocument.mockResolvedValue(mockAdminRole);
-    mockDatabases.createDocument.mockResolvedValue({
+    mockTablesDB.getRow.mockResolvedValue(mockAdminRole);
+    mockAdminTablesDB.getRow.mockResolvedValue(mockAdminRole);
+    mockTablesDB.createRow.mockResolvedValue({
       $id: 'new-log-123',
       userId: mockAuthUser.$id,
       action: 'view',
@@ -145,9 +146,9 @@ describe('Auth User Linking System - Integration Tests', () => {
         total: 1,
       });
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // Current user
-        .mockResolvedValueOnce({ documents: [], total: 0 }); // No linked users yet
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 }) // Current user
+        .mockResolvedValueOnce({ rows: [], total: 0 }); // No linked users yet
 
       await searchHandler(searchReq as any, mockRes as NextApiResponse);
 
@@ -188,25 +189,25 @@ describe('Auth User Linking System - Integration Tests', () => {
         $updatedAt: '2024-01-15T00:00:00.000Z',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // Current user
-        .mockResolvedValueOnce({ documents: [], total: 0 }); // Check not already linked
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 }) // Current user
+        .mockResolvedValueOnce({ rows: [], total: 0 }); // Check not already linked
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole) // Current user's role
         .mockResolvedValueOnce(mockViewerRole); // New user's role
 
       mockUsers.get.mockResolvedValue(existingAuthUser);
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce(newUserDoc) // Create user profile
         .mockResolvedValueOnce({ $id: 'log-123' }); // Create log
 
       await usersHandler(linkReq as NextApiRequest, mockRes as NextApiResponse);
 
       expect(mockUsers.get).toHaveBeenCalledWith('auth-user-john-123');
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID,
         expect.any(String),
         expect.objectContaining({
           userId: 'auth-user-john-123',
@@ -233,9 +234,9 @@ describe('Auth User Linking System - Integration Tests', () => {
       mockReq.userProfile = { ...mockUserProfile, role: mockAdminRole } as any;
       
       // Setup default mocks for search tests
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // Current user
-        .mockResolvedValueOnce({ documents: [], total: 0 }); // Linked users check
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 }) // Current user
+        .mockResolvedValueOnce({ rows: [], total: 0 }); // Linked users check
     });
 
     it('should search by email and return matching users', async () => {
@@ -291,9 +292,9 @@ describe('Auth User Linking System - Integration Tests', () => {
         total: 1,
       });
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
       await searchHandler(mockReq as any, mockRes as NextApiResponse);
 
@@ -343,9 +344,9 @@ describe('Auth User Linking System - Integration Tests', () => {
       // Mock the database calls:
       // 1. First call is for middleware to get current user profile
       // 2. Second call is for getting linked users in search handler
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // Middleware: current user profile
-        .mockResolvedValueOnce({ documents: [{ userId: 'auth-user-2' }], total: 1 }); // Search: linked users
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 }) // Middleware: current user profile
+        .mockResolvedValueOnce({ rows: [{ userId: 'auth-user-2' }], total: 1 }); // Search: linked users
 
       await searchHandler(mockReq as any, mockRes as NextApiResponse);
 
@@ -381,9 +382,9 @@ describe('Auth User Linking System - Integration Tests', () => {
         total: 50,
       });
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
       await searchHandler(mockReq as any, mockRes as NextApiResponse);
 
@@ -411,9 +412,9 @@ describe('Auth User Linking System - Integration Tests', () => {
         total: 0,
       });
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
       await searchHandler(mockReq as any, mockRes as NextApiResponse);
 
@@ -454,7 +455,7 @@ describe('Auth User Linking System - Integration Tests', () => {
         emailVerification: true,
       });
 
-      mockDatabases.createDocument.mockResolvedValue({
+      mockTablesDB.createRow.mockResolvedValue({
         $id: 'log-123',
         userId: mockAuthUser.$id,
         action: 'verification_email_sent',
@@ -493,8 +494,8 @@ describe('Auth User Linking System - Integration Tests', () => {
       mockReq.userProfile = { ...mockUserProfile, role: mockAdminRole } as any;
 
       // Mock middleware database call for user profile
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
       mockUsers.get.mockResolvedValue(verifiedUser);
 
@@ -529,9 +530,9 @@ describe('Auth User Linking System - Integration Tests', () => {
 
       await verifyEmailHandler(mockReq as any, mockRes as NextApiResponse);
 
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
         expect.any(String),
         expect.objectContaining({
           userId: mockAuthUser.$id,
@@ -577,16 +578,16 @@ describe('Auth User Linking System - Integration Tests', () => {
         $updatedAt: '2024-01-15T00:00:00.000Z',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockViewerRole);
 
       mockUsers.get.mockResolvedValue(existingAuthUser);
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce(newUserDoc)
         .mockResolvedValueOnce({ $id: 'log-123' })
         .mockResolvedValueOnce({ $id: 'team-log-123' }); // Team membership log
@@ -649,16 +650,16 @@ describe('Auth User Linking System - Integration Tests', () => {
         $updatedAt: '2024-01-15T00:00:00.000Z',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockViewerRole);
 
       mockUsers.get.mockResolvedValue(existingAuthUser);
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce(newUserDoc)
         .mockResolvedValueOnce({ $id: 'log-123' });
 
@@ -704,16 +705,16 @@ describe('Auth User Linking System - Integration Tests', () => {
         $updatedAt: '2024-01-15T00:00:00.000Z',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockViewerRole);
 
       mockUsers.get.mockResolvedValue(existingAuthUser);
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce(newUserDoc)
         .mockResolvedValueOnce({ $id: 'log-123' });
 
@@ -745,14 +746,14 @@ describe('Auth User Linking System - Integration Tests', () => {
         roleId: 'role-viewer',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
         .mockResolvedValueOnce({ 
-          documents: [{ userId: 'auth-user-already-linked' }], 
+          rows: [{ userId: 'auth-user-already-linked' }], 
           total: 1 
         });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       mockUsers.get.mockResolvedValue(existingAuthUser);
 
       await usersHandler(mockReq as NextApiRequest, mockRes as NextApiResponse);
@@ -773,11 +774,11 @@ describe('Auth User Linking System - Integration Tests', () => {
         roleId: 'role-viewer',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       mockUsers.get.mockRejectedValue(new Error('User not found'));
 
       await usersHandler(mockReq as NextApiRequest, mockRes as NextApiResponse);
@@ -805,11 +806,11 @@ describe('Auth User Linking System - Integration Tests', () => {
         roleId: 'invalid-role',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockRejectedValueOnce(new Error('Role not found'));
 
@@ -834,10 +835,10 @@ describe('Auth User Linking System - Integration Tests', () => {
         roleId: 'role-viewer',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await usersHandler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -858,10 +859,10 @@ describe('Auth User Linking System - Integration Tests', () => {
         authUserId: 'auth-user-123',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await usersHandler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -909,10 +910,10 @@ describe('Auth User Linking System - Integration Tests', () => {
       } as any;
 
       // Mock middleware database call
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [noPermUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [noPermUserProfile], total: 1 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(noPermRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(noPermRole);
 
       await searchHandler(mockReq as any, mockRes as NextApiResponse);
 
@@ -933,10 +934,10 @@ describe('Auth User Linking System - Integration Tests', () => {
         roleId: 'role-viewer',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(noPermRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(noPermRole);
 
       await usersHandler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -974,8 +975,8 @@ describe('Auth User Linking System - Integration Tests', () => {
       } as any;
 
       // Mock middleware database call
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [noPermUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [noPermUserProfile], total: 1 });
 
       const unverifiedUser = {
         $id: 'auth-user-123',
@@ -1072,28 +1073,28 @@ describe('Auth User Linking System - Integration Tests', () => {
         $updatedAt: '2024-01-15T00:00:00.000Z',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockViewerRole);
 
       mockUsers.get.mockResolvedValue(existingAuthUser);
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce(newUserDoc)
         .mockResolvedValueOnce({ $id: 'log-123' });
 
       await usersHandler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      // Verify that createDocument was called for logging
+      // Verify that createRow was called for logging
       // The second call should be the log entry
-      expect(mockDatabases.createDocument).toHaveBeenCalledTimes(2);
+      expect(mockTablesDB.createRow).toHaveBeenCalledTimes(2);
       
-      const logCall = mockDatabases.createDocument.mock.calls[1];
+      const logCall = mockTablesDB.createRow.mock.calls[1];
       expect(logCall[0]).toBe(process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID);
-      expect(logCall[1]).toBe(process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID);
+      expect(logCall[1]).toBe(process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID);
       expect(logCall[3]).toEqual(
         expect.objectContaining({
           userId: mockAuthUser.$id,

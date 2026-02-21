@@ -44,11 +44,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
   try {
     // User and userProfile are already attached by middleware
     const { user, userProfile } = req;
-    const { databases } = createSessionClient(req);
+    const { tablesDB } = createSessionClient(req);
 
     const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-    const logSettingsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_LOG_SETTINGS_COLLECTION_ID!;
-    const logsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!;
+    const logSettingsTableId = process.env.NEXT_PUBLIC_APPWRITE_LOG_SETTINGS_TABLE_ID!;
+    const logsTableId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!;
 
     // Check permissions
     const permissions = userProfile.role ? userProfile.role.permissions : {};
@@ -62,23 +62,23 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         }
 
         // Get or create log settings (there should only be one record)
-        const logSettingsResult = await databases.listDocuments(
+        const logSettingsResult = await tablesDB.listRows(
           dbId,
-          logSettingsCollectionId,
+          logSettingsTableId,
           [Query.limit(1)]
         );
 
         let logSettings;
-        if (logSettingsResult.documents.length === 0) {
+        if (logSettingsResult.rows.length === 0) {
           // Create default log settings if none exist
-          logSettings = await databases.createDocument(
+          logSettings = await tablesDB.createRow(
             dbId,
-            logSettingsCollectionId,
+            logSettingsTableId,
             ID.unique(),
             DEFAULT_LOG_SETTINGS
           );
         } else {
-          logSettings = logSettingsResult.documents[0];
+          logSettings = logSettingsResult.rows[0];
         }
 
         return res.status(200).json(logSettings);
@@ -125,9 +125,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         } = req.body;
 
         // Get existing settings or create new ones
-        const existingSettingsResult = await databases.listDocuments(
+        const existingSettingsResult = await tablesDB.listRows(
           dbId,
-          logSettingsCollectionId,
+          logSettingsTableId,
           [Query.limit(1)]
         );
 
@@ -158,19 +158,19 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         const updateData = buildUpdateData(req.body, fields);
 
         let updatedSettings;
-        if (existingSettingsResult.documents.length > 0) {
+        if (existingSettingsResult.rows.length > 0) {
           // Update existing settings
-          updatedSettings = await databases.updateDocument(
+          updatedSettings = await tablesDB.updateRow(
             dbId,
-            logSettingsCollectionId,
-            existingSettingsResult.documents[0].$id,
+            logSettingsTableId,
+            existingSettingsResult.rows[0].$id,
             updateData
           );
         } else {
           // Create new settings with provided values, using defaults for undefined fields
-          updatedSettings = await databases.createDocument(
+          updatedSettings = await tablesDB.createRow(
             dbId,
-            logSettingsCollectionId,
+            logSettingsTableId,
             ID.unique(),
             {
               attendeeCreate: attendeeCreate ?? DEFAULT_LOG_SETTINGS.attendeeCreate,
@@ -213,8 +213,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         clearLogSettingsCache();
 
         // Detect what actually changed for logging
-        const oldSettings = existingSettingsResult.documents.length > 0
-          ? existingSettingsResult.documents[0]
+        const oldSettings = existingSettingsResult.rows.length > 0
+          ? existingSettingsResult.rows[0]
           : DEFAULT_LOG_SETTINGS;
 
         const changes: Record<string, { from: boolean; to: boolean }> = {};
@@ -230,9 +230,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         if (Object.keys(changes).length > 0) {
           try {
             const { createSettingsLogDetails } = await import('@/lib/logFormatting');
-            await databases.createDocument(
+            await tablesDB.createRow(
               dbId,
-              logsCollectionId,
+              logsTableId,
               ID.unique(),
               {
                 userId: user.$id,

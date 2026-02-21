@@ -14,14 +14,10 @@ const mockTablesDB = {
   upsertRows: vi.fn(),
   createRows: vi.fn(),
   deleteRows: vi.fn(),
-};
-
-// Mock Databases
-const mockDatabases = {
-  getDocument: vi.fn(),
-  createDocument: vi.fn(),
-  updateDocument: vi.fn(),
-  deleteDocument: vi.fn(),
+  getRow: vi.fn(),
+  createRow: vi.fn(),
+  updateRow: vi.fn(),
+  deleteRow: vi.fn(),
 };
 
 describe('bulkOperations', () => {
@@ -43,7 +39,7 @@ describe('bulkOperations', () => {
           $permissions: [],
           $createdAt: '2024-01-01',
           $updatedAt: '2024-01-01',
-          $collectionId: 'attendees',
+          $tableId: 'attendees',
           $databaseId: 'db'
         },
         {
@@ -56,21 +52,20 @@ describe('bulkOperations', () => {
           $permissions: [],
           $createdAt: '2024-01-01',
           $updatedAt: '2024-01-01',
-          $collectionId: 'attendees',
+          $tableId: 'attendees',
           $databaseId: 'db'
         }
       ];
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(existingDocs[0])
         .mockResolvedValueOnce(existingDocs[1]);
 
       mockTablesDB.upsertRows.mockResolvedValue(undefined);
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'log1' });
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'log1' });
 
       const result = await bulkEditWithFallback(
         mockTablesDB as any,
-        mockDatabases as any,
         {
           databaseId: 'db',
           tableId: 'attendees',
@@ -88,9 +83,9 @@ describe('bulkOperations', () => {
       );
 
       // Verify fetched existing documents
-      expect(mockDatabases.getDocument).toHaveBeenCalledTimes(2);
-      expect(mockDatabases.getDocument).toHaveBeenCalledWith('db', 'attendees', 'id1');
-      expect(mockDatabases.getDocument).toHaveBeenCalledWith('db', 'attendees', 'id2');
+      expect(mockTablesDB.getRow).toHaveBeenCalledTimes(2);
+      expect(mockTablesDB.getRow).toHaveBeenCalledWith('db', 'attendees', 'id1');
+      expect(mockTablesDB.getRow).toHaveBeenCalledWith('db', 'attendees', 'id2');
 
       // Verify upsertRows called with merged data
       expect(mockTablesDB.upsertRows).toHaveBeenCalledTimes(1);
@@ -112,7 +107,7 @@ describe('bulkOperations', () => {
       });
 
       // Verify audit log created
-      expect(mockDatabases.createDocument).toHaveBeenCalledTimes(1);
+      expect(mockTablesDB.createRow).toHaveBeenCalledTimes(1);
 
       // Verify result
       expect(result.updatedCount).toBe(2);
@@ -120,14 +115,13 @@ describe('bulkOperations', () => {
     });
 
     it('should fall back to sequential updates on atomic operation failure', async () => {
-      mockDatabases.getDocument.mockRejectedValue(new Error('Fetch failed'));
+      mockTablesDB.getRow.mockRejectedValue(new Error('Fetch failed'));
       mockTablesDB.upsertRows.mockRejectedValue(new Error('Atomic operation failed'));
-      mockDatabases.updateDocument.mockResolvedValue({ $id: 'id1' });
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'log1' });
+      mockTablesDB.updateRow.mockResolvedValue({ $id: 'id1' });
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'log1' });
 
       const result = await bulkEditWithFallback(
         mockTablesDB as any,
-        mockDatabases as any,
         {
           databaseId: 'db',
           tableId: 'attendees',
@@ -143,8 +137,8 @@ describe('bulkOperations', () => {
         }
       );
 
-      // Verify fallback to updateDocument
-      expect(mockDatabases.updateDocument).toHaveBeenCalled();
+      // Verify fallback to updateRow
+      expect(mockTablesDB.updateRow).toHaveBeenCalled();
       expect(result.usedTransactions).toBe(false);
     });
   });
@@ -152,11 +146,10 @@ describe('bulkOperations', () => {
   describe('bulkDeleteWithFallback', () => {
     it('should perform atomic bulk delete using deleteRows', async () => {
       mockTablesDB.deleteRows.mockResolvedValue(undefined);
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'log1' });
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'log1' });
 
       const result = await bulkDeleteWithFallback(
         mockTablesDB as any,
-        mockDatabases as any,
         {
           databaseId: 'db',
           tableId: 'attendees',
@@ -178,7 +171,7 @@ describe('bulkOperations', () => {
       expect(queries).toBeDefined();
 
       // Verify audit log created
-      expect(mockDatabases.createDocument).toHaveBeenCalledTimes(1);
+      expect(mockTablesDB.createRow).toHaveBeenCalledTimes(1);
 
       // Verify result
       expect(result.deletedCount).toBe(3);
@@ -187,12 +180,11 @@ describe('bulkOperations', () => {
 
     it('should fall back to sequential deletes on atomic operation failure', async () => {
       mockTablesDB.deleteRows.mockRejectedValue(new Error('Delete failed'));
-      mockDatabases.deleteDocument.mockResolvedValue(undefined);
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'log1' });
+      mockTablesDB.deleteRow.mockResolvedValue(undefined);
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'log1' });
 
       const result = await bulkDeleteWithFallback(
         mockTablesDB as any,
-        mockDatabases as any,
         {
           databaseId: 'db',
           tableId: 'attendees',
@@ -206,8 +198,8 @@ describe('bulkOperations', () => {
         }
       );
 
-      // Verify fallback to deleteDocument
-      expect(mockDatabases.deleteDocument).toHaveBeenCalledTimes(2);
+      // Verify fallback to deleteRow
+      expect(mockTablesDB.deleteRow).toHaveBeenCalledTimes(2);
       expect(result.usedTransactions).toBe(false);
     });
   });
@@ -215,11 +207,10 @@ describe('bulkOperations', () => {
   describe('bulkImportWithFallback', () => {
     it('should perform atomic bulk import using createRows', async () => {
       mockTablesDB.createRows.mockResolvedValue(undefined);
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'log1' });
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'log1' });
 
       const result = await bulkImportWithFallback(
         mockTablesDB as any,
-        mockDatabases as any,
         {
           databaseId: 'db',
           tableId: 'attendees',
@@ -249,7 +240,7 @@ describe('bulkOperations', () => {
       });
 
       // Verify audit log created
-      expect(mockDatabases.createDocument).toHaveBeenCalledTimes(1);
+      expect(mockTablesDB.createRow).toHaveBeenCalledTimes(1);
 
       // Verify result
       expect(result.createdCount).toBe(2);
@@ -258,11 +249,10 @@ describe('bulkOperations', () => {
 
     it('should fall back to sequential creates on atomic operation failure', async () => {
       mockTablesDB.createRows.mockRejectedValue(new Error('Create failed'));
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'doc1' });
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'doc1' });
 
       const result = await bulkImportWithFallback(
         mockTablesDB as any,
-        mockDatabases as any,
         {
           databaseId: 'db',
           tableId: 'attendees',
@@ -278,15 +268,45 @@ describe('bulkOperations', () => {
         }
       );
 
-      // Verify fallback to createDocument
-      expect(mockDatabases.createDocument).toHaveBeenCalled();
+      // Verify fallback to createRow
+      expect(mockTablesDB.createRow).toHaveBeenCalled();
       expect(result.usedTransactions).toBe(false);
+    });
+
+    it('should override user-supplied $id with generated ID', async () => {
+      mockTablesDB.createRows.mockResolvedValue(undefined);
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'log1' });
+
+      const result = await bulkImportWithFallback(
+        mockTablesDB as any,
+        {
+          databaseId: 'db',
+          tableId: 'attendees',
+          items: [
+            { data: { $id: 'user-supplied-id', firstName: 'John', lastName: 'Doe', barcodeNumber: '123' } }
+          ],
+          auditLog: {
+            tableId: 'logs',
+            userId: 'user1',
+            action: 'import',
+            details: { count: 1 }
+          }
+        }
+      );
+
+      // Verify createRows called with generated $id, not user-supplied
+      expect(mockTablesDB.createRows).toHaveBeenCalledTimes(1);
+      const [, , rows] = mockTablesDB.createRows.mock.calls[0];
+      expect(rows[0].$id).not.toBe('user-supplied-id');
+      expect(rows[0].$id).toBeDefined();
+      expect(rows[0].firstName).toBe('John');
+      expect(result.createdCount).toBe(1);
     });
   });
 
   describe('Error Handling', () => {
     it('should handle audit log creation failure gracefully', async () => {
-      mockDatabases.getDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue({
         $id: 'id1',
         firstName: 'John',
         lastName: 'Doe',
@@ -295,12 +315,11 @@ describe('bulkOperations', () => {
         notes: ''
       });
       mockTablesDB.upsertRows.mockResolvedValue(undefined);
-      mockDatabases.createDocument.mockRejectedValue(new Error('Log failed'));
+      mockTablesDB.createRow.mockRejectedValue(new Error('Log failed'));
 
       // Should not throw - audit log failure shouldn't fail the operation
       const result = await bulkEditWithFallback(
         mockTablesDB as any,
-        mockDatabases as any,
         {
           databaseId: 'db',
           tableId: 'attendees',

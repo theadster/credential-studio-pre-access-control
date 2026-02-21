@@ -44,12 +44,12 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
     // User and userProfile are already attached by middleware
     const { user, userProfile } = req;
-    const { databases } = createSessionClient(req);
+    const { tablesDB } = createSessionClient(req);
 
     const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-    const attendeesCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID!;
-    const logsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!;
-    const eventSettingsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID!;
+    const attendeesTableId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID!;
+    const logsTableId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!;
+    const eventSettingsTableId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID!;
 
     // Check print permission
     const permissions = userProfile.role ? userProfile.role.permissions : {};
@@ -66,10 +66,10 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     }
 
     // Get attendee details
-    const attendee = await databases.getDocument({
+    const attendee = await tablesDB.getRow({
       databaseId: dbId,
-      collectionId: attendeesCollectionId,
-      documentId: id
+      tableId: attendeesTableId,
+      rowId: id
     });
 
     if (!attendee) {
@@ -81,12 +81,12 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     }
 
     // Get event settings
-    const eventSettingsDocs = await databases.listDocuments({
+    const eventSettingsDocs = await tablesDB.listRows({
       databaseId: dbId,
-      collectionId: eventSettingsCollectionId,
+      tableId: eventSettingsTableId,
       queries: [Query.limit(1)]
     });
-    const eventSettings = eventSettingsDocs.documents[0];
+    const eventSettings = eventSettingsDocs.rows[0];
 
     // Verify Switchboard configuration
     if (!process.env.SWITCHBOARD_API_KEY) {
@@ -179,10 +179,10 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
     // Log the print action
     const { createAttendeeLogDetails } = await import('@/lib/logFormatting');
-    await databases.createDocument({
+    await tablesDB.createRow({
       databaseId: dbId,
-      collectionId: logsCollectionId,
-      documentId: ID.unique(),
+      tableId: logsTableId,
+      rowId: ID.unique(),
       data: {
         userId: user.$id,
         attendeeId: attendee.$id,

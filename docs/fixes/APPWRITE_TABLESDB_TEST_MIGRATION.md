@@ -1,247 +1,272 @@
 ---
-title: Appwrite TablesDB Test Migration for Attendee API
+title: Appwrite TablesDB Test Migration
 type: canonical
 status: active
 owner: "@team"
-last_verified: 2025-07-21
+last_verified: 2026-02-20
 review_interval_days: 90
-related_code: ["src/__tests__/api/attendees/[id].test.ts", "src/pages/api/attendees/[id].ts"]
+related_code:
+  - src/test/mocks/appwrite.ts
 ---
 
-# Appwrite TablesDB Test Migration for Attendee API
+# Appwrite TablesDB Test Migration
 
-## Overview
+## Issue
 
-The test file `src/__tests__/api/attendees/[id].test.ts` was missed during the Appwrite TablesDB migration and still uses the old Databases API. This document outlines the required changes to migrate it to the new TablesDB API.
+Session-level `mockTablesDB.getRow` is set to return `mockAdminRole`, which conflicts with admin-specific `mockAdminTablesDB.getRow`. Tests that rely on session-level `tablesDB.getRow` to return attendee or user profile rows will instead receive an admin role object, causing incorrect test behavior and false positives/negatives.
 
-## Status
+## Root Cause
 
-**INCOMPLETE** - The file needs to be manually migrated due to complexity of the test structure.
+Mock setup doesn't properly separate session-level and admin-level mocks:
 
-## Required Changes
-
-### 1. Import Statement Updates
-
-**Current:**
 ```typescript
-import { mockAccount, mockDatabases, mockTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
+// ❌ WRONG - Session mock returns admin role
+const mockTablesDB = {
+  getRow: vi.fn().mockResolvedValue(mockAdminRole),
+};
+
+const mockAdminTablesDB = {
+  getRow: vi.fn().mockResolvedValue(mockAdminRole),
+};
+
+// Both return the same thing - no separation!
 ```
 
-**Required:**
+## Solution
+
+Create separate mock instances for different user contexts:
+
 ```typescript
-import { mockAccount, mockAdminTablesDB, mockTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
+// ✅ CORRECT - Separate mocks for different contexts
+const mockSessionTablesDB = {
+  getRow: vi.fn().mockImplementation(({ rowId }) => {
+    // Return appropriate data based on rowId
+    if (rowId === 'attendee-1') {
+      return Promise.resolve(mockAttendee);
+    }
+    if (rowId === 'user-1') {
+      return Promise.resolve(mockUserProfile);
+    }
+    return Promise.reject(new Error('Not found'));
+  }),
+};
+
+const mockAdminTablesDB = {
+  getRow: vi.fn().mockImplementation(({ rowId }) => {
+    // Admin can access any row
+    if (rowId === 'admin-role') {
+      return Promise.resolve(mockAdminRole);
+    }
+    if (rowId === 'attendee-1') {
+      return Promise.resolve(mockAttendee);
+    }
+    return Promise.reject(new Error('Not found'));
+  }),
+};
 ```
 
-### 2. Import Path Update
+## Implementation
 
-**Current:**
+### Mock Setup
+
 ```typescript
-import handler from '../[id]';
+// Mock data
+const mockAttendee = {
+  $id: 'attendee-1',
+  firstName: 'John',
+  lastName: 'Doe',
+  barcodeNumber: '123456',
+  customFieldValues: '{}',
+};
+
+const mockUserProfile = {
+  $id: 'user-1',
+  userId: 'auth-user-1',
+  email: 'user@example.com',
+  name: 'John User',
+  roleId: 'role-1',
+};
+
+const mockAdminRole = {
+  $id: 'admin-role',
+  name: 'Administrator',
+  permissions: {
+    attendees: { create: true, read: true, update: true, delete: true },
+    users: { create: true, read: true, update: true, delete: true },
+  },
+};
+
+// Session-level mock (regular user)
+const mockSessionTablesDB = {
+  getRow: vi.fn().mockImplementation(({ rowId }) => {
+    switch (rowId) {
+      case 'attendee-1':
+        return Promise.resolve(mockAttendee);
+      case 'user-1':
+        return Promise.resolve(mockUserProfile);
+      default:
+        return Promise.reject(new Error(`Row ${rowId} not found`));
+    }
+  }),
+  
+  listRows: vi.fn().mockResolvedValue({
+    rows: [mockAttendee],
+    total: 1,
+  }),
+  
+  createRow: vi.fn().mockResolvedValue(mockAttendee),
+  updateRow: vi.fn().mockResolvedValue(mockAttendee),
+  deleteRow: vi.fn().mockResolvedValue({}),
+};
+
+// Admin-level mock (admin user)
+const mockAdminTablesDB = {
+  getRow: vi.fn().mockImplementation(({ rowId }) => {
+    switch (rowId) {
+      case 'admin-role':
+        return Promise.resolve(mockAdminRole);
+      case 'attendee-1':
+        return Promise.resolve(mockAttendee);
+      case 'user-1':
+        return Promise.resolve(mockUserProfile);
+      default:
+        return Promise.reject(new Error(`Row ${rowId} not found`));
+    }
+  }),
+  
+  listRows: vi.fn().mockResolvedValue({
+    rows: [mockAttendee, mockUserProfile, mockAdminRole],
+    total: 3,
+  }),
+  
+  createRow: vi.fn().mockResolvedValue(mockAttendee),
+  updateRow: vi.fn().mockResolvedValue(mockAttendee),
+  deleteRow: vi.fn().mockResolvedValue({}),
+};
 ```
 
-**Required:**
+### Usage in Tests
+
 ```typescript
-import handler from '@/pages/api/attendees/[id]';
-```
+describe('Attendee API', () => {
+  it('should fetch attendee as regular user', async () => {
+    // Use session mock
+    const tablesDB = mockSessionTablesDB;
+    
+    const result = await tablesDB.getRow({
+      databaseId: 'db',
+      tableId: 'attendees',
+      rowId: 'attendee-1',
+    });
+    
+    expect(result).toEqual(mockAttendee);
+    expect(result.firstName).toBe('John');
+  });
 
-### 3. Mock Setup Update
+  it('should fetch admin role as admin', async () => {
+    // Use admin mock
+    const tablesDB = mockAdminTablesDB;
+    
+    const result = await tablesDB.getRow({
+      databaseId: 'db',
+      tableId: 'roles',
+      rowId: 'admin-role',
+    });
+    
+    expect(result).toEqual(mockAdminRole);
+    expect(result.name).toBe('Administrator');
+  });
 
-**Current:**
-```typescript
-vi.mock('@/lib/appwrite', () => ({
-  createSessionClient: vi.fn((req: NextApiRequest) => ({
-    account: mockAccount,
-    databases: mockDatabases,
-    tablesDB: mockTablesDB,
-  })),
-}));
-```
-
-**Required:**
-```typescript
-vi.mock('@/lib/appwrite', () => ({
-  createSessionClient: vi.fn((req: NextApiRequest) => ({
-    account: mockAccount,
-    tablesDB: mockTablesDB,
-  })),
-  createAdminClient: vi.fn(() => ({
-    tablesDB: mockAdminTablesDB,
-  })),
-}));
-```
-
-### 4. BeforeEach Mock Setup
-
-**Current:**
-```typescript
-mockDatabases.listDocuments.mockResolvedValue({
-  documents: [mockUserProfile],
-  total: 1,
+  it('should not allow regular user to access admin role', async () => {
+    // Use session mock
+    const tablesDB = mockSessionTablesDB;
+    
+    await expect(
+      tablesDB.getRow({
+        databaseId: 'db',
+        tableId: 'roles',
+        rowId: 'admin-role',
+      })
+    ).rejects.toThrow('not found');
+  });
 });
-mockDatabases.getDocument.mockResolvedValue(mockAdminRole);
-mockDatabases.createDocument.mockResolvedValue({
-  $id: 'new-log-123',
-  userId: mockAuthUser.$id,
-  action: 'view',
-  details: '{}',
+```
+
+### Context-Based Mock Selection
+
+```typescript
+// Helper to get appropriate mock based on user role
+function getMockTablesDB(userRole: 'user' | 'admin'): any {
+  return userRole === 'admin' ? mockAdminTablesDB : mockSessionTablesDB;
+}
+
+describe('Role-based access', () => {
+  it('should return different data for different roles', async () => {
+    // Regular user - should reject for unknown rowIds
+    const userMock = getMockTablesDB('user');
+    await expect(userMock.getRow({
+      databaseId: 'db',
+      tableId: 'roles',
+      rowId: 'admin-role',
+    })).rejects.toThrow();
+
+    // Admin user
+    const adminMock = getMockTablesDB('admin');
+    const adminResult = await adminMock.getRow({
+      databaseId: 'db',
+      tableId: 'roles',
+      rowId: 'admin-role',
+    });
+    expect(adminResult).toEqual(mockAdminRole);
+  });
 });
 ```
 
-**Required:**
+## Testing Patterns
+
+### Pattern 1: Separate Mocks by User Type
+
 ```typescript
-mockTablesDB.listRows.mockResolvedValue({
-  rows: [mockUserProfile],
-  total: 1,
+describe('User-specific operations', () => {
+  it('should work for regular users', async () => {
+    const tablesDB = mockSessionTablesDB;
+    // Test regular user operations
+  });
+
+  it('should work for admins', async () => {
+    const tablesDB = mockAdminTablesDB;
+    // Test admin operations
+  });
 });
-mockTablesDB.getRow.mockResolvedValue(mockAdminRole);
-mockTablesDB.createRow.mockResolvedValue({
-  $id: 'new-log-123',
-  userId: mockAuthUser.$id,
-  action: 'view',
-  details: '{}',
-});
-mockAdminTablesDB.getRow.mockResolvedValue(mockAdminRole);
 ```
 
-### 5. API Method Replacements
-
-Replace all occurrences throughout the test file:
-
-| Old API | New API |
-|---------|---------|
-| `mockDatabases.getDocument` | `mockTablesDB.getRow` |
-| `mockDatabases.listDocuments` | `mockTablesDB.listRows` |
-| `mockDatabases.createDocument` | `mockTablesDB.createRow` |
-| `mockDatabases.updateDocument` | `mockTablesDB.updateRow` |
-| `mockDatabases.deleteDocument` | `mockTablesDB.deleteRow` |
-
-### 6. Response Structure Updates
-
-Replace response structures:
-
-| Old Structure | New Structure |
-|---------------|---------------|
-| `{ documents: [...] }` | `{ rows: [...] }` |
-| `NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID` | `NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID` |
-| `NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID` | `NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID` |
-| `NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID` | `NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID` |
-
-### 7. Mock Call Signature Updates
-
-For all database operations, the signature changes from positional to named parameters:
-
-**createRow:**
-```typescript
-// Old: (dbId, collectionId, docId, data)
-mockDatabases.createDocument(dbId, collId, docId, data);
-
-// New: { databaseId, tableId, rowId, data }
-mockTablesDB.createRow({ databaseId: dbId, tableId: tableId, rowId: docId, data });
-```
-
-**updateRow:**
-```typescript
-// Old: (dbId, collectionId, docId, data)
-mockDatabases.updateDocument(dbId, collId, docId, data);
-
-// New: { databaseId, tableId, rowId, data }
-mockTablesDB.updateRow({ databaseId: dbId, tableId: tableId, rowId: docId, data });
-```
-
-**deleteRow:**
-```typescript
-// Old: (dbId, collectionId, docId)
-mockDatabases.deleteDocument(dbId, collId, docId);
-
-// New: { databaseId, tableId, rowId }
-mockTablesDB.deleteRow({ databaseId: dbId, tableId: tableId, rowId: docId });
-```
-
-**getRow:**
-```typescript
-// Old: (dbId, collectionId, docId)
-mockDatabases.getDocument(dbId, collId, docId);
-
-// New: { databaseId, tableId, rowId }
-mockTablesDB.getRow({ databaseId: dbId, tableId: tableId, rowId: docId });
-```
-
-**listRows:**
-```typescript
-// Old: (dbId, collectionId, queries)
-mockDatabases.listDocuments(dbId, collId, queries);
-
-// New: { databaseId, tableId, queries }
-mockTablesDB.listRows({ databaseId: dbId, tableId: tableId, queries });
-```
-
-Update all mock call assertions to use named parameters:
+### Pattern 2: Mock Implementation Based on Context
 
 ```typescript
-// Old
-expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
-  process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-  process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID,
-  'attendee-123',
-  expect.objectContaining({...})
-);
-
-// New
-expect(mockTablesDB.updateRow).toHaveBeenCalledWith(
-  expect.objectContaining({
-    databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-    tableId: process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID,
-    rowId: 'attendee-123',
-    data: expect.objectContaining({...})
-  })
-);
+const createContextualMock = (context: 'session' | 'admin') => {
+  return {
+    getRow: vi.fn().mockImplementation(({ rowId }) => {
+      if (context === 'admin') {
+        return Promise.resolve(mockAdminRole);
+      }
+      if (rowId === 'attendee-1') {
+        return Promise.resolve(mockAttendee);
+      }
+      return Promise.reject(new Error('Unauthorized'));
+    }),
+  };
+};
 ```
 
-## Test Cases Affected
+## Files Modified
 
-All test cases in the file need updates:
-
-1. **GET /api/attendees/[id]**
-   - `should return attendee details for authorized user`
-   - `should return 404 if attendee is not found`
-   - `should create log entry for viewing attendee`
-
-2. **PUT /api/attendees/[id]**
-   - `should update attendee successfully`
-   - `should return 400 if barcode already exists for another attendee`
-   - `should allow same barcode if updating same attendee`
-   - `should return 400 if custom field IDs are invalid`
-   - `should update only provided fields`
-   - `should create log entry with change details`
-
-3. **DELETE /api/attendees/[id]**
-   - `should delete attendee successfully`
-   - `should return 403 if user does not have delete permission`
-   - `should return 404 if attendee is not found`
-   - `should create log entry for attendee deletion`
-
-4. **Printable Field Change Detection**
-   - All tests in this section use `mockTablesDB.listRows` for custom fields fetching
-   - Update collection ID references to table IDs
-
-## Implementation Notes
-
-- The file uses `mockTablesDB.listRows.mockImplementation()` for conditional mocking in printable field tests
-- Update all `collectionId` parameter names to `tableId` in these implementations
-- Ensure `mockAdminTablesDB` is properly mocked for admin operations
-- The transaction mocking setup should remain unchanged as it already uses `mockTablesDB`
+- `src/test/mocks/appwrite.ts` - Separate session and admin mocks
 
 ## Verification
 
-After migration, run:
-```bash
-npx vitest --run 'src/__tests__/api/attendees/[id].test.ts'
-```
+✅ Session mock returns appropriate user/attendee data
+✅ Admin mock returns admin role data
+✅ No cross-contamination between mocks
+✅ Tests verify correct data for each context
+✅ False positives/negatives eliminated
 
-All tests should pass without errors.
-
-## Related Files
-
-- `.kiro/specs/appwrite-tablesdb-migration/tasks.md` - Main migration tracking
-- `src/__tests__/e2e/auth-flow.test.ts` - Reference for correct TablesDB patterns
-- `src/__tests__/e2e/bulk-import-export-flow.test.ts` - Additional reference patterns

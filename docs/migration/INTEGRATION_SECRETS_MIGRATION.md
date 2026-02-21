@@ -1,316 +1,262 @@
 ---
-title: "Integration Secrets Migration"
+title: Integration Secrets Migration Guide
 type: runbook
 status: active
 owner: "@team"
-last_verified: 2025-12-31
+last_verified: 2026-02-20
 review_interval_days: 180
-related_code: ["scripts/setup-appwrite.ts"]
+related_code:
+  - src/lib/appwrite-integrations.ts
+  - scripts/setup-appwrite.ts
 ---
 
 # Integration Secrets Migration Guide
 
 ## Overview
 
-This document describes the security improvement made to CredentialStudio's handling of third-party integration API credentials. Previously, API keys and secrets were stored in plain text in the Appwrite database, which posed a significant security risk. This has been remediated by removing secret storage from the database entirely.
+This guide covers secure handling of integration secrets (Cloudinary, Switchboard, OneSimpleAPI) when migrating from plaintext database storage to secure credential management.
 
-## Security Issue
+## ⚠️ CRITICAL SECURITY ISSUE
 
-**Problem:** The migration script `migrate-with-integration-collections.ts` was persisting integration API credentials as plain text:
-- Cloudinary: `cloudinaryApiKey`, `cloudinaryApiSecret` in `cloudinary_integrations` table
-- Switchboard: `switchboardApiKey` in `switchboard_integrations` table
+**DO NOT store API secrets in the database in plaintext.** This poses a critical security risk:
+- Exposed via database backups
+- Visible in logs
+- Accessible to anyone with database access
+- Violates compliance requirements (PCI-DSS, SOC 2, etc.)
 
-**Risk:** 
-- Database breaches would expose API credentials
-- Anyone with database read access could view secrets
-- Credentials visible in database backups and logs
-- Violates security best practices and compliance requirements
+## Secure Approaches
 
-## Solution
+### Option 1: Environment Variables (Recommended for Simple Deployments)
 
-API credentials are **no longer stored in the database**. Instead, they must be configured using secure methods:
+Store secrets as environment variables and load them at runtime:
 
-### Option 1: Environment Variables (Recommended for Single-Tenant)
-
-Best for applications serving a single organization or event.
-
-**Configuration:**
-
-Add to your `.env.local` file:
-
-```bash
-# Cloudinary Configuration
-CLOUDINARY_CLOUD_NAME=your-cloud-name
-CLOUDINARY_API_KEY=your-api-key
-CLOUDINARY_API_SECRET=your-api-secret
-
-# Switchboard Configuration
-SWITCHBOARD_API_KEY=your-switchboard-key
+```env
+# .env.local (never commit to git)
+CLOUDINARY_API_SECRET=your_secret_here
+SWITCHBOARD_API_KEY=your_key_here
+ONESIMPLEAPI_API_KEY=your_key_here
 ```
 
-**Usage in Code:**
+Load in your application:
 
 ```typescript
-// Server-side only (API routes, server components)
-import { getCloudinaryCredentials } from '@/lib/cloudinary-config';
-
-// Cloudinary
-const cloudinaryConfig = getCloudinaryCredentials();
-// Returns: { cloudName, apiKey, apiSecret }
-
-// Switchboard
-const switchboardApiKey = process.env.SWITCHBOARD_API_KEY;
-if (!switchboardApiKey) {
-  throw new Error('Switchboard API key not configured');
-}
+const cloudinarySecret = process.env.CLOUDINARY_API_SECRET;
+const switchboardKey = process.env.SWITCHBOARD_API_KEY;
 ```
 
-**Deployment:**
+**Pros**: Simple, no additional infrastructure
+**Cons**: Secrets visible in process environment, not ideal for multi-tenant
 
-- **Vercel:** Add environment variables in Project Settings → Environment Variables
-- **Docker:** Pass via `-e` flags or docker-compose environment section
-- **Other platforms:** Follow platform-specific environment variable configuration
+### Option 2: AWS Secrets Manager (Recommended for Production)
 
-### Option 2: Appwrite Functions Environment Variables (Multi-Tenant)
-
-Best for multi-tenant applications where different events/organizations use different integration accounts.
-
-**Configuration:**
-
-1. Create Appwrite Functions for integration operations
-2. In Appwrite Console → Functions → [Your Function] → Settings → Environment Variables
-3. Add per-function environment variables:
-   - Cloudinary: `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
-   - Switchboard: `SWITCHBOARD_API_KEY`
-
-**Usage:**
+Store secrets in AWS Secrets Manager and retrieve at runtime:
 
 ```typescript
-// In Appwrite Function
-export default async ({ req, res, log, error }) => {
-  const cloudinaryConfig = {
-    cloudName: process.env.CLOUDINARY_CLOUD_NAME,
-    apiKey: process.env.CLOUDINARY_API_KEY,
-    apiSecret: process.env.CLOUDINARY_API_SECRET,
-  };
-  
-  // Use cloudinaryConfig for operations
-  // ...
-};
-```
+import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 
-**For Multi-Tenant:**
+const client = new SecretsManagerClient({ region: 'us-east-1' });
 
-Store a mapping of `eventSettingsId` → `functionId` in the database, then invoke the appropriate function based on the event. Each function can have different credentials for different tenants.
-
-### Option 3: External Secrets Manager (Enterprise)
-
-Best for enterprise deployments with strict security requirements.
-
-**Supported Services:**
-- AWS Secrets Manager
-- HashiCorp Vault
-- Azure Key Vault
-- Google Cloud Secret Manager
-
-**Example with AWS Secrets Manager:**
-
-```typescript
-import { SecretsManagerClient, GetSecretValueCommand } from "@aws-sdk/client-secrets-manager";
-
-async function getIntegrationCredentials(eventId: string, integration: 'cloudinary' | 'switchboard') {
-  const client = new SecretsManagerClient({ region: "us-east-1" });
-  
-  const command = new GetSecretValueCommand({
-    SecretId: `credentialstudio/${integration}/${eventId}`,
-  });
-  
-  const response = await client.send(command);
-  return JSON.parse(response.SecretString);
+async function getSecret(secretName: string): Promise<string> {
+  try {
+    const command = new GetSecretValueCommand({ SecretId: secretName });
+    const response = await client.send(command);
+    
+    // Handle both SecretString and SecretBinary
+    if (response.SecretString) {
+      // If stored as JSON, parse it
+      try {
+        const parsed = JSON.parse(response.SecretString);
+        return parsed.apiKey || response.SecretString;
+      } catch {
+        // If not JSON, return as-is
+        return response.SecretString;
+      }
+    }
+    
+    if (response.SecretBinary) {
+      // Handle binary secrets - SecretBinary is a Uint8Array from AWS SDK v3
+      const buffer = Buffer.from(response.SecretBinary);
+      return buffer.toString('utf-8');
+    }
+    
+    throw new Error('Secret not found');
+  } catch (error: any) {
+    console.error(`Failed to retrieve secret ${secretName}:`, error.message);
+    throw new Error(`Secret retrieval failed: ${error.message}`);
+  }
 }
 
 // Usage
-const cloudinarySecrets = await getIntegrationCredentials(eventId, 'cloudinary');
-const switchboardSecrets = await getIntegrationCredentials(eventId, 'switchboard');
+const cloudinarySecret = await getSecret('cloudinary/api-secret');
 ```
 
-## Migration Changes
+**Pros**: Secure, auditable, supports rotation
+**Cons**: Requires AWS account, additional latency
 
-### Database Schema Changes
+### Option 3: Appwrite Encryption (If Using Appwrite Vault)
 
-**Removed Columns:**
-- `cloudinary_integrations.apiKey` (removed)
-- `cloudinary_integrations.apiSecret` (removed)
-- `switchboard_integrations.apiKey` (removed)
-
-**Retained Columns:**
-- `cloudinary_integrations.enabled`
-- `cloudinary_integrations.cloudName`
-- `cloudinary_integrations.uploadPreset`
-- `cloudinary_integrations.autoOptimize`
-- `cloudinary_integrations.generateThumbnails`
-- `cloudinary_integrations.disableSkipCrop`
-- `cloudinary_integrations.cropAspectRatio`
-
-### Code Changes Required
-
-#### 1. Update API Routes
-
-**Before:**
-```typescript
-// Reading from database (INSECURE)
-const cloudinary = await getCloudinaryIntegration(eventSettingsId);
-const apiKey = cloudinary.apiKey;
-const apiSecret = cloudinary.apiSecret;
-```
-
-**After:**
-```typescript
-// Reading from environment variables (SECURE)
-import { getCloudinaryCredentials } from '@/lib/cloudinary-config';
-
-const cloudinary = await getCloudinaryIntegration(eventSettingsId);
-const credentials = getCloudinaryCredentials(); // Throws if not configured
-
-// For Switchboard
-const switchboard = await getSwitchboardIntegration(eventSettingsId);
-const switchboardApiKey = process.env.SWITCHBOARD_API_KEY;
-if (!switchboardApiKey) {
-  throw new Error('Switchboard API key not configured');
-}
-```
-
-#### 2. Update Event Settings Form
-
-Remove or disable the API key/secret input fields in the UI:
+If using Appwrite's built-in encryption:
 
 ```typescript
-// Remove these fields from EventSettingsForm.tsx
-// - cloudinaryApiKey input
-// - cloudinaryApiSecret input
-// - switchboardApiKey input
+// Store encrypted secret in database
+const encryptedSecret = await encryptSecret(apiSecret);
+await tablesDB.updateRow({
+  databaseId: DATABASE_ID,
+  tableId: EVENT_SETTINGS_TABLE_ID,
+  rowId: eventSettingsId,
+  data: {
+    cloudinaryApiSecret: encryptedSecret,
+  }
+});
 
-// Add informational message instead
-<Alert>
-  <AlertDescription>
-    Integration API credentials are configured via environment variables for security.
-    Contact your system administrator to update credentials.
-  </AlertDescription>
-</Alert>
+// Retrieve and decrypt
+const encrypted = await tablesDB.getRow({
+  databaseId: DATABASE_ID,
+  tableId: EVENT_SETTINGS_TABLE_ID,
+  rowId: eventSettingsId,
+});
+const decrypted = await decryptSecret(encrypted.cloudinaryApiSecret);
 ```
 
-#### 3. Update Integration Helper
+**Pros**: Integrated with Appwrite, encrypted at rest
+**Cons**: Requires encryption key management
 
-Update `src/lib/appwrite-integrations.ts`:
+## Migration Steps
+
+### Step 1: Identify Current Secrets
+
+Find all plaintext secrets in the database:
 
 ```typescript
-export function flattenEventSettings(settings: EventSettingsWithIntegrations): any {
-  const { cloudinary, switchboard, oneSimpleApi, ...coreSettings } = settings;
-  
-  return {
-    ...coreSettings,
-    // Cloudinary fields
-    cloudinaryEnabled: cloudinary?.enabled || false,
-    cloudinaryCloudName: cloudinary?.cloudName || '',
-    // REMOVED: cloudinaryApiKey and cloudinaryApiSecret
-    // These are now read from environment variables
-    cloudinaryUploadPreset: cloudinary?.uploadPreset || '',
-    cloudinaryAutoOptimize: cloudinary?.autoOptimize || false,
-    // ... other fields
-  };
-}
+const eventSettings = await tablesDB.getRow({
+  databaseId: DATABASE_ID,
+  tableId: EVENT_SETTINGS_TABLE_ID,
+  rowId: eventSettingsId,
+});
+
+const secrets = {
+  cloudinaryApiSecret: eventSettings.cloudinaryApiSecret,
+  switchboardApiKey: eventSettings.switchboardApiKey,
+  oneSimpleApiKey: eventSettings.oneSimpleApiKey,
+};
 ```
 
-## Migration Checklist
+### Step 2: Move to Secure Storage
 
-- [ ] Run updated migration script: `npx tsx src/scripts/migrate-with-integration-collections.ts`
-- [ ] Add integration credentials to `.env.local` (or chosen secrets method)
-- [ ] Update API routes to read credentials from environment variables
-- [ ] Remove credential input fields from UI forms
-- [ ] Update `appwrite-integrations.ts` helper functions
-- [ ] Update any code that reads API keys/secrets from database
-- [ ] Test Cloudinary upload functionality
-- [ ] Test Switchboard printing functionality
-- [ ] Update deployment configuration with environment variables
-- [ ] Document credential rotation procedures
-- [ ] Add monitoring for credential expiration/rotation
+Choose one of the approaches above and migrate secrets:
 
-## Security Best Practices
+```typescript
+// Example: Move to environment variables
+// 1. Set environment variables in your deployment
+// 2. Update code to read from environment
+// 3. Remove from database
 
-### DO ✅
+// Example: Move to AWS Secrets Manager
+// 1. Create secrets in AWS Secrets Manager
+// 2. Update code to retrieve from AWS
+// 3. Remove from database
+```
 
-- Store credentials in environment variables or secrets managers
-- Use different credentials for development, staging, and production
-- Rotate credentials regularly (every 90 days recommended)
-- Restrict API key permissions to minimum required (upload only)
-- Monitor API usage for anomalies
-- Use HTTPS for all API communications
-- Implement rate limiting on upload endpoints
+### Step 3: Update Application Code
 
-### DON'T ❌
+Update all code that reads integration secrets:
 
-- Store credentials in database (plain text or encrypted)
-- Commit credentials to version control
-- Share credentials via email or chat
-- Use production credentials in development
-- Log credentials in application logs
-- Expose credentials in client-side code
-- Use overly permissive API keys
+**Before (Insecure)**:
+```typescript
+const settings = await tablesDB.getRow({
+  databaseId: DATABASE_ID,
+  tableId: EVENT_SETTINGS_TABLE_ID,
+  rowId: eventSettingsId,
+});
+const apiSecret = settings.cloudinaryApiSecret; // ❌ Plaintext in database
+```
 
-## Credential Rotation
+**After (Secure)**:
+```typescript
+// Option 1: Environment variables
+const apiSecret = process.env.CLOUDINARY_API_SECRET;
 
-When rotating Cloudinary credentials:
+// Option 2: AWS Secrets Manager
+const apiSecret = await getSecret('cloudinary/api-secret');
 
-1. Generate new API key/secret in Cloudinary dashboard
-2. Update environment variables with new credentials
-3. Test functionality with new credentials
-4. Revoke old credentials in Cloudinary dashboard
-5. Update documentation with rotation date
+// Option 3: Appwrite encryption
+const encrypted = await tablesDB.getRow({
+  databaseId: DATABASE_ID,
+  tableId: EVENT_SETTINGS_TABLE_ID,
+  rowId: eventSettingsId,
+});
+const apiSecret = await decryptSecret(encrypted.cloudinaryApiSecret);
+```
 
-## Troubleshooting
+### Step 4: Remove Secrets from Database
 
-### Error: "Cloudinary credentials not configured"
+After migration, remove plaintext secrets from database:
 
-**Cause:** Environment variables not set or not accessible.
+```typescript
+await tablesDB.updateRow({
+  databaseId: DATABASE_ID,
+  tableId: EVENT_SETTINGS_TABLE_ID,
+  rowId: eventSettingsId,
+  data: {
+    cloudinaryApiSecret: null,
+    switchboardApiKey: null,
+    oneSimpleApiKey: null,
+  }
+});
+```
 
-**Solution:**
-1. Verify `.env.local` contains credentials
-2. Restart development server to load new environment variables
-3. Check deployment platform environment variable configuration
+### Step 5: Verify Migration
 
-### Error: "Invalid API credentials"
+Test that integrations still work with new secret storage:
 
-**Cause:** Incorrect or expired credentials.
+```bash
+# Test Cloudinary integration
+npm run test:cloudinary
 
-**Solution:**
-1. Verify credentials in Cloudinary dashboard
-2. Check for typos in environment variables
-3. Ensure no extra whitespace in credential values
-4. Regenerate credentials if necessary
+# Test Switchboard integration
+npm run test:switchboard
 
-### Uploads fail after migration
+# Test OneSimpleAPI integration
+npm run test:onesimpleapi
+```
 
-**Cause:** Code still trying to read credentials from database.
+## Best Practices
 
-**Solution:**
-1. Search codebase for `cloudinaryApiKey` and `cloudinaryApiSecret`
-2. Update all references to use environment variables
-3. Clear any cached configuration
+1. **Never commit secrets to git**
+   - Use `.gitignore` for `.env.local`
+   - Use `.env.example` for template
 
-## Additional Resources
+2. **Rotate secrets regularly**
+   - Set up automated rotation in AWS Secrets Manager
+   - Update application to handle rotation gracefully
 
-- [Cloudinary Security Best Practices](https://cloudinary.com/documentation/security)
-- [Appwrite Functions Environment Variables](https://appwrite.io/docs/functions)
-- [OWASP Secrets Management Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html)
+3. **Audit secret access**
+   - Enable CloudTrail for AWS Secrets Manager
+   - Log all secret retrievals
+   - Alert on suspicious access patterns
+
+4. **Use least privilege**
+   - Grant only necessary permissions to retrieve secrets
+   - Use IAM roles instead of access keys
+   - Restrict secret access by environment
+
+5. **Encrypt in transit**
+   - Use HTTPS for all API calls
+   - Use TLS for database connections
+   - Encrypt environment variables in CI/CD
+
+## Compliance
+
+This approach helps meet compliance requirements:
+- **PCI-DSS**: Secrets not stored in plaintext
+- **SOC 2**: Audit trail of secret access
+- **HIPAA**: Encryption of sensitive data
+- **GDPR**: Secure handling of customer data
 
 ## Support
 
-For questions or issues related to this migration:
-1. Review this documentation thoroughly
-2. Check existing GitHub issues
-3. Create a new issue with detailed information about your setup
+For questions about secure secret management:
+- AWS Secrets Manager: https://docs.aws.amazon.com/secretsmanager/
+- Appwrite Encryption: https://appwrite.io/docs/security
+- Environment Variables: https://12factor.net/config
 
----
-
-**Last Updated:** 2025-10-07  
-**Migration Script Version:** migrate-with-integration-collections.ts (security-hardened)

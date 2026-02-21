@@ -51,7 +51,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
   }
 
   const { userProfile } = req;
-  const { databases } = createSessionClient(req);
+  const { tablesDB } = createSessionClient(req);
 
   // Check permissions - scanner operators need attendee read permission
   const permissions = userProfile.role ? userProfile.role.permissions : {};
@@ -65,9 +65,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
   }
 
   const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-  const attendeesCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID!;
-  const accessControlCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ACCESS_CONTROL_COLLECTION_ID!;
-  const customFieldsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID!;
+  const attendeesTableId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID!;
+  const accessControlTableId = process.env.NEXT_PUBLIC_APPWRITE_ACCESS_CONTROL_TABLE_ID!;
+  const customFieldsTableId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID!;
 
   try {
     // Extract barcode from query parameters
@@ -84,13 +84,13 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     let customFieldMap = new Map<string, string>(); // Maps fieldId -> fieldName
     let customFieldInternalMap = new Map<string, string>(); // Maps fieldId -> internalFieldName
     try {
-      const customFieldsResult = await databases.listDocuments(
-        dbId,
-        customFieldsCollectionId,
-        [Query.limit(1000)]
-      );
+      const customFieldsResult = await tablesDB.listRows({
+        databaseId: dbId,
+        tableId: customFieldsTableId,
+        queries: [Query.limit(1000)]
+      });
       
-      customFieldsResult.documents.forEach((field: any) => {
+      customFieldsResult.rows.forEach((field: any) => {
         if (field.$id && field.fieldName) {
           customFieldMap.set(field.$id, field.fieldName);
         }
@@ -103,20 +103,20 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     }
 
     // Search for attendee by barcode number
-    const attendeesResult = await databases.listDocuments(
-      dbId,
-      attendeesCollectionId,
-      [Query.equal('barcodeNumber', barcode), Query.limit(1)]
-    );
+    const attendeesResult = await tablesDB.listRows({
+      databaseId: dbId,
+      tableId: attendeesTableId,
+      queries: [Query.equal('barcodeNumber', barcode), Query.limit(1)]
+    });
 
-    if (attendeesResult.documents.length === 0) {
+    if (attendeesResult.rows.length === 0) {
       return res.status(404).json({
         error: 'Attendee not found',
         barcode: barcode
       });
     }
 
-    const attendee = attendeesResult.documents[0];
+    const attendee = attendeesResult.rows[0];
 
     // Fetch access control data for this attendee
     let accessControl = {
@@ -126,14 +126,14 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     };
 
     try {
-      const accessControlResult = await databases.listDocuments(
-        dbId,
-        accessControlCollectionId,
-        [Query.equal('attendeeId', attendee.$id), Query.limit(1)]
-      );
+      const accessControlResult = await tablesDB.listRows({
+        databaseId: dbId,
+        tableId: accessControlTableId,
+        queries: [Query.equal('attendeeId', attendee.$id), Query.limit(1)]
+      });
 
-      if (accessControlResult.documents.length > 0) {
-        const ac = accessControlResult.documents[0];
+      if (accessControlResult.rows.length > 0) {
+        const ac = accessControlResult.rows[0];
         accessControl = {
           accessEnabled: ac.accessEnabled,
           validFrom: ac.validFrom || null,

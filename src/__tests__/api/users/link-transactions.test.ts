@@ -13,25 +13,18 @@
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import handler from '../link';
-import { mockAccount, mockDatabases, mockUsers, mockTeams, resetAllMocks } from '@/test/mocks/appwrite';
-
-// Mock TablesDB
-const mockTablesDB = {
-  createTransaction: vi.fn(),
-  createOperations: vi.fn(),
-  updateTransaction: vi.fn(),
-};
+import handler from '@/pages/api/users/link';
+import { mockAccount, mockTablesDB, mockAdminTablesDB, mockUsers, mockTeams, resetAllMocks } from '@/test/mocks/appwrite';
 
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn((req: NextApiRequest) => ({
     account: mockAccount,
-    databases: mockDatabases,
     tablesDB: mockTablesDB,
+
   })),
   createAdminClient: vi.fn(() => ({
-    databases: mockDatabases,
+    tablesDB: mockAdminTablesDB,
     users: mockUsers,
     teams: mockTeams,
     tablesDB: mockTablesDB,
@@ -65,6 +58,7 @@ vi.mock('@/lib/transactions', () => ({
   }),
   TransactionOperation: {} as any,
 }));
+
 
 import { executeTransactionWithRetry } from '@/lib/transactions';
 
@@ -145,29 +139,29 @@ describe('/api/users/link - Transaction Integration Tests', () => {
     process.env.ENABLE_TRANSACTIONS = 'true';
     process.env.TRANSACTIONS_ENDPOINTS = 'user-linking';
     process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID = 'test-db';
-    process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID = 'users';
-    process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID = 'roles';
-    process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID = 'logs';
+    process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID = 'users';
+    process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID = 'roles';
+    process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID = 'logs';
 
     // Default mock implementations
     mockAccount.get.mockResolvedValue(mockAuthUser);
     
     // Mock user profile lookup - need to track calls per collection
     let usersCollectionCalls = 0;
-    mockDatabases.listDocuments.mockImplementation((dbId, collectionId, queries) => {
-      if (collectionId === 'users') {
+    mockTablesDB.listRows.mockImplementation((dbId, tableId, queries) => {
+      if (tableId === 'users') {
         usersCollectionCalls++;
         // First call returns admin user, subsequent calls return empty (new user doesn't exist)
         if (usersCollectionCalls === 1) {
-          return Promise.resolve({ documents: [mockUserProfile], total: 1 });
+          return Promise.resolve({ rows: [mockUserProfile], total: 1 });
         }
-        return Promise.resolve({ documents: [], total: 0 });
+        return Promise.resolve({ rows: [], total: 0 });
       }
-      return Promise.resolve({ documents: [], total: 0 });
+      return Promise.resolve({ rows: [], total: 0 });
     });
     
-    mockDatabases.getDocument.mockImplementation((dbId, collectionId, docId) => {
-      if (collectionId === 'roles') {
+    mockTablesDB.getRow.mockImplementation((dbId, tableId, docId) => {
+      if (tableId === 'roles') {
         if (docId === 'role-admin') return Promise.resolve(mockAdminRole);
         if (docId === 'role-staff') return Promise.resolve(mockStaffRole);
       }
@@ -351,9 +345,9 @@ describe('/api/users/link - Transaction Integration Tests', () => {
     it('should map Super Administrator role to owner team role', async () => {
       mockReq.body.roleId = mockAdminRole.$id;
       
-      // Mock getDocument to return admin role
-      mockDatabases.getDocument.mockImplementation((dbId, collectionId, docId) => {
-        if (collectionId === 'roles') {
+      // Mock getRow to return admin role
+      mockTablesDB.getRow.mockImplementation((dbId, tableId, docId) => {
+        if (tableId === 'roles') {
           if (docId === 'role-admin') return Promise.resolve(mockAdminRole);
         }
         return Promise.reject({ code: 404, message: 'Document not found' });
@@ -460,7 +454,7 @@ describe('/api/users/link - Transaction Integration Tests', () => {
       // Disable transactions
       process.env.ENABLE_TRANSACTIONS = 'false';
       
-      mockDatabases.createDocument.mockResolvedValue({
+      mockTablesDB.createRow.mockResolvedValue({
         $id: 'new-user-doc-123',
         userId: mockNewAuthUser.$id,
         email: mockNewAuthUser.email,
@@ -478,8 +472,8 @@ describe('/api/users/link - Transaction Integration Tests', () => {
       // Verify transaction was NOT used
       expect(executeTransactionWithRetry).not.toHaveBeenCalled();
 
-      // Verify legacy createDocument was called for user profile
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      // Verify legacy createRow was called for user profile
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         'test-db',
         'users',
         expect.any(String),
@@ -492,8 +486,8 @@ describe('/api/users/link - Transaction Integration Tests', () => {
         })
       );
 
-      // Verify legacy createDocument was called for audit log
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      // Verify legacy createRow was called for audit log
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         'test-db',
         'logs',
         expect.any(String),
@@ -526,7 +520,7 @@ describe('/api/users/link - Transaction Integration Tests', () => {
       });
 
       const createError = new Error('Profile creation failed');
-      mockDatabases.createDocument.mockRejectedValue(createError);
+      mockTablesDB.createRow.mockRejectedValue(createError);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -582,7 +576,8 @@ describe('/api/users/link - Transaction Integration Tests', () => {
         }),
       };
 
-      mockDatabases.getDocument.mockResolvedValue(viewerRole);
+      mockTablesDB.getRow.mockResolvedValue(viewerRole);
+    mockAdminTablesDB.getRow.mockResolvedValue(viewerRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -625,17 +620,17 @@ describe('/api/users/link - Transaction Integration Tests', () => {
     });
 
     it('should return 400 when user is already linked', async () => {
-      // Mock listDocuments to return existing user on second call
+      // Mock listRows to return existing user on second call
       let callCount = 0;
-      mockDatabases.listDocuments.mockImplementation((dbId, collectionId, queries) => {
+      mockTablesDB.listRows.mockImplementation((dbId, tableId, queries) => {
         callCount++;
-        if (collectionId === 'users') {
+        if (tableId === 'users') {
           if (callCount === 1) {
-            return Promise.resolve({ documents: [mockUserProfile], total: 1 });
+            return Promise.resolve({ rows: [mockUserProfile], total: 1 });
           }
           // Second call - return existing user
           return Promise.resolve({
-            documents: [{
+            rows: [{
               $id: 'existing-user-doc',
               userId: mockNewAuthUser.$id,
               email: mockNewAuthUser.email,
@@ -643,7 +638,7 @@ describe('/api/users/link - Transaction Integration Tests', () => {
             total: 1
           });
         }
-        return Promise.resolve({ documents: [], total: 0 });
+        return Promise.resolve({ rows: [], total: 0 });
       });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
@@ -659,8 +654,8 @@ describe('/api/users/link - Transaction Integration Tests', () => {
     it('should return 400 when roleId is invalid', async () => {
       mockReq.body.roleId = 'invalid-role-id';
       
-      mockDatabases.getDocument.mockImplementation((dbId, collectionId, docId) => {
-        if (collectionId === 'roles' && docId === 'role-admin') {
+      mockTablesDB.getRow.mockImplementation((dbId, tableId, docId) => {
+        if (tableId === 'roles' && docId === 'role-admin') {
           return Promise.resolve(mockAdminRole);
         }
         return Promise.reject({ code: 404, message: 'Document not found' });

@@ -32,12 +32,15 @@ vi.mock('@/hooks/useSweetAlert', () => ({
 }));
 
 vi.mock('@/lib/appwrite', () => ({
-  databases: {
-    listDocuments: vi.fn().mockResolvedValue({ documents: [], total: 0 }),
+  tablesDB: {
+    listRows: vi.fn().mockResolvedValue({ rows: [], total: 0 }),
   },
   account: {
     get: vi.fn().mockResolvedValue({ $id: 'test-user' }),
   },
+  createAdminClient: vi.fn(() => ({
+    tablesDB: { listRows: vi.fn(), getRow: vi.fn(), createRow: vi.fn(), updateRow: vi.fn(), deleteRow: vi.fn() },
+  })),
 }));
 
 describe('Notes Search - Visual Design and Accessibility', () => {

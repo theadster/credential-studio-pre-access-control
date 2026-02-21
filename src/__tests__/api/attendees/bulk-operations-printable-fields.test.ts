@@ -1,18 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextApiRequest, NextApiResponse } from 'next';
-import bulkEditHandler from '../bulk-edit';
+import bulkEditHandler from '@/pages/api/attendees/bulk-edit';
 
 // Mock dependencies
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn(() => ({
-    databases: {
-      listDocuments: vi.fn(),
-      getDocument: vi.fn(),
-      updateDocument: vi.fn(),
-    },
     tablesDB: {
+      listRows: vi.fn(),
+      getRow: vi.fn(),
+      updateRow: vi.fn(),
       executeTransaction: vi.fn(),
     },
+  })),
+  createAdminClient: vi.fn(() => ({
+    tablesDB: { listRows: vi.fn(), getRow: vi.fn(), createRow: vi.fn(), updateRow: vi.fn(), deleteRow: vi.fn() },
   })),
 }));
 
@@ -65,9 +66,17 @@ describe('Bulk Operations - Printable Field Tracking', () => {
       const { createSessionClient } = await import('@/lib/appwrite');
       const { bulkEditWithFallback } = await import('@/lib/bulkOperations');
 
-      const mockDatabases = {
-        listDocuments: vi.fn().mockResolvedValue({
-          documents: [
+      // Ensure imports are mock functions
+      if (typeof createSessionClient !== 'function' || !('mockReturnValue' in createSessionClient)) {
+        throw new Error('createSessionClient is not a mock function');
+      }
+      if (typeof bulkEditWithFallback !== 'function' || !('mockResolvedValue' in bulkEditWithFallback)) {
+        throw new Error('bulkEditWithFallback is not a mock function');
+      }
+
+      const mockTablesDB = {
+        listRows: vi.fn().mockResolvedValue({
+          rows: [
             {
               $id: 'field-1',
               fieldName: 'Email',
@@ -82,7 +91,7 @@ describe('Bulk Operations - Printable Field Tracking', () => {
             },
           ],
         }),
-        getDocument: vi.fn().mockResolvedValue({
+        getRow: vi.fn().mockResolvedValue({
           $id: 'attendee-1',
           customFieldValues: JSON.stringify([
             { customFieldId: 'field-1', value: 'old@email.com' },
@@ -93,8 +102,8 @@ describe('Bulk Operations - Printable Field Tracking', () => {
       };
 
       (createSessionClient as any).mockReturnValue({
-        databases: mockDatabases,
-        tablesDB: {},
+        tablesDB: mockTablesDB,
+
       });
 
       (bulkEditWithFallback as any).mockResolvedValue({
@@ -114,8 +123,13 @@ describe('Bulk Operations - Printable Field Tracking', () => {
       // Verify bulkEditWithFallback was called with lastSignificantUpdate
       expect(bulkEditWithFallback).toHaveBeenCalled();
       const callArgs = (bulkEditWithFallback as any).mock.calls[0];
-      const updates = callArgs[2].updates;
       
+      expect(callArgs).toBeDefined();
+      expect(callArgs.length).toBeGreaterThan(2);
+      expect(callArgs[2]).toBeDefined();
+      expect(callArgs[2].updates).toBeDefined();
+      
+      const updates = callArgs[2].updates;
       expect(updates).toHaveLength(1);
       expect(updates[0].data).toHaveProperty('lastSignificantUpdate');
       expect(updates[0].data.lastSignificantUpdate).toBeTruthy();
@@ -125,9 +139,9 @@ describe('Bulk Operations - Printable Field Tracking', () => {
       const { createSessionClient } = await import('@/lib/appwrite');
       const { bulkEditWithFallback } = await import('@/lib/bulkOperations');
 
-      const mockDatabases = {
-        listDocuments: vi.fn().mockResolvedValue({
-          documents: [
+      const mockTablesDB = {
+        listRows: vi.fn().mockResolvedValue({
+          rows: [
             {
               $id: 'field-1',
               fieldName: 'Email',
@@ -142,7 +156,7 @@ describe('Bulk Operations - Printable Field Tracking', () => {
             },
           ],
         }),
-        getDocument: vi.fn().mockResolvedValue({
+        getRow: vi.fn().mockResolvedValue({
           $id: 'attendee-1',
           customFieldValues: JSON.stringify([
             { customFieldId: 'field-1', value: 'email@test.com' },
@@ -154,8 +168,8 @@ describe('Bulk Operations - Printable Field Tracking', () => {
       };
 
       (createSessionClient as any).mockReturnValue({
-        databases: mockDatabases,
-        tablesDB: {},
+        tablesDB: mockTablesDB,
+
       });
 
       (bulkEditWithFallback as any).mockResolvedValue({
@@ -175,24 +189,26 @@ describe('Bulk Operations - Printable Field Tracking', () => {
       // Verify bulkEditWithFallback was called
       expect(bulkEditWithFallback).toHaveBeenCalled();
       const callArgs = (bulkEditWithFallback as any).mock.calls[0];
-      const updates = callArgs[2].updates;
       
+      // Verify call has expected arguments
+      expect(callArgs).toBeDefined();
+      expect(callArgs.length).toBeGreaterThanOrEqual(3);
+      
+      const updates = callArgs[2]?.updates;
+      expect(updates).toBeDefined();
       expect(updates).toHaveLength(1);
-      // lastSignificantUpdate should NOT be in the update data (or should be the old value)
+      // lastSignificantUpdate should NOT be updated when only non-printable fields change
       const updateData = updates[0].data;
-      if (updateData.lastSignificantUpdate) {
-        // If it exists, it should be the initialization value, not a new timestamp
-        expect(updateData.lastSignificantUpdate).toBe('2024-01-01T00:00:00.000Z');
-      }
+      expect(updateData).not.toHaveProperty('lastSignificantUpdate');
     });
 
     it('should handle errors for individual attendees without failing entire batch', async () => {
       const { createSessionClient } = await import('@/lib/appwrite');
       const { bulkEditWithFallback } = await import('@/lib/bulkOperations');
 
-      const mockDatabases = {
-        listDocuments: vi.fn().mockResolvedValue({
-          documents: [
+      const mockTablesDB = {
+        listRows: vi.fn().mockResolvedValue({
+          rows: [
             {
               $id: 'field-1',
               fieldName: 'Email',
@@ -201,7 +217,7 @@ describe('Bulk Operations - Printable Field Tracking', () => {
             },
           ],
         }),
-        getDocument: vi.fn()
+        getRow: vi.fn()
           .mockResolvedValueOnce({
             $id: 'attendee-1',
             customFieldValues: JSON.stringify([
@@ -220,8 +236,8 @@ describe('Bulk Operations - Printable Field Tracking', () => {
       };
 
       (createSessionClient as any).mockReturnValue({
-        databases: mockDatabases,
-        tablesDB: {},
+        tablesDB: mockTablesDB,
+
       });
 
       (bulkEditWithFallback as any).mockResolvedValue({
@@ -241,6 +257,12 @@ describe('Bulk Operations - Printable Field Tracking', () => {
       // Should continue processing despite error on attendee-2
       expect(bulkEditWithFallback).toHaveBeenCalled();
       const callArgs = (bulkEditWithFallback as any).mock.calls[0];
+      
+      expect(callArgs).toBeDefined();
+      expect(callArgs.length).toBeGreaterThan(2);
+      expect(callArgs[2]).toBeDefined();
+      expect(callArgs[2].updates).toBeDefined();
+      
       const updates = callArgs[2].updates;
       
       // Should have 2 updates (attendee-1 and attendee-3), skipping attendee-2

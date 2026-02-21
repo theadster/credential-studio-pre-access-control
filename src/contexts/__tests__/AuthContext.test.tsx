@@ -1,39 +1,55 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { AuthProvider, useAuth } from '../AuthContext';
-import { mockAccount, mockDatabases, resetAllMocks } from '@/test/mocks/appwrite';
+import { mockAccount, mockTablesDB, mockAdminTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 import { OAuthProvider, ID } from 'appwrite';
 import Cookies from 'js-cookie';
 
-// Mock TokenRefreshManager
-const mockTokenRefreshManager = {
-  start: vi.fn(),
-  stop: vi.fn(),
-  refresh: vi.fn(),
-  isRefreshing: vi.fn(() => false),
-  onRefresh: vi.fn(),
-  offRefresh: vi.fn(),
-};
-
-// Mock TabCoordinator
-const mockTabCoordinator = {
-  requestRefresh: vi.fn(),
-  notifyRefreshComplete: vi.fn(),
-  onRefreshComplete: vi.fn(),
-  cleanup: vi.fn(),
-};
+// Use vi.hoisted so these are available inside vi.mock factories (which are hoisted)
+const { mockTokenRefreshManager, mockTabCoordinator } = vi.hoisted(() => {
+  const mockTokenRefreshManager = {
+    start: vi.fn(),
+    stop: vi.fn(),
+    refresh: vi.fn(),
+    isRefreshing: vi.fn(() => false),
+    onRefresh: vi.fn(),
+    offRefresh: vi.fn(),
+    setUserContext: vi.fn(),
+    clearUserContext: vi.fn(),
+  };
+  const mockTabCoordinator = {
+    requestRefresh: vi.fn(),
+    notifyRefreshComplete: vi.fn(),
+    onRefreshComplete: vi.fn(),
+    cleanup: vi.fn(),
+  };
+  return { mockTokenRefreshManager, mockTabCoordinator };
+});
 
 // Mock dependencies
 vi.mock('@/lib/appwrite', () => ({
   createBrowserClient: vi.fn(() => ({
     account: mockAccount,
-    databases: mockDatabases,
+    tablesDB: mockTablesDB,
   })),
+  createAdminClient: vi.fn(() => ({
+    tablesDB: mockAdminTablesDB,
+})),
 }));
 
-vi.mock('@/lib/tokenRefresh', () => ({
-  TokenRefreshManager: vi.fn(() => mockTokenRefreshManager),
-}));
+vi.mock('@/lib/tokenRefresh', () => {
+  class MockTokenRefreshManager {
+    start = mockTokenRefreshManager.start;
+    stop = mockTokenRefreshManager.stop;
+    refresh = mockTokenRefreshManager.refresh;
+    isRefreshing = mockTokenRefreshManager.isRefreshing;
+    onRefresh = mockTokenRefreshManager.onRefresh;
+    offRefresh = mockTokenRefreshManager.offRefresh;
+    setUserContext = mockTokenRefreshManager.setUserContext;
+    clearUserContext = mockTokenRefreshManager.clearUserContext;
+  }
+  return { TokenRefreshManager: MockTokenRefreshManager };
+});
 
 vi.mock('@/lib/tabCoordinator', () => ({
   createTabCoordinator: vi.fn(() => mockTabCoordinator),
@@ -50,15 +66,16 @@ vi.mock('js-cookie', () => ({
 vi.mock('next/router', () => ({
   useRouter: vi.fn(() => ({
     push: vi.fn(),
-    pathname: '/',
+    pathname: '/dashboard',
     query: {},
-    asPath: '/',
+    asPath: '/dashboard',
   })),
 }));
 
 vi.mock('@/hooks/useSweetAlert', () => ({
   useSweetAlert: vi.fn(() => ({
     toast: vi.fn(),
+    alert: vi.fn().mockResolvedValue(undefined),
   })),
 }));
 
@@ -99,17 +116,35 @@ describe('AuthContext', () => {
     expire: Math.floor(Date.now() / 1000) + (15 * 60), // 15 minutes from now
   };
 
-  beforeEach(() => {
+  beforeEach(async () => {
     resetAllMocks();
     vi.clearAllMocks();
-    (global.fetch as any).mockClear();
-    mockTokenRefreshManager.start.mockClear();
-    mockTokenRefreshManager.stop.mockClear();
-    mockTokenRefreshManager.refresh.mockClear();
+    // Reset mock implementations to clear any queued mockResolvedValueOnce/mockRejectedValueOnce
+    mockAccount.get.mockReset();
+    mockAccount.createJWT.mockReset();
+    mockAccount.createEmailPasswordSession.mockReset();
+    mockAccount.deleteSession.mockReset();
+    mockTablesDB.listRows.mockReset();
+    mockTablesDB.createRow.mockReset();
+    (global.fetch as any).mockReset();
+    mockTokenRefreshManager.start.mockReset();
+    mockTokenRefreshManager.stop.mockReset();
+    mockTokenRefreshManager.refresh.mockReset();
     mockTokenRefreshManager.isRefreshing.mockReturnValue(false);
-    mockTokenRefreshManager.onRefresh.mockClear();
-    mockTabCoordinator.onRefreshComplete.mockClear();
-    mockTabCoordinator.cleanup.mockClear();
+    mockTokenRefreshManager.onRefresh.mockReset();
+    mockTokenRefreshManager.setUserContext.mockReset();
+    mockTokenRefreshManager.clearUserContext.mockReset();
+    mockTabCoordinator.onRefreshComplete.mockReset();
+    mockTabCoordinator.cleanup.mockReset();
+
+    // Reset router mock to default protected path so session check runs
+    const nextRouter = await import('next/router');
+    vi.mocked(nextRouter.useRouter).mockReturnValue({
+      push: vi.fn(),
+      pathname: '/dashboard',
+      query: {},
+      asPath: '/dashboard',
+    } as any);
   });
 
   afterEach(() => {
@@ -136,8 +171,8 @@ describe('AuthContext', () => {
 
     it('should initialize with user when authenticated', async () => {
       mockAccount.get.mockResolvedValueOnce(mockUser);
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockUserProfile],
         total: 1,
       });
       mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
@@ -163,13 +198,13 @@ describe('AuthContext', () => {
       mockAccount.createEmailPasswordSession.mockResolvedValueOnce(mockSession);
       mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
       mockAccount.get.mockResolvedValueOnce(mockUser);
-      mockDatabases.listDocuments
+      mockTablesDB.listRows
         .mockResolvedValueOnce({
-          documents: [mockUserProfile],
+          rows: [mockUserProfile],
           total: 1,
         })
         .mockResolvedValueOnce({
-          documents: [mockUserProfile],
+          rows: [mockUserProfile],
           total: 1,
         });
       (global.fetch as any).mockResolvedValueOnce({ ok: true });
@@ -204,13 +239,13 @@ describe('AuthContext', () => {
       mockAccount.createEmailPasswordSession.mockResolvedValueOnce(mockSession);
       mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
       mockAccount.get.mockResolvedValueOnce(mockUser);
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [],
         total: 0,
       });
-      mockDatabases.createDocument.mockResolvedValueOnce(mockUserProfile);
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
+      mockTablesDB.createRow.mockResolvedValueOnce(mockUserProfile);
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockUserProfile],
         total: 1,
       });
       (global.fetch as any).mockResolvedValueOnce({ ok: true });
@@ -227,9 +262,9 @@ describe('AuthContext', () => {
         await result.current.signIn('test@example.com', 'password123');
       });
 
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID,
         expect.any(String),
         expect.objectContaining({
           userId: 'user-123',
@@ -252,11 +287,10 @@ describe('AuthContext', () => {
         expect(result.current.initializing).toBe(false);
       });
 
-      await expect(
-        act(async () => {
-          await result.current.signIn('test@example.com', 'wrongpassword');
-        })
-      ).rejects.toThrow('Invalid credentials');
+      // signIn swallows errors and shows SweetAlert instead of re-throwing
+      await act(async () => {
+        await result.current.signIn('test@example.com', 'wrongpassword');
+      });
 
       expect(result.current.user).toBeNull();
     });
@@ -266,13 +300,13 @@ describe('AuthContext', () => {
       mockAccount.createEmailPasswordSession.mockResolvedValueOnce(mockSession);
       mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
       mockAccount.get.mockResolvedValueOnce(mockUser);
-      mockDatabases.listDocuments
+      mockTablesDB.listRows
         .mockResolvedValueOnce({
-          documents: [mockUserProfile],
+          rows: [mockUserProfile],
           total: 1,
         })
         .mockResolvedValueOnce({
-          documents: [mockUserProfile],
+          rows: [mockUserProfile],
           total: 1,
         });
       (global.fetch as any).mockResolvedValueOnce({ ok: true });
@@ -303,11 +337,11 @@ describe('AuthContext', () => {
     it('should successfully sign up with email and password', async () => {
       mockAccount.get.mockRejectedValueOnce(new Error('Not authenticated'));
       mockAccount.create.mockResolvedValueOnce(mockUser);
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [],
         total: 0,
       });
-      mockDatabases.createDocument.mockResolvedValueOnce(mockUserProfile);
+      mockTablesDB.createRow.mockResolvedValueOnce(mockUserProfile);
 
       const { result } = renderHook(() => useAuth(), {
         wrapper: AuthProvider,
@@ -327,7 +361,7 @@ describe('AuthContext', () => {
         'password123',
         'Test User'
       );
-      expect(mockDatabases.createDocument).toHaveBeenCalled();
+      expect(mockTablesDB.createRow).toHaveBeenCalled();
     });
 
     it('should handle sign up errors', async () => {
@@ -353,11 +387,11 @@ describe('AuthContext', () => {
     it('should create user profile during sign up', async () => {
       mockAccount.get.mockRejectedValueOnce(new Error('Not authenticated'));
       mockAccount.create.mockResolvedValueOnce(mockUser);
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [],
         total: 0,
       });
-      mockDatabases.createDocument.mockResolvedValueOnce(mockUserProfile);
+      mockTablesDB.createRow.mockResolvedValueOnce(mockUserProfile);
 
       const { result } = renderHook(() => useAuth(), {
         wrapper: AuthProvider,
@@ -371,9 +405,9 @@ describe('AuthContext', () => {
         await result.current.signUp('test@example.com', 'password123', 'Test User');
       });
 
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID,
         expect.any(String),
         expect.objectContaining({
           userId: 'user-123',
@@ -388,8 +422,8 @@ describe('AuthContext', () => {
   describe('signOut', () => {
     it('should successfully sign out', async () => {
       mockAccount.get.mockResolvedValueOnce(mockUser);
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockUserProfile],
         total: 1,
       });
       mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
@@ -416,8 +450,8 @@ describe('AuthContext', () => {
 
     it('should log authentication event on sign out', async () => {
       mockAccount.get.mockResolvedValueOnce(mockUser);
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockUserProfile],
         total: 1,
       });
       mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
@@ -447,8 +481,8 @@ describe('AuthContext', () => {
 
     it('should handle sign out errors gracefully', async () => {
       mockAccount.get.mockResolvedValueOnce(mockUser);
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockUserProfile],
         total: 1,
       });
       mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
@@ -519,8 +553,8 @@ describe('AuthContext', () => {
   describe('updatePassword', () => {
     it('should successfully update password', async () => {
       mockAccount.get.mockResolvedValueOnce(mockUser);
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockUserProfile],
         total: 1,
       });
       mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
@@ -543,8 +577,8 @@ describe('AuthContext', () => {
 
     it('should handle password update errors', async () => {
       mockAccount.get.mockResolvedValueOnce(mockUser);
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockUserProfile],
         total: 1,
       });
       mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
@@ -677,13 +711,13 @@ describe('AuthContext', () => {
       mockAccount.createEmailPasswordSession.mockResolvedValueOnce(mockSession);
       mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
       mockAccount.get.mockResolvedValueOnce(mockUser);
-      mockDatabases.listDocuments
+      mockTablesDB.listRows
         .mockResolvedValueOnce({
-          documents: [mockUserProfile],
+          rows: [mockUserProfile],
           total: 1,
         })
         .mockResolvedValueOnce({
-          documents: [mockUserProfile],
+          rows: [mockUserProfile],
           total: 1,
         });
       (global.fetch as any).mockResolvedValueOnce({ ok: true });
@@ -706,8 +740,8 @@ describe('AuthContext', () => {
 
     it('should clear session cookie on sign out', async () => {
       mockAccount.get.mockResolvedValueOnce(mockUser);
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockUserProfile],
         total: 1,
       });
       mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
@@ -736,8 +770,8 @@ describe('AuthContext', () => {
 
     it('should update state when user profile is fetched', async () => {
       mockAccount.get.mockResolvedValueOnce(mockUser);
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockUserProfile],
         total: 1,
       });
       mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
@@ -767,16 +801,17 @@ describe('AuthContext', () => {
         expect(result.current.initializing).toBe(false);
       });
 
-      await expect(
-        act(async () => {
-          await result.current.signIn('test@example.com', 'password123');
-        })
-      ).rejects.toThrow('Network error');
+      // signIn swallows errors and shows SweetAlert instead of re-throwing
+      await act(async () => {
+        await result.current.signIn('test@example.com', 'password123');
+      });
+
+      expect(result.current.user).toBeNull();
     });
 
     it('should handle profile fetch errors gracefully', async () => {
       mockAccount.get.mockResolvedValueOnce(mockUser);
-      mockDatabases.listDocuments.mockRejectedValueOnce(new Error('Database error'));
+      mockTablesDB.listRows.mockRejectedValueOnce(new Error('Database error'));
       mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
 
       const { result } = renderHook(() => useAuth(), {
@@ -797,8 +832,8 @@ describe('AuthContext', () => {
       mockAccount.createEmailPasswordSession.mockResolvedValueOnce(mockSession);
       mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
       mockAccount.get.mockResolvedValueOnce(mockUser);
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockUserProfile],
         total: 1,
       });
       (global.fetch as any).mockRejectedValueOnce(new Error('Logging failed'));
@@ -823,8 +858,8 @@ describe('AuthContext', () => {
   describe('Session Restoration', () => {
     it('should restore session with fresh JWT on page load', async () => {
       mockAccount.get.mockResolvedValueOnce(mockUser);
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockUserProfile],
         total: 1,
       });
       mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
@@ -845,8 +880,8 @@ describe('AuthContext', () => {
 
     it('should handle JWT creation failure during session restoration', async () => {
       mockAccount.get.mockResolvedValueOnce(mockUser);
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockUserProfile],
         total: 1,
       });
       mockAccount.createJWT.mockRejectedValueOnce(new Error('JWT creation failed'));
@@ -971,17 +1006,17 @@ describe('AuthContext', () => {
         writable: true,
       });
 
-      mockAccount.get.mockRejectedValueOnce(new Error('Not authenticated'));
+      // pathname is '/' (public path) so session check is skipped — no mockAccount.get needed for init
       mockAccount.createEmailPasswordSession.mockResolvedValueOnce(mockSession);
       mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
       mockAccount.get.mockResolvedValueOnce(mockUser);
-      mockDatabases.listDocuments
+      mockTablesDB.listRows
         .mockResolvedValueOnce({
-          documents: [mockUserProfile],
+          rows: [mockUserProfile],
           total: 1,
         })
         .mockResolvedValueOnce({
-          documents: [mockUserProfile],
+          rows: [mockUserProfile],
           total: 1,
         });
       (global.fetch as any).mockResolvedValueOnce({ ok: true });
@@ -1005,7 +1040,7 @@ describe('AuthContext', () => {
 
     it('should handle profile fetch failure during session restoration', async () => {
       mockAccount.get.mockResolvedValueOnce(mockUser);
-      mockDatabases.listDocuments.mockRejectedValueOnce(new Error('Database error'));
+      mockTablesDB.listRows.mockRejectedValueOnce(new Error('Database error'));
       mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
 
       const { result } = renderHook(() => useAuth(), {
@@ -1030,13 +1065,13 @@ describe('AuthContext', () => {
       mockAccount.createEmailPasswordSession.mockResolvedValueOnce(mockSession);
       mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
       mockAccount.get.mockResolvedValueOnce(mockUser);
-      mockDatabases.listDocuments
+      mockTablesDB.listRows
         .mockResolvedValueOnce({
-          documents: [mockUserProfile],
+          rows: [mockUserProfile],
           total: 1,
         })
         .mockResolvedValueOnce({
-          documents: [mockUserProfile],
+          rows: [mockUserProfile],
           total: 1,
         });
       (global.fetch as any).mockResolvedValueOnce({ ok: true });
@@ -1058,8 +1093,8 @@ describe('AuthContext', () => {
 
     it('should stop token refresh timer on sign out', async () => {
       mockAccount.get.mockResolvedValueOnce(mockUser);
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockUserProfile],
         total: 1,
       });
       mockAccount.createJWT.mockResolvedValueOnce(mockJWT);

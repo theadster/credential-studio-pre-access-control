@@ -34,7 +34,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
   try {
     // User and userProfile are already attached by middleware
     const { user, userProfile } = req;
-    const { databases } = createSessionClient(req);
+    const { tablesDB } = createSessionClient(req);
     
     // TablesDB bulk operations require API key authentication (admin client)
     const { createAdminClient } = await import('@/lib/appwrite');
@@ -46,8 +46,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     }
 
     const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-    const customFieldsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID!;
-    const logsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!;
+    const customFieldsTableId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID!;
+    const logsTableId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!;
 
     // Check permissions
     const permissions = userProfile.role ? userProfile.role.permissions : {};
@@ -88,10 +88,10 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     // This prevents transaction failures due to non-existent fields
     for (const { id } of fieldOrders) {
       try {
-        await databases.getDocument({
+        await tablesDB.getRow({
           databaseId: dbId,
-          collectionId: customFieldsCollectionId,
-          documentId: id
+          tableId: customFieldsTableId,
+          rowId: id
         });
       } catch (error: any) {
         return res.status(404).json({ 
@@ -101,11 +101,15 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       }
     }
 
-    // Fetch existing documents to merge with updates (TablesDB requires all required fields)
+    // Fetch existing rows to merge with updates (TablesDB requires all required fields)
     console.log(`[Reorder] Fetching ${fieldOrders.length} custom fields for atomic update`);
     const existingDocs = await Promise.all(
       fieldOrders.map(({ id }) =>
-        databases.getDocument(dbId, customFieldsCollectionId, id)
+        tablesDB.getRow({
+          databaseId: dbId,
+          tableId: customFieldsTableId,
+          rowId: id
+        })
       )
     );
 
@@ -113,7 +117,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     const rows = fieldOrders.map(({ id, order }, index) => {
       const existingDoc = existingDocs[index];
       // Remove Appwrite metadata fields
-      const { $permissions, $createdAt, $updatedAt, $collectionId, $databaseId, ...docData } = existingDoc as any;
+      const { $permissions, $createdAt, $updatedAt, $tableId, $databaseId, ...docData } = existingDoc as any;
       
       return {
         ...docData,
@@ -127,7 +131,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     try {
       await adminTablesDB.upsertRows(
         dbId,
-        customFieldsCollectionId,
+        customFieldsTableId,
         rows
       );
 
@@ -137,11 +141,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       const loggingEnabled = await shouldLog('customFieldReorder');
       if (loggingEnabled) {
         try {
-          await databases.createDocument(
-            dbId,
-            logsCollectionId,
-            ID.unique(),
-            {
+          await tablesDB.createRow({
+            databaseId: dbId,
+            tableId: logsTableId,
+            rowId: ID.unique(),
+            data: {
               userId: user.$id,
               action: 'update',
               details: JSON.stringify({
@@ -150,7 +154,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
                 fieldOrders: fieldOrders.map(({ id, order }) => ({ id, order }))
               })
             }
-          );
+          });
         } catch (logError: any) {
           console.error('[Reorder] Failed to create audit log:', logError.message);
           // Don't fail the operation if audit log fails

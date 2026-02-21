@@ -54,9 +54,9 @@ type AppwriteAttribute = BaseAttribute;
  * 
  * @example
  * ```typescript
- * const attributes = await databases.listAttributes(databaseId, collectionId);
+ * const attributes = await tablesDB.listColumns(databaseId, tableId);
  * 
- * for (const attribute of attributes.attributes) {
+ * for (const attribute of attributes.columns) {
  *   if (hasSizeProperty(attribute)) {
  *     console.log(`Attribute ${attribute.key} has size: ${attribute.size}`);
  *   }
@@ -80,7 +80,7 @@ export function hasSizeProperty(
  * 
  * @example
  * ```typescript
- * const attributes = await databases.listAttributes(databaseId, collectionId);
+ * const attributes = await databases.listAttributes(databaseId, tableId);
  * 
  * for (const attribute of attributes.attributes) {
  *   if (hasDefaultProperty(attribute)) {

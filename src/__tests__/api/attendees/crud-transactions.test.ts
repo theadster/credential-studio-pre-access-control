@@ -18,27 +18,19 @@
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import indexHandler from '../index';
-import idHandler from '../[id]';
-import { mockAccount, mockDatabases, resetAllMocks } from '@/test/mocks/appwrite';
-
-// Mock TablesDB
-const mockTablesDB = {
-  createTransaction: vi.fn(),
-  createOperations: vi.fn(),
-  updateTransaction: vi.fn(),
-};
+import indexHandler from '@/pages/api/attendees/index';
+import idHandler from '@/pages/api/attendees/[id]';
+import { mockAccount, mockTablesDB, mockAdminTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn((req: NextApiRequest) => ({
     account: mockAccount,
-    databases: mockDatabases,
     tablesDB: mockTablesDB,
+
   })),
   createAdminClient: vi.fn(() => ({
-    databases: mockDatabases,
-    tablesDB: mockTablesDB,
+    tablesDB: mockAdminTablesDB,
   })),
 }));
 
@@ -164,13 +156,14 @@ describe('/api/attendees CRUD - Transaction Integration Tests', () => {
       mockTablesDB.updateTransaction.mockResolvedValue(undefined);
 
       // Mock barcode uniqueness check
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [],
         total: 0,
       });
 
-      // Mock getDocument to return created attendee
-      mockDatabases.getDocument.mockResolvedValue(newAttendee);
+      // Mock getRow to return created attendee
+      mockTablesDB.getRow.mockResolvedValue(newAttendee);
+      mockAdminTablesDB.getRow.mockResolvedValue(newAttendee);
 
       mockReq.method = 'POST';
       mockReq.body = {
@@ -194,7 +187,7 @@ describe('/api/attendees CRUD - Transaction Integration Tests', () => {
       // Verify attendee creation operation
       expect(operations[0]).toMatchObject({
         action: 'create',
-        tableId: process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID,
+        tableId: process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID,
         data: {
           firstName: 'John',
           lastName: 'Doe',
@@ -206,7 +199,7 @@ describe('/api/attendees CRUD - Transaction Integration Tests', () => {
       // Verify audit log operation
       expect(operations[1]).toMatchObject({
         action: 'create',
-        tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+        tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
         data: {
           userId: mockAuthUser.$id,
           action: 'create',
@@ -245,8 +238,8 @@ describe('/api/attendees CRUD - Transaction Integration Tests', () => {
       mockTablesDB.updateTransaction.mockResolvedValue(undefined);
 
       // Mock barcode uniqueness check
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [],
         total: 0,
       });
 
@@ -296,13 +289,13 @@ describe('/api/attendees CRUD - Transaction Integration Tests', () => {
       };
 
       // Mock barcode uniqueness check
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [],
         total: 0,
       });
 
-      // Mock legacy createDocument
-      mockDatabases.createDocument.mockResolvedValue(newAttendee);
+      // Mock legacy createRow
+      mockTablesDB.createRow.mockResolvedValue(newAttendee);
 
       mockReq.method = 'POST';
       mockReq.body = {
@@ -318,7 +311,7 @@ describe('/api/attendees CRUD - Transaction Integration Tests', () => {
       expect(mockTablesDB.createTransaction).not.toHaveBeenCalled();
 
       // Verify legacy API was used
-      expect(mockDatabases.createDocument).toHaveBeenCalledTimes(2); // attendee + audit log
+      expect(mockTablesDB.createRow).toHaveBeenCalledTimes(2); // attendee + audit log
 
       // Verify success response
       expect(statusMock).toHaveBeenCalledWith(201);
@@ -353,22 +346,22 @@ describe('/api/attendees CRUD - Transaction Integration Tests', () => {
       mockTablesDB.createOperations.mockResolvedValue(undefined);
       mockTablesDB.updateTransaction.mockResolvedValue(undefined);
 
-      // Mock getDocument to return existing attendee first, then updated
-      mockDatabases.getDocument
+      // Mock getRow to return existing attendee first, then updated
+      mockTablesDB.getRow
         .mockResolvedValueOnce(existingAttendee) // Initial fetch
         .mockResolvedValueOnce(updatedAttendee); // After update
 
       // Mock barcode uniqueness check (no duplicates)
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [],
-        total: 0,
-      });
-
-      // Mock custom fields fetch
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [],
-        total: 0,
-      });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({
+          rows: [],
+          total: 0,
+        })
+        // Mock custom fields fetch
+        .mockResolvedValueOnce({
+          rows: [],
+          total: 0,
+        });
 
       mockReq.method = 'PUT';
       mockReq.query = { id: attendeeId };
@@ -393,7 +386,7 @@ describe('/api/attendees CRUD - Transaction Integration Tests', () => {
       // Verify update operation
       expect(operations[0]).toMatchObject({
         action: 'update',
-        tableId: process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID,
+        tableId: process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID,
         rowId: attendeeId,
         data: expect.objectContaining({
           firstName: 'Jane',
@@ -404,7 +397,7 @@ describe('/api/attendees CRUD - Transaction Integration Tests', () => {
       // Verify audit log operation
       expect(operations[1]).toMatchObject({
         action: 'create',
-        tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+        tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
         data: {
           userId: mockAuthUser.$id,
           attendeeId: attendeeId,
@@ -436,12 +429,13 @@ describe('/api/attendees CRUD - Transaction Integration Tests', () => {
       // Mock rollback
       mockTablesDB.updateTransaction.mockResolvedValue(undefined);
 
-      // Mock getDocument to return existing attendee
-      mockDatabases.getDocument.mockResolvedValue(existingAttendee);
+      // Mock getRow to return existing attendee
+      mockTablesDB.getRow.mockResolvedValue(existingAttendee);
+      mockAdminTablesDB.getRow.mockResolvedValue(existingAttendee);
 
       // Mock barcode uniqueness check
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [],
         total: 0,
       });
 
@@ -480,17 +474,17 @@ describe('/api/attendees CRUD - Transaction Integration Tests', () => {
         $updatedAt: '2024-01-02T00:00:00.000Z',
       };
 
-      // Mock getDocument to return existing attendee first, then updated
-      mockDatabases.getDocument
+      // Mock getRow to return existing attendee first, then updated
+      mockTablesDB.getRow
         .mockResolvedValueOnce(existingAttendee)
         .mockResolvedValueOnce(updatedAttendee);
 
-      // Mock updateDocument
-      mockDatabases.updateDocument.mockResolvedValue(updatedAttendee);
+      // Mock updateRow
+      mockTablesDB.updateRow.mockResolvedValue(updatedAttendee);
 
       // Mock barcode uniqueness check
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [],
         total: 0,
       });
 
@@ -510,8 +504,8 @@ describe('/api/attendees CRUD - Transaction Integration Tests', () => {
       expect(mockTablesDB.createTransaction).not.toHaveBeenCalled();
 
       // Verify legacy API was used
-      expect(mockDatabases.updateDocument).toHaveBeenCalledTimes(1);
-      expect(mockDatabases.createDocument).toHaveBeenCalledTimes(1); // audit log
+      expect(mockTablesDB.updateRow).toHaveBeenCalledTimes(1);
+      expect(mockTablesDB.createRow).toHaveBeenCalledTimes(1); // audit log
 
       // Verify success response
       expect(statusMock).toHaveBeenCalledWith(200);
@@ -540,8 +534,9 @@ describe('/api/attendees CRUD - Transaction Integration Tests', () => {
       mockTablesDB.createOperations.mockResolvedValue(undefined);
       mockTablesDB.updateTransaction.mockResolvedValue(undefined);
 
-      // Mock getDocument to return existing attendee
-      mockDatabases.getDocument.mockResolvedValue(existingAttendee);
+      // Mock getRow to return existing attendee
+      mockTablesDB.getRow.mockResolvedValue(existingAttendee);
+      mockAdminTablesDB.getRow.mockResolvedValue(existingAttendee);
 
       mockReq.method = 'DELETE';
       mockReq.query = { id: attendeeId };
@@ -559,14 +554,14 @@ describe('/api/attendees CRUD - Transaction Integration Tests', () => {
       // Verify delete operation
       expect(operations[0]).toMatchObject({
         action: 'delete',
-        tableId: process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID,
+        tableId: process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID,
         rowId: attendeeId,
       });
 
       // Verify audit log operation
       expect(operations[1]).toMatchObject({
         action: 'create',
-        tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+        tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
         data: {
           userId: mockAuthUser.$id,
           action: 'delete',
@@ -600,8 +595,9 @@ describe('/api/attendees CRUD - Transaction Integration Tests', () => {
       // Mock rollback
       mockTablesDB.updateTransaction.mockResolvedValue(undefined);
 
-      // Mock getDocument to return existing attendee
-      mockDatabases.getDocument.mockResolvedValue(existingAttendee);
+      // Mock getRow to return existing attendee
+      mockTablesDB.getRow.mockResolvedValue(existingAttendee);
+      mockAdminTablesDB.getRow.mockResolvedValue(existingAttendee);
 
       mockReq.method = 'DELETE';
       mockReq.query = { id: attendeeId };
@@ -625,11 +621,12 @@ describe('/api/attendees CRUD - Transaction Integration Tests', () => {
       // Disable transactions
       process.env.ENABLE_TRANSACTIONS = 'false';
 
-      // Mock getDocument to return existing attendee
-      mockDatabases.getDocument.mockResolvedValue(existingAttendee);
+      // Mock getRow to return existing attendee
+      mockTablesDB.getRow.mockResolvedValue(existingAttendee);
+      mockAdminTablesDB.getRow.mockResolvedValue(existingAttendee);
 
-      // Mock deleteDocument
-      mockDatabases.deleteDocument.mockResolvedValue(undefined);
+      // Mock deleteRow
+      mockTablesDB.deleteRow.mockResolvedValue(undefined);
 
       mockReq.method = 'DELETE';
       mockReq.query = { id: attendeeId };
@@ -640,16 +637,16 @@ describe('/api/attendees CRUD - Transaction Integration Tests', () => {
       expect(mockTablesDB.createTransaction).not.toHaveBeenCalled();
 
       // Verify legacy API was used
-      expect(mockDatabases.deleteDocument).toHaveBeenCalledTimes(1);
-      expect(mockDatabases.createDocument).toHaveBeenCalledTimes(1); // audit log
+      expect(mockTablesDB.deleteRow).toHaveBeenCalledTimes(1);
+      expect(mockTablesDB.createRow).toHaveBeenCalledTimes(1); // audit log
 
       // Verify success response
       expect(statusMock).toHaveBeenCalledWith(200);
     });
 
     it('should return 404 when attendee not found', async () => {
-      // Mock getDocument to throw 404 error
-      mockDatabases.getDocument.mockRejectedValue(
+      // Mock getRow to throw 404 error
+      mockTablesDB.getRow.mockRejectedValue(
         Object.assign(new Error('Document not found'), { code: 404 })
       );
 
@@ -695,13 +692,14 @@ describe('/api/attendees CRUD - Transaction Integration Tests', () => {
       mockTablesDB.updateTransaction.mockResolvedValue(undefined);
 
       // Mock barcode uniqueness check
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [],
         total: 0,
       });
 
-      // Mock getDocument to return created attendee
-      mockDatabases.getDocument.mockResolvedValue(newAttendee);
+      // Mock getRow to return created attendee
+      mockTablesDB.getRow.mockResolvedValue(newAttendee);
+      mockAdminTablesDB.getRow.mockResolvedValue(newAttendee);
 
       mockReq.method = 'POST';
       mockReq.body = {
@@ -744,12 +742,13 @@ describe('/api/attendees CRUD - Transaction Integration Tests', () => {
         .mockResolvedValueOnce(undefined);
       mockTablesDB.updateTransaction.mockResolvedValue(undefined);
 
-      // Mock getDocument
-      mockDatabases.getDocument.mockResolvedValue(existingAttendee);
+      // Mock getRow
+      mockTablesDB.getRow.mockResolvedValue(existingAttendee);
+      mockAdminTablesDB.getRow.mockResolvedValue(existingAttendee);
 
       // Mock barcode uniqueness check
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [],
         total: 0,
       });
 
@@ -796,8 +795,9 @@ describe('/api/attendees CRUD - Transaction Integration Tests', () => {
         .mockResolvedValueOnce(undefined);
       mockTablesDB.updateTransaction.mockResolvedValue(undefined);
 
-      // Mock getDocument
-      mockDatabases.getDocument.mockResolvedValue(existingAttendee);
+      // Mock getRow
+      mockTablesDB.getRow.mockResolvedValue(existingAttendee);
+      mockAdminTablesDB.getRow.mockResolvedValue(existingAttendee);
 
       mockReq.method = 'DELETE';
       mockReq.query = { id: attendeeId };
@@ -832,12 +832,13 @@ describe('/api/attendees CRUD - Transaction Integration Tests', () => {
       mockTablesDB.createOperations.mockResolvedValue(undefined);
       mockTablesDB.updateTransaction.mockResolvedValue(undefined);
 
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [],
         total: 0,
       });
 
-      mockDatabases.getDocument.mockResolvedValue(newAttendee);
+      mockTablesDB.getRow.mockResolvedValue(newAttendee);
+      mockAdminTablesDB.getRow.mockResolvedValue(newAttendee);
 
       mockReq.method = 'POST';
       mockReq.body = {
@@ -885,9 +886,10 @@ describe('/api/attendees CRUD - Transaction Integration Tests', () => {
       mockTablesDB.createOperations.mockResolvedValue(undefined);
       mockTablesDB.updateTransaction.mockResolvedValue(undefined);
 
-      mockDatabases.getDocument.mockResolvedValue(existingAttendee);
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [],
+      mockTablesDB.getRow.mockResolvedValue(existingAttendee);
+      mockAdminTablesDB.getRow.mockResolvedValue(existingAttendee);
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [],
         total: 0,
       });
 
@@ -934,12 +936,13 @@ describe('/api/attendees CRUD - Transaction Integration Tests', () => {
       mockTablesDB.createOperations.mockResolvedValue(undefined);
       mockTablesDB.updateTransaction.mockResolvedValue(undefined);
 
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [],
         total: 0,
       });
 
-      mockDatabases.getDocument.mockResolvedValue(newAttendee);
+      mockTablesDB.getRow.mockResolvedValue(newAttendee);
+      mockAdminTablesDB.getRow.mockResolvedValue(newAttendee);
 
       mockReq.method = 'POST';
       mockReq.body = {
@@ -956,7 +959,7 @@ describe('/api/attendees CRUD - Transaction Integration Tests', () => {
       // Verify only attendee operation, no audit log
       expect(operations).toHaveLength(1);
       expect(operations[0].action).toBe('create');
-      expect(operations[0].tableId).toBe(process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID);
+      expect(operations[0].tableId).toBe(process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID);
     });
   });
 });

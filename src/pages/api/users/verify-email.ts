@@ -61,7 +61,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
     // Create admin client to access Users API
     const adminClient = createAdminClient();
-    const { users, databases } = adminClient;
+    const { users } = adminClient;
 
     // Fetch the auth user to validate existence and check verification status (Requirement 8.6)
     let authUser;
@@ -170,9 +170,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     // Log the verification email send (Requirement 8.11, 9.7)
     try {
       const sessionClient = createSessionClient(req);
-      await sessionClient.databases.createDocument(
+      await sessionClient.tablesDB.createRow(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+        process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
         ID.unique(),
         {
           userId: user.$id,

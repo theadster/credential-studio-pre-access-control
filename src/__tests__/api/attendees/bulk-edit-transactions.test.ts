@@ -15,16 +15,10 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import handler from '../bulk-edit';
-import { mockAccount, mockDatabases, resetAllMocks } from '../../../../test/mocks/appwrite';
+import handler from '@/pages/api/attendees/bulk-edit';
+import { mockAccount, mockTablesDB, mockAdminTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 
 // Mock TablesDB
-const mockTablesDB = {
-  createTransaction: vi.fn(),
-  createOperations: vi.fn(),
-  updateTransaction: vi.fn(),
-};
-
 // Mock bulk operations
 const mockBulkEditWithFallback = vi.fn();
 
@@ -32,12 +26,11 @@ const mockBulkEditWithFallback = vi.fn();
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn((req: NextApiRequest) => ({
     account: mockAccount,
-    databases: mockDatabases,
     tablesDB: mockTablesDB,
+
   })),
   createAdminClient: vi.fn(() => ({
-    databases: mockDatabases,
-    tablesDB: mockTablesDB,
+    tablesDB: mockAdminTablesDB,
   })),
 }));
 
@@ -200,11 +193,11 @@ describe('/api/attendees/bulk-edit - Transaction Integration Tests', () => {
     
     // Mock custom fields
     const customFields = createMockCustomFields();
-    mockDatabases.listDocuments.mockImplementation((dbId, collectionId) => {
-      if (collectionId === process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID) {
-        return Promise.resolve({ documents: customFields, total: customFields.length });
+    mockTablesDB.listRows.mockImplementation((dbId, tableId) => {
+      if (tableId === process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID) {
+        return Promise.resolve({ rows: customFields, total: customFields.length });
       }
-      return Promise.resolve({ documents: [], total: 0 });
+      return Promise.resolve({ rows: [], total: 0 });
     });
     
     // Default bulk edit mock - successful edit with transactions
@@ -230,7 +223,7 @@ describe('/api/attendees/bulk-edit - Transaction Integration Tests', () => {
 
       // Mock attendee retrieval for each attendee
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       // Mock successful transaction
@@ -246,10 +239,9 @@ describe('/api/attendees/bulk-edit - Transaction Integration Tests', () => {
       expect(mockBulkEditWithFallback).toHaveBeenCalledTimes(1);
       expect(mockBulkEditWithFallback).toHaveBeenCalledWith(
         mockTablesDB,
-        mockDatabases,
         expect.objectContaining({
           databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-          tableId: process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID,
+          tableId: process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID,
           updates: expect.arrayContaining([
             expect.objectContaining({
               rowId: expect.any(String),
@@ -259,7 +251,7 @@ describe('/api/attendees/bulk-edit - Transaction Integration Tests', () => {
             }),
           ]),
           auditLog: expect.objectContaining({
-            tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+            tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
             userId: mockAuthUser.$id,
             action: 'bulk_update',
           }),
@@ -292,7 +284,7 @@ describe('/api/attendees/bulk-edit - Transaction Integration Tests', () => {
 
       // Mock attendee retrieval
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       mockBulkEditWithFallback.mockResolvedValue({
@@ -331,7 +323,7 @@ describe('/api/attendees/bulk-edit - Transaction Integration Tests', () => {
 
       // Mock attendee retrieval
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       mockBulkEditWithFallback.mockResolvedValue({
@@ -367,7 +359,7 @@ describe('/api/attendees/bulk-edit - Transaction Integration Tests', () => {
 
       // Mock attendee retrieval
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       // Mock batched transaction result
@@ -403,7 +395,7 @@ describe('/api/attendees/bulk-edit - Transaction Integration Tests', () => {
 
       // Mock attendee retrieval
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       mockBulkEditWithFallback.mockResolvedValue({
@@ -438,7 +430,7 @@ describe('/api/attendees/bulk-edit - Transaction Integration Tests', () => {
 
       // Mock attendee retrieval
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       // Mock transaction failure
@@ -473,7 +465,7 @@ describe('/api/attendees/bulk-edit - Transaction Integration Tests', () => {
 
       // Mock attendee retrieval
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       // Mock transaction failure after some operations
@@ -487,7 +479,7 @@ describe('/api/attendees/bulk-edit - Transaction Integration Tests', () => {
       expect(statusMock).toHaveBeenCalledWith(500);
       
       // Verify no documents were updated outside transaction (atomic rollback)
-      const updateCalls = mockDatabases.updateDocument.mock.calls;
+      const updateCalls = mockTablesDB.updateRow.mock.calls;
       expect(updateCalls).toHaveLength(0);
     });
 
@@ -504,9 +496,9 @@ describe('/api/attendees/bulk-edit - Transaction Integration Tests', () => {
 
       // Mock first 5 attendees succeed, 6th fails
       for (let i = 0; i < 5; i++) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendees[i]);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendees[i]);
       }
-      mockDatabases.getDocument.mockRejectedValueOnce(new Error('Attendee not found'));
+      mockTablesDB.getRow.mockRejectedValueOnce(new Error('Attendee not found'));
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -529,7 +521,7 @@ describe('/api/attendees/bulk-edit - Transaction Integration Tests', () => {
 
       // Mock attendee retrieval
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       mockBulkEditWithFallback.mockResolvedValue({
@@ -544,7 +536,7 @@ describe('/api/attendees/bulk-edit - Transaction Integration Tests', () => {
       const callArgs = mockBulkEditWithFallback.mock.calls[0];
       expect(callArgs[2].auditLog).toEqual(
         expect.objectContaining({
-          tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+          tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
           userId: mockAuthUser.$id,
           action: 'bulk_update',
           details: expect.objectContaining({
@@ -570,7 +562,7 @@ describe('/api/attendees/bulk-edit - Transaction Integration Tests', () => {
 
       // Mock attendee retrieval
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       // Mock transaction failure
@@ -583,9 +575,9 @@ describe('/api/attendees/bulk-edit - Transaction Integration Tests', () => {
       // Verify no audit log was created separately (it's part of the rolled-back transaction)
       expect(statusMock).toHaveBeenCalledWith(500);
       
-      const createDocCalls = mockDatabases.createDocument.mock.calls;
+      const createDocCalls = mockTablesDB.createRow.mock.calls;
       const auditLogCalls = createDocCalls.filter(
-        call => call[1] === process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID
+        call => call[1] === process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID
       );
       expect(auditLogCalls).toHaveLength(0);
     });
@@ -604,7 +596,7 @@ describe('/api/attendees/bulk-edit - Transaction Integration Tests', () => {
 
       // Mock attendee retrieval
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       mockBulkEditWithFallback.mockResolvedValue({
@@ -635,7 +627,7 @@ describe('/api/attendees/bulk-edit - Transaction Integration Tests', () => {
 
       // Mock attendee retrieval
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       // Mock conflict error (409)
@@ -670,7 +662,7 @@ describe('/api/attendees/bulk-edit - Transaction Integration Tests', () => {
 
       // Mock attendee retrieval
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       const conflictError = new Error('Concurrent modification detected');
@@ -698,7 +690,7 @@ describe('/api/attendees/bulk-edit - Transaction Integration Tests', () => {
 
       // Mock attendee retrieval
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       // Mock retry logic: simulate success after retries
@@ -733,7 +725,7 @@ describe('/api/attendees/bulk-edit - Transaction Integration Tests', () => {
 
       // Mock attendee retrieval
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       // Mock non-conflict error
@@ -766,7 +758,7 @@ describe('/api/attendees/bulk-edit - Transaction Integration Tests', () => {
 
       // Mock attendee retrieval
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       // Mock fallback scenario
@@ -800,7 +792,7 @@ describe('/api/attendees/bulk-edit - Transaction Integration Tests', () => {
 
       // Mock attendee retrieval
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       mockBulkEditWithFallback.mockResolvedValue({
@@ -827,7 +819,7 @@ describe('/api/attendees/bulk-edit - Transaction Integration Tests', () => {
 
       // Mock attendee retrieval
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       mockBulkEditWithFallback.mockResolvedValue({
@@ -859,7 +851,7 @@ describe('/api/attendees/bulk-edit - Transaction Integration Tests', () => {
 
       // Mock attendee retrieval
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       // Fallback may have partial success (legacy behavior)
@@ -965,7 +957,7 @@ describe('/api/attendees/bulk-edit - Transaction Integration Tests', () => {
 
       // Mock attendee retrieval
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
@@ -993,7 +985,7 @@ describe('/api/attendees/bulk-edit - Transaction Integration Tests', () => {
 
       // Mock attendee retrieval
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       mockBulkEditWithFallback.mockResolvedValue({
@@ -1033,7 +1025,7 @@ describe('/api/attendees/bulk-edit - Transaction Integration Tests', () => {
 
       // Mock attendee retrieval
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       const timeoutError = new Error('Request timeout');
@@ -1059,7 +1051,7 @@ describe('/api/attendees/bulk-edit - Transaction Integration Tests', () => {
 
       // Mock attendee retrieval
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       mockBulkEditWithFallback.mockResolvedValue({

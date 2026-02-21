@@ -1,15 +1,19 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import handler from '../clear-credential';
-import { mockAccount, mockDatabases, resetAllMocks } from '@/test/mocks/appwrite';
+import handler from '@/pages/api/attendees/[id]/clear-credential';
+import { mockAccount, mockTablesDB, mockAdminTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn((req: NextApiRequest) => ({
     account: mockAccount,
-    databases: mockDatabases,
+    tablesDB: mockTablesDB,
   })),
+  createAdminClient: vi.fn(() => ({
+    tablesDB: mockAdminTablesDB,
+})),
 }));
+
 
 describe('/api/attendees/[id]/clear-credential - Clear Credential API', () => {
   let mockReq: Partial<NextApiRequest>;
@@ -77,12 +81,13 @@ describe('/api/attendees/[id]/clear-credential - Clear Credential API', () => {
 
     // Default mock implementations
     mockAccount.get.mockResolvedValue(mockAuthUser);
-    mockDatabases.listDocuments.mockResolvedValue({
-      documents: [mockUserProfile],
+    mockTablesDB.listRows.mockResolvedValue({
+      rows: [mockUserProfile],
       total: 1,
     });
-    mockDatabases.getDocument.mockResolvedValue(mockAdminRole);
-    mockDatabases.createDocument.mockResolvedValue({
+    mockTablesDB.getRow.mockResolvedValue(mockAdminRole);
+    mockAdminTablesDB.getRow.mockResolvedValue(mockAdminRole);
+    mockTablesDB.createRow.mockResolvedValue({
       $id: 'new-log-123',
       userId: mockAuthUser.$id,
       action: 'clear_credential',
@@ -118,8 +123,8 @@ describe('/api/attendees/[id]/clear-credential - Clear Credential API', () => {
     });
 
     it('should return 403 if user profile is not found', async () => {
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [],
         total: 0,
       });
 
@@ -132,11 +137,11 @@ describe('/api/attendees/[id]/clear-credential - Clear Credential API', () => {
     it('should return 403 if user has no role', async () => {
       const userWithoutRole = { ...mockUserProfile, roleId: null };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [userWithoutRole],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [userWithoutRole],
         total: 1,
       });
-      mockDatabases.getDocument.mockResolvedValueOnce(null);
+      mockTablesDB.getRow.mockResolvedValueOnce(null);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -150,8 +155,8 @@ describe('/api/attendees/[id]/clear-credential - Clear Credential API', () => {
         permissions: JSON.stringify({ attendees: { update: false, print: false } }),
       };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(noPermRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(noPermRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -165,12 +170,12 @@ describe('/api/attendees/[id]/clear-credential - Clear Credential API', () => {
         permissions: JSON.stringify({ attendees: { update: true, print: false } }),
       };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow
         .mockResolvedValueOnce(updatePermRole)
         .mockResolvedValueOnce(mockAttendee);
 
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.updateRow.mockResolvedValue({
         ...mockAttendee,
         credentialUrl: null,
         credentialGeneratedAt: null,
@@ -187,12 +192,12 @@ describe('/api/attendees/[id]/clear-credential - Clear Credential API', () => {
         permissions: JSON.stringify({ attendees: { update: false, print: true } }),
       };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow
         .mockResolvedValueOnce(printPermRole)
         .mockResolvedValueOnce(mockAttendee);
 
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.updateRow.mockResolvedValue({
         ...mockAttendee,
         credentialUrl: null,
         credentialGeneratedAt: null,
@@ -208,8 +213,8 @@ describe('/api/attendees/[id]/clear-credential - Clear Credential API', () => {
     it('should return 400 if attendee ID is missing', async () => {
       mockReq.query = {};
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -220,8 +225,8 @@ describe('/api/attendees/[id]/clear-credential - Clear Credential API', () => {
     it('should return 400 if attendee ID is not a string', async () => {
       mockReq.query = { id: ['array', 'value'] };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -233,8 +238,8 @@ describe('/api/attendees/[id]/clear-credential - Clear Credential API', () => {
       const error = new Error('Not found');
       (error as any).code = 404;
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockRejectedValueOnce(error);
 
@@ -252,18 +257,18 @@ describe('/api/attendees/[id]/clear-credential - Clear Credential API', () => {
         credentialGeneratedAt: null,
       };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockAttendee);
 
-      mockDatabases.updateDocument.mockResolvedValue(clearedAttendee);
+      mockTablesDB.updateRow.mockResolvedValue(clearedAttendee);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.updateRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID,
         'attendee-123',
         {
           credentialUrl: null,
@@ -287,16 +292,16 @@ describe('/api/attendees/[id]/clear-credential - Clear Credential API', () => {
         credentialGeneratedAt: null,
       };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(attendeeWithoutCredential);
 
-      mockDatabases.updateDocument.mockResolvedValue(attendeeWithoutCredential);
+      mockTablesDB.updateRow.mockResolvedValue(attendeeWithoutCredential);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.updateDocument).toHaveBeenCalled();
+      expect(mockTablesDB.updateRow).toHaveBeenCalled();
       expect(statusMock).toHaveBeenCalledWith(200);
     });
 
@@ -307,18 +312,18 @@ describe('/api/attendees/[id]/clear-credential - Clear Credential API', () => {
         credentialGeneratedAt: null,
       };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockAttendee);
 
-      mockDatabases.updateDocument.mockResolvedValue(clearedAttendee);
+      mockTablesDB.updateRow.mockResolvedValue(clearedAttendee);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
         expect.any(String),
         expect.objectContaining({
           userId: mockAuthUser.$id,
@@ -336,16 +341,16 @@ describe('/api/attendees/[id]/clear-credential - Clear Credential API', () => {
         credentialGeneratedAt: null,
       };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockAttendee);
 
-      mockDatabases.updateDocument.mockResolvedValue(clearedAttendee);
+      mockTablesDB.updateRow.mockResolvedValue(clearedAttendee);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      const logCall = mockDatabases.createDocument.mock.calls.find(
+      const logCall = mockTablesDB.createRow.mock.calls.find(
         call => call[2] !== 'new-log-123'
       );
 
@@ -369,7 +374,7 @@ describe('/api/attendees/[id]/clear-credential - Clear Credential API', () => {
     it('should handle Appwrite 404 errors', async () => {
       const error = new Error('Not found');
       (error as any).code = 404;
-      mockDatabases.listDocuments.mockRejectedValue(error);
+      mockTablesDB.listRows.mockRejectedValue(error);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -377,7 +382,7 @@ describe('/api/attendees/[id]/clear-credential - Clear Credential API', () => {
     });
 
     it('should handle generic errors', async () => {
-      mockDatabases.listDocuments.mockRejectedValue(new Error('Database error'));
+      mockTablesDB.listRows.mockRejectedValue(new Error('Database error'));
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -386,12 +391,12 @@ describe('/api/attendees/[id]/clear-credential - Clear Credential API', () => {
     });
 
     it('should handle update document errors', async () => {
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockAttendee);
 
-      mockDatabases.updateDocument.mockRejectedValue(new Error('Update failed'));
+      mockTablesDB.updateRow.mockRejectedValue(new Error('Update failed'));
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 

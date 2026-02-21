@@ -9,19 +9,19 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import handler from '../index';
-import { mockAccount, mockDatabases, mockTablesDB, resetAllMocks } from '../../../../test/mocks/appwrite';
+import handler from '@/pages/api/event-settings/index';
+import { mockAccount, mockTablesDB, mockAdminTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 import { ID } from 'appwrite';
 
 // Mock dependencies
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn(() => ({
-    databases: mockDatabases,
     tablesDB: mockTablesDB,
+
     account: mockAccount
   })),
   createAdminClient: vi.fn(() => ({
-    databases: mockDatabases,
+    tablesDB: mockAdminTablesDB,
     account: mockAccount
   }))
 }));
@@ -96,13 +96,13 @@ describe('Event Settings Update with Transactions - Integration Tests', () => {
     process.env.TRANSACTIONS_ENDPOINTS = 'event-settings';
     process.env.APPWRITE_PLAN = 'PRO';
     process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID = 'test_db';
-    process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID = 'event_settings';
-    process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID = 'custom_fields';
-    process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID = 'logs';
-    process.env.NEXT_PUBLIC_APPWRITE_SWITCHBOARD_COLLECTION_ID = 'switchboard';
-    process.env.NEXT_PUBLIC_APPWRITE_CLOUDINARY_COLLECTION_ID = 'cloudinary';
-    process.env.NEXT_PUBLIC_APPWRITE_ONESIMPLEAPI_COLLECTION_ID = 'onesimpleapi';
-    process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID = 'users';
+    process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID = 'event_settings';
+    process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID = 'custom_fields';
+    process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID = 'logs';
+    process.env.NEXT_PUBLIC_APPWRITE_SWITCHBOARD_TABLE_ID = 'switchboard';
+    process.env.NEXT_PUBLIC_APPWRITE_CLOUDINARY_TABLE_ID = 'cloudinary';
+    process.env.NEXT_PUBLIC_APPWRITE_ONESIMPLEAPI_TABLE_ID = 'onesimpleapi';
+    process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID = 'users';
 
     // Set up default mock responses
     mockTablesDB.createTransaction.mockResolvedValue({ $id: 'tx_123' });
@@ -139,15 +139,20 @@ describe('Event Settings Update with Transactions - Integration Tests', () => {
       };
 
       // Mock database responses
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [currentSettings] }) // Get event settings
-        .mockResolvedValueOnce({ documents: [] }) // Get current custom fields
-        .mockResolvedValueOnce({ documents: [] }) // Get switchboard
-        .mockResolvedValueOnce({ documents: [] }) // Get cloudinary
-        .mockResolvedValueOnce({ documents: [] }) // Get onesimpleapi
-        .mockResolvedValueOnce({ documents: [newCustomField] }); // Get updated custom fields
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [currentSettings] }) // Get event settings
+        .mockResolvedValueOnce({ rows: [] }) // Get current custom fields
+        .mockResolvedValueOnce({ rows: [] }) // Get switchboard
+        .mockResolvedValueOnce({ rows: [] }) // Get cloudinary
+        .mockResolvedValueOnce({ rows: [] }) // Get onesimpleapi
+        .mockResolvedValueOnce({ rows: [newCustomField] }); // Get updated custom fields
 
-      mockDatabases.getDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue({
+        ...currentSettings,
+        eventName: 'New Event Name',
+        eventLocation: 'New Location'
+      });
+    mockAdminTablesDB.getRow.mockResolvedValue({
         ...currentSettings,
         eventName: 'New Event Name',
         eventLocation: 'New Location'
@@ -222,15 +227,19 @@ describe('Event Settings Update with Transactions - Integration Tests', () => {
         showOnMainPage: true
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [currentSettings] })
-        .mockResolvedValueOnce({ documents: [existingField] })
-        .mockResolvedValueOnce({ documents: [] })
-        .mockResolvedValueOnce({ documents: [] })
-        .mockResolvedValueOnce({ documents: [] })
-        .mockResolvedValueOnce({ documents: [{ ...existingField, ...modifiedField }] });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [currentSettings] })
+        .mockResolvedValueOnce({ rows: [existingField] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [{ ...existingField, ...modifiedField }] });
 
-      mockDatabases.getDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue({
+        ...currentSettings,
+        eventName: 'Updated Event'
+      });
+    mockAdminTablesDB.getRow.mockResolvedValue({
         ...currentSettings,
         eventName: 'Updated Event'
       });
@@ -274,15 +283,19 @@ describe('Event Settings Update with Transactions - Integration Tests', () => {
         timeZone: 'UTC'
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [currentSettings] })
-        .mockResolvedValueOnce({ documents: [] })
-        .mockResolvedValueOnce({ documents: [{ $id: 'sw_1', enabled: false }] })
-        .mockResolvedValueOnce({ documents: [] })
-        .mockResolvedValueOnce({ documents: [] })
-        .mockResolvedValueOnce({ documents: [] });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [currentSettings] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [{ $id: 'sw_1', enabled: false }] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] });
 
-      mockDatabases.getDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue({
+        ...currentSettings,
+        eventName: 'Updated Event'
+      });
+    mockAdminTablesDB.getRow.mockResolvedValue({
         ...currentSettings,
         eventName: 'Updated Event'
       });
@@ -313,7 +326,7 @@ describe('Event Settings Update with Transactions - Integration Tests', () => {
       // Verify integration update was called
       const { updateSwitchboardIntegration } = await import('@/lib/appwrite-integrations');
       expect(updateSwitchboardIntegration).toHaveBeenCalledWith(
-        mockDatabases,
+        mockTablesDB,
         'settings_123',
         expect.objectContaining({
           enabled: true,
@@ -346,9 +359,9 @@ describe('Event Settings Update with Transactions - Integration Tests', () => {
         showOnMainPage: true
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [currentSettings] })
-        .mockResolvedValueOnce({ documents: [existingField] });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [currentSettings] })
+        .mockResolvedValueOnce({ rows: [existingField] });
 
       // Simulate transaction failure
       mockTablesDB.updateTransaction.mockRejectedValueOnce(new Error('Transaction failed'));
@@ -403,15 +416,20 @@ describe('Event Settings Update with Transactions - Integration Tests', () => {
         showOnMainPage: true
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [currentSettings] })
-        .mockResolvedValueOnce({ documents: [existingField] })
-        .mockResolvedValueOnce({ documents: [] })
-        .mockResolvedValueOnce({ documents: [] })
-        .mockResolvedValueOnce({ documents: [] })
-        .mockResolvedValueOnce({ documents: [] });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [currentSettings] })
+        .mockResolvedValueOnce({ rows: [existingField] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] });
 
-      mockDatabases.getDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue({
+        ...currentSettings,
+        switchboardRequestBody: '{"department": ""}',
+        oneSimpleApiFormDataValue: 'Department: '
+      });
+    mockAdminTablesDB.getRow.mockResolvedValue({
         ...currentSettings,
         switchboardRequestBody: '{"department": ""}',
         oneSimpleApiFormDataValue: 'Department: '
@@ -453,14 +471,18 @@ describe('Event Settings Update with Transactions - Integration Tests', () => {
         timeZone: 'UTC'
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [currentSettings] })
-        .mockResolvedValueOnce({ documents: [] })
-        .mockResolvedValueOnce({ documents: [] })
-        .mockResolvedValueOnce({ documents: [] })
-        .mockResolvedValueOnce({ documents: [] });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [currentSettings] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] });
 
-      mockDatabases.getDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue({
+        ...currentSettings,
+        eventName: 'Updated Event'
+      });
+    mockAdminTablesDB.getRow.mockResolvedValue({
         ...currentSettings,
         eventName: 'Updated Event'
       });

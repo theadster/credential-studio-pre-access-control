@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { Databases } from 'node-appwrite';
+import { TablesDB } from 'node-appwrite';
 import {
   FIELD_GROUPS,
   getFieldGroup,
@@ -19,11 +19,11 @@ import {
   updateFields,
   updateFieldGroup,
 } from '../../lib/fieldUpdate';
-import { mockDatabases, resetAllMocks } from '../../test/mocks/appwrite';
+import { mockTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 
 describe('FieldUpdateService', () => {
   const testDatabaseId = 'test-database';
-  const testCollectionId = 'test-collection';
+  const testTableId = 'test-table';
   const testAttendeeId = 'attendee-123';
 
   beforeEach(() => {
@@ -208,8 +208,8 @@ describe('FieldUpdateService', () => {
         version: 1,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(mockAttendee);
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue(mockAttendee);
+      mockTablesDB.updateRow.mockResolvedValue({
         ...mockAttendee,
         credentialUrl: 'https://example.com/credential.pdf',
         credentialGeneratedAt: '2024-01-01T00:00:00.000Z',
@@ -219,9 +219,9 @@ describe('FieldUpdateService', () => {
       });
 
       const result = await updateCredentialFields(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testAttendeeId,
         {
           credentialUrl: 'https://example.com/credential.pdf',
@@ -231,7 +231,7 @@ describe('FieldUpdateService', () => {
       expect(result.success).toBe(true);
       
       // Verify only credential fields were in the update
-      const updateCall = mockDatabases.updateDocument.mock.calls[0];
+      const updateCall = mockTablesDB.updateRow.mock.calls[0];
       const updateData = updateCall[3];
       
       expect(updateData).toHaveProperty('credentialUrl');
@@ -260,8 +260,8 @@ describe('FieldUpdateService', () => {
         version: 1,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(mockAttendee);
-      mockDatabases.updateDocument.mockImplementation((dbId, collId, docId, data) => {
+      mockTablesDB.getRow.mockResolvedValue(mockAttendee);
+      mockTablesDB.updateRow.mockImplementation((dbId, collId, docId, data) => {
         // Simulate Appwrite behavior - only update provided fields
         return Promise.resolve({
           ...mockAttendee,
@@ -270,9 +270,9 @@ describe('FieldUpdateService', () => {
       });
 
       await updateCredentialFields(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testAttendeeId,
         {
           credentialUrl: 'https://example.com/credential.pdf',
@@ -280,7 +280,7 @@ describe('FieldUpdateService', () => {
       );
 
       // Verify photo fields were NOT included in update
-      const updateCall = mockDatabases.updateDocument.mock.calls[0];
+      const updateCall = mockTablesDB.updateRow.mock.calls[0];
       const updateData = updateCall[3];
       
       expect(updateData).not.toHaveProperty('photoUrl');
@@ -296,24 +296,24 @@ describe('FieldUpdateService', () => {
         version: 1,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(mockAttendee);
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue(mockAttendee);
+      mockTablesDB.updateRow.mockResolvedValue({
         ...mockAttendee,
         credentialCount: 4,
         version: 2,
       });
 
       await updateCredentialFields(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testAttendeeId,
         {
           credentialUrl: 'https://example.com/new-credential.pdf',
         }
       );
 
-      const updateCall = mockDatabases.updateDocument.mock.calls[0];
+      const updateCall = mockTablesDB.updateRow.mock.calls[0];
       const updateData = updateCall[3];
       
       expect(updateData.credentialCount).toBe(4); // 3 + 1
@@ -337,8 +337,8 @@ describe('FieldUpdateService', () => {
         version: 1,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(mockAttendee);
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue(mockAttendee);
+      mockTablesDB.updateRow.mockResolvedValue({
         ...mockAttendee,
         photoUrl: 'https://example.com/photo.jpg',
         photoUploadCount: 1,
@@ -347,9 +347,9 @@ describe('FieldUpdateService', () => {
       });
 
       const result = await updatePhotoFields(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testAttendeeId,
         {
           photoUrl: 'https://example.com/photo.jpg',
@@ -359,7 +359,7 @@ describe('FieldUpdateService', () => {
       expect(result.success).toBe(true);
       
       // Verify only photo fields were in the update
-      const updateCall = mockDatabases.updateDocument.mock.calls[0];
+      const updateCall = mockTablesDB.updateRow.mock.calls[0];
       const updateData = updateCall[3];
       
       expect(updateData).toHaveProperty('photoUrl');
@@ -387,8 +387,8 @@ describe('FieldUpdateService', () => {
         version: 1,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(mockAttendee);
-      mockDatabases.updateDocument.mockImplementation((dbId, collId, docId, data) => {
+      mockTablesDB.getRow.mockResolvedValue(mockAttendee);
+      mockTablesDB.updateRow.mockImplementation((dbId, collId, docId, data) => {
         return Promise.resolve({
           ...mockAttendee,
           ...data,
@@ -396,9 +396,9 @@ describe('FieldUpdateService', () => {
       });
 
       await updatePhotoFields(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testAttendeeId,
         {
           photoUrl: 'https://example.com/photo.jpg',
@@ -406,7 +406,7 @@ describe('FieldUpdateService', () => {
       );
 
       // Verify credential fields were NOT included in update
-      const updateCall = mockDatabases.updateDocument.mock.calls[0];
+      const updateCall = mockTablesDB.updateRow.mock.calls[0];
       const updateData = updateCall[3];
       
       expect(updateData).not.toHaveProperty('credentialUrl');
@@ -423,8 +423,8 @@ describe('FieldUpdateService', () => {
         version: 1,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(mockAttendee);
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue(mockAttendee);
+      mockTablesDB.updateRow.mockResolvedValue({
         ...mockAttendee,
         photoUrl: 'https://example.com/photo.jpg',
         photoUploadCount: 1,
@@ -432,16 +432,16 @@ describe('FieldUpdateService', () => {
       });
 
       await updatePhotoFields(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testAttendeeId,
         {
           photoUrl: 'https://example.com/photo.jpg',
         }
       );
 
-      const updateCall = mockDatabases.updateDocument.mock.calls[0];
+      const updateCall = mockTablesDB.updateRow.mock.calls[0];
       const updateData = updateCall[3];
       
       expect(updateData.photoUploadCount).toBe(1);
@@ -456,8 +456,8 @@ describe('FieldUpdateService', () => {
         version: 1,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(mockAttendee);
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue(mockAttendee);
+      mockTablesDB.updateRow.mockResolvedValue({
         ...mockAttendee,
         photoUrl: null,
         photoUploadCount: 1,
@@ -465,16 +465,16 @@ describe('FieldUpdateService', () => {
       });
 
       await updatePhotoFields(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testAttendeeId,
         {
           photoUrl: null,
         }
       );
 
-      const updateCall = mockDatabases.updateDocument.mock.calls[0];
+      const updateCall = mockTablesDB.updateRow.mock.calls[0];
       const updateData = updateCall[3];
       
       expect(updateData.photoUploadCount).toBe(1);
@@ -488,8 +488,8 @@ describe('FieldUpdateService', () => {
         version: 1,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(mockAttendee);
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue(mockAttendee);
+      mockTablesDB.updateRow.mockResolvedValue({
         ...mockAttendee,
         photoUrl: null,
         photoUploadCount: 0,
@@ -497,16 +497,16 @@ describe('FieldUpdateService', () => {
       });
 
       await updatePhotoFields(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testAttendeeId,
         {
           photoUrl: null,
         }
       );
 
-      const updateCall = mockDatabases.updateDocument.mock.calls[0];
+      const updateCall = mockTablesDB.updateRow.mock.calls[0];
       const updateData = updateCall[3];
       
       expect(updateData.photoUploadCount).toBe(0);
@@ -520,24 +520,24 @@ describe('FieldUpdateService', () => {
         version: 1,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(mockAttendee);
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue(mockAttendee);
+      mockTablesDB.updateRow.mockResolvedValue({
         ...mockAttendee,
         photoUrl: 'https://example.com/new-photo.jpg',
         version: 2,
       });
 
       await updatePhotoFields(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testAttendeeId,
         {
           photoUrl: 'https://example.com/new-photo.jpg',
         }
       );
 
-      const updateCall = mockDatabases.updateDocument.mock.calls[0];
+      const updateCall = mockTablesDB.updateRow.mock.calls[0];
       const updateData = updateCall[3];
       
       // Count should not be in update when replacing (had photo, still has photo)
@@ -561,22 +561,22 @@ describe('FieldUpdateService', () => {
         version: 1,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(mockAttendee);
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue(mockAttendee);
+      mockTablesDB.updateRow.mockResolvedValue({
         ...mockAttendee,
         credentialUrl: 'https://example.com/credential.pdf',
         version: 2,
       });
 
       await updateCredentialFields(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testAttendeeId,
         { credentialUrl: 'https://example.com/credential.pdf' }
       );
 
-      const updateData = mockDatabases.updateDocument.mock.calls[0][3];
+      const updateData = mockTablesDB.updateRow.mock.calls[0][3];
       
       // Verify NO photo fields are present
       for (const photoField of FIELD_GROUPS.photo) {
@@ -596,22 +596,22 @@ describe('FieldUpdateService', () => {
         version: 1,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(mockAttendee);
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue(mockAttendee);
+      mockTablesDB.updateRow.mockResolvedValue({
         ...mockAttendee,
         photoUrl: 'https://example.com/photo.jpg',
         version: 2,
       });
 
       await updatePhotoFields(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testAttendeeId,
         { photoUrl: 'https://example.com/photo.jpg' }
       );
 
-      const updateData = mockDatabases.updateDocument.mock.calls[0][3];
+      const updateData = mockTablesDB.updateRow.mock.calls[0][3];
       
       // Verify NO credential fields are present
       for (const credentialField of FIELD_GROUPS.credential) {
@@ -634,23 +634,23 @@ describe('FieldUpdateService', () => {
         version: 1,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(mockDocument);
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue(mockDocument);
+      mockTablesDB.updateRow.mockResolvedValue({
         ...mockDocument,
         firstName: 'Jane',
         version: 2,
       });
 
       await updateFields(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testAttendeeId,
         { firstName: 'Jane', lastName: 'Smith', email: 'jane@example.com' },
         { fields: ['firstName'] }
       );
 
-      const updateData = mockDatabases.updateDocument.mock.calls[0][3];
+      const updateData = mockTablesDB.updateRow.mock.calls[0][3];
       
       expect(updateData).toHaveProperty('firstName', 'Jane');
       expect(updateData).not.toHaveProperty('lastName');
@@ -669,8 +669,8 @@ describe('FieldUpdateService', () => {
         version: 1,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(mockDocument);
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue(mockDocument);
+      mockTablesDB.updateRow.mockResolvedValue({
         ...mockDocument,
         firstName: 'Jane',
         lastName: 'Smith',
@@ -678,9 +678,9 @@ describe('FieldUpdateService', () => {
       });
 
       await updateFieldGroup(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testAttendeeId,
         'profile',
         {
@@ -691,7 +691,7 @@ describe('FieldUpdateService', () => {
         }
       );
 
-      const updateData = mockDatabases.updateDocument.mock.calls[0][3];
+      const updateData = mockTablesDB.updateRow.mock.calls[0][3];
       
       expect(updateData).toHaveProperty('firstName', 'Jane');
       expect(updateData).toHaveProperty('lastName', 'Smith');

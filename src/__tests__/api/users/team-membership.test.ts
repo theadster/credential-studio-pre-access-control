@@ -1,17 +1,17 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import handler from '../index';
-import { mockAccount, mockDatabases, mockUsers, mockTeams, resetAllMocks } from '@/test/mocks/appwrite';
+import handler from '@/pages/api/users/index';
+import { mockAccount, mockTablesDB, mockAdminTablesDB, mockUsers, mockTeams, resetAllMocks } from '@/test/mocks/appwrite';
 
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn((req: NextApiRequest) => ({
     account: mockAccount,
-    databases: mockDatabases,
+    tablesDB: mockTablesDB,
   })),
   createAdminClient: vi.fn(() => ({
     users: mockUsers,
-    databases: mockDatabases,
+    tablesDB: mockAdminTablesDB,
     teams: mockTeams,
   })),
 }));
@@ -31,6 +31,7 @@ vi.mock('@/lib/permissions', () => ({
 vi.mock('@/lib/logSettings', () => ({
   shouldLog: vi.fn(() => Promise.resolve(true)),
 }));
+
 
 describe('/api/users - Team Membership', () => {
   let mockReq: Partial<NextApiRequest>;
@@ -98,12 +99,13 @@ describe('/api/users - Team Membership', () => {
 
     // Default mock implementations
     mockAccount.get.mockResolvedValue(mockAuthUser);
-    mockDatabases.listDocuments.mockResolvedValue({
-      documents: [mockUserProfile],
+    mockTablesDB.listRows.mockResolvedValue({
+      rows: [mockUserProfile],
       total: 1,
     });
-    mockDatabases.getDocument.mockResolvedValue(mockAdminRole);
-    mockDatabases.createDocument.mockResolvedValue({
+    mockTablesDB.getRow.mockResolvedValue(mockAdminRole);
+    mockAdminTablesDB.getRow.mockResolvedValue(mockAdminRole);
+    mockTablesDB.createRow.mockResolvedValue({
       $id: 'new-log-123',
       userId: mockAuthUser.$id,
       action: 'create',
@@ -156,17 +158,17 @@ describe('/api/users - Team Membership', () => {
         confirm: true,
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockViewerRole);
 
       mockUsers.get.mockResolvedValue(existingAuthUser);
       mockTeams.createMembership.mockResolvedValue(mockMembership);
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce(newUserDoc)
         .mockResolvedValueOnce({ $id: 'log-123' });
 
@@ -221,17 +223,17 @@ describe('/api/users - Team Membership', () => {
         $updatedAt: '2024-01-05T00:00:00.000Z',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockAdminRole);
 
       mockUsers.get.mockResolvedValue(existingAuthUser);
       mockTeams.createMembership.mockResolvedValue({ $id: 'membership-123' });
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce(newUserDoc)
         .mockResolvedValueOnce({ $id: 'log-123' });
 
@@ -272,17 +274,17 @@ describe('/api/users - Team Membership', () => {
         $updatedAt: '2024-01-05T00:00:00.000Z',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockViewerRole);
 
       mockUsers.get.mockResolvedValue(existingAuthUser);
       mockTeams.createMembership.mockResolvedValue({ $id: 'membership-123' });
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce(newUserDoc)
         .mockResolvedValueOnce({ $id: 'log-123' });
 
@@ -322,17 +324,17 @@ describe('/api/users - Team Membership', () => {
         $updatedAt: '2024-01-05T00:00:00.000Z',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockViewerRole);
 
       mockUsers.get.mockResolvedValue(existingAuthUser);
       mockTeams.createMembership.mockRejectedValue(new Error('Team membership failed'));
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce(newUserDoc)
         .mockResolvedValueOnce({ $id: 'log-123' });
 
@@ -378,16 +380,16 @@ describe('/api/users - Team Membership', () => {
         $updatedAt: '2024-01-05T00:00:00.000Z',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockViewerRole);
 
       mockUsers.get.mockResolvedValue(existingAuthUser);
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce(newUserDoc)
         .mockResolvedValueOnce({ $id: 'log-123' });
 
@@ -429,16 +431,16 @@ describe('/api/users - Team Membership', () => {
         $updatedAt: '2024-01-05T00:00:00.000Z',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockViewerRole);
 
       mockUsers.get.mockResolvedValue(existingAuthUser);
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce(newUserDoc)
         .mockResolvedValueOnce({ $id: 'log-123' });
 
@@ -474,16 +476,16 @@ describe('/api/users - Team Membership', () => {
         $updatedAt: '2024-01-05T00:00:00.000Z',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockViewerRole);
 
       mockUsers.get.mockResolvedValue(existingAuthUser);
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce(newUserDoc)
         .mockResolvedValueOnce({ $id: 'log-123' });
 
@@ -538,15 +540,15 @@ describe('/api/users - Team Membership', () => {
         total: 1,
       };
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(userToDelete);
 
       mockTeams.listMemberships.mockResolvedValue(mockMemberships);
       mockTeams.deleteMembership.mockResolvedValue({});
       mockUsers.delete.mockResolvedValue({ success: true });
-      mockDatabases.deleteDocument.mockResolvedValue({ success: true });
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'log-123' });
+      mockTablesDB.deleteRow.mockResolvedValue({ success: true });
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'log-123' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -583,19 +585,19 @@ describe('/api/users - Team Membership', () => {
         $updatedAt: '2024-01-01T00:00:00.000Z',
       };
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(userToDelete);
 
       mockTeams.listMemberships.mockRejectedValue(new Error('Team not found'));
       mockUsers.delete.mockResolvedValue({ success: true });
-      mockDatabases.deleteDocument.mockResolvedValue({ success: true });
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'log-123' });
+      mockTablesDB.deleteRow.mockResolvedValue({ success: true });
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'log-123' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       // Should still delete user
-      expect(mockDatabases.deleteDocument).toHaveBeenCalled();
+      expect(mockTablesDB.deleteRow).toHaveBeenCalled();
       expect(statusMock).toHaveBeenCalledWith(200);
       expect(jsonMock).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -618,13 +620,13 @@ describe('/api/users - Team Membership', () => {
         $updatedAt: '2024-01-01T00:00:00.000Z',
       };
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(userToDelete);
 
       mockUsers.delete.mockResolvedValue({ success: true });
-      mockDatabases.deleteDocument.mockResolvedValue({ success: true });
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'log-123' });
+      mockTablesDB.deleteRow.mockResolvedValue({ success: true });
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'log-123' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 

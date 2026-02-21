@@ -8,7 +8,7 @@
  * @module conflictLogging
  */
 
-import { Databases, ID } from 'node-appwrite';
+import { TablesDB, ID } from 'node-appwrite';
 import { logger } from './logger';
 import { 
   ConflictInfo, 
@@ -101,12 +101,12 @@ export interface ConflictLogDetails {
  * Options for logging conflicts to the database
  */
 export interface ConflictLogOptions {
-  /** Appwrite Databases instance */
-  databases: Databases;
+  /** Appwrite TablesDB instance */
+  tablesDB: TablesDB;
   /** Database ID */
   databaseId: string;
   /** Logs collection ID */
-  logsCollectionId: string;
+  logsTableId: string;
   /** User ID (optional) */
   userId?: string;
   /** Session ID for tracking (will be anonymized) */
@@ -207,9 +207,9 @@ function inferFailureReason(resolutionStrategy: ResolutionStrategyType): Conflic
  *   false,
  *   3,
  *   {
- *     databases,
+ *     tablesDB,
  *     databaseId: dbId,
- *     logsCollectionId,
+ *     logsTableId,
  *     userId: user.$id,
  *   },
  *   ConflictFailureReason.MAX_RETRIES_EXCEEDED
@@ -225,16 +225,16 @@ export async function logConflictToDatabase(
   failureReason?: ConflictFailureReason,
 ): Promise<void> {
   // Validate required options early to prevent runtime errors
-  if (!options?.databases || !options?.databaseId || !options?.logsCollectionId) {
+  if (!options?.tablesDB || !options?.databaseId || !options?.logsTableId) {
     logger.warn('[ConflictLogging] Skipping database log - missing required options', {
-      hasDatabases: !!options?.databases,
+      hasTablesDB: !!options?.tablesDB,
       hasDatabaseId: !!options?.databaseId,
-      hasLogsCollectionId: !!options?.logsCollectionId,
+      hasLogsTableId: !!options?.logsTableId,
     });
     return;
   }
 
-  const { databases, databaseId, logsCollectionId, userId, sessionId, context } = options;
+  const { tablesDB, databaseId, logsTableId, userId, sessionId, context } = options;
 
   // Validate documentId to prevent invalid attendeeId in logs
   const attendeeId = conflict.documentId && typeof conflict.documentId === 'string' && conflict.documentId.trim()
@@ -277,9 +277,9 @@ export async function logConflictToDatabase(
   );
 
   try {
-    await databases.createDocument(
+    await tablesDB.createRow(
       databaseId,
-      logsCollectionId,
+      logsTableId,
       ID.unique(),
       {
         userId: userId || 'system',
@@ -311,16 +311,16 @@ export async function logConflictDetected(
   options: ConflictLogOptions,
 ): Promise<void> {
   // Validate required options early to prevent runtime errors
-  if (!options?.databases || !options?.databaseId || !options?.logsCollectionId) {
+  if (!options?.tablesDB || !options?.databaseId || !options?.logsTableId) {
     logger.warn('[ConflictLogging] Skipping conflict detection log - missing required options', {
-      hasDatabases: !!options?.databases,
+      hasTablesDB: !!options?.tablesDB,
       hasDatabaseId: !!options?.databaseId,
-      hasLogsCollectionId: !!options?.logsCollectionId,
+      hasLogsTableId: !!options?.logsTableId,
     });
     return;
   }
 
-  const { databases, databaseId, logsCollectionId, userId, sessionId, context } = options;
+  const { tablesDB, databaseId, logsTableId, userId, sessionId, context } = options;
 
   // Validate documentId to prevent invalid attendeeId in logs
   const attendeeId = conflict.documentId && typeof conflict.documentId === 'string' && conflict.documentId.trim()
@@ -342,9 +342,9 @@ export async function logConflictDetected(
   };
 
   try {
-    await databases.createDocument(
+    await tablesDB.createRow(
       databaseId,
-      logsCollectionId,
+      logsTableId,
       ID.unique(),
       {
         userId: userId || 'system',

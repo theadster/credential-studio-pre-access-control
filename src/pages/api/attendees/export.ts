@@ -30,15 +30,15 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
   try {
     // User and userProfile are already attached by middleware
     const { user, userProfile } = req;
-    const { databases } = createSessionClient(req);
+    const { tablesDB } = createSessionClient(req);
 
     // Validate required environment variables
     const requiredEnvVars = [
       'NEXT_PUBLIC_APPWRITE_DATABASE_ID',
-      'NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID',
-      'NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID',
-      'NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID',
-      'NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID'
+      'NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID',
+      'NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID',
+      'NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID',
+      'NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID'
     ];
 
     for (const envVar of requiredEnvVars) {
@@ -49,10 +49,10 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     }
 
     const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-    const attendeesCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID!;
-    const logsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!;
-    const customFieldsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID!;
-    const eventSettingsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID!;
+    const attendeesTableId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID!;
+    const logsTableId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!;
+    const customFieldsTableId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID!;
+    const eventSettingsTableId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID!;
 
     // Check export permission
     const permissions = userProfile.role ? userProfile.role.permissions : {};
@@ -130,15 +130,15 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         Query.offset(offset)
       ];
 
-      const attendeesResult = await databases.listDocuments(
+      const attendeesResult = await tablesDB.listRows(
         dbId,
-        attendeesCollectionId,
+        attendeesTableId,
         paginatedQueries
       );
 
-      attendees = attendees.concat(attendeesResult.documents);
+      attendees = attendees.concat(attendeesResult.rows);
       offset += limit;
-      hasMore = attendeesResult.documents.length === limit;
+      hasMore = attendeesResult.rows.length === limit;
     }
 
 
@@ -189,8 +189,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     }
 
     // Get event settings and custom fields
-    const eventSettingsDocs = await databases.listDocuments(dbId, eventSettingsCollectionId);
-    const eventSettings = eventSettingsDocs.documents[0];
+    const eventSettingsDocs = await tablesDB.listRows(dbId, eventSettingsTableId);
+    const eventSettings = eventSettingsDocs.rows[0];
 
     /**
      * ACCESS CONTROL DATA FETCHING
@@ -201,10 +201,10 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
      * Note: validFrom and validUntil are stored as strings to preserve exact values
      * without Appwrite's automatic timezone conversion
      */
-    const accessControlCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ACCESS_CONTROL_COLLECTION_ID;
+    const accessControlTableId = process.env.NEXT_PUBLIC_APPWRITE_ACCESS_CONTROL_TABLE_ID;
     const accessControlMap = new Map<string, { accessEnabled: boolean; validFrom: string | null; validUntil: string | null }>();
     
-    if (accessControlCollectionId && eventSettings?.accessControlEnabled && attendees.length > 0) {
+    if (accessControlTableId && eventSettings?.accessControlEnabled && attendees.length > 0) {
       try {
         const attendeeIds = attendees.map((doc: any) => doc.$id);
         
@@ -214,14 +214,14 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         for (let i = 0; i < attendeeIds.length; i += chunkSize) {
           const chunk = attendeeIds.slice(i, i + chunkSize);
           try {
-            const accessControlResult = await databases.listDocuments(
+            const accessControlResult = await tablesDB.listRows(
               dbId,
-              accessControlCollectionId,
+              accessControlTableId,
               [Query.equal('attendeeId', chunk), Query.limit(chunkSize)]
             );
             
             // Map access control records by attendeeId
-            accessControlResult.documents.forEach((ac: any) => {
+            accessControlResult.rows.forEach((ac: any) => {
               accessControlMap.set(ac.attendeeId, {
                 accessEnabled: ac.accessEnabled ?? true,
                 validFrom: ac.validFrom || null,
@@ -254,12 +254,12 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       };
     });
 
-    const customFieldsDocs = await databases.listDocuments(
+    const customFieldsDocs = await tablesDB.listRows(
       dbId,
-      customFieldsCollectionId,
+      customFieldsTableId,
       [Query.limit(100)]
     );
-    const customFieldsData = customFieldsDocs.documents;
+    const customFieldsData = customFieldsDocs.rows;
 
     // Helper function to format dates based on user preferences
     const formatDate = (dateStr: string | null | undefined, includeTime: boolean = false): string => {
@@ -538,9 +538,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     // Log the export activity if enabled
     if (await shouldLog('attendeeExport')) {
       const { createExportLogDetails } = await import('@/lib/logFormatting');
-      await databases.createDocument(
+      await tablesDB.createRow(
         dbId,
-        logsCollectionId,
+        logsTableId,
         ID.unique(),
         {
           action: 'export',

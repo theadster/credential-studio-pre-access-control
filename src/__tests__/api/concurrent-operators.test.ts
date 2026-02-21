@@ -33,7 +33,7 @@ vi.mock('appwrite', () => ({
     setProject: vi.fn(function() { return this; },),
   })),
   Account: vi.fn(),
-  Databases: vi.fn(),
+  TablesDB: vi.fn(),
   Storage: vi.fn(),
   Functions: vi.fn(),
   ID: {
@@ -60,11 +60,11 @@ vi.mock('node-appwrite', () => ({
     setJWT: vi.fn(function() { return this; }),
   })),
   Account: vi.fn(),
-  Databases: vi.fn(() => ({
-    createDocument: vi.fn(),
-    updateDocument: vi.fn(),
-    getDocument: vi.fn(),
-    deleteDocument: vi.fn(),
+  TablesDB: vi.fn(() => ({
+    createRow: vi.fn(),
+    updateRow: vi.fn(),
+    getRow: vi.fn(),
+    deleteRow: vi.fn(),
   })),
   Storage: vi.fn(),
   Functions: vi.fn(),
@@ -204,7 +204,7 @@ const skipIntegration = !process.env.APPWRITE_INTEGRATION_TEST;
 describe.skipIf(skipIntegration)('Concurrent Operations Integration Tests (Real Database)', () => {
   let adminClient: ReturnType<typeof createAdminClient>;
   let databaseId: string;
-  let collectionId: string;
+  let tableId: string;
   const testDocuments: string[] = [];
 
   beforeEach(async () => {
@@ -215,7 +215,7 @@ describe.skipIf(skipIntegration)('Concurrent Operations Integration Tests (Real 
 
     adminClient = createAdminClient();
     databaseId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || '';
-    collectionId = process.env.NEXT_PUBLIC_APPWRITE_CONCURRENT_TEST_COLLECTION_ID || 'concurrent_test';
+    tableId = process.env.NEXT_PUBLIC_APPWRITE_CONCURRENT_TEST_TABLE_ID || 'concurrent_test';
 
     if (!databaseId) {
       throw new Error('NEXT_PUBLIC_APPWRITE_DATABASE_ID environment variable is required for integration tests');
@@ -230,7 +230,11 @@ describe.skipIf(skipIntegration)('Concurrent Operations Integration Tests (Real 
 
     for (const docId of testDocuments) {
       try {
-        await adminClient.databases.deleteDocument(databaseId, collectionId, docId);
+        await adminClient.tablesDB.deleteRow({
+          databaseId,
+          tableId,
+          rowId: docId
+        });
       } catch (error) {
         // Document may not exist, ignore
       }
@@ -246,9 +250,9 @@ describe.skipIf(skipIntegration)('Concurrent Operations Integration Tests (Real 
         testDocuments.push(docId);
 
         // Create test document with counter field
-        await adminClient.databases.createDocument(
+        await adminClient.tablesDB.createRow(
           databaseId,
-          collectionId,
+          tableId,
           docId,
           {
             counter: 0,
@@ -263,9 +267,9 @@ describe.skipIf(skipIntegration)('Concurrent Operations Integration Tests (Real 
           // Introduce small randomized delays to simulate concurrency
           await new Promise(resolve => setTimeout(resolve, Math.random() * 50));
           
-          return adminClient.databases.updateDocument(
+          return adminClient.tablesDB.updateRow(
             databaseId,
-            collectionId,
+            tableId,
             docId,
             {
               counter: createIncrement(1),
@@ -281,11 +285,19 @@ describe.skipIf(skipIntegration)('Concurrent Operations Integration Tests (Real 
 
         // Wait for eventual consistency and verify final counter value
         await waitForConsistency(async () => {
-          const doc = await adminClient.databases.getDocument(databaseId, collectionId, docId);
+          const doc = await adminClient.tablesDB.getRow({
+            databaseId,
+            tableId,
+            rowId: docId
+          });
           return doc.counter === 100;
         });
 
-        const finalDoc = await adminClient.databases.getDocument(databaseId, collectionId, docId);
+        const finalDoc = await adminClient.tablesDB.getRow({
+          databaseId,
+          tableId,
+          rowId: docId
+        });
         expect(finalDoc.counter).toBe(100);
 
         console.log(`✓ 100 concurrent increments completed in ${duration}ms`);
@@ -300,9 +312,9 @@ describe.skipIf(skipIntegration)('Concurrent Operations Integration Tests (Real 
         testDocuments.push(docId);
 
         // Create test document with array field
-        await adminClient.databases.createDocument(
+        await adminClient.tablesDB.createRow(
           databaseId,
-          collectionId,
+          tableId,
           docId,
           {
             items: [],
@@ -318,9 +330,9 @@ describe.skipIf(skipIntegration)('Concurrent Operations Integration Tests (Real 
           // Introduce small randomized delays to simulate concurrency
           await new Promise(resolve => setTimeout(resolve, Math.random() * 50));
           
-          return adminClient.databases.updateDocument(
+          return adminClient.tablesDB.updateRow(
             databaseId,
-            collectionId,
+            tableId,
             docId,
             {
               items: arrayOperators.append([value]),
@@ -336,11 +348,19 @@ describe.skipIf(skipIntegration)('Concurrent Operations Integration Tests (Real 
 
         // Wait for eventual consistency and verify all values are present
         await waitForConsistency(async () => {
-          const doc = await adminClient.databases.getDocument(databaseId, collectionId, docId);
+          const doc = await adminClient.tablesDB.getRow({
+            databaseId,
+            tableId,
+            rowId: docId
+          });
           return doc.items && doc.items.length === 50;
         });
 
-        const finalDoc = await adminClient.databases.getDocument(databaseId, collectionId, docId);
+        const finalDoc = await adminClient.tablesDB.getRow({
+          databaseId,
+          tableId,
+          rowId: docId
+        });
         
         // Verify array contains all 50 unique values
         expect(finalDoc.items).toHaveLength(50);
@@ -364,9 +384,9 @@ describe.skipIf(skipIntegration)('Concurrent Operations Integration Tests (Real 
         testDocuments.push(docId);
 
         // Create test document with both counter and array fields
-        await adminClient.databases.createDocument(
+        await adminClient.tablesDB.createRow(
           databaseId,
-          collectionId,
+          tableId,
           docId,
           {
             counter: 0,
@@ -380,9 +400,9 @@ describe.skipIf(skipIntegration)('Concurrent Operations Integration Tests (Real 
         // Execute 100 concurrent increments
         const incrementPromises = Array.from({ length: 100 }, async () => {
           await new Promise(resolve => setTimeout(resolve, Math.random() * 50));
-          return adminClient.databases.updateDocument(
+          return adminClient.tablesDB.updateRow(
             databaseId,
-            collectionId,
+            tableId,
             docId,
             {
               counter: createIncrement(1),
@@ -394,9 +414,9 @@ describe.skipIf(skipIntegration)('Concurrent Operations Integration Tests (Real 
         const arrayValues = Array.from({ length: 50 }, (_, i) => `item-${i}-${Date.now()}`);
         const arrayPromises = arrayValues.map(async (value) => {
           await new Promise(resolve => setTimeout(resolve, Math.random() * 50));
-          return adminClient.databases.updateDocument(
+          return adminClient.tablesDB.updateRow(
             databaseId,
-            collectionId,
+            tableId,
             docId,
             {
               items: arrayOperators.append([value]),
@@ -411,11 +431,19 @@ describe.skipIf(skipIntegration)('Concurrent Operations Integration Tests (Real 
 
         // Wait for eventual consistency
         await waitForConsistency(async () => {
-          const doc = await adminClient.databases.getDocument(databaseId, collectionId, docId);
+          const doc = await adminClient.tablesDB.getRow({
+            databaseId,
+            tableId,
+            rowId: docId
+          });
           return doc.counter === 100 && doc.items && doc.items.length === 50;
         });
 
-        const finalDoc = await adminClient.databases.getDocument(databaseId, collectionId, docId);
+        const finalDoc = await adminClient.tablesDB.getRow({
+          databaseId,
+          tableId,
+          rowId: docId
+        });
 
         // Verify both operations succeeded
         expect(finalDoc.counter).toBe(100);

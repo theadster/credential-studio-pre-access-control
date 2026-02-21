@@ -33,8 +33,27 @@ Added per-resource ownership verification to all approval profile endpoints:
 Each handler now includes an ownership check after fetching the profile:
 
 ```typescript
+// Fetch the profile
+const profile = await tablesDB.getRow({
+  databaseId: DATABASE_ID,
+  tableId: APPROVAL_PROFILES_TABLE_ID,
+  rowId: profileId,
+});
+
+// Verify profile exists
+if (!profile) {
+  return res.status(404).json({
+    success: false,
+    error: 'Profile not found',
+  });
+}
+
 // Verify user owns this profile (per-resource access control)
-if (profile.ownerId !== userProfile.id) {
+// Normalize IDs to strings for comparison (handle both string and number types)
+const profileOwnerId = String(profile.ownerId);
+const userId = String(userProfile.id);
+
+if (profileOwnerId !== userId) {
   return res.status(403).json({
     success: false,
     error: 'Insufficient permissions to access this profile',

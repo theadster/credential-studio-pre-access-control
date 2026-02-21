@@ -7,12 +7,20 @@ import * as apiErrorHandler from '../apiErrorHandler';
 // Mock dependencies
 vi.mock('../appwrite');
 vi.mock('../apiErrorHandler');
+vi.mock('../userProfileCache', () => ({
+  userProfileCache: {
+    get: vi.fn().mockReturnValue(null),
+    set: vi.fn(),
+    invalidate: vi.fn(),
+  },
+  CachedUserProfile: {},
+}));
 
 describe('apiMiddleware', () => {
   let mockReq: Partial<NextApiRequest>;
   let mockRes: Partial<NextApiResponse>;
   let mockAccount: any;
-  let mockDatabases: any;
+  let mockTablesDB: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -36,18 +44,22 @@ describe('apiMiddleware', () => {
       get: vi.fn()
     };
 
-    mockDatabases = {
-      listDocuments: vi.fn(),
-      getDocument: vi.fn()
+    mockTablesDB = {
+      listRows: vi.fn(),
+      getRow: vi.fn()
     };
 
     vi.mocked(appwrite.createSessionClient).mockReturnValue({
       client: {} as any,
       account: mockAccount,
-      databases: mockDatabases,
+      tablesDB: mockTablesDB,
       storage: {} as any,
       functions: {} as any
     });
+
+    vi.mocked(appwrite.createAdminClient).mockReturnValue({
+      tablesDB: mockTablesDB,
+    } as any);
   });
 
   describe('withAuth', () => {
@@ -71,8 +83,8 @@ describe('apiMiddleware', () => {
       };
 
       mockAccount.get.mockResolvedValue(mockUser);
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockUserProfile]
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockUserProfile]
       });
 
       // Create handler that checks authenticated request
@@ -87,7 +99,7 @@ describe('apiMiddleware', () => {
       await wrappedHandler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       expect(mockAccount.get).toHaveBeenCalled();
-      expect(mockDatabases.listDocuments).toHaveBeenCalled();
+      expect(mockTablesDB.listRows).toHaveBeenCalled();
       expect(handler).toHaveBeenCalled();
     });
 
@@ -117,10 +129,10 @@ describe('apiMiddleware', () => {
       };
 
       mockAccount.get.mockResolvedValue(mockUser);
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockUserProfile]
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockUserProfile]
       });
-      mockDatabases.getDocument.mockResolvedValue(mockRole);
+      mockTablesDB.getRow.mockResolvedValue(mockRole);
 
       const handler = vi.fn(async (req: AuthenticatedRequest, res: NextApiResponse) => {
         expect(req.userProfile.role).toBeDefined();
@@ -132,9 +144,9 @@ describe('apiMiddleware', () => {
       const wrappedHandler = withAuth(handler);
       await wrappedHandler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.getDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.getRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID,
         'role123'
       );
     });
@@ -165,10 +177,10 @@ describe('apiMiddleware', () => {
       };
 
       mockAccount.get.mockResolvedValue(mockUser);
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockUserProfile]
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockUserProfile]
       });
-      mockDatabases.getDocument.mockResolvedValue(mockRole);
+      mockTablesDB.getRow.mockResolvedValue(mockRole);
 
       const handler = vi.fn(async (req: AuthenticatedRequest, res: NextApiResponse) => {
         expect(req.userProfile.role?.permissions).toEqual({
@@ -217,8 +229,8 @@ describe('apiMiddleware', () => {
       };
 
       mockAccount.get.mockResolvedValue(mockUser);
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: []
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: []
       });
 
       const handler = vi.fn();
@@ -255,10 +267,10 @@ describe('apiMiddleware', () => {
       };
 
       mockAccount.get.mockResolvedValue(mockUser);
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockUserProfile]
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockUserProfile]
       });
-      mockDatabases.getDocument.mockRejectedValue(new Error('Role not found'));
+      mockTablesDB.getRow.mockRejectedValue(new Error('Role not found'));
 
       const handler = vi.fn(async (req: AuthenticatedRequest, res: NextApiResponse) => {
         expect(req.userProfile.role).toBeNull();
@@ -409,10 +421,10 @@ describe('apiMiddleware', () => {
       };
 
       mockAccount.get.mockResolvedValue(mockUser);
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockUserProfile]
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockUserProfile]
       });
-      mockDatabases.getDocument.mockResolvedValue(mockRole);
+      mockTablesDB.getRow.mockResolvedValue(mockRole);
 
       const handler = vi.fn(async (req: AuthenticatedRequest, res: NextApiResponse) => {
         res.status(200).json({ success: true });
@@ -450,10 +462,10 @@ describe('apiMiddleware', () => {
       };
 
       mockAccount.get.mockResolvedValue(mockUser);
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockUserProfile]
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockUserProfile]
       });
-      mockDatabases.getDocument.mockResolvedValue(mockRole);
+      mockTablesDB.getRow.mockResolvedValue(mockRole);
 
       const handler = vi.fn();
       const wrappedHandler = withPermission('canManageUsers', handler);
@@ -489,8 +501,8 @@ describe('apiMiddleware', () => {
       };
 
       mockAccount.get.mockResolvedValue(mockUser);
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockUserProfile]
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockUserProfile]
       });
 
       const handler = vi.fn();

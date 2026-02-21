@@ -55,7 +55,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [user, setUser] = useState<Models.User<Models.Preferences> | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [initializing, setInitializing] = useState(true);
-  const { account, databases } = createBrowserClient();
+  const { account, tablesDB } = createBrowserClient();
   const { toast, alert: showAlert } = useSweetAlert();
 
   // Initialize TokenRefreshManager and TabCoordinator
@@ -195,23 +195,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.log('[AuthContext] Fetching user profile', {
         userId,
         databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        collectionId: process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID,
+        tableId: process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID,
       });
 
-      const response = await databases.listDocuments(
+      const response = await tablesDB.listRows(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+        process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID!,
         [Query.equal('userId', userId)]
       );
 
       console.log('[AuthContext] User profile query result', {
         userId,
-        documentsFound: response.documents.length,
-        totalDocuments: response.total,
+        rowsFound: response.rows.length,
+        totalRows: response.total,
       });
 
-      if (response.documents.length > 0) {
-        const profile = response.documents[0] as unknown as UserProfile;
+      if (response.rows.length > 0) {
+        const profile = response.rows[0] as unknown as UserProfile;
         console.log('[AuthContext] User profile data', {
           profileId: profile.$id,
           userId: profile.userId,
@@ -535,9 +535,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         });
 
         // Create user profile in database
-        await databases.createDocument(
+        await tablesDB.createRow(
           process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+          process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID!,
           ID.unique(),
           {
             userId,

@@ -1,18 +1,24 @@
 import { describe, it, expect, beforeEach, vi, beforeAll } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { mockDatabases, resetAllMocks } from '@/test/mocks/appwrite';
+import { mockTablesDB, mockAdminTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 import { RuleGroup } from '@/types/approvalProfile';
 
 // Set environment variables before importing handler
 beforeAll(() => {
   process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID = 'test-database-id';
-  process.env.NEXT_PUBLIC_APPWRITE_APPROVAL_PROFILES_COLLECTION_ID = 'test-approval-profiles-collection';
+  process.env.NEXT_PUBLIC_APPWRITE_APPROVAL_PROFILES_TABLE_ID = 'test-approval-profiles-table';
 });
 
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
-  databases: mockDatabases,
+  createSessionClient: vi.fn(() => ({
+    tablesDB: mockTablesDB,
+  })),
+  createAdminClient: vi.fn(() => ({
+    tablesDB: mockAdminTablesDB,
+  })),
 }));
+
 
 // Import handler after mocks are set up
 import handler from '@/pages/api/approval-profiles/index';
@@ -64,8 +70,8 @@ describe('/api/approval-profiles', () => {
         },
       ];
 
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: mockProfiles,
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: mockProfiles,
         total: 2,
       } as any);
 
@@ -83,7 +89,7 @@ describe('/api/approval-profiles', () => {
     });
 
     it('should handle errors when listing profiles', async () => {
-      mockDatabases.listDocuments.mockRejectedValue(
+      mockTablesDB.listRows.mockRejectedValue(
         new Error('Database error')
       );
 
@@ -134,12 +140,12 @@ describe('/api/approval-profiles', () => {
       };
 
       // Mock no existing profiles with same name
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [],
         total: 0,
       } as any);
 
-      mockDatabases.createDocument.mockResolvedValue(mockProfile as any);
+      mockTablesDB.createRow.mockResolvedValue(mockProfile as any);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -174,8 +180,8 @@ describe('/api/approval-profiles', () => {
       };
 
       // Mock existing profile with same name
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [
           {
             $id: 'existing',
             name: 'Duplicate Name',

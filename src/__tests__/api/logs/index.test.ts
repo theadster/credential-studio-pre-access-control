@@ -1,20 +1,24 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import handler from '../index';
-import { mockAccount, mockDatabases, resetAllMocks } from '@/test/mocks/appwrite';
+import handler from '@/pages/api/logs/index';
+import { mockAccount, mockTablesDB, mockAdminTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn((req: NextApiRequest) => ({
     account: mockAccount,
-    databases: mockDatabases,
+    tablesDB: mockTablesDB,
   })),
+  createAdminClient: vi.fn(() => ({
+    tablesDB: mockAdminTablesDB,
+})),
 }));
 
 // Mock logSettings
 vi.mock('@/lib/logSettings', () => ({
   shouldLog: vi.fn().mockResolvedValue(true),
 }));
+
 
 describe('/api/logs - Logs Management API', () => {
   let mockReq: Partial<NextApiRequest>;
@@ -79,8 +83,9 @@ describe('/api/logs - Logs Management API', () => {
 
     // Default mock implementations
     mockAccount.get.mockResolvedValue(mockAuthUser);
-    // Note: listDocuments is not mocked by default - each test sets it up
-    mockDatabases.getDocument.mockResolvedValue(mockAdminRole);
+    // Note: listRows is not mocked by default - each test sets it up
+    mockTablesDB.getRow.mockResolvedValue(mockAdminRole);
+    mockAdminTablesDB.getRow.mockResolvedValue(mockAdminRole);
   });
 
   describe('Authentication', () => {
@@ -141,13 +146,13 @@ describe('/api/logs - Logs Management API', () => {
       // Second call: Logs list
       // Third call: User for log 1
       // Fourth call: User for log 2
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: mockLogs, total: 2 })
-        .mockResolvedValueOnce({ documents: [mockUser], total: 1 })
-        .mockResolvedValueOnce({ documents: [mockUser], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: mockLogs, total: 2 })
+        .mockResolvedValueOnce({ rows: [mockUser], total: 1 })
+        .mockResolvedValueOnce({ rows: [mockUser], total: 1 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAttendee); // Attendee for log 1
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
@@ -186,12 +191,12 @@ describe('/api/logs - Logs Management API', () => {
         name: 'Admin User',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // User profile
-        .mockResolvedValueOnce({ documents: mockLogs, total: 1 }) // Logs
-        .mockResolvedValueOnce({ documents: [mockUser], total: 1 }); // User for log
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 }) // User profile
+        .mockResolvedValueOnce({ rows: mockLogs, total: 1 }) // Logs
+        .mockResolvedValueOnce({ rows: [mockUser], total: 1 }); // User for log
 
-      mockDatabases.getDocument.mockResolvedValueOnce({
+      mockTablesDB.getRow.mockResolvedValueOnce({
         $id: 'attendee-123',
         firstName: 'John',
         lastName: 'Doe',
@@ -220,12 +225,12 @@ describe('/api/logs - Logs Management API', () => {
         name: 'Admin User',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // User profile
-        .mockResolvedValueOnce({ documents: mockLogs, total: 1 }) // Logs
-        .mockResolvedValueOnce({ documents: [mockUser], total: 1 }); // User for log
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 }) // User profile
+        .mockResolvedValueOnce({ rows: mockLogs, total: 1 }) // Logs
+        .mockResolvedValueOnce({ rows: [mockUser], total: 1 }); // User for log
 
-      mockDatabases.getDocument.mockResolvedValueOnce({
+      mockTablesDB.getRow.mockResolvedValueOnce({
         $id: 'attendee-123',
         firstName: 'John',
         lastName: 'Doe',
@@ -246,9 +251,9 @@ describe('/api/logs - Logs Management API', () => {
     it('should handle pagination parameters', async () => {
       mockReq.query = { page: '2', limit: '10' };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // User profile
-        .mockResolvedValueOnce({ documents: [], total: 25 }); // Logs (empty page 2)
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 }) // User profile
+        .mockResolvedValueOnce({ rows: [], total: 25 }); // Logs (empty page 2)
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -280,12 +285,12 @@ describe('/api/logs - Logs Management API', () => {
         name: 'Admin User',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // User profile
-        .mockResolvedValueOnce({ documents: [logWithDetails], total: 1 }) // Logs
-        .mockResolvedValueOnce({ documents: [mockUser], total: 1 }); // User for log
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 }) // User profile
+        .mockResolvedValueOnce({ rows: [logWithDetails], total: 1 }) // Logs
+        .mockResolvedValueOnce({ rows: [mockUser], total: 1 }); // User for log
 
-      mockDatabases.getDocument.mockResolvedValueOnce({
+      mockTablesDB.getRow.mockResolvedValueOnce({
         $id: 'attendee-123',
         firstName: 'John',
         lastName: 'Doe',
@@ -319,10 +324,10 @@ describe('/api/logs - Logs Management API', () => {
         $updatedAt: '2024-01-01T00:00:00.000Z',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // User profile
-        .mockResolvedValueOnce({ documents: [systemLog], total: 1 }) // Logs
-        .mockResolvedValueOnce({ documents: [], total: 0 }); // User not found
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 }) // User profile
+        .mockResolvedValueOnce({ rows: [systemLog], total: 1 }) // Logs
+        .mockResolvedValueOnce({ rows: [], total: 0 }); // User not found
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -368,12 +373,12 @@ describe('/api/logs - Logs Management API', () => {
         name: 'Admin User',
       };
 
-      mockDatabases.createDocument.mockResolvedValueOnce(newLog);
+      mockTablesDB.createRow.mockResolvedValueOnce(newLog);
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUser], total: 1 }); // User for response
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUser], total: 1 }); // User for response
 
-      mockDatabases.getDocument.mockResolvedValueOnce({
+      mockTablesDB.getRow.mockResolvedValueOnce({
         $id: 'attendee-123',
         firstName: 'John',
         lastName: 'Doe',
@@ -381,9 +386,9 @@ describe('/api/logs - Logs Management API', () => {
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
         expect.any(String),
         expect.objectContaining({
           userId: 'auth-user-123',
@@ -434,14 +439,14 @@ describe('/api/logs - Logs Management API', () => {
         name: 'Admin User',
       };
 
-      mockDatabases.createDocument.mockResolvedValueOnce(newLog);
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUser], total: 1 });
+      mockTablesDB.createRow.mockResolvedValueOnce(newLog);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUser], total: 1 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
         expect.any(String),
         expect.objectContaining({
           attendeeId: null,
@@ -468,14 +473,14 @@ describe('/api/logs - Logs Management API', () => {
         $updatedAt: '2024-01-05T00:00:00.000Z',
       };
 
-      mockDatabases.createDocument.mockResolvedValueOnce(newLog);
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [], total: 0 }); // User not found
+      mockTablesDB.createRow.mockResolvedValueOnce(newLog);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [], total: 0 }); // User not found
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
         expect.any(String),
         expect.objectContaining({
           userId: 'other-user-123',
@@ -489,7 +494,7 @@ describe('/api/logs - Logs Management API', () => {
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.createDocument).not.toHaveBeenCalled();
+      expect(mockTablesDB.createRow).not.toHaveBeenCalled();
       expect(statusMock).toHaveBeenCalledWith(201);
       expect(jsonMock).toHaveBeenCalledWith({ message: 'Logging disabled for this action' });
     });
@@ -516,8 +521,8 @@ describe('/api/logs - Logs Management API', () => {
         name: 'Admin User',
       };
 
-      mockDatabases.createDocument.mockResolvedValueOnce(newLog);
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUser], total: 1 });
+      mockTablesDB.createRow.mockResolvedValueOnce(newLog);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUser], total: 1 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -552,7 +557,7 @@ describe('/api/logs - Logs Management API', () => {
 
     it('should handle generic errors', async () => {
       // Reject on the logs fetch
-      mockDatabases.listDocuments.mockRejectedValueOnce(new Error('Database error'));
+      mockTablesDB.listRows.mockRejectedValueOnce(new Error('Database error'));
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -567,12 +572,12 @@ describe('/api/logs - Logs Management API', () => {
     });
 
     it('should handle errors when fetching related user data', async () => {
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // User profile
-        .mockResolvedValueOnce({ documents: [mockLog], total: 1 }) // Logs
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 }) // User profile
+        .mockResolvedValueOnce({ rows: [mockLog], total: 1 }) // Logs
         .mockRejectedValueOnce(new Error('User fetch error')); // User fetch fails
 
-      mockDatabases.getDocument.mockResolvedValueOnce({
+      mockTablesDB.getRow.mockResolvedValueOnce({
         $id: 'attendee-123',
         firstName: 'John',
         lastName: 'Doe',
@@ -593,12 +598,12 @@ describe('/api/logs - Logs Management API', () => {
     });
 
     it('should handle errors when fetching related attendee data', async () => {
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [mockLog], total: 1 })
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [mockLog], total: 1 })
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
-      mockDatabases.getDocument.mockRejectedValueOnce(new Error('Attendee fetch error'));
+      mockTablesDB.getRow.mockRejectedValueOnce(new Error('Attendee fetch error'));
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -620,12 +625,12 @@ describe('/api/logs - Logs Management API', () => {
         details: 'invalid-json{',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [logWithInvalidJSON], total: 1 })
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [logWithInvalidJSON], total: 1 })
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce({
+      mockTablesDB.getRow.mockResolvedValueOnce({
         $id: 'attendee-123',
         firstName: 'John',
         lastName: 'Doe',

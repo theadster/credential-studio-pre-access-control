@@ -46,7 +46,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
     // Create admin client to access Users API
     const adminClient = createAdminClient();
-    const { users, databases } = adminClient;
+    const { users, tablesDB } = adminClient;
 
     // Build queries for Appwrite Users API
     const queries: string[] = [
@@ -77,14 +77,14 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
     while (hasMore && iterations < maxIterations) {
       try {
-        const batch = await databases.listDocuments(
+        const batch = await tablesDB.listRows(
           process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+          process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID!,
           [Query.select(['userId']), Query.limit(batchSize), Query.offset(batchOffset)]
         );
-        allLinkedUsers.push(...batch.documents);
+        allLinkedUsers.push(...batch.rows);
         batchOffset += batchSize;
-        hasMore = batch.documents.length === batchSize;
+        hasMore = batch.rows.length === batchSize;
         iterations++;
       } catch (error) {
         console.error('Error fetching linked users batch:', error);
@@ -100,10 +100,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       console.warn('Max iterations reached while fetching linked users');
     }
 
-    const linkedUsersResponse = { documents: allLinkedUsers };
-
     const linkedUserIds = new Set(
-      linkedUsersResponse.documents.map((doc: any) => doc.userId)
+      allLinkedUsers.map((doc: any) => doc.userId)
     );
 
     // Map auth users to response format with link status (Requirements 2.3, 2.4)
@@ -124,9 +122,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     // Skip logging for internal fetches (e.g., UserForm dialog initialization)
     if (user && !skipLogging) {
       try {
-        await databases.createDocument(
+        await tablesDB.createRow(
           process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+          process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
           ID.unique(),
           {
             userId: user.$id,

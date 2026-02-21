@@ -9,26 +9,27 @@
 
 import { describe, it, expect, beforeEach, vi, beforeAll } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { mockAccount, mockDatabases, resetAllMocks } from '@/test/mocks/appwrite';
+import { mockAccount, mockTablesDB, mockAdminTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 
 // Set environment variables before importing handler
 beforeAll(() => {
   process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID = 'test-db';
-  process.env.NEXT_PUBLIC_APPWRITE_ACCESS_CONTROL_COLLECTION_ID = 'access_control';
-  process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID = 'users';
-  process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID = 'roles';
+  process.env.NEXT_PUBLIC_APPWRITE_ACCESS_CONTROL_TABLE_ID = 'access_control';
+  process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID = 'users';
+  process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID = 'roles';
 });
 
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn(() => ({
     account: mockAccount,
-    databases: mockDatabases,
+    tablesDB: mockTablesDB,
   })),
   createAdminClient: vi.fn(() => ({
-    databases: mockDatabases,
+    tablesDB: mockAdminTablesDB,
   })),
 }));
+
 
 // Import handler after mocks are set up
 import handler from '@/pages/api/access-control/[attendeeId]';
@@ -80,7 +81,8 @@ describe('/api/access-control/[attendeeId] - Access Control API', () => {
   // Helper to set up auth mocks
   const setupAuthMocks = () => {
     mockAccount.get.mockResolvedValue(mockAuthUser);
-    mockDatabases.getDocument.mockResolvedValue(mockAdminRole);
+    mockTablesDB.getRow.mockResolvedValue(mockAdminRole);
+    mockAdminTablesDB.getRow.mockResolvedValue(mockAdminRole);
   };
 
   beforeEach(() => {
@@ -108,9 +110,9 @@ describe('/api/access-control/[attendeeId] - Access Control API', () => {
   describe('GET /api/access-control/[attendeeId]', () => {
     it('should return access control record for an attendee', async () => {
       // Mock: 1) user profile lookup, 2) access control lookup
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [mockAccessControl], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [mockAccessControl], total: 1 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -126,9 +128,9 @@ describe('/api/access-control/[attendeeId] - Access Control API', () => {
 
     it('should return default access control when no record exists', async () => {
       // Mock: 1) user profile lookup, 2) access control lookup (empty)
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -148,8 +150,8 @@ describe('/api/access-control/[attendeeId] - Access Control API', () => {
       mockReq.query = {};
       
       // Mock user profile lookup
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -178,12 +180,12 @@ describe('/api/access-control/[attendeeId] - Access Control API', () => {
       mockReq.body = updateData;
 
       // Mock: 1) user profile lookup, 2) existing access control lookup
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [mockAccessControl], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [mockAccessControl], total: 1 });
 
       // Mock update
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.updateRow.mockResolvedValue({
         ...mockAccessControl,
         ...updateData,
         $updatedAt: '2024-01-15T00:00:00.000Z',
@@ -192,7 +194,7 @@ describe('/api/access-control/[attendeeId] - Access Control API', () => {
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       expect(statusMock).toHaveBeenCalledWith(200);
-      expect(mockDatabases.updateDocument).toHaveBeenCalled();
+      expect(mockTablesDB.updateRow).toHaveBeenCalled();
     });
 
     it('should create access control record when none exists', async () => {
@@ -204,12 +206,12 @@ describe('/api/access-control/[attendeeId] - Access Control API', () => {
       mockReq.body = createData;
 
       // Mock: 1) user profile lookup, 2) access control lookup (empty)
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
       // Mock create
-      mockDatabases.createDocument.mockResolvedValue({
+      mockTablesDB.createRow.mockResolvedValue({
         $id: 'new-ac-123',
         attendeeId: 'attendee-123',
         ...createData,
@@ -220,7 +222,7 @@ describe('/api/access-control/[attendeeId] - Access Control API', () => {
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       expect(statusMock).toHaveBeenCalledWith(200);
-      expect(mockDatabases.createDocument).toHaveBeenCalled();
+      expect(mockTablesDB.createRow).toHaveBeenCalled();
     });
 
     it('should return validation error when validFrom > validUntil', async () => {
@@ -232,9 +234,9 @@ describe('/api/access-control/[attendeeId] - Access Control API', () => {
       };
 
       // Mock: 1) user profile lookup, 2) access control lookup (empty)
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -260,12 +262,12 @@ describe('/api/access-control/[attendeeId] - Access Control API', () => {
       };
 
       // Reset and set up mocks fresh for this test
-      mockDatabases.listDocuments.mockReset();
+      mockTablesDB.listRows.mockReset();
       
       // Mock: 1) user profile lookup (middleware), 2) existing access control lookup (API)
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [existingWithValidFrom], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [existingWithValidFrom], total: 1 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -284,8 +286,8 @@ describe('/api/access-control/[attendeeId] - Access Control API', () => {
       mockReq.method = 'DELETE';
 
       // Mock user profile lookup
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 

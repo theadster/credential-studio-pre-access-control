@@ -10,20 +10,20 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
   try {
     // User and userProfile are already attached by middleware
     const { user, userProfile } = req;
-    const { databases } = createSessionClient(req);
+    const { tablesDB } = createSessionClient(req);
 
     const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-    const customFieldsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID!;
-    const eventSettingsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID!;
-    const logsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!;
+    const customFieldsTableId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID!;
+    const eventSettingsTableId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID!;
+    const logsTableId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!;
 
     switch (req.method) {
       case 'GET':
         // Fetch custom fields ordered by order field
         // Filter out soft-deleted fields (where deletedAt is not null)
-        const customFieldsResult = await databases.listDocuments(
+        const customFieldsResult = await tablesDB.listRows(
           dbId,
-          customFieldsCollectionId,
+          customFieldsTableId,
           [
             Query.isNull('deletedAt'),  // Only return non-deleted fields
             Query.orderAsc('order'),
@@ -32,7 +32,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         );
 
         // Generate internal field names on-the-fly for display without persisting them
-        const customFields = customFieldsResult.documents.map((field: any) => ({
+        const customFields = customFieldsResult.rows.map((field: any) => ({
           ...field,
           internalFieldName: field.internalFieldName || generateInternalFieldName(field.fieldName as string)
         }));
@@ -46,7 +46,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
          * Creates a new custom field for the event.
          * 
          * Request Body:
-         * - eventSettingsId: string (required) - ID of the event settings document
+         * - eventSettingsId: string (required) - ID of the event settings row
          * - fieldName: string (required) - Display name of the field
          * - fieldType: string (required) - Type of field (text, number, select, etc.)
          * - fieldOptions: object (optional) - Configuration options for the field
@@ -94,7 +94,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
         // Check if event settings exist
         try {
-          await databases.getDocument(dbId, eventSettingsCollectionId, eventSettingsId);
+          await tablesDB.getRow({
+            databaseId: dbId,
+            tableId: eventSettingsTableId,
+            rowId: eventSettingsId
+          });
         } catch (error) {
           return res.status(404).json({ error: 'Event settings not found' });
         }
@@ -102,9 +106,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         // Get the next order number if not provided
         let fieldOrder = order;
         if (!fieldOrder) {
-          const lastFieldResult = await databases.listDocuments(
+          const lastFieldResult = await tablesDB.listRows(
             dbId,
-            customFieldsCollectionId,
+            customFieldsTableId,
             [
               Query.equal('eventSettingsId', eventSettingsId),
               Query.orderDesc('order'),
@@ -112,8 +116,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             ]
           );
 
-          fieldOrder = lastFieldResult.documents.length > 0
-            ? (lastFieldResult.documents[0].order as number) + 1
+          fieldOrder = lastFieldResult.rows.length > 0
+            ? (lastFieldResult.rows[0].order as number) + 1
             : 1;
         }
 
@@ -151,17 +155,17 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           printable: printable !== undefined ? printable : false // Default to non-printable for backward compatibility
         };
 
-        // Create the custom field using regular Databases API with retry on order conflict
-        // Note: Single document creation is not atomic with audit logging in Appwrite
+        // Create the custom field using TablesDB API with retry on order conflict
+        // Note: Single row creation is not atomic with audit logging in Appwrite
         // Retry loop handles race conditions where two POSTs calculate the same order
         // TODO: Consider adding a unique index on (eventSettingsId, order) in Appwrite to enforce integrity
         let createdField;
         try {
           for (let attempt = 1; attempt <= 3; attempt++) {
             try {
-              createdField = await databases.createDocument(
+              createdField = await tablesDB.createRow(
                 dbId,
-                customFieldsCollectionId,
+                customFieldsTableId,
                 customFieldId,
                 customFieldData
               );
@@ -170,17 +174,17 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
               // On unique conflict (e.g., unique index on eventSettingsId+order), recompute and retry
               if (e?.code === 409 && attempt < 3) {
                 console.log(`[custom-fields] Order conflict detected (attempt ${attempt}), recalculating order...`);
-                const lastFieldResult = await databases.listDocuments(
+                const lastFieldResult = await tablesDB.listRows(
                   dbId,
-                  customFieldsCollectionId,
+                  customFieldsTableId,
                   [
                     Query.equal('eventSettingsId', eventSettingsId),
                     Query.orderDesc('order'),
                     Query.limit(1)
                   ]
                 );
-                fieldOrder = lastFieldResult.documents.length > 0
-                  ? (lastFieldResult.documents[0].order as number) + 1
+                fieldOrder = lastFieldResult.rows.length > 0
+                  ? (lastFieldResult.rows[0].order as number) + 1
                   : 1;
                 customFieldData.order = fieldOrder;
                 console.log(`[custom-fields] Retrying with new order: ${fieldOrder}`);
@@ -199,9 +203,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           const loggingEnabled = await shouldLog('customFieldCreate');
           if (loggingEnabled) {
             try {
-              await databases.createDocument(
+              await tablesDB.createRow(
                 dbId,
-                logsCollectionId,
+                logsTableId,
                 ID.unique(),
                 {
                   userId: user.$id,

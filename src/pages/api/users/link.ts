@@ -13,7 +13,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     // Create session client to verify authentication
-    const { account, databases } = createSessionClient(req);
+    const { account, tablesDB } = createSessionClient(req);
     
     // Get the authenticated user
     let user;
@@ -24,25 +24,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Get user profile with role
-    const userDocs = await databases.listDocuments(
+    const userDocs = await tablesDB.listRows(
       process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-      process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+      process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID!,
       [Query.equal('userId', user.$id)]
     );
 
-    if (userDocs.documents.length === 0) {
+    if (userDocs.rows.length === 0) {
       return res.status(404).json({ error: 'User profile not found' });
     }
 
-    const userProfile = userDocs.documents[0];
+    const userProfile = userDocs.rows[0];
 
     // Get role if exists
     let role = null;
     if (userProfile.roleId) {
       try {
-        role = await databases.getDocument(
+        role = await tablesDB.getRow(
           process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+          process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
           userProfile.roleId
         );
       } catch (error) {
@@ -76,13 +76,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Check if user is already linked to database
-    const existingUserDocs = await databases.listDocuments(
+    const existingUserDocs = await tablesDB.listRows(
       process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-      process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+      process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID!,
       [Query.equal('userId', userId)]
     );
 
-    if (existingUserDocs.documents.length > 0) {
+    if (existingUserDocs.rows.length > 0) {
       return res.status(400).json({ error: 'User is already linked to database' });
     }
 
@@ -90,9 +90,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let assignedRole = null;
     if (roleId) {
       try {
-        assignedRole = await databases.getDocument(
+        assignedRole = await tablesDB.getRow(
           process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+          process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
           roleId
         );
       } catch (error) {
@@ -178,7 +178,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           {
             action: 'create',
             databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-            tableId: process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+            tableId: process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID!,
             rowId: newUserDocId,
             data: {
               userId: authUser.$id,
@@ -192,7 +192,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           {
             action: 'create',
             databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-            tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+            tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
             rowId: ID.unique(),
             data: {
               userId: user.$id,
@@ -218,7 +218,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           operations.push({
             action: 'create',
             databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-            tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+            tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
             rowId: ID.unique(),
             data: {
               userId: user.$id,

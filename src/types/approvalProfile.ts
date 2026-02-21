@@ -45,7 +45,7 @@ export interface ApprovalProfile {
   $createdAt: string;
   $updatedAt: string;
   $permissions: string[];
-  $collectionId: string;
+  $tableId: string;
   $databaseId: string;
   $sequence: number;
   name: string;              // Unique name

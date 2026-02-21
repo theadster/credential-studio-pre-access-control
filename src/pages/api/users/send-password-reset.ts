@@ -162,9 +162,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     // Log the password reset email send
     try {
       const sessionClient = createSessionClient(req);
-      await sessionClient.databases.createDocument(
+      await sessionClient.tablesDB.createRow(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+        process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
         ID.unique(),
         {
           userId: user.$id,

@@ -1,4 +1,5 @@
 import { vi } from 'vitest';
+import { userProfileCache } from '@/lib/userProfileCache';
 
 /**
  * Create a mock Appwrite Client instance
@@ -49,19 +50,6 @@ export const mockAccount = {
   deleteSessions: vi.fn(),
   listSessions: vi.fn(),
   getSession: vi.fn(),
-};
-
-/**
- * Mock Appwrite Databases
- */
-export const mockDatabases = {
-  listDocuments: vi.fn(),
-  getDocument: vi.fn(),
-  createDocument: vi.fn(),
-  updateDocument: vi.fn(),
-  deleteDocument: vi.fn(),
-  listCollections: vi.fn(),
-  getCollection: vi.fn(),
 };
 
 /**
@@ -131,14 +119,58 @@ export const mockTeams = {
 };
 
 /**
- * Mock Appwrite TablesDB (for transactions)
+ * Mock Appwrite TablesDB for admin client (separate instance to avoid mock ordering conflicts)
+ * Used by createAdminClient() mock - primarily for role fetching in middleware
  */
-export const mockTablesDB = {
+export const mockAdminTablesDB = {
+  // Row CRUD methods
+  listRows: vi.fn(),
+  getRow: vi.fn(),
+  createRow: vi.fn(),
+  updateRow: vi.fn(),
+  deleteRow: vi.fn(),
+  upsertRow: vi.fn(),
+  // Bulk operations
+  createRows: vi.fn(),
+  updateRows: vi.fn(),
+  deleteRows: vi.fn(),
+  upsertRows: vi.fn(),
+  // Transaction methods
   createTransaction: vi.fn(),
   createOperations: vi.fn(),
   updateTransaction: vi.fn(),
   getTransaction: vi.fn(),
   listTransactions: vi.fn(),
+  // Table management
+  listTables: vi.fn(),
+  getTable: vi.fn(),
+};
+
+/**
+ * Mock Appwrite TablesDB (row CRUD, bulk, transactions, table management)
+ */
+export const mockTablesDB = {
+  // Row CRUD methods
+  listRows: vi.fn(),
+  getRow: vi.fn(),
+  createRow: vi.fn(),
+  updateRow: vi.fn(),
+  deleteRow: vi.fn(),
+  upsertRow: vi.fn(),
+  // Bulk operations
+  createRows: vi.fn(),
+  updateRows: vi.fn(),
+  deleteRows: vi.fn(),
+  upsertRows: vi.fn(),
+  // Transaction methods
+  createTransaction: vi.fn(),
+  createOperations: vi.fn(),
+  updateTransaction: vi.fn(),
+  getTransaction: vi.fn(),
+  listTransactions: vi.fn(),
+  // Table management
+  listTables: vi.fn(),
+  getTable: vi.fn(),
 };
 
 /**
@@ -151,11 +183,6 @@ export const resetAllMocks = () => {
     }
   });
   Object.values(mockAccount).forEach(mock => {
-    if (typeof mock === 'function' && 'mockClear' in mock) {
-      mock.mockClear();
-    }
-  });
-  Object.values(mockDatabases).forEach(mock => {
     if (typeof mock === 'function' && 'mockClear' in mock) {
       mock.mockClear();
     }
@@ -185,6 +212,13 @@ export const resetAllMocks = () => {
       mock.mockClear();
     }
   });
+  Object.values(mockAdminTablesDB).forEach(mock => {
+    if (typeof mock === 'function' && 'mockClear' in mock) {
+      mock.mockClear();
+    }
+  });
+  // Clear user profile cache to prevent cross-test contamination
+  userProfileCache.clear();
 };
 
 /**
@@ -193,7 +227,7 @@ export const resetAllMocks = () => {
 vi.mock('appwrite', () => ({
   Client: vi.fn(() => createMockClient()),
   Account: vi.fn(() => mockAccount),
-  Databases: vi.fn(() => mockDatabases),
+  TablesDB: vi.fn(() => mockTablesDB),
   Storage: vi.fn(() => mockStorage),
   Functions: vi.fn(() => mockFunctions),
   Users: vi.fn(() => mockUsers),
@@ -204,18 +238,40 @@ vi.mock('appwrite', () => ({
     Apple: 'apple',
   },
   Query: {
-    equal: vi.fn((field, value) => `equal("${field}", ${JSON.stringify(value)})`),
-    notEqual: vi.fn((field, value) => `notEqual("${field}", ${JSON.stringify(value)})`),
-    lessThan: vi.fn((field, value) => `lessThan("${field}", ${JSON.stringify(value)})`),
-    lessThanEqual: vi.fn((field, value) => `lessThanEqual("${field}", ${JSON.stringify(value)})`),
-    greaterThan: vi.fn((field, value) => `greaterThan("${field}", ${JSON.stringify(value)})`),
-    greaterThanEqual: vi.fn((field, value) => `greaterThanEqual("${field}", ${JSON.stringify(value)})`),
-    search: vi.fn((field, value) => `search("${field}", "${value}")`),
+    equal: vi.fn((field, value) => {
+      const serialized = value === undefined ? 'null' : JSON.stringify(value);
+      return `equal("${field}", ${serialized})`;
+    }),
+    notEqual: vi.fn((field, value) => {
+      const serialized = value === undefined ? 'null' : JSON.stringify(value);
+      return `notEqual("${field}", ${serialized})`;
+    }),
+    lessThan: vi.fn((field, value) => {
+      const serialized = value === undefined ? 'null' : JSON.stringify(value);
+      return `lessThan("${field}", ${serialized})`;
+    }),
+    lessThanEqual: vi.fn((field, value) => {
+      const serialized = value === undefined ? 'null' : JSON.stringify(value);
+      return `lessThanEqual("${field}", ${serialized})`;
+    }),
+    greaterThan: vi.fn((field, value) => {
+      const serialized = value === undefined ? 'null' : JSON.stringify(value);
+      return `greaterThan("${field}", ${serialized})`;
+    }),
+    greaterThanEqual: vi.fn((field, value) => {
+      const serialized = value === undefined ? 'null' : JSON.stringify(value);
+      return `greaterThanEqual("${field}", ${serialized})`;
+    }),
+    search: vi.fn((field, value) => `search("${field}", "${String(value).replace(/"/g, '\\"')}")`),
     isNull: vi.fn((field) => `isNull("${field}")`),
     isNotNull: vi.fn((field) => `isNotNull("${field}")`),
-    between: vi.fn((field, start, end) => `between("${field}", ${JSON.stringify(start)}, ${JSON.stringify(end)})`),
-    startsWith: vi.fn((field, value) => `startsWith("${field}", "${value}")`),
-    endsWith: vi.fn((field, value) => `endsWith("${field}", "${value}")`),
+    between: vi.fn((field, start, end) => {
+      const startSerialized = start === undefined ? 'null' : JSON.stringify(start);
+      const endSerialized = end === undefined ? 'null' : JSON.stringify(end);
+      return `between("${field}", ${startSerialized}, ${endSerialized})`;
+    }),
+    startsWith: vi.fn((field, value) => `startsWith("${field}", "${String(value).replace(/"/g, '\\"')}")`),
+    endsWith: vi.fn((field, value) => `endsWith("${field}", "${String(value).replace(/"/g, '\\"')}")`),
     orderAsc: vi.fn((field) => `orderAsc("${field}")`),
     orderDesc: vi.fn((field) => `orderDesc("${field}")`),
     limit: vi.fn((value) => `limit(${value})`),
@@ -225,11 +281,11 @@ vi.mock('appwrite', () => ({
     unique: vi.fn(() => 'unique-id-' + Math.random().toString(36).substring(2, 11)),
   },
   Permission: {
-    read: vi.fn((role) => `read("${role}")`),
-    write: vi.fn((role) => `write("${role}")`),
-    create: vi.fn((role) => `create("${role}")`),
-    update: vi.fn((role) => `update("${role}")`),
-    delete: vi.fn((role) => `delete("${role}")`),
+    read: vi.fn((role) => `read("${String(role).replace(/"/g, '\\"')}")`),
+    write: vi.fn((role) => `write("${String(role).replace(/"/g, '\\"')}")`),
+    create: vi.fn((role) => `create("${String(role).replace(/"/g, '\\"')}")`),
+    update: vi.fn((role) => `update("${String(role).replace(/"/g, '\\"')}")`),
+    delete: vi.fn((role) => `delete("${String(role).replace(/"/g, '\\"')}")`),
   },
   Role: {
     any: vi.fn(() => 'any'),

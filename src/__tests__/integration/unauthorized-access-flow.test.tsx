@@ -15,7 +15,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
-import { mockAccount, mockDatabases, resetAllMocks } from '@/test/mocks/appwrite';
+import { mockAccount, mockTablesDB, mockAdminTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 import { isUnauthorizedTeamError, isTokenExpiredError } from '@/lib/apiErrorHandler';
 
 // Mock TokenRefreshManager
@@ -46,8 +46,11 @@ const mockToast = vi.fn();
 vi.mock('@/lib/appwrite', () => ({
   createBrowserClient: vi.fn(() => ({
     account: mockAccount,
-    databases: mockDatabases,
+    tablesDB: mockTablesDB,
   })),
+  createAdminClient: vi.fn(() => ({
+    tablesDB: mockAdminTablesDB,
+})),
 }));
 
 vi.mock('@/lib/tokenRefresh', () => ({
@@ -132,7 +135,7 @@ describe('Unauthorized Access Flow', () => {
       mockAccount.get.mockResolvedValue(mockUser);
       mockAccount.createEmailPasswordSession.mockResolvedValueOnce(mockSession);
       mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
-      mockDatabases.listDocuments.mockRejectedValueOnce(unauthorizedError);
+      mockTablesDB.listRows.mockRejectedValueOnce(unauthorizedError);
       mockAccount.deleteSession.mockResolvedValue({});
 
       const { result } = renderHook(() => useAuth(), {
@@ -162,7 +165,7 @@ describe('Unauthorized Access Flow', () => {
       mockAccount.get.mockResolvedValue(mockUser);
       mockAccount.createEmailPasswordSession.mockResolvedValueOnce(mockSession);
       mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
-      mockDatabases.listDocuments.mockRejectedValueOnce(unauthorizedError);
+      mockTablesDB.listRows.mockRejectedValueOnce(unauthorizedError);
       mockAccount.deleteSession.mockResolvedValue({});
 
       const { result } = renderHook(() => useAuth(), {
@@ -206,7 +209,7 @@ describe('Unauthorized Access Flow', () => {
       mockAccount.get.mockResolvedValue(mockUser);
       mockAccount.createEmailPasswordSession.mockResolvedValueOnce(mockSession);
       mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
-      mockDatabases.listDocuments.mockRejectedValueOnce(unauthorizedError);
+      mockTablesDB.listRows.mockRejectedValueOnce(unauthorizedError);
       mockAccount.deleteSession.mockResolvedValue({});
 
       const { result } = renderHook(() => useAuth(), {
@@ -263,7 +266,7 @@ describe('Unauthorized Access Flow', () => {
       mockAccount.get.mockResolvedValue(mockUser);
       mockAccount.createEmailPasswordSession.mockResolvedValueOnce(mockSession);
       mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
-      mockDatabases.listDocuments.mockRejectedValueOnce(unauthorizedError);
+      mockTablesDB.listRows.mockRejectedValueOnce(unauthorizedError);
       mockAccount.deleteSession.mockResolvedValue({});
 
       const { result } = renderHook(() => useAuth(), {
@@ -305,7 +308,7 @@ describe('Unauthorized Access Flow', () => {
       mockAccount.get.mockResolvedValue(mockUser);
       mockAccount.createEmailPasswordSession.mockResolvedValueOnce(mockSession);
       mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
-      mockDatabases.listDocuments.mockRejectedValueOnce(unauthorizedError);
+      mockTablesDB.listRows.mockRejectedValueOnce(unauthorizedError);
 
       // Simulate server-side session deletion failure
       mockAccount.deleteSession.mockRejectedValue(new Error('Session deletion failed'));
@@ -343,7 +346,7 @@ describe('Unauthorized Access Flow', () => {
       mockAccount.get.mockResolvedValue(mockUser);
       mockAccount.createEmailPasswordSession.mockResolvedValueOnce(mockSession);
       mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
-      mockDatabases.listDocuments.mockRejectedValueOnce(unauthorizedError);
+      mockTablesDB.listRows.mockRejectedValueOnce(unauthorizedError);
       mockAccount.deleteSession.mockResolvedValue({});
 
       const { result } = renderHook(() => useAuth(), {
@@ -372,7 +375,7 @@ describe('Unauthorized Access Flow', () => {
       mockAccount.createEmailPasswordSession.mockResolvedValueOnce(mockSession);
       mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
       mockAccount.get.mockResolvedValueOnce(mockUser);
-      mockDatabases.listDocuments.mockRejectedValueOnce(unauthorizedError);
+      mockTablesDB.listRows.mockRejectedValueOnce(unauthorizedError);
       mockAccount.deleteSession.mockResolvedValueOnce({});
 
       const { result } = renderHook(() => useAuth(), {
@@ -402,7 +405,7 @@ describe('Unauthorized Access Flow', () => {
       mockAccount.get.mockResolvedValue(mockUser);
       mockAccount.createEmailPasswordSession.mockResolvedValueOnce(mockSession);
       mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
-      mockDatabases.listDocuments.mockRejectedValueOnce(unauthorizedError);
+      mockTablesDB.listRows.mockRejectedValueOnce(unauthorizedError);
       mockAccount.deleteSession.mockResolvedValue({});
 
       const { result } = renderHook(() => useAuth(), {
@@ -441,8 +444,8 @@ describe('Unauthorized Access Flow', () => {
       mockAccount.get.mockReset().mockResolvedValue(mockUser);
       mockAccount.createEmailPasswordSession.mockResolvedValueOnce(mockSession);
       mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
-      mockDatabases.listDocuments.mockReset().mockResolvedValue({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockReset().mockResolvedValue({
+        rows: [mockUserProfile],
         total: 1,
       });
       (global.fetch as any).mockResolvedValue({ ok: true });
@@ -462,7 +465,7 @@ describe('Unauthorized Access Flow', () => {
       mockAccount.get.mockResolvedValue(mockUser);
       mockAccount.createEmailPasswordSession.mockResolvedValueOnce(mockSession);
       mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
-      mockDatabases.listDocuments.mockRejectedValueOnce(unauthorizedError);
+      mockTablesDB.listRows.mockRejectedValueOnce(unauthorizedError);
       mockAccount.deleteSession.mockRejectedValue(new Error('Session deletion failed'));
 
       const { result } = renderHook(() => useAuth(), {
@@ -517,8 +520,8 @@ describe('Unauthorized Access Flow', () => {
       mockAccount.get.mockResolvedValue(authorizedUser);
       mockAccount.createEmailPasswordSession.mockResolvedValueOnce(mockSession);
       mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockUserProfile],
         total: 1,
       });
       (global.fetch as any).mockResolvedValue({ ok: true });
@@ -557,8 +560,8 @@ describe('Unauthorized Access Flow', () => {
       mockAccount.get.mockResolvedValue(mockUser);
       mockAccount.createEmailPasswordSession.mockResolvedValueOnce(mockSession);
       mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockUserProfile],
         total: 1,
       });
       (global.fetch as any).mockResolvedValue({ ok: true });
@@ -594,8 +597,8 @@ describe('Unauthorized Access Flow', () => {
       mockAccount.get.mockResolvedValue(mockUser);
       mockAccount.createEmailPasswordSession.mockResolvedValueOnce(mockSession);
       mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockUserProfile],
         total: 1,
       });
       (global.fetch as any).mockResolvedValue({ ok: true });
@@ -780,7 +783,7 @@ describe('Unauthorized Access Flow', () => {
       mockAccount.get.mockResolvedValue(mockUser);
       mockAccount.createEmailPasswordSession.mockResolvedValueOnce(mockSession);
       mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
-      mockDatabases.listDocuments.mockRejectedValueOnce(unauthorizedError);
+      mockTablesDB.listRows.mockRejectedValueOnce(unauthorizedError);
       mockAccount.deleteSession.mockResolvedValue({});
       (global.fetch as any).mockResolvedValue({ ok: true });
 
@@ -817,7 +820,7 @@ describe('Unauthorized Access Flow', () => {
       mockAccount.createEmailPasswordSession.mockResolvedValueOnce(mockSession);
       mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
       mockAccount.get.mockResolvedValueOnce(mockUser);
-      mockDatabases.listDocuments.mockRejectedValueOnce(unauthorizedError);
+      mockTablesDB.listRows.mockRejectedValueOnce(unauthorizedError);
       mockAccount.deleteSession.mockResolvedValueOnce({});
       (global.fetch as any).mockRejectedValueOnce(new Error('Logging failed'));
 
@@ -850,7 +853,7 @@ describe('Unauthorized Access Flow', () => {
     it('should not show alert during session restoration', async () => {
       // Session restoration should not trigger the alert
       mockAccount.get.mockResolvedValueOnce(mockUser);
-      mockDatabases.listDocuments.mockRejectedValueOnce(unauthorizedError);
+      mockTablesDB.listRows.mockRejectedValueOnce(unauthorizedError);
       mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
 
       const { result } = renderHook(() => useAuth(), {
@@ -874,7 +877,7 @@ describe('Unauthorized Access Flow', () => {
       mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
       mockAccount.get.mockResolvedValueOnce(mockUser);
       // Multiple API calls might fail, but alert should only show once
-      mockDatabases.listDocuments
+      mockTablesDB.listRows
         .mockRejectedValueOnce(unauthorizedError)
         .mockRejectedValueOnce(unauthorizedError);
       mockAccount.deleteSession.mockResolvedValueOnce({});
@@ -909,14 +912,14 @@ describe('Unauthorized Access Flow', () => {
       mockAccount.createEmailPasswordSession.mockResolvedValueOnce(mockSession);
       mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
       mockAccount.get.mockResolvedValueOnce(mockUser);
-      mockDatabases.listDocuments.mockRejectedValueOnce(unauthorizedError);
+      mockTablesDB.listRows.mockRejectedValueOnce(unauthorizedError);
       mockAccount.deleteSession.mockResolvedValueOnce({});
 
       // Setup mocks for SECOND login attempt
       mockAccount.createEmailPasswordSession.mockResolvedValueOnce(mockSession);
       mockAccount.createJWT.mockResolvedValueOnce(mockJWT);
       mockAccount.get.mockResolvedValueOnce(mockUser);
-      mockDatabases.listDocuments.mockRejectedValueOnce(unauthorizedError);
+      mockTablesDB.listRows.mockRejectedValueOnce(unauthorizedError);
       mockAccount.deleteSession.mockResolvedValueOnce({});
 
       const { result } = renderHook(() => useAuth(), {

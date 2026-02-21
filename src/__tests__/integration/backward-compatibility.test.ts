@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { Databases } from 'node-appwrite';
+import { TablesDB } from 'node-appwrite';
 import {
   updateCredentialFields,
   updatePhotoFields,
@@ -25,19 +25,19 @@ import {
   detectConflict,
   OperationType,
 } from '../../lib/conflictResolver';
-import { mockDatabases, resetAllMocks } from '../../test/mocks/appwrite';
+import { mockTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 
 describe('Backward Compatibility', () => {
   const testDatabaseId = 'test-database';
-  const testCollectionId = 'attendees';
+  const testTableId = 'attendees';
   const testDocumentId = 'attendee-123';
 
   /**
    * Helper to extract update data from mock calls.
-   * Appwrite SDK uses positional args: (databaseId, collectionId, documentId, data)
+   * Appwrite SDK uses positional args: (databaseId, tableId, documentId, data)
    */
   function getUpdateData(callIndex = 0): Record<string, unknown> {
-    return mockDatabases.updateDocument.mock.calls[callIndex][3];
+    return mockTablesDB.updateRow.mock.calls[callIndex][3];
   }
 
   beforeEach(() => {
@@ -60,12 +60,12 @@ describe('Backward Compatibility', () => {
         // No version field - legacy record
       };
 
-      mockDatabases.getDocument.mockResolvedValue(legacyAttendee);
+      mockTablesDB.getRow.mockResolvedValue(legacyAttendee);
 
       const { document, version } = await readWithVersion(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId
       );
 
@@ -82,8 +82,8 @@ describe('Backward Compatibility', () => {
         // No version field
       };
 
-      mockDatabases.getDocument.mockResolvedValue(legacyAttendee);
-      mockDatabases.updateDocument.mockImplementation((dbId, collId, docId, data) => {
+      mockTablesDB.getRow.mockResolvedValue(legacyAttendee);
+      mockTablesDB.updateRow.mockImplementation((dbId, collId, docId, data) => {
         return Promise.resolve({
           ...legacyAttendee,
           ...data,
@@ -91,15 +91,15 @@ describe('Backward Compatibility', () => {
       });
 
       await updateCredentialFields(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId,
         { credentialUrl: 'https://example.com/credential.pdf' }
       );
 
       // Verify version was set to 1 (0 + 1)
-      const updateCall = mockDatabases.updateDocument.mock.calls[0];
+      const updateCall = mockTablesDB.updateRow.mock.calls[0];
       const updateData = updateCall[3];
 
       expect(updateData.version).toBe(1);
@@ -112,17 +112,17 @@ describe('Backward Compatibility', () => {
         version: undefined, // Explicitly undefined
       };
 
-      mockDatabases.getDocument.mockResolvedValue(attendeeWithUndefinedVersion);
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue(attendeeWithUndefinedVersion);
+      mockTablesDB.updateRow.mockResolvedValue({
         ...attendeeWithUndefinedVersion,
         photoUrl: 'https://example.com/photo.jpg',
         version: 1,
       });
 
       const result = await updatePhotoFields(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId,
         { photoUrl: 'https://example.com/photo.jpg' }
       );
@@ -140,17 +140,17 @@ describe('Backward Compatibility', () => {
         version: null, // Null version
       };
 
-      mockDatabases.getDocument.mockResolvedValue(attendeeWithNullVersion);
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue(attendeeWithNullVersion);
+      mockTablesDB.updateRow.mockResolvedValue({
         ...attendeeWithNullVersion,
         credentialUrl: 'https://example.com/credential.pdf',
         version: 1,
       });
 
       const result = await updateCredentialFields(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId,
         { credentialUrl: 'https://example.com/credential.pdf' }
       );
@@ -168,17 +168,17 @@ describe('Backward Compatibility', () => {
         version: '5', // String instead of number (data corruption scenario)
       };
 
-      mockDatabases.getDocument.mockResolvedValue(attendeeWithStringVersion);
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue(attendeeWithStringVersion);
+      mockTablesDB.updateRow.mockResolvedValue({
         ...attendeeWithStringVersion,
         photoUrl: 'https://example.com/photo.jpg',
         version: 1,
       });
 
       const result = await updatePhotoFields(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId,
         { photoUrl: 'https://example.com/photo.jpg' }
       );
@@ -199,16 +199,16 @@ describe('Backward Compatibility', () => {
         lastName: 'Attendee',
       };
 
-      mockDatabases.getDocument.mockResolvedValue(newAttendee);
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue(newAttendee);
+      mockTablesDB.updateRow.mockResolvedValue({
         ...newAttendee,
         version: 1,
       });
 
       await updateFields(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId,
         { firstName: 'Updated' }
       );
@@ -224,17 +224,17 @@ describe('Backward Compatibility', () => {
         version: 5,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(existingAttendee);
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue(existingAttendee);
+      mockTablesDB.updateRow.mockResolvedValue({
         ...existingAttendee,
         firstName: 'Jane',
         version: 6,
       });
 
       await updateFields(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId,
         { firstName: 'Jane' }
       );
@@ -250,16 +250,16 @@ describe('Backward Compatibility', () => {
         version: 0,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(attendeeWithZeroVersion);
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue(attendeeWithZeroVersion);
+      mockTablesDB.updateRow.mockResolvedValue({
         ...attendeeWithZeroVersion,
         version: 1,
       });
 
       await updateCredentialFields(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId,
         { credentialUrl: 'https://example.com/credential.pdf' }
       );
@@ -279,8 +279,8 @@ describe('Backward Compatibility', () => {
         version: 3,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(attendee);
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue(attendee);
+      mockTablesDB.updateRow.mockResolvedValue({
         ...attendee,
         credentialUrl: 'https://example.com/credential.pdf',
         credentialCount: 1,
@@ -288,9 +288,9 @@ describe('Backward Compatibility', () => {
       });
 
       const result = await updateCredentialFields(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId,
         {
           credentialUrl: 'https://example.com/credential.pdf',
@@ -313,8 +313,8 @@ describe('Backward Compatibility', () => {
         version: 2,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(attendee);
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue(attendee);
+      mockTablesDB.updateRow.mockResolvedValue({
         ...attendee,
         photoUrl: 'https://example.com/photo.jpg',
         photoUploadCount: 1,
@@ -322,9 +322,9 @@ describe('Backward Compatibility', () => {
       });
 
       const result = await updatePhotoFields(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId,
         {
           photoUrl: 'https://example.com/photo.jpg',
@@ -345,17 +345,17 @@ describe('Backward Compatibility', () => {
         version: 1,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(attendee);
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue(attendee);
+      mockTablesDB.updateRow.mockResolvedValue({
         ...attendee,
         firstName: 'Jane',
         version: 2,
       });
 
       const result = await updateWithLock(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId,
         (current) => ({ firstName: 'Jane' })
       );
@@ -375,17 +375,17 @@ describe('Backward Compatibility', () => {
         version: 5,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(attendee);
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue(attendee);
+      mockTablesDB.updateRow.mockResolvedValue({
         ...attendee,
         firstName: 'Jane',
         version: 6,
       });
 
       const result = await partialUpdateWithLock(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId,
         { firstName: 'Jane' }
       );
@@ -477,12 +477,12 @@ describe('Backward Compatibility', () => {
 
       const results: { id: string; newVersion: number }[] = [];
 
-      mockDatabases.getDocument.mockImplementation((dbId, collId, docId) => {
+      mockTablesDB.getRow.mockImplementation((dbId, collId, docId) => {
         const attendee = attendees.find(a => a.$id === docId);
         return Promise.resolve(attendee);
       });
 
-      mockDatabases.updateDocument.mockImplementation((dbId, collId, docId, data) => {
+      mockTablesDB.updateRow.mockImplementation((dbId, collId, docId, data) => {
         results.push({ id: docId, newVersion: data.version });
         const attendee = attendees.find(a => a.$id === docId);
         return Promise.resolve({ ...attendee, ...data });
@@ -491,9 +491,9 @@ describe('Backward Compatibility', () => {
       // Update all attendees
       for (const attendee of attendees) {
         await updateCredentialFields(
-          mockDatabases as unknown as Databases,
+          mockTablesDB as unknown as TablesDB,
           testDatabaseId,
-          testCollectionId,
+          testTableId,
           attendee.$id,
           { credentialUrl: `https://example.com/cred-${attendee.$id}.pdf` }
         );
@@ -521,8 +521,8 @@ describe('Backward Compatibility', () => {
         // No version, no tracking fields
       };
 
-      mockDatabases.getDocument.mockResolvedValue(existingRecord);
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue(existingRecord);
+      mockTablesDB.updateRow.mockResolvedValue({
         ...existingRecord,
         credentialUrl: 'https://example.com/new-credential.pdf',
         version: 1,
@@ -530,9 +530,9 @@ describe('Backward Compatibility', () => {
 
       // Should be able to update without errors
       const result = await updateCredentialFields(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId,
         { credentialUrl: 'https://example.com/new-credential.pdf' }
       );
@@ -558,8 +558,8 @@ describe('Backward Compatibility', () => {
         notes: 'Important notes',
       };
 
-      mockDatabases.getDocument.mockResolvedValue(existingRecord);
-      mockDatabases.updateDocument.mockImplementation((dbId, collId, docId, data) => {
+      mockTablesDB.getRow.mockResolvedValue(existingRecord);
+      mockTablesDB.updateRow.mockImplementation((dbId, collId, docId, data) => {
         return Promise.resolve({
           ...existingRecord,
           ...data,
@@ -568,9 +568,9 @@ describe('Backward Compatibility', () => {
 
       // Update only credential fields
       await updateCredentialFields(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId,
         { credentialUrl: 'https://example.com/new-credential.pdf' }
       );

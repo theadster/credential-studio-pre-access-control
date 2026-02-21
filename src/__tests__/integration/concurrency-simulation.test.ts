@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { Databases } from 'node-appwrite';
+import { TablesDB } from 'node-appwrite';
 import {
   updateCredentialFields,
   updatePhotoFields,
@@ -19,11 +19,11 @@ import {
   readWithVersion,
   DEFAULT_LOCK_CONFIG,
 } from '../../lib/optimisticLock';
-import { mockDatabases, resetAllMocks } from '../../test/mocks/appwrite';
+import { mockTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 
 describe('Concurrent Operation Simulation', () => {
   const testDatabaseId = 'test-database';
-  const testCollectionId = 'attendees';
+  const testTableId = 'attendees';
   const testAttendeeId = 'attendee-123';
 
   beforeEach(() => {
@@ -52,16 +52,16 @@ describe('Concurrent Operation Simulation', () => {
       // Track version increments
       let currentVersion = 1;
 
-      // Mock getDocument to return current state with updated version
-      mockDatabases.getDocument.mockImplementation(() => {
+      // Mock getRow to return current state with updated version
+      mockTablesDB.getRow.mockImplementation(() => {
         return Promise.resolve({
           ...initialAttendee,
           version: currentVersion,
         });
       });
 
-      // Mock updateDocument to simulate successful updates
-      mockDatabases.updateDocument.mockImplementation((dbId, collId, docId, data) => {
+      // Mock updateRow to simulate successful updates
+      mockTablesDB.updateRow.mockImplementation((dbId, collId, docId, data) => {
         currentVersion++;
         return Promise.resolve({
           ...initialAttendee,
@@ -72,9 +72,9 @@ describe('Concurrent Operation Simulation', () => {
 
       // Simulate concurrent operations
       const credentialPromise = updateCredentialFields(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testAttendeeId,
         {
           credentialUrl: 'https://example.com/credential.pdf',
@@ -83,9 +83,9 @@ describe('Concurrent Operation Simulation', () => {
       );
 
       const photoPromise = updatePhotoFields(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testAttendeeId,
         {
           photoUrl: 'https://example.com/photo.jpg',
@@ -102,7 +102,7 @@ describe('Concurrent Operation Simulation', () => {
       expect(photoResult.success).toBe(true);
 
       // Verify credential update only included credential fields
-      const credentialUpdateCall = mockDatabases.updateDocument.mock.calls.find(
+      const credentialUpdateCall = mockTablesDB.updateRow.mock.calls.find(
         call => call[3].credentialUrl !== undefined
       );
       expect(credentialUpdateCall).toBeDefined();
@@ -110,7 +110,7 @@ describe('Concurrent Operation Simulation', () => {
       expect(credentialUpdateCall![3]).not.toHaveProperty('photoUrl');
 
       // Verify photo update only included photo fields
-      const photoUpdateCall = mockDatabases.updateDocument.mock.calls.find(
+      const photoUpdateCall = mockTablesDB.updateRow.mock.calls.find(
         call => call[3].photoUrl !== undefined
       );
       expect(photoUpdateCall).toBeDefined();
@@ -134,8 +134,8 @@ describe('Concurrent Operation Simulation', () => {
         version: 5,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(attendeeWithPhoto);
-      mockDatabases.updateDocument.mockImplementation((dbId, collId, docId, data) => {
+      mockTablesDB.getRow.mockResolvedValue(attendeeWithPhoto);
+      mockTablesDB.updateRow.mockImplementation((dbId, collId, docId, data) => {
         return Promise.resolve({
           ...attendeeWithPhoto,
           ...data,
@@ -145,9 +145,9 @@ describe('Concurrent Operation Simulation', () => {
 
       // Generate credential
       const result = await updateCredentialFields(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testAttendeeId,
         {
           credentialUrl: 'https://example.com/credential.pdf',
@@ -157,7 +157,7 @@ describe('Concurrent Operation Simulation', () => {
       expect(result.success).toBe(true);
 
       // Verify photo fields were NOT included in the update
-      const updateCall = mockDatabases.updateDocument.mock.calls[0];
+      const updateCall = mockTablesDB.updateRow.mock.calls[0];
       const updateData = updateCall[3];
 
       expect(updateData).not.toHaveProperty('photoUrl');
@@ -185,8 +185,8 @@ describe('Concurrent Operation Simulation', () => {
         version: 3,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(attendeeWithCredential);
-      mockDatabases.updateDocument.mockImplementation((dbId, collId, docId, data) => {
+      mockTablesDB.getRow.mockResolvedValue(attendeeWithCredential);
+      mockTablesDB.updateRow.mockImplementation((dbId, collId, docId, data) => {
         return Promise.resolve({
           ...attendeeWithCredential,
           ...data,
@@ -196,9 +196,9 @@ describe('Concurrent Operation Simulation', () => {
 
       // Upload photo
       const result = await updatePhotoFields(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testAttendeeId,
         {
           photoUrl: 'https://example.com/new-photo.jpg',
@@ -208,7 +208,7 @@ describe('Concurrent Operation Simulation', () => {
       expect(result.success).toBe(true);
 
       // Verify credential fields were NOT included in the update
-      const updateCall = mockDatabases.updateDocument.mock.calls[0];
+      const updateCall = mockTablesDB.updateRow.mock.calls[0];
       const updateData = updateCall[3];
 
       expect(updateData).not.toHaveProperty('credentialUrl');
@@ -233,7 +233,7 @@ describe('Concurrent Operation Simulation', () => {
       let currentVersion = 1;
       let updateCallCount = 0;
 
-      mockDatabases.getDocument.mockImplementation(() => {
+      mockTablesDB.getRow.mockImplementation(() => {
         return Promise.resolve({
           ...initialAttendee,
           version: currentVersion,
@@ -241,7 +241,7 @@ describe('Concurrent Operation Simulation', () => {
       });
 
       // Simulate version conflicts on first attempts, then success
-      mockDatabases.updateDocument.mockImplementation((dbId, collId, docId, data) => {
+      mockTablesDB.updateRow.mockImplementation((dbId, collId, docId, data) => {
         updateCallCount++;
         
         // First two calls conflict, third succeeds
@@ -260,9 +260,9 @@ describe('Concurrent Operation Simulation', () => {
 
       // Start photo upload with retry
       const resultPromise = updatePhotoFields(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testAttendeeId,
         {
           photoUrl: 'https://example.com/photo1.jpg',
@@ -289,14 +289,14 @@ describe('Concurrent Operation Simulation', () => {
       let currentVersion = 1;
       const photoUrls: string[] = [];
 
-      mockDatabases.getDocument.mockImplementation(() => {
+      mockTablesDB.getRow.mockImplementation(() => {
         return Promise.resolve({
           ...initialAttendee,
           version: currentVersion,
         });
       });
 
-      mockDatabases.updateDocument.mockImplementation((dbId, collId, docId, data) => {
+      mockTablesDB.updateRow.mockImplementation((dbId, collId, docId, data) => {
         currentVersion++;
         if (data.photoUrl) {
           photoUrls.push(data.photoUrl);
@@ -310,17 +310,17 @@ describe('Concurrent Operation Simulation', () => {
 
       // Simulate two concurrent photo uploads
       const photo1Promise = updatePhotoFields(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testAttendeeId,
         { photoUrl: 'https://example.com/photo1.jpg' }
       );
 
       const photo2Promise = updatePhotoFields(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testAttendeeId,
         { photoUrl: 'https://example.com/photo2.jpg' }
       );
@@ -345,8 +345,8 @@ describe('Concurrent Operation Simulation', () => {
         version: 5,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(initialAttendee);
-      mockDatabases.updateDocument.mockImplementation((dbId, collId, docId, data) => {
+      mockTablesDB.getRow.mockResolvedValue(initialAttendee);
+      mockTablesDB.updateRow.mockImplementation((dbId, collId, docId, data) => {
         return Promise.resolve({
           ...initialAttendee,
           ...data,
@@ -354,15 +354,15 @@ describe('Concurrent Operation Simulation', () => {
       });
 
       await updateCredentialFields(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testAttendeeId,
         { credentialUrl: 'https://example.com/credential.pdf' }
       );
 
       // Verify version was incremented in the update
-      const updateCall = mockDatabases.updateDocument.mock.calls[0];
+      const updateCall = mockTablesDB.updateRow.mock.calls[0];
       const updateData = updateCall[3];
 
       expect(updateData.version).toBe(6); // 5 + 1
@@ -375,8 +375,8 @@ describe('Concurrent Operation Simulation', () => {
         // No version field - should default to 0
       };
 
-      mockDatabases.getDocument.mockResolvedValue(newAttendee);
-      mockDatabases.updateDocument.mockImplementation((dbId, collId, docId, data) => {
+      mockTablesDB.getRow.mockResolvedValue(newAttendee);
+      mockTablesDB.updateRow.mockImplementation((dbId, collId, docId, data) => {
         return Promise.resolve({
           ...newAttendee,
           ...data,
@@ -384,15 +384,15 @@ describe('Concurrent Operation Simulation', () => {
       });
 
       await updatePhotoFields(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testAttendeeId,
         { photoUrl: 'https://example.com/photo.jpg' }
       );
 
       // Verify version was set to 1 (0 + 1)
-      const updateCall = mockDatabases.updateDocument.mock.calls[0];
+      const updateCall = mockTablesDB.updateRow.mock.calls[0];
       const updateData = updateCall[3];
 
       expect(updateData.version).toBe(1);

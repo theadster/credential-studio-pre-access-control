@@ -95,12 +95,12 @@ export function getRequiredEnv(name: string, value: string | undefined): string 
 export function validateAppwriteEnv(): EnvValidationResult {
   return validateEnvVars({
     'NEXT_PUBLIC_APPWRITE_DATABASE_ID': process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-    'NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID': process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID,
-    'NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID': process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID,
-    'NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID': process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID,
-    'NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID': process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID,
-    'NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID': process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID,
-    'NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID': process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID
+    'NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID': process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID,
+    'NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID': process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID,
+    'NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID': process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID,
+    'NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID': process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID,
+    'NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID': process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID,
+    'NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID': process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID
   });
 }
 
@@ -113,14 +113,14 @@ export function validateAppwriteEnv(): EnvValidationResult {
  * @example
  * ```typescript
  * try {
- *   const { dbId, attendeesCollectionId, ... } = getAppwriteCollectionIds();
+ *   const { dbId, attendeesTableId, ... } = getAppwriteTableIds();
  *   // Use the validated IDs
  * } catch (error) {
  *   return res.status(500).json({ error: error.message });
  * }
  * ```
  */
-export function getAppwriteCollectionIds() {
+export function getAppwriteTableIds() {
   const validation = validateAppwriteEnv();
   
   if (!validation.isValid) {
@@ -129,11 +129,11 @@ export function getAppwriteCollectionIds() {
 
   return {
     dbId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID as string,
-    attendeesCollectionId: process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID as string,
-    customFieldsCollectionId: process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID as string,
-    eventSettingsCollectionId: process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID as string,
-    usersCollectionId: process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID as string,
-    rolesCollectionId: process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID as string,
-    logsCollectionId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID as string
+    attendeesTableId: process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID as string,
+    customFieldsTableId: process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID as string,
+    eventSettingsTableId: process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID as string,
+    usersTableId: process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID as string,
+    rolesTableId: process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID as string,
+    logsTableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID as string
   };
 }

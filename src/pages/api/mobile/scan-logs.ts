@@ -26,7 +26,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
   }
 
   const { user, userProfile } = req;
-  const { databases } = createSessionClient(req);
+  const { tablesDB } = createSessionClient(req);
 
   // Check permissions - scanner operators need scan log write permission
   const permissions = userProfile.role ? userProfile.role.permissions : {};
@@ -42,7 +42,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
   }
 
   const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-  const scanLogsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_SCAN_LOGS_COLLECTION_ID!;
+  const scanLogsTableId = process.env.NEXT_PUBLIC_APPWRITE_SCAN_LOGS_TABLE_ID!;
 
   try {
     // Validate request body
@@ -83,12 +83,12 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     for (let i = 0; i < localIds.length; i += chunkSize) {
       const chunk = localIds.slice(i, i + chunkSize);
       try {
-        const existingLogs = await databases.listDocuments(
+        const existingLogs = await tablesDB.listRows(
           dbId,
-          scanLogsCollectionId,
+          scanLogsTableId,
           [Query.equal('localId', chunk), Query.limit(chunkSize)]
         );
-        existingLogs.documents.forEach((doc: any) => {
+        existingLogs.rows.forEach((doc: any) => {
           existingLocalIds.add(doc.localId);
         });
       } catch (error) {
@@ -112,9 +112,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       }
 
       try {
-        await databases.createDocument(
+        await tablesDB.createRow(
           dbId,
-          scanLogsCollectionId,
+          scanLogsTableId,
           ID.unique(),
           {
             localId: log.localId,

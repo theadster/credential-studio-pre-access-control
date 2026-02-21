@@ -7,7 +7,7 @@
  * @module optimisticLock
  */
 
-import { Databases } from 'node-appwrite';
+import { TablesDB } from 'node-appwrite';
 
 // ============================================================================
 // Configuration
@@ -247,9 +247,9 @@ export function isVersionMismatchError(error: unknown): boolean {
 /**
  * Read a document from Appwrite and extract its version
  * 
- * @param databases - Appwrite Databases instance
+ * @param tablesDB - Appwrite TablesDB instance
  * @param databaseId - Database ID
- * @param collectionId - Collection ID
+ * @param tableId - Table ID
  * @param documentId - Document ID
  * @returns The document with its version number
  * @throws Error if document not found
@@ -257,7 +257,7 @@ export function isVersionMismatchError(error: unknown): boolean {
  * @example
  * ```typescript
  * const { document, version } = await readWithVersion(
- *   databases,
+ *   tablesDB,
  *   'my-database',
  *   'attendees',
  *   'attendee-123'
@@ -266,12 +266,16 @@ export function isVersionMismatchError(error: unknown): boolean {
  * ```
  */
 export async function readWithVersion<T extends Record<string, unknown>>(
-  databases: Databases,
+  tablesDB: TablesDB,
   databaseId: string,
-  collectionId: string,
+  tableId: string,
   documentId: string,
 ): Promise<VersionedDocument<T>> {
-  const document = await databases.getDocument(databaseId, collectionId, documentId);
+  const document = await tablesDB.getRow({
+    databaseId,
+    tableId,
+    rowId: documentId
+  });
   const version = getVersion(document as Record<string, unknown>);
   
   return {
@@ -289,9 +293,9 @@ export async function readWithVersion<T extends Record<string, unknown>>(
  * 3. Attempts to update with version check
  * 4. Retries with exponential backoff on version conflicts
  * 
- * @param databases - Appwrite Databases instance
+ * @param tablesDB - Appwrite TablesDB instance
  * @param databaseId - Database ID
- * @param collectionId - Collection ID
+ * @param tableId - Table ID
  * @param documentId - Document ID
  * @param updateFn - Function that receives current document and version, returns partial update
  * @param config - Optional configuration overrides
@@ -300,7 +304,7 @@ export async function readWithVersion<T extends Record<string, unknown>>(
  * @example
  * ```typescript
  * const result = await updateWithLock(
- *   databases,
+ *   tablesDB,
  *   'my-database',
  *   'attendees',
  *   'attendee-123',
@@ -318,9 +322,9 @@ export async function readWithVersion<T extends Record<string, unknown>>(
  * ```
  */
 export async function updateWithLock<T extends Record<string, unknown>>(
-  databases: Databases,
+  tablesDB: TablesDB,
   databaseId: string,
-  collectionId: string,
+  tableId: string,
   documentId: string,
   updateFn: (current: T, version: number) => Partial<T>,
   config?: Partial<OptimisticLockConfig>,
@@ -339,9 +343,9 @@ export async function updateWithLock<T extends Record<string, unknown>>(
     try {
       // Read current document and version
       const { document: current, version: currentVersion } = await readWithVersion<T>(
-        databases,
+        tablesDB,
         databaseId,
-        collectionId,
+        tableId,
         documentId,
       );
 
@@ -355,9 +359,9 @@ export async function updateWithLock<T extends Record<string, unknown>>(
       };
 
       // Attempt update
-      const updated = await databases.updateDocument(
+      const updated = await tablesDB.updateRow(
         databaseId,
-        collectionId,
+        tableId,
         documentId,
         dataWithVersion,
       );
@@ -424,9 +428,9 @@ export async function updateWithLock<T extends Record<string, unknown>>(
  * This is a simpler version of updateWithLock that directly applies
  * the provided fields without a transformation function.
  * 
- * @param databases - Appwrite Databases instance
+ * @param tablesDB - Appwrite TablesDB instance
  * @param databaseId - Database ID
- * @param collectionId - Collection ID
+ * @param tableId - Table ID
  * @param documentId - Document ID
  * @param fields - Fields to update
  * @param expectedVersion - Optional expected version for immediate conflict detection
@@ -436,7 +440,7 @@ export async function updateWithLock<T extends Record<string, unknown>>(
  * @example
  * ```typescript
  * const result = await partialUpdateWithLock(
- *   databases,
+ *   tablesDB,
  *   'my-database',
  *   'attendees',
  *   'attendee-123',
@@ -446,9 +450,9 @@ export async function updateWithLock<T extends Record<string, unknown>>(
  * ```
  */
 export async function partialUpdateWithLock<T extends Record<string, unknown>>(
-  databases: Databases,
+  tablesDB: TablesDB,
   databaseId: string,
-  collectionId: string,
+  tableId: string,
   documentId: string,
   fields: Record<string, unknown>,
   expectedVersion?: number,
@@ -465,9 +469,9 @@ export async function partialUpdateWithLock<T extends Record<string, unknown>>(
   // Use updateWithLock with a simple merge function
   // Pass expectedVersion to validate during the atomic read-modify-write cycle
   return updateWithLock<T>(
-    databases,
+    tablesDB,
     databaseId,
-    collectionId,
+    tableId,
     documentId,
     (current, currentVersion) => {
       // If expectedVersion was provided, validate it matches the current version

@@ -3,8 +3,7 @@
     "lib": [
       "dom",
       "dom.iterable",
-      "esnext",
-      "es2022.error"
+      "esnext"
     ],
     "allowJs": true,
     "skipLibCheck": true,
@@ -39,6 +38,7 @@
     "node_modules",
     "**/*.test.ts",
     "**/*.test.tsx",
-    "**/__tests__/**"
+    "**/__tests__/**",
+    "scripts/**"
   ]
 }

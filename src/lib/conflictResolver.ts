@@ -8,7 +8,7 @@
  * @module conflictResolver
  */
 
-import { Databases } from 'node-appwrite';
+import { TablesDB } from 'node-appwrite';
 import { logger } from './logger';
 import { FIELD_GROUPS, FieldGroupName } from './fieldUpdate';
 import { LockResult, updateWithLock, OptimisticLockConfig, sanitizeLockConfig } from './optimisticLock';
@@ -167,7 +167,7 @@ export interface ConflictResolutionOptions {
     /** Whether to log conflicts to the database */
     enabled: boolean;
     /** Logs collection ID */
-    logsCollectionId: string;
+    logsTableId: string;
   };
 }
 
@@ -603,9 +603,9 @@ function filterNonConflictingFields(
  * This function takes a resolution strategy and applies it to update
  * the document with the resolved data.
  * 
- * @param databases - Appwrite Databases instance
+ * @param tablesDB - Appwrite TablesDB instance
  * @param databaseId - Database ID
- * @param collectionId - Collection ID
+ * @param tableId - Table ID
  * @param documentId - Document ID
  * @param strategy - Resolution strategy to apply
  * @param incomingData - Original incoming data (used for RETRY strategy)
@@ -615,9 +615,9 @@ function filterNonConflictingFields(
  * @example
  * ```typescript
  * const result = await resolve(
- *   databases,
+ *   tablesDB,
  *   dbId,
- *   collectionId,
+ *   tableId,
  *   'doc-123',
  *   strategy,
  *   { photoUrl: 'new-photo.jpg' }
@@ -629,9 +629,9 @@ function filterNonConflictingFields(
  * ```
  */
 export async function resolve<T extends Record<string, unknown>>(
-  databases: Databases,
+  tablesDB: TablesDB,
   databaseId: string,
-  collectionId: string,
+  tableId: string,
   documentId: string,
   strategy: ResolutionStrategy,
   incomingData: Record<string, unknown>,
@@ -642,9 +642,9 @@ export async function resolve<T extends Record<string, unknown>>(
   switch (strategy.type) {
     case ResolutionStrategyType.MERGE:
       return applyMergeStrategy<T>(
-        databases,
+        tablesDB,
         databaseId,
-        collectionId,
+        tableId,
         documentId,
         strategy.mergedData || incomingData,
         lockConfig
@@ -652,9 +652,9 @@ export async function resolve<T extends Record<string, unknown>>(
 
     case ResolutionStrategyType.LATEST_WINS:
       return applyLatestWinsStrategy<T>(
-        databases,
+        tablesDB,
         databaseId,
-        collectionId,
+        tableId,
         documentId,
         strategy.mergedData || incomingData,
         lockConfig
@@ -662,9 +662,9 @@ export async function resolve<T extends Record<string, unknown>>(
 
     case ResolutionStrategyType.RETRY:
       return applyRetryStrategy<T>(
-        databases,
+        tablesDB,
         databaseId,
-        collectionId,
+        tableId,
         documentId,
         incomingData,
         lockConfig
@@ -692,17 +692,17 @@ export async function resolve<T extends Record<string, unknown>>(
  * Apply merge strategy by combining field sets
  */
 async function applyMergeStrategy<T extends Record<string, unknown>>(
-  databases: Databases,
+  tablesDB: TablesDB,
   databaseId: string,
-  collectionId: string,
+  tableId: string,
   documentId: string,
   mergedData: Record<string, unknown>,
   lockConfig: OptimisticLockConfig
 ): Promise<ResolutionResult<T>> {
   const result = await updateWithLock<T>(
-    databases,
+    tablesDB,
     databaseId,
-    collectionId,
+    tableId,
     documentId,
     () => mergedData as Partial<T>,
     lockConfig
@@ -721,17 +721,17 @@ async function applyMergeStrategy<T extends Record<string, unknown>>(
  * Apply latest-wins strategy by using the newer data
  */
 async function applyLatestWinsStrategy<T extends Record<string, unknown>>(
-  databases: Databases,
+  tablesDB: TablesDB,
   databaseId: string,
-  collectionId: string,
+  tableId: string,
   documentId: string,
   winningData: Record<string, unknown>,
   lockConfig: OptimisticLockConfig
 ): Promise<ResolutionResult<T>> {
   const result = await updateWithLock<T>(
-    databases,
+    tablesDB,
     databaseId,
-    collectionId,
+    tableId,
     documentId,
     () => winningData as Partial<T>,
     lockConfig
@@ -750,17 +750,17 @@ async function applyLatestWinsStrategy<T extends Record<string, unknown>>(
  * Apply retry strategy by re-attempting with fresh data
  */
 async function applyRetryStrategy<T extends Record<string, unknown>>(
-  databases: Databases,
+  tablesDB: TablesDB,
   databaseId: string,
-  collectionId: string,
+  tableId: string,
   documentId: string,
   incomingData: Record<string, unknown>,
   lockConfig: OptimisticLockConfig
 ): Promise<ResolutionResult<T>> {
   const result = await updateWithLock<T>(
-    databases,
+    tablesDB,
     databaseId,
-    collectionId,
+    tableId,
     documentId,
     () => incomingData as Partial<T>,
     lockConfig
@@ -781,9 +781,9 @@ async function applyRetryStrategy<T extends Record<string, unknown>>(
  * This function combines conflict detection, strategy determination,
  * and resolution into a single operation.
  * 
- * @param databases - Appwrite Databases instance
+ * @param tablesDB - Appwrite TablesDB instance
  * @param databaseId - Database ID
- * @param collectionId - Collection ID
+ * @param tableId - Table ID
  * @param documentId - Document ID
  * @param incomingData - Data to apply
  * @param expectedVersion - Expected document version
@@ -794,9 +794,9 @@ async function applyRetryStrategy<T extends Record<string, unknown>>(
  * @example
  * ```typescript
  * const result = await detectAndResolve(
- *   databases,
+ *   tablesDB,
  *   dbId,
- *   collectionId,
+ *   tableId,
  *   'doc-123',
  *   { photoUrl: 'new-photo.jpg' },
  *   5,
@@ -805,9 +805,9 @@ async function applyRetryStrategy<T extends Record<string, unknown>>(
  * ```
  */
 export async function detectAndResolve<T extends Record<string, unknown>>(
-  databases: Databases,
+  tablesDB: TablesDB,
   databaseId: string,
-  collectionId: string,
+  tableId: string,
   documentId: string,
   incomingData: Record<string, unknown>,
   expectedVersion: number,
@@ -816,9 +816,9 @@ export async function detectAndResolve<T extends Record<string, unknown>>(
 ): Promise<LockResult<T>> {
   // First, try a direct update
   const directResult = await updateWithLock<T>(
-    databases,
+    tablesDB,
     databaseId,
-    collectionId,
+    tableId,
     documentId,
     () => incomingData as Partial<T>,
     options?.lockConfig
@@ -831,9 +831,9 @@ export async function detectAndResolve<T extends Record<string, unknown>>(
   // If direct update failed due to conflict, try to resolve
   if (directResult.conflictDetected) {
     // Get current document state
-    const currentDoc = await databases.getDocument(
+    const currentDoc = await tablesDB.getRow(
       databaseId,
-      collectionId,
+      tableId,
       documentId
     );
 
@@ -857,9 +857,9 @@ export async function detectAndResolve<T extends Record<string, unknown>>(
         // Import dynamically to avoid circular dependencies
         const { logConflictDetected } = await import('./conflictLogging');
         await logConflictDetected(conflict, {
-          databases,
+          tablesDB,
           databaseId,
-          logsCollectionId: options.databaseLogging.logsCollectionId,
+          logsTableId: options.databaseLogging.logsTableId,
           userId: options.userId,
           sessionId: options.sessionId,
         }).catch(() => {
@@ -877,9 +877,9 @@ export async function detectAndResolve<T extends Record<string, unknown>>(
 
       // Apply resolution
       const resolution = await resolve<T>(
-        databases,
+        tablesDB,
         databaseId,
-        collectionId,
+        tableId,
         documentId,
         strategy,
         incomingData,
@@ -926,9 +926,9 @@ export async function detectAndResolve<T extends Record<string, unknown>>(
           resolution.success,
           resolution.retriesUsed,
           {
-            databases,
+            tablesDB,
             databaseId,
-            logsCollectionId: options.databaseLogging.logsCollectionId,
+            logsTableId: options.databaseLogging.logsTableId,
             userId: options.userId,
             sessionId: options.sessionId,
           },

@@ -29,7 +29,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
   }
 
   const { user, userProfile } = req;
-  const { databases } = createSessionClient(req);
+  const { tablesDB } = createSessionClient(req);
 
   // Check permissions - scanner operators need approval profile read permission
   const permissions = userProfile.role ? userProfile.role.permissions : {};
@@ -43,7 +43,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
   }
 
   const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-  const approvalProfilesCollectionId = process.env.NEXT_PUBLIC_APPWRITE_APPROVAL_PROFILES_COLLECTION_ID!;
+  const approvalProfilesTableId = process.env.NEXT_PUBLIC_APPWRITE_APPROVAL_PROFILES_TABLE_ID!;
 
   try {
     // Parse versions parameter
@@ -96,9 +96,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       Query.limit(100) // Reasonable limit for approval profiles
     ];
 
-    const profilesResult = await databases.listDocuments(
+    const profilesResult = await tablesDB.listRows(
       dbId,
-      approvalProfilesCollectionId,
+      approvalProfilesTableId,
       queries
     );
 
@@ -106,7 +106,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     // Include profiles that:
     // 1. Don't exist locally (not in localVersions)
     // 2. Have server version > local version
-    const profilesToSync = profilesResult.documents.filter((profile: any) => {
+    const profilesToSync = profilesResult.rows.filter((profile: any) => {
       const localVersion = localVersions[profile.$id];
       
       // Profile doesn't exist locally - include it

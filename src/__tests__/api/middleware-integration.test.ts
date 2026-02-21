@@ -23,14 +23,14 @@ vi.mock('@/lib/logSettings', () => ({
   shouldLog: vi.fn(() => Promise.resolve(false)),
 }));
 
-import { createSessionClient } from '@/lib/appwrite';
+import { createSessionClient, createAdminClient } from '@/lib/appwrite';
 import { hasPermission } from '@/lib/permissions';
 
 describe('API Routes with withAuth Middleware', () => {
   let mockReq: Partial<NextApiRequest>;
   let mockRes: Partial<NextApiResponse>;
   let mockAccount: any;
-  let mockDatabases: any;
+  let mockTablesDB: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -53,17 +53,21 @@ describe('API Routes with withAuth Middleware', () => {
       get: vi.fn(),
     };
 
-    mockDatabases = {
-      listDocuments: vi.fn(),
-      getDocument: vi.fn(),
-      createDocument: vi.fn(),
-      updateDocument: vi.fn(),
-      deleteDocument: vi.fn(),
+    mockTablesDB = {
+      listRows: vi.fn(),
+      getRow: vi.fn(),
+      createRow: vi.fn(),
+      updateRow: vi.fn(),
+      deleteRow: vi.fn(),
     };
 
     (createSessionClient as any).mockReturnValue({
       account: mockAccount,
-      databases: mockDatabases,
+      tablesDB: mockTablesDB,
+    });
+
+    (createAdminClient as any).mockReturnValue({
+      tablesDB: mockTablesDB,
     });
   });
 
@@ -94,11 +98,11 @@ describe('API Routes with withAuth Middleware', () => {
       };
 
       mockAccount.get.mockResolvedValue(mockUser);
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockUserProfile],
         total: 1,
       });
-      mockDatabases.getDocument.mockResolvedValue(mockRole);
+      mockTablesDB.getRow.mockResolvedValue(mockRole);
 
       const profileHandler = await import('@/pages/api/profile/index');
       await profileHandler.default(mockReq as NextApiRequest, mockRes as NextApiResponse);
@@ -162,11 +166,11 @@ describe('API Routes with withAuth Middleware', () => {
       };
 
       mockAccount.get.mockResolvedValue(mockUser);
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockUserProfile],
         total: 1,
       });
-      mockDatabases.getDocument.mockResolvedValue(mockRole);
+      mockTablesDB.getRow.mockResolvedValue(mockRole);
       (hasPermission as any).mockReturnValue(false);
 
       const usersHandler = await import('@/pages/api/users/index');
@@ -208,21 +212,21 @@ describe('API Routes with withAuth Middleware', () => {
       };
 
       mockAccount.get.mockResolvedValue(mockUser);
-      mockDatabases.listDocuments
+      mockTablesDB.listRows
         .mockResolvedValueOnce({
-          documents: [mockUserProfile],
+          rows: [mockUserProfile],
           total: 1,
         })
         .mockResolvedValueOnce({
-          documents: [mockRole],
+          rows: [mockRole],
           total: 1,
         })
         .mockResolvedValueOnce({
-          documents: [],
+          rows: [],
           total: 0,
         });
-      mockDatabases.getDocument.mockResolvedValue(mockRole);
-      mockDatabases.createDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue(mockRole);
+      mockTablesDB.createRow.mockResolvedValue({
         $id: 'log123',
         userId: 'user123',
         action: 'view',
@@ -271,11 +275,11 @@ describe('API Routes with withAuth Middleware', () => {
       };
 
       mockAccount.get.mockResolvedValue(mockUser);
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockUserProfile],
         total: 1,
       });
-      mockDatabases.getDocument.mockResolvedValue(mockRole);
+      mockTablesDB.getRow.mockResolvedValue(mockRole);
 
       const attendeesHandler = await import('@/pages/api/attendees/index');
       await attendeesHandler.default(mockReq as NextApiRequest, mockRes as NextApiResponse);
@@ -318,17 +322,17 @@ describe('API Routes with withAuth Middleware', () => {
       };
 
       mockAccount.get.mockResolvedValue(mockUser);
-      mockDatabases.listDocuments
+      mockTablesDB.listRows
         .mockResolvedValueOnce({
-          documents: [mockUserProfile],
+          rows: [mockUserProfile],
           total: 1,
         })
         .mockResolvedValueOnce({
-          documents: [mockLog],
+          rows: [mockLog],
           total: 1,
         })
         .mockResolvedValueOnce({
-          documents: [mockUserProfile],
+          rows: [mockUserProfile],
           total: 1,
         });
 

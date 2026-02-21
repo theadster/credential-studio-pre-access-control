@@ -99,26 +99,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     // Create session client
-    const { account, databases } = createSessionClient(req);
+    const { account, tablesDB } = createSessionClient(req);
 
     // Verify authentication
     const user = await account.get();
 
     // Check if user is authorized to initialize roles
-    const userDocs = await databases.listDocuments(
+    const userDocs = await tablesDB.listRows(
       process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-      process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+      process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID!,
       [Query.equal('userId', user.$id)]
     );
 
-    if (userDocs.documents.length === 0 || !userDocs.documents[0].roleId) {
+    if (userDocs.rows.length === 0 || !userDocs.rows[0].roleId) {
       return res.status(403).json({ error: 'Unauthorized' });
     }
 
-    const userRole = await databases.getDocument(
+    const userRole = await tablesDB.getRow(
       process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-      process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
-      userDocs.documents[0].roleId
+      process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
+      userDocs.rows[0].roleId
     );
 
     if (userRole.name !== 'Super Administrator') {
@@ -126,9 +126,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Check if roles already exist
-    const existingRoles = await databases.listDocuments(
+    const existingRoles = await tablesDB.listRows(
       process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-      process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+      process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
       [Query.limit(1)]
     );
 
@@ -142,9 +142,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     for (const roleData of DEFAULT_ROLES) {
       try {
-        const role = await databases.createDocument(
+        const role = await tablesDB.createRow(
           process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+          process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
           ID.unique(),
           {
             name: roleData.name,
@@ -169,9 +169,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Log the initialization action
     try {
-      await databases.createDocument(
+      await tablesDB.createRow(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+        process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
         ID.unique(),
         {
           userId: user.$id,

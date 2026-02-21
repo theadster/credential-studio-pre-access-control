@@ -1,17 +1,17 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
 import handler from '../../pages/api/attendees/[id]/generate-credential';
-import { mockAccount, mockDatabases, resetAllMocks } from '../../test/mocks/appwrite';
+import { mockAccount, mockTablesDB, mockAdminTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 import { getSwitchboardIntegration } from '../../lib/appwrite-integrations';
 
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn((req: NextApiRequest) => ({
     account: mockAccount,
-    databases: mockDatabases,
+    tablesDB: mockTablesDB,
   })),
   createAdminClient: vi.fn(() => ({
-    databases: mockDatabases,
+    tablesDB: mockAdminTablesDB,
   })),
 }));
 
@@ -126,16 +126,18 @@ describe('Credential Tracking with Operators', () => {
 
     // Default mock implementations
     mockAccount.get.mockResolvedValue(mockAuthUser);
-    mockDatabases.listDocuments
-      .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // User profile
-      .mockResolvedValueOnce({ documents: [mockEventSettings], total: 1 }) // Event settings
-      .mockResolvedValueOnce({ documents: [], total: 0 }); // Custom fields
+    mockTablesDB.listRows
+      .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 }) // User profile
+      .mockResolvedValueOnce({ rows: [mockEventSettings], total: 1 }) // Event settings
+      .mockResolvedValueOnce({ rows: [], total: 0 }); // Custom fields
     
-    mockDatabases.getDocument
+    mockTablesDB.getRow
       .mockResolvedValueOnce(mockAdminRole) // Role
       .mockResolvedValueOnce(mockAttendee); // Attendee
+
+    mockAdminTablesDB.getRow.mockResolvedValue(mockAdminRole); // Role for middleware
     
-    mockDatabases.createDocument.mockResolvedValue({
+    mockTablesDB.createRow.mockResolvedValue({
       $id: 'new-log-123',
       userId: mockAuthUser.$id,
       action: 'generate_credential',
@@ -156,7 +158,7 @@ describe('Credential Tracking with Operators', () => {
       const credentialUrl = 'https://example.com/credential.pdf';
       const now = new Date().toISOString();
 
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.updateRow.mockResolvedValue({
         ...mockAttendee,
         credentialUrl,
         credentialGeneratedAt: now,
@@ -172,10 +174,10 @@ describe('Credential Tracking with Operators', () => {
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      // Verify that updateDocument was called with operator objects
-      expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
+      // Verify that updateRow was called with operator objects
+      expect(mockTablesDB.updateRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID,
         'attendee-123',
         expect.objectContaining({
           credentialUrl,
@@ -203,7 +205,7 @@ describe('Credential Tracking with Operators', () => {
       const credentialUrl = 'https://example.com/credential.pdf';
       const now = new Date().toISOString();
 
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.updateRow.mockResolvedValue({
         ...mockAttendee,
         credentialUrl,
         credentialGeneratedAt: now,
@@ -220,9 +222,9 @@ describe('Credential Tracking with Operators', () => {
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       // Verify that the update uses atomic operators
-      expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.updateRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID,
         'attendee-123',
         expect.objectContaining({
           credentialCount: expect.objectContaining({ __operator: 'increment', value: 1 }),
@@ -239,16 +241,16 @@ describe('Credential Tracking with Operators', () => {
       // Reset and setup mocks properly
       resetAllMocks();
       mockAccount.get.mockResolvedValue(mockAuthUser);
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // User profile
-        .mockResolvedValueOnce({ documents: [mockEventSettings], total: 1 }) // Event settings
-        .mockResolvedValueOnce({ documents: [], total: 0 }); // Custom fields
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 }) // User profile
+        .mockResolvedValueOnce({ rows: [mockEventSettings], total: 1 }) // Event settings
+        .mockResolvedValueOnce({ rows: [], total: 0 }); // Custom fields
       
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole) // Role
         .mockResolvedValueOnce(mockAttendee); // Attendee
 
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.updateRow.mockResolvedValue({
         ...mockAttendee,
         credentialUrl,
         credentialGeneratedAt: now,
@@ -267,9 +269,9 @@ describe('Credential Tracking with Operators', () => {
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       // Verify that both timestamp fields use dateSetNow operator
-      expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.updateRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID,
         'attendee-123',
         expect.objectContaining({
           credentialGeneratedAt: expect.objectContaining({ __operator: 'dateSetNow' }),
@@ -288,7 +290,7 @@ describe('Credential Tracking with Operators', () => {
       const credentialUrl = 'https://example.com/credential.pdf';
       const now = new Date().toISOString();
 
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.updateRow.mockResolvedValue({
         ...mockAttendee,
         credentialUrl,
         credentialGeneratedAt: now,
@@ -326,16 +328,18 @@ describe('Credential Tracking with Operators', () => {
       // Simulate generating credentials multiple times
       for (let i = 1; i <= 5; i++) {
         mockAccount.get.mockResolvedValueOnce(mockAuthUser);
-        mockDatabases.listDocuments
-          .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // User profile
-          .mockResolvedValueOnce({ documents: [mockEventSettings], total: 1 }) // Event settings
-          .mockResolvedValueOnce({ documents: [], total: 0 }); // Custom fields
+        mockTablesDB.listRows
+          .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 }) // User profile
+          .mockResolvedValueOnce({ rows: [mockEventSettings], total: 1 }) // Event settings
+          .mockResolvedValueOnce({ rows: [], total: 0 }); // Custom fields
         
-        mockDatabases.getDocument
+        mockTablesDB.getRow
           .mockResolvedValueOnce(mockAdminRole) // Role
           .mockResolvedValueOnce(mockAttendee); // Attendee
 
-        mockDatabases.updateDocument.mockResolvedValueOnce({
+        mockAdminTablesDB.getRow.mockResolvedValueOnce(mockAdminRole); // Role for middleware
+
+        mockTablesDB.updateRow.mockResolvedValueOnce({
           ...mockAttendee,
           credentialUrl,
           credentialGeneratedAt: now,
@@ -355,8 +359,8 @@ describe('Credential Tracking with Operators', () => {
       }
 
       // Verify each call incremented by 1
-      expect(mockDatabases.updateDocument).toHaveBeenCalledTimes(5);
-      mockDatabases.updateDocument.mock.calls.forEach((call) => {
+      expect(mockTablesDB.updateRow).toHaveBeenCalledTimes(5);
+      mockTablesDB.updateRow.mock.calls.forEach((call) => {
         expect(call[3]).toEqual(
           expect.objectContaining({
             credentialCount: expect.objectContaining({ __operator: 'increment', value: 1 }),

@@ -823,8 +823,8 @@ describe('Mobile Debug Attendee Endpoint - Data Retrieval', () => {
 
   describe('Requirement 1.5: Handle attendee not found', () => {
     it('should return 404 when attendee not found', () => {
-      const documents: any[] = [];
-      const found = documents.length > 0;
+      const rows: any[] = [];
+      const found = rows.length > 0;
 
       expect(found).toBe(false);
     });
@@ -836,8 +836,8 @@ describe('Mobile Debug Attendee Endpoint - Data Retrieval', () => {
     });
 
     it('should handle empty query results', () => {
-      const queryResults = { documents: [] };
-      const attendeeFound = queryResults.documents.length > 0;
+      const queryResults = { rows: [] };
+      const attendeeFound = queryResults.rows.length > 0;
 
       expect(attendeeFound).toBe(false);
     });

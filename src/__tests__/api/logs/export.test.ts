@@ -1,15 +1,19 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import handler from '../export';
-import { mockAccount, mockDatabases, resetAllMocks } from '@/test/mocks/appwrite';
+import handler from '@/pages/api/logs/export';
+import { mockAccount, mockTablesDB, mockAdminTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn((req: NextApiRequest) => ({
     account: mockAccount,
-    databases: mockDatabases,
+    tablesDB: mockTablesDB,
   })),
+  createAdminClient: vi.fn(() => ({
+    tablesDB: mockAdminTablesDB,
+})),
 }));
+
 
 describe('/api/logs/export - Export Logs API', () => {
   let mockReq: Partial<NextApiRequest>;
@@ -60,8 +64,8 @@ describe('/api/logs/export - Export Logs API', () => {
 
     // Default mock implementations
     mockAccount.get.mockResolvedValue(mockAuthUser);
-    mockDatabases.listDocuments.mockResolvedValue({
-      documents: [mockUserProfile],
+    mockTablesDB.listRows.mockResolvedValue({
+      rows: [mockUserProfile],
       total: 1,
     });
   });
@@ -103,15 +107,15 @@ describe('/api/logs/export - Export Logs API', () => {
         name: 'Admin User',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: mockLogs, total: 2 }) // Logs
-        .mockResolvedValueOnce({ documents: [mockUser], total: 1 }) // User for log 1
-        .mockResolvedValueOnce({ documents: [mockUser], total: 1 }); // User for log 2
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: mockLogs, total: 2 }) // Logs
+        .mockResolvedValueOnce({ rows: [mockUser], total: 1 }) // User for log 1
+        .mockResolvedValueOnce({ rows: [mockUser], total: 1 }); // User for log 2
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce({ $id: 'attendee-1', firstName: 'John', lastName: 'Doe' }); // Attendee for log 1
 
-      mockDatabases.createDocument.mockResolvedValueOnce({ $id: 'export-log' });
+      mockTablesDB.createRow.mockResolvedValueOnce({ $id: 'export-log' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -175,11 +179,11 @@ describe('/api/logs/export - Export Logs API', () => {
         name: 'Admin User',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: mockLogs, total: 1 }) // Logs fetch
-        .mockResolvedValueOnce({ documents: [mockUser], total: 1 }); // User for log
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: mockLogs, total: 1 }) // Logs fetch
+        .mockResolvedValueOnce({ rows: [mockUser], total: 1 }); // User for log
 
-      mockDatabases.createDocument.mockResolvedValueOnce({ $id: 'export-log' });
+      mockTablesDB.createRow.mockResolvedValueOnce({ $id: 'export-log' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -211,11 +215,11 @@ describe('/api/logs/export - Export Logs API', () => {
         name: 'Admin User',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: mockLogs, total: 1 }) // Logs fetch
-        .mockResolvedValueOnce({ documents: [mockUser], total: 1 }); // User for log
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: mockLogs, total: 1 }) // Logs fetch
+        .mockResolvedValueOnce({ rows: [mockUser], total: 1 }); // User for log
 
-      mockDatabases.createDocument.mockResolvedValueOnce({ $id: 'export-log' });
+      mockTablesDB.createRow.mockResolvedValueOnce({ $id: 'export-log' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -249,11 +253,11 @@ describe('/api/logs/export - Export Logs API', () => {
         name: 'Admin User',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: mockLogs, total: 1 }) // Logs fetch
-        .mockResolvedValueOnce({ documents: [mockUser], total: 1 }); // User for log
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: mockLogs, total: 1 }) // Logs fetch
+        .mockResolvedValueOnce({ rows: [mockUser], total: 1 }); // User for log
 
-      mockDatabases.createDocument.mockResolvedValueOnce({ $id: 'export-log' });
+      mockTablesDB.createRow.mockResolvedValueOnce({ $id: 'export-log' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -286,16 +290,16 @@ describe('/api/logs/export - Export Logs API', () => {
         name: 'Admin User',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: mockLogs1, total: 150 }) // First batch
-        .mockResolvedValueOnce({ documents: mockLogs2, total: 150 }); // Second batch
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: mockLogs1, total: 150 }) // First batch
+        .mockResolvedValueOnce({ rows: mockLogs2, total: 150 }); // Second batch
 
       // Mock user lookups for all logs
       for (let i = 0; i < 150; i++) {
-        mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUser], total: 1 });
+        mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUser], total: 1 });
       }
 
-      mockDatabases.createDocument.mockResolvedValueOnce({ $id: 'export-log' });
+      mockTablesDB.createRow.mockResolvedValueOnce({ $id: 'export-log' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -325,11 +329,11 @@ describe('/api/logs/export - Export Logs API', () => {
         name: 'Admin User',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: mockLogs, total: 1 }) // Logs fetch
-        .mockResolvedValueOnce({ documents: [mockUser], total: 1 }); // User for log
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: mockLogs, total: 1 }) // Logs fetch
+        .mockResolvedValueOnce({ rows: [mockUser], total: 1 }); // User for log
 
-      mockDatabases.createDocument.mockResolvedValueOnce({ $id: 'export-log' });
+      mockTablesDB.createRow.mockResolvedValueOnce({ $id: 'export-log' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -355,17 +359,17 @@ describe('/api/logs/export - Export Logs API', () => {
         name: 'Admin User',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: mockLogs, total: 1 }) // Logs fetch
-        .mockResolvedValueOnce({ documents: [mockUser], total: 1 }); // User for log
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: mockLogs, total: 1 }) // Logs fetch
+        .mockResolvedValueOnce({ rows: [mockUser], total: 1 }); // User for log
 
-      mockDatabases.createDocument.mockResolvedValueOnce({ $id: 'export-log' });
+      mockTablesDB.createRow.mockResolvedValueOnce({ $id: 'export-log' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
         expect.any(String),
         expect.objectContaining({
           userId: mockAuthUser.$id,
@@ -400,11 +404,11 @@ describe('/api/logs/export - Export Logs API', () => {
         name: 'Admin User',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: mockLogs, total: 1 }) // Logs fetch
-        .mockResolvedValueOnce({ documents: [mockUser], total: 1 }); // User for log
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: mockLogs, total: 1 }) // Logs fetch
+        .mockResolvedValueOnce({ rows: [mockUser], total: 1 }); // User for log
 
-      mockDatabases.createDocument.mockResolvedValueOnce({ $id: 'export-log' });
+      mockTablesDB.createRow.mockResolvedValueOnce({ $id: 'export-log' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -428,13 +432,13 @@ describe('/api/logs/export - Export Logs API', () => {
         fields: ['userName', 'targetName'],
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: mockLogs, total: 1 }) // Logs fetch
-        .mockResolvedValueOnce({ documents: [], total: 0 }); // User not found
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: mockLogs, total: 1 }) // Logs fetch
+        .mockResolvedValueOnce({ rows: [], total: 0 }); // User not found
 
-      mockDatabases.getDocument.mockRejectedValueOnce(new Error('Attendee not found'));
+      mockTablesDB.getRow.mockRejectedValueOnce(new Error('Attendee not found'));
 
-      mockDatabases.createDocument.mockResolvedValueOnce({ $id: 'export-log' });
+      mockTablesDB.createRow.mockResolvedValueOnce({ $id: 'export-log' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -464,17 +468,17 @@ describe('/api/logs/export - Export Logs API', () => {
         name: 'Admin User',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: mockLogs, total: 1 }) // Logs fetch
-        .mockResolvedValueOnce({ documents: [mockUser], total: 1 }); // User for log
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: mockLogs, total: 1 }) // Logs fetch
+        .mockResolvedValueOnce({ rows: [mockUser], total: 1 }); // User for log
 
-      mockDatabases.getDocument.mockResolvedValueOnce({
+      mockTablesDB.getRow.mockResolvedValueOnce({
         $id: 'attendee-1',
         firstName: 'John',
         lastName: 'Doe',
       });
 
-      mockDatabases.createDocument.mockResolvedValueOnce({ $id: 'export-log' });
+      mockTablesDB.createRow.mockResolvedValueOnce({ $id: 'export-log' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -498,8 +502,8 @@ describe('/api/logs/export - Export Logs API', () => {
 
   describe('Error Handling', () => {
     it('should handle generic errors', async () => {
-      // Reject on the first listDocuments call (logs fetch)
-      mockDatabases.listDocuments.mockRejectedValueOnce(new Error('Database error'));
+      // Reject on the first listRows call (logs fetch)
+      mockTablesDB.listRows.mockRejectedValueOnce(new Error('Database error'));
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 

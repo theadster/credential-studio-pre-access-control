@@ -35,16 +35,16 @@ const handler = async (req: AuthenticatedRequest, res: NextApiResponse) => {
     const { user, userProfile } = req;
     
     // Use session client for validation and reading settings
-    const { databases: sessionDatabases } = createSessionClient(req);
+    const { tablesDB: sessionTablesDB } = createSessionClient(req);
     
     // Use admin client for bulk operations to avoid rate limiting
-    const { databases: adminDatabases, tablesDB } = createAdminClient();
+    const { tablesDB } = createAdminClient();
 
     const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-    const attendeesCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID!;
-    const logsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!;
-    const customFieldsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID!;
-    const eventSettingsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID!;
+    const attendeesTableId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID!;
+    const logsTableId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!;
+    const customFieldsTableId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID!;
+    const eventSettingsTableId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID!;
 
     // Check import permission
     // Check import permission
@@ -89,8 +89,8 @@ const handler = async (req: AuthenticatedRequest, res: NextApiResponse) => {
         .on('end', async () => {
         try {
           // Fetch event settings for barcode configuration using session client
-          const eventSettingsDocs = await sessionDatabases.listDocuments(dbId, eventSettingsCollectionId);
-          const eventSettings = eventSettingsDocs.documents[0];
+          const eventSettingsDocs = await sessionTablesDB.listRows(dbId, eventSettingsTableId);
+          const eventSettings = eventSettingsDocs.rows[0];
 
           if (!eventSettings || !eventSettings.barcodeType || !eventSettings.barcodeLength) {
             return res.status(400).json({
@@ -105,12 +105,12 @@ const handler = async (req: AuthenticatedRequest, res: NextApiResponse) => {
           }
 
           // Fetch custom fields to map internal names to IDs and get field options using session client
-          const customFieldsDocs = await sessionDatabases.listDocuments(
+          const customFieldsDocs = await sessionTablesDB.listRows(
             dbId,
-            customFieldsCollectionId,
+            customFieldsTableId,
             [Query.limit(100)]
           );
-          const customFields = customFieldsDocs.documents;
+          const customFields = customFieldsDocs.rows;
 
           const customFieldMap = new Map(customFields.map(cf => [cf.internalFieldName, cf.$id]));
           const customFieldOptionsMap = new Map(
@@ -145,25 +145,25 @@ const handler = async (req: AuthenticatedRequest, res: NextApiResponse) => {
 
           while (hasMore) {
             try {
-              const page = await adminDatabases.listDocuments(
+              const page = await tablesDB.listRows(
                 dbId,
-                attendeesCollectionId,
+                attendeesTableId,
                 [Query.limit(pageSize), Query.offset(offset), Query.select(['barcodeNumber'])]
               );
 
-              page.documents.forEach(doc => {
+              page.rows.forEach(doc => {
                 if (doc.barcodeNumber) {
                   existingBarcodes.add(doc.barcodeNumber);
                 }
               });
 
-              hasMore = page.documents.length === pageSize;
+              hasMore = page.rows.length === pageSize;
               offset += pageSize;
               pageNumber++;
             } catch (error) {
               console.error('Failed to fetch existing barcodes during pagination:', {
                 dbId,
-                attendeesCollectionId,
+                attendeesTableId,
                 offset,
                 pageSize,
                 pageNumber,
@@ -407,13 +407,12 @@ const handler = async (req: AuthenticatedRequest, res: NextApiResponse) => {
           try {
             const importResult = await bulkImportWithFallback(
               tablesDB,
-              adminDatabases,
               {
                 databaseId: dbId,
-                tableId: attendeesCollectionId,
+                tableId: attendeesTableId,
                 items: attendeesToCreate.map(data => ({ data })),
                 auditLog: {
-                  tableId: logsCollectionId,
+                  tableId: logsTableId,
                   userId: user.$id,
                   action: 'import',
                   details: auditLogDetails

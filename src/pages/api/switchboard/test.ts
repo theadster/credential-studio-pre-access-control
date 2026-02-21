@@ -10,21 +10,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     // Use admin client for server-side operations
-    const { databases } = createAdminClient();
+    const { tablesDB } = createAdminClient();
     const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-    const eventSettingsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID!;
+    const eventSettingsTableId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID!;
 
     // Get first event settings
-    const eventSettingsList = await databases.listDocuments(dbId, eventSettingsCollectionId, [Query.limit(1)]);
+    const eventSettingsList = await tablesDB.listRows(dbId, eventSettingsTableId, [Query.limit(1)]);
     
-    if (eventSettingsList.documents.length === 0) {
+    if (eventSettingsList.rows.length === 0) {
       return res.status(400).json({ error: 'Event settings not configured' });
     }
 
-    const eventSettingsId = eventSettingsList.documents[0].$id;
+    const eventSettingsId = eventSettingsList.rows[0].$id;
     
     // Get event settings with integrations
-    const settings = await getEventSettingsWithIntegrations(databases, eventSettingsId);
+    const settings = await getEventSettingsWithIntegrations(tablesDB, eventSettingsId);
 
     if (!settings) {
       return res.status(400).json({ error: 'Event settings not found' });

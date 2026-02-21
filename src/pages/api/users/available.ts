@@ -11,7 +11,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     // Create session client to verify authentication
-    const { account, databases } = createSessionClient(req);
+    const { account, tablesDB } = createSessionClient(req);
 
     // Get the authenticated user
     let user;
@@ -22,26 +22,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Get user profile with role
-    const userDocs = await databases.listDocuments({
+    const userDocs = await tablesDB.listRows({
       databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-      collectionId: process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+      tableId: process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID!,
       queries: [Query.equal('userId', user.$id)]
     });
 
-    if (userDocs.documents.length === 0) {
+    if (userDocs.rows.length === 0) {
       return res.status(404).json({ error: 'User profile not found' });
     }
 
-    const userProfile = userDocs.documents[0];
+    const userProfile = userDocs.rows[0];
 
     // Get role if exists
     let role = null;
     if (userProfile.roleId) {
       try {
-        role = await databases.getDocument({
+        role = await tablesDB.getRow({
           databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          collectionId: process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
-          documentId: userProfile.roleId
+          tableId: process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
+          rowId: userProfile.roleId
         });
       } catch (error) {
         console.warn('Failed to fetch role:', error);
@@ -79,13 +79,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let hasMoreProfiles = true;
 
     while (hasMoreProfiles) {
-      const response = await databases.listDocuments({
+      const response = await tablesDB.listRows({
         databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        collectionId: process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+        tableId: process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID!,
         queries: [Query.limit(limit), Query.offset(offset)]
       });
-      allProfiles = allProfiles.concat(response.documents);
-      hasMoreProfiles = response.documents.length === limit;
+      allProfiles = allProfiles.concat(response.rows);
+      hasMoreProfiles = response.rows.length === limit;
       offset += limit;
     }
 

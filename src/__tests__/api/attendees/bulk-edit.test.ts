@@ -1,15 +1,19 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import handler from '../bulk-edit';
-import { mockAccount, mockDatabases, resetAllMocks } from '@/test/mocks/appwrite';
+import handler from '@/pages/api/attendees/bulk-edit';
+import { mockAccount, mockTablesDB, mockAdminTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn((req: NextApiRequest) => ({
     account: mockAccount,
-    databases: mockDatabases,
+    tablesDB: mockTablesDB,
   })),
+  createAdminClient: vi.fn(() => ({
+    tablesDB: mockAdminTablesDB,
+})),
 }));
+
 
 describe('/api/attendees/bulk-edit - Bulk Edit API', () => {
   let mockReq: Partial<NextApiRequest>;
@@ -79,12 +83,13 @@ describe('/api/attendees/bulk-edit - Bulk Edit API', () => {
 
     // Default mock implementations
     mockAccount.get.mockResolvedValue(mockAuthUser);
-    mockDatabases.listDocuments.mockResolvedValue({
-      documents: [mockUserProfile],
+    mockTablesDB.listRows.mockResolvedValue({
+      rows: [mockUserProfile],
       total: 1,
     });
-    mockDatabases.getDocument.mockResolvedValue(mockAdminRole);
-    mockDatabases.createDocument.mockResolvedValue({
+    mockTablesDB.getRow.mockResolvedValue(mockAdminRole);
+    mockAdminTablesDB.getRow.mockResolvedValue(mockAdminRole);
+    mockTablesDB.createRow.mockResolvedValue({
       $id: 'new-log-123',
       userId: mockAuthUser.$id,
       action: 'bulk_update',
@@ -121,8 +126,8 @@ describe('/api/attendees/bulk-edit - Bulk Edit API', () => {
     });
 
     it('should return 403 if user profile is not found', async () => {
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [],
         total: 0,
       });
 
@@ -141,11 +146,11 @@ describe('/api/attendees/bulk-edit - Bulk Edit API', () => {
     it('should return 403 if user has no role', async () => {
       const userWithoutRole = { ...mockUserProfile, roleId: null };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [userWithoutRole],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [userWithoutRole],
         total: 1,
       });
-      mockDatabases.getDocument.mockResolvedValueOnce(null);
+      mockTablesDB.getRow.mockResolvedValueOnce(null);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -161,11 +166,11 @@ describe('/api/attendees/bulk-edit - Bulk Edit API', () => {
         permissions: JSON.stringify({ attendees: { bulkEdit: false } }),
       };
 
-      mockDatabases.listDocuments.mockReset();
-      mockDatabases.getDocument.mockReset();
+      mockTablesDB.listRows.mockReset();
+      mockTablesDB.getRow.mockReset();
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [userWithRole], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(noPermRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [userWithRole], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(noPermRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -180,8 +185,8 @@ describe('/api/attendees/bulk-edit - Bulk Edit API', () => {
     it('should return 400 if attendeeIds is missing', async () => {
       mockReq.body = { changes: {} };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -192,8 +197,8 @@ describe('/api/attendees/bulk-edit - Bulk Edit API', () => {
     it('should return 400 if attendeeIds is not an array', async () => {
       mockReq.body = { attendeeIds: 'not-an-array', changes: {} };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -204,8 +209,8 @@ describe('/api/attendees/bulk-edit - Bulk Edit API', () => {
     it('should return 400 if attendeeIds is empty array', async () => {
       mockReq.body = { attendeeIds: [], changes: {} };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -216,8 +221,8 @@ describe('/api/attendees/bulk-edit - Bulk Edit API', () => {
     it('should return 400 if changes is missing', async () => {
       mockReq.body = { attendeeIds: ['attendee-1'] };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -228,8 +233,8 @@ describe('/api/attendees/bulk-edit - Bulk Edit API', () => {
     it('should return 400 if changes is not an object', async () => {
       mockReq.body = { attendeeIds: ['attendee-1'], changes: 'not-an-object' };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -255,26 +260,26 @@ describe('/api/attendees/bulk-edit - Bulk Edit API', () => {
         },
       ];
 
-      mockDatabases.listDocuments.mockReset();
-      mockDatabases.getDocument.mockReset();
-      mockDatabases.updateDocument.mockReset();
-      mockDatabases.createDocument.mockReset();
+      mockTablesDB.listRows.mockReset();
+      mockTablesDB.getRow.mockReset();
+      mockTablesDB.updateRow.mockReset();
+      mockTablesDB.createRow.mockReset();
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // User profile
-        .mockResolvedValueOnce({ documents: mockCustomFields, total: 2 }); // Custom fields
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 }) // User profile
+        .mockResolvedValueOnce({ rows: mockCustomFields, total: 2 }); // Custom fields
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole) // Get role
         .mockResolvedValueOnce(mockAttendees[0]) // Get attendee 1
         .mockResolvedValueOnce(mockAttendees[1]); // Get attendee 2
 
-      mockDatabases.updateDocument.mockResolvedValue({ success: true });
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'log-123' });
+      mockTablesDB.updateRow.mockResolvedValue({ success: true });
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'log-123' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.updateDocument).toHaveBeenCalledTimes(2);
+      expect(mockTablesDB.updateRow).toHaveBeenCalledTimes(2);
       expect(statusMock).toHaveBeenCalledWith(200);
       expect(jsonMock).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -293,27 +298,27 @@ describe('/api/attendees/bulk-edit - Bulk Edit API', () => {
         customFieldValues: JSON.stringify({ 'field-2': 'developer' }),
       };
 
-      mockDatabases.listDocuments.mockReset();
-      mockDatabases.getDocument.mockReset();
-      mockDatabases.updateDocument.mockReset();
-      mockDatabases.createDocument.mockReset();
+      mockTablesDB.listRows.mockReset();
+      mockTablesDB.getRow.mockReset();
+      mockTablesDB.updateRow.mockReset();
+      mockTablesDB.createRow.mockReset();
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // User profile
-        .mockResolvedValueOnce({ documents: mockCustomFields, total: 2 }); // Custom fields
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 }) // User profile
+        .mockResolvedValueOnce({ rows: mockCustomFields, total: 2 }); // Custom fields
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole) // Get role
         .mockResolvedValueOnce(mockAttendee); // Get attendee 1
 
-      mockDatabases.updateDocument.mockResolvedValue({ success: true });
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'log-123' });
+      mockTablesDB.updateRow.mockResolvedValue({ success: true });
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'log-123' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.updateRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID,
         'attendee-1',
         expect.objectContaining({
           customFieldValues: expect.stringContaining('MANAGER'),
@@ -334,27 +339,27 @@ describe('/api/attendees/bulk-edit - Bulk Edit API', () => {
         customFieldValues: JSON.stringify({ 'field-2': 'developer' }),
       };
 
-      mockDatabases.listDocuments.mockReset();
-      mockDatabases.getDocument.mockReset();
-      mockDatabases.updateDocument.mockReset();
-      mockDatabases.createDocument.mockReset();
+      mockTablesDB.listRows.mockReset();
+      mockTablesDB.getRow.mockReset();
+      mockTablesDB.updateRow.mockReset();
+      mockTablesDB.createRow.mockReset();
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // User profile
-        .mockResolvedValueOnce({ documents: mockCustomFields, total: 2 }); // Custom fields
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 }) // User profile
+        .mockResolvedValueOnce({ rows: mockCustomFields, total: 2 }); // Custom fields
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole) // Get role
         .mockResolvedValueOnce(mockAttendee); // Get attendee 1
 
-      mockDatabases.updateDocument.mockResolvedValue({ success: true });
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'log-123' });
+      mockTablesDB.updateRow.mockResolvedValue({ success: true });
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'log-123' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.updateRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID,
         'attendee-1',
         expect.objectContaining({
           customFieldValues: expect.not.stringContaining('field-1'),
@@ -375,21 +380,21 @@ describe('/api/attendees/bulk-edit - Bulk Edit API', () => {
         customFieldValues: JSON.stringify({ 'field-2': 'developer' }),
       };
 
-      mockDatabases.listDocuments.mockReset();
-      mockDatabases.getDocument.mockReset();
-      mockDatabases.updateDocument.mockReset();
-      mockDatabases.createDocument.mockReset();
+      mockTablesDB.listRows.mockReset();
+      mockTablesDB.getRow.mockReset();
+      mockTablesDB.updateRow.mockReset();
+      mockTablesDB.createRow.mockReset();
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // User profile
-        .mockResolvedValueOnce({ documents: mockCustomFields, total: 2 }); // Custom fields
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 }) // User profile
+        .mockResolvedValueOnce({ rows: mockCustomFields, total: 2 }); // Custom fields
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole) // Get role
         .mockResolvedValueOnce(mockAttendee); // Get attendee 1
 
-      mockDatabases.updateDocument.mockResolvedValue({ success: true });
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'log-123' });
+      mockTablesDB.updateRow.mockResolvedValue({ success: true });
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'log-123' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -409,21 +414,21 @@ describe('/api/attendees/bulk-edit - Bulk Edit API', () => {
         customFieldValues: JSON.stringify({ 'field-1': 'Sales' }),
       };
 
-      mockDatabases.listDocuments.mockReset();
-      mockDatabases.getDocument.mockReset();
-      mockDatabases.updateDocument.mockReset();
-      mockDatabases.createDocument.mockReset();
+      mockTablesDB.listRows.mockReset();
+      mockTablesDB.getRow.mockReset();
+      mockTablesDB.updateRow.mockReset();
+      mockTablesDB.createRow.mockReset();
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // User profile
-        .mockResolvedValueOnce({ documents: mockCustomFields, total: 2 }); // Custom fields
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 }) // User profile
+        .mockResolvedValueOnce({ rows: mockCustomFields, total: 2 }); // Custom fields
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole) // Get role
         .mockResolvedValueOnce(mockAttendee); // Get attendee 1
 
-      mockDatabases.updateDocument.mockResolvedValue({ success: true });
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'log-123' });
+      mockTablesDB.updateRow.mockResolvedValue({ success: true });
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'log-123' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -438,24 +443,24 @@ describe('/api/attendees/bulk-edit - Bulk Edit API', () => {
         customFieldValues: JSON.stringify({ 'field-1': 'Engineering', 'field-2': 'MANAGER' }),
       };
 
-      mockDatabases.listDocuments.mockReset();
-      mockDatabases.getDocument.mockReset();
-      mockDatabases.updateDocument.mockReset();
-      mockDatabases.createDocument.mockReset();
+      mockTablesDB.listRows.mockReset();
+      mockTablesDB.getRow.mockReset();
+      mockTablesDB.updateRow.mockReset();
+      mockTablesDB.createRow.mockReset();
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // User profile
-        .mockResolvedValueOnce({ documents: mockCustomFields, total: 2 }); // Custom fields
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 }) // User profile
+        .mockResolvedValueOnce({ rows: mockCustomFields, total: 2 }); // Custom fields
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole) // Get role
         .mockResolvedValueOnce(mockAttendee); // Get attendee 1
 
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'log-123' });
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'log-123' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.updateDocument).not.toHaveBeenCalled();
+      expect(mockTablesDB.updateRow).not.toHaveBeenCalled();
       expect(statusMock).toHaveBeenCalledWith(200);
       expect(jsonMock).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -480,25 +485,25 @@ describe('/api/attendees/bulk-edit - Bulk Edit API', () => {
         },
       ];
 
-      mockDatabases.listDocuments.mockReset();
-      mockDatabases.getDocument.mockReset();
-      mockDatabases.updateDocument.mockReset();
-      mockDatabases.createDocument.mockReset();
+      mockTablesDB.listRows.mockReset();
+      mockTablesDB.getRow.mockReset();
+      mockTablesDB.updateRow.mockReset();
+      mockTablesDB.createRow.mockReset();
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // User profile
-        .mockResolvedValueOnce({ documents: mockCustomFields, total: 2 }); // Custom fields
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 }) // User profile
+        .mockResolvedValueOnce({ rows: mockCustomFields, total: 2 }); // Custom fields
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole) // Get role
         .mockResolvedValueOnce(mockAttendees[0]) // Get attendee 1
         .mockResolvedValueOnce(mockAttendees[1]); // Get attendee 2
 
-      mockDatabases.updateDocument
+      mockTablesDB.updateRow
         .mockResolvedValueOnce({ success: true })
         .mockRejectedValueOnce(new Error('Update failed'));
 
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'log-123' });
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'log-123' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -519,21 +524,21 @@ describe('/api/attendees/bulk-edit - Bulk Edit API', () => {
         customFieldValues: JSON.stringify({ 'field-1': 'Sales' }),
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: mockCustomFields, total: 2 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: mockCustomFields, total: 2 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockAttendee);
 
-      mockDatabases.updateDocument.mockResolvedValue({ success: true });
+      mockTablesDB.updateRow.mockResolvedValue({ success: true });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
         expect.any(String),
         expect.objectContaining({
           userId: mockAuthUser.$id,
@@ -560,10 +565,10 @@ describe('/api/attendees/bulk-edit - Bulk Edit API', () => {
       (error as any).code = 404;
 
       mockAccount.get.mockReset();
-      mockDatabases.listDocuments.mockReset();
+      mockTablesDB.listRows.mockReset();
 
       mockAccount.get.mockResolvedValue(mockAuthUser);
-      mockDatabases.listDocuments.mockRejectedValue(error);
+      mockTablesDB.listRows.mockRejectedValue(error);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -572,10 +577,10 @@ describe('/api/attendees/bulk-edit - Bulk Edit API', () => {
 
     it('should handle generic errors', async () => {
       mockAccount.get.mockReset();
-      mockDatabases.listDocuments.mockReset();
+      mockTablesDB.listRows.mockReset();
 
       mockAccount.get.mockResolvedValue(mockAuthUser);
-      mockDatabases.listDocuments.mockRejectedValue(new Error('Database error'));
+      mockTablesDB.listRows.mockRejectedValue(new Error('Database error'));
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 

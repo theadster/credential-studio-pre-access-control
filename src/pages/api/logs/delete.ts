@@ -9,7 +9,7 @@ import { shouldLog } from '@/lib/logSettings';
  * Runs asynchronously without blocking the HTTP response
  */
 async function performBackgroundDeletion(
-  adminDatabases: any,
+  adminTablesDB: any,
   queries: string[],
   userId: string,
   filters: { beforeDate?: string; action?: string; userId?: string }
@@ -26,26 +26,26 @@ async function performBackgroundDeletion(
   try {
     while (true) {
       const batchQueries = [...queries, Query.limit(batchSize), Query.offset(offset)];
-      const logsResponse = await adminDatabases.listDocuments(
+      const logsResponse = await adminTablesDB.listRows(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+        process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
         batchQueries,
       );
 
-      const currentBatch = logsResponse.documents;
+      const currentBatch = logsResponse.rows;
 
       if (currentBatch.length === 0) {
-        break; // No more documents to process
+        break; // No more rows to process
       }
 
       totalProcessed += currentBatch.length;
 
-      // Delete documents one at a time with delay to avoid rate limiting
+      // Delete rows one at a time with delay to avoid rate limiting
       for (const log of currentBatch) {
         try {
-          await adminDatabases.deleteDocument(
+          await adminTablesDB.deleteRow(
             process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-            process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+            process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
             log.$id,
           );
           deletedCount += 1;
@@ -66,7 +66,7 @@ async function performBackgroundDeletion(
         }
       }
 
-      // Check if we've processed all documents
+      // Check if we've processed all rows
       if (currentBatch.length < batchSize) {
         break; // Last batch processed
       }
@@ -75,7 +75,7 @@ async function performBackgroundDeletion(
       console.log(`[Background Deletion] Processed batch of ${currentBatch.length} logs. Total: ${totalProcessed}. Continuing...`);
       await new Promise((resolve) => setTimeout(resolve, 500));
 
-      // Continue with next batch (offset stays at 0 since we're deleting documents)
+      // Continue with next batch (offset stays at 0 since we're deleting rows)
       offset = 0;
     }
 
@@ -96,9 +96,9 @@ async function performBackgroundDeletion(
           },
         );
 
-        await adminDatabases.createDocument(
+        await adminTablesDB.createRow(
           process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+          process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
           ID.unique(),
           {
             action: 'delete_logs',
@@ -123,30 +123,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     // Create session client for authentication
-    const { account, databases: sessionDatabases } = createSessionClient(req);
+    const { account, tablesDB: sessionTablesDB } = createSessionClient(req);
 
     // Verify authentication
     const user = await account.get();
 
     // Get user profile with role using session client
-    const userDocs = await sessionDatabases.listDocuments(
+    const userDocs = await sessionTablesDB.listRows(
       process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-      process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+      process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID!,
       [Query.equal('userId', user.$id)]
     );
 
-    if (userDocs.documents.length === 0) {
+    if (userDocs.rows.length === 0) {
       return res.status(404).json({ error: 'User profile not found' });
     }
 
-    const userProfile = userDocs.documents[0];
+    const userProfile = userDocs.rows[0];
 
     // Get role if exists
     let role = null;
     if (userProfile.roleId) {
-      role = await sessionDatabases.getDocument(
+      role = await sessionTablesDB.getRow(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+        process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
         userProfile.roleId
       );
 
@@ -160,7 +160,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Create admin client for bulk deletions (no rate limits)
-    const { databases: adminDatabases } = createAdminClient();
+    const { tablesDB: adminTablesDB } = createAdminClient();
 
     // Check permissions for log deletion
     if (!hasPermission(role, 'logs', 'delete')) {
@@ -185,9 +185,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // First, get a count of logs to be deleted
-    const countResponse = await adminDatabases.listDocuments(
+    const countResponse = await adminTablesDB.listRows(
       process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-      process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+      process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
       [...queries, Query.limit(1)],
     );
     const totalToDelete = countResponse.total;
@@ -202,7 +202,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       console.log(`[Delete Logs] Starting background deletion for ${totalToDelete} logs`);
       
       // Start background deletion (don't await)
-      performBackgroundDeletion(adminDatabases, queries, user.$id, { beforeDate, action, userId })
+      performBackgroundDeletion(adminTablesDB, queries, user.$id, { beforeDate, action, userId })
         .catch((error) => console.error('[Background Deletion] Error:', error));
 
       // Return immediately with 202 Accepted status
@@ -226,26 +226,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     while (true) {
       const batchQueries = [...queries, Query.limit(batchSize), Query.offset(offset)];
-      const logsResponse = await adminDatabases.listDocuments(
+      const logsResponse = await adminTablesDB.listRows(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+        process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
         batchQueries,
       );
 
-      const currentBatch = logsResponse.documents;
+      const currentBatch = logsResponse.rows;
 
       if (currentBatch.length === 0) {
-        break; // No more documents to process
+        break; // No more rows to process
       }
 
       totalProcessed += currentBatch.length;
 
-      // Delete documents one at a time with delay to avoid rate limiting
+      // Delete rows one at a time with delay to avoid rate limiting
       for (const log of currentBatch) {
         try {
-          await adminDatabases.deleteDocument(
+          await adminTablesDB.deleteRow(
             process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-            process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+            process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
             log.$id,
           );
           deletedCount += 1;
@@ -266,7 +266,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       }
 
-      // Check if we've processed all documents
+      // Check if we've processed all rows
       if (currentBatch.length < batchSize) {
         break; // Last batch processed
       }
@@ -275,7 +275,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       console.log(`Processed batch of ${currentBatch.length} logs. Total: ${totalProcessed}. Continuing...`);
       await new Promise((resolve) => setTimeout(resolve, 500));
 
-      // Continue with next batch (offset stays at 0 since we're deleting documents)
+      // Continue with next batch (offset stays at 0 since we're deleting rows)
       // Note: After deletion, the next batch will be at offset 0
       offset = 0;
     }
@@ -295,9 +295,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           },
         );
 
-        await adminDatabases.createDocument(
+        await adminTablesDB.createRow(
           process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+          process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
           ID.unique(),
           {
             action: 'delete_logs',

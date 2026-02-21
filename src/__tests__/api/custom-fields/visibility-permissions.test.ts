@@ -1,15 +1,19 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import handler from '../[id]';
-import { mockAccount, mockDatabases, resetAllMocks } from '@/test/mocks/appwrite';
+import handler from '@/pages/api/custom-fields/[id]';
+import { mockAccount, mockTablesDB, mockAdminTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn((req: NextApiRequest) => ({
     account: mockAccount,
-    databases: mockDatabases,
+    tablesDB: mockTablesDB,
   })),
+  createAdminClient: vi.fn(() => ({
+    tablesDB: mockAdminTablesDB,
+})),
 }));
+
 
 /**
  * PERMISSION VERIFICATION TESTS FOR VISIBILITY CONTROL
@@ -96,8 +100,8 @@ describe('/api/custom-fields/[id] - Visibility Control Permissions', () => {
 
     // Default mock implementations
     mockAccount.get.mockResolvedValue(mockAuthUser);
-    mockDatabases.listDocuments.mockResolvedValue({
-      documents: [mockUserProfile],
+    mockTablesDB.listRows.mockResolvedValue({
+      rows: [mockUserProfile],
       total: 1,
     });
   });
@@ -113,11 +117,11 @@ describe('/api/custom-fields/[id] - Visibility Control Permissions', () => {
     };
 
     it('should allow Super Administrator to toggle visibility to false', async () => {
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(superAdminRole) // Role lookup
         .mockResolvedValueOnce(mockCustomField); // Current field lookup
 
-      mockDatabases.updateDocument.mockResolvedValueOnce({
+      mockTablesDB.updateRow.mockResolvedValueOnce({
         ...mockCustomField,
         showOnMainPage: false,
         version: 1,
@@ -125,7 +129,7 @@ describe('/api/custom-fields/[id] - Visibility Control Permissions', () => {
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.updateRow).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             showOnMainPage: false,
@@ -148,11 +152,11 @@ describe('/api/custom-fields/[id] - Visibility Control Permissions', () => {
 
       const hiddenField = { ...mockCustomField, showOnMainPage: false };
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(superAdminRole)
         .mockResolvedValueOnce(hiddenField);
 
-      mockDatabases.updateDocument.mockResolvedValueOnce({
+      mockTablesDB.updateRow.mockResolvedValueOnce({
         ...hiddenField,
         showOnMainPage: true,
         version: 1,
@@ -160,7 +164,7 @@ describe('/api/custom-fields/[id] - Visibility Control Permissions', () => {
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.updateRow).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             showOnMainPage: true,
@@ -186,11 +190,11 @@ describe('/api/custom-fields/[id] - Visibility Control Permissions', () => {
     };
 
     it('should allow Event Manager to toggle visibility (has customFields.update)', async () => {
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(eventManagerRole)
         .mockResolvedValueOnce(mockCustomField);
 
-      mockDatabases.updateDocument.mockResolvedValueOnce({
+      mockTablesDB.updateRow.mockResolvedValueOnce({
         ...mockCustomField,
         showOnMainPage: false,
         version: 1,
@@ -198,7 +202,7 @@ describe('/api/custom-fields/[id] - Visibility Control Permissions', () => {
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.updateDocument).toHaveBeenCalled();
+      expect(mockTablesDB.updateRow).toHaveBeenCalled();
       expect(statusMock).toHaveBeenCalledWith(200);
     });
   });
@@ -216,11 +220,11 @@ describe('/api/custom-fields/[id] - Visibility Control Permissions', () => {
     };
 
     it('should deny Registration Staff from toggling visibility (no customFields.update)', async () => {
-      mockDatabases.getDocument.mockResolvedValueOnce(registrationStaffRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(registrationStaffRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.updateDocument).not.toHaveBeenCalled();
+      expect(mockTablesDB.updateRow).not.toHaveBeenCalled();
       expect(statusMock).toHaveBeenCalledWith(403);
       expect(jsonMock).toHaveBeenCalledWith({
         error: 'Insufficient permissions to update custom fields',
@@ -235,11 +239,11 @@ describe('/api/custom-fields/[id] - Visibility Control Permissions', () => {
         showOnMainPage: true, // Even trying to keep it visible
       };
 
-      mockDatabases.getDocument.mockResolvedValueOnce(registrationStaffRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(registrationStaffRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.updateDocument).not.toHaveBeenCalled();
+      expect(mockTablesDB.updateRow).not.toHaveBeenCalled();
       expect(statusMock).toHaveBeenCalledWith(403);
     });
   });
@@ -257,11 +261,11 @@ describe('/api/custom-fields/[id] - Visibility Control Permissions', () => {
     };
 
     it('should deny Viewer from toggling visibility (no customFields.update)', async () => {
-      mockDatabases.getDocument.mockResolvedValueOnce(viewerRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(viewerRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.updateDocument).not.toHaveBeenCalled();
+      expect(mockTablesDB.updateRow).not.toHaveBeenCalled();
       expect(statusMock).toHaveBeenCalledWith(403);
       expect(jsonMock).toHaveBeenCalledWith({
         error: 'Insufficient permissions to update custom fields',
@@ -271,7 +275,7 @@ describe('/api/custom-fields/[id] - Visibility Control Permissions', () => {
     it('should allow Viewer to read custom field with visibility info (GET request)', async () => {
       mockReq.method = 'GET';
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(viewerRole)
         .mockResolvedValueOnce(mockCustomField);
 
@@ -297,11 +301,11 @@ describe('/api/custom-fields/[id] - Visibility Control Permissions', () => {
     };
 
     it('should allow user with explicit customFields.update to toggle visibility', async () => {
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(customRole)
         .mockResolvedValueOnce(mockCustomField);
 
-      mockDatabases.updateDocument.mockResolvedValueOnce({
+      mockTablesDB.updateRow.mockResolvedValueOnce({
         ...mockCustomField,
         showOnMainPage: false,
         version: 1,
@@ -309,7 +313,7 @@ describe('/api/custom-fields/[id] - Visibility Control Permissions', () => {
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.updateDocument).toHaveBeenCalled();
+      expect(mockTablesDB.updateRow).toHaveBeenCalled();
       expect(statusMock).toHaveBeenCalledWith(200);
     });
   });
@@ -326,18 +330,18 @@ describe('/api/custom-fields/[id] - Visibility Control Permissions', () => {
     };
 
     it('should deny user without any customFields permission from updating', async () => {
-      mockDatabases.getDocument.mockResolvedValueOnce(noCustomFieldsRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(noCustomFieldsRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.updateDocument).not.toHaveBeenCalled();
+      expect(mockTablesDB.updateRow).not.toHaveBeenCalled();
       expect(statusMock).toHaveBeenCalledWith(403);
     });
 
     it('should deny user without customFields.read from reading field', async () => {
       mockReq.method = 'GET';
 
-      mockDatabases.getDocument.mockResolvedValueOnce(noCustomFieldsRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(noCustomFieldsRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -358,11 +362,11 @@ describe('/api/custom-fields/[id] - Visibility Control Permissions', () => {
     it('should reject non-boolean showOnMainPage value', async () => {
       mockReq.body!.showOnMainPage = 'true'; // String instead of boolean
 
-      mockDatabases.getDocument.mockResolvedValueOnce(adminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(adminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.updateDocument).not.toHaveBeenCalled();
+      expect(mockTablesDB.updateRow).not.toHaveBeenCalled();
       expect(statusMock).toHaveBeenCalledWith(400);
       expect(jsonMock).toHaveBeenCalledWith({
         error: 'Invalid showOnMainPage value',
@@ -373,7 +377,7 @@ describe('/api/custom-fields/[id] - Visibility Control Permissions', () => {
     it('should reject numeric showOnMainPage value', async () => {
       mockReq.body!.showOnMainPage = 1; // Number instead of boolean
 
-      mockDatabases.getDocument.mockResolvedValueOnce(adminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(adminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -383,11 +387,11 @@ describe('/api/custom-fields/[id] - Visibility Control Permissions', () => {
     it('should accept undefined showOnMainPage (defaults to true)', async () => {
       delete mockReq.body!.showOnMainPage;
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(adminRole)
         .mockResolvedValueOnce(mockCustomField);
 
-      mockDatabases.updateDocument.mockResolvedValueOnce({
+      mockTablesDB.updateRow.mockResolvedValueOnce({
         ...mockCustomField,
         showOnMainPage: true, // Defaults to true
         version: 1,
@@ -395,7 +399,7 @@ describe('/api/custom-fields/[id] - Visibility Control Permissions', () => {
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.updateRow).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             showOnMainPage: true,
@@ -409,11 +413,11 @@ describe('/api/custom-fields/[id] - Visibility Control Permissions', () => {
     it('should accept explicit false value', async () => {
       mockReq.body!.showOnMainPage = false;
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(adminRole)
         .mockResolvedValueOnce(mockCustomField);
 
-      mockDatabases.updateDocument.mockResolvedValueOnce({
+      mockTablesDB.updateRow.mockResolvedValueOnce({
         ...mockCustomField,
         showOnMainPage: false,
         version: 1,
@@ -421,7 +425,7 @@ describe('/api/custom-fields/[id] - Visibility Control Permissions', () => {
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.updateRow).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             showOnMainPage: false,
@@ -435,11 +439,11 @@ describe('/api/custom-fields/[id] - Visibility Control Permissions', () => {
     it('should accept explicit true value', async () => {
       mockReq.body!.showOnMainPage = true;
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(adminRole)
         .mockResolvedValueOnce(mockCustomField);
 
-      mockDatabases.updateDocument.mockResolvedValueOnce({
+      mockTablesDB.updateRow.mockResolvedValueOnce({
         ...mockCustomField,
         showOnMainPage: true,
         version: 1,
@@ -447,7 +451,7 @@ describe('/api/custom-fields/[id] - Visibility Control Permissions', () => {
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.updateRow).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             showOnMainPage: true,
@@ -469,19 +473,19 @@ describe('/api/custom-fields/[id] - Visibility Control Permissions', () => {
     };
 
     it('should check permissions before fetching current field', async () => {
-      mockDatabases.getDocument.mockResolvedValueOnce(staffRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(staffRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      // Should only call getDocument once (for role), not twice (role + field)
-      expect(mockDatabases.getDocument).toHaveBeenCalledTimes(1);
+      // Should only call getRow once (for role), not twice (role + field)
+      expect(mockTablesDB.getRow).toHaveBeenCalledTimes(1);
       expect(statusMock).toHaveBeenCalledWith(403);
     });
 
     it('should check permissions before validating version', async () => {
       mockReq.body!.version = 999; // Wrong version
 
-      mockDatabases.getDocument.mockResolvedValueOnce(staffRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(staffRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -505,13 +509,13 @@ describe('/api/custom-fields/[id] - Visibility Control Permissions', () => {
 
       const newerField = { ...mockCustomField, version: 1 }; // But field is now version 1
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(adminRole)
         .mockResolvedValueOnce(newerField);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.updateDocument).not.toHaveBeenCalled();
+      expect(mockTablesDB.updateRow).not.toHaveBeenCalled();
       expect(statusMock).toHaveBeenCalledWith(409);
       expect(jsonMock).toHaveBeenCalledWith({
         error: 'Conflict: Document has been modified by another user',
@@ -523,11 +527,11 @@ describe('/api/custom-fields/[id] - Visibility Control Permissions', () => {
     });
 
     it('should increment version when visibility is changed', async () => {
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(adminRole)
         .mockResolvedValueOnce(mockCustomField);
 
-      mockDatabases.updateDocument.mockResolvedValueOnce({
+      mockTablesDB.updateRow.mockResolvedValueOnce({
         ...mockCustomField,
         showOnMainPage: false,
         version: 1, // Incremented from 0
@@ -535,7 +539,7 @@ describe('/api/custom-fields/[id] - Visibility Control Permissions', () => {
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.updateRow).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             version: 1,
@@ -549,8 +553,8 @@ describe('/api/custom-fields/[id] - Visibility Control Permissions', () => {
     it('should handle missing role gracefully', async () => {
       const userWithoutRole = { ...mockUserProfile, roleId: null };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [userWithoutRole],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [userWithoutRole],
         total: 1,
       });
 
@@ -563,7 +567,7 @@ describe('/api/custom-fields/[id] - Visibility Control Permissions', () => {
       const roleError = new Error('Role not found');
       (roleError as any).code = 404;
 
-      mockDatabases.getDocument.mockRejectedValueOnce(roleError);
+      mockTablesDB.getRow.mockRejectedValueOnce(roleError);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -578,7 +582,7 @@ describe('/api/custom-fields/[id] - Visibility Control Permissions', () => {
         permissions: 'not-valid-json{',
       };
 
-      mockDatabases.getDocument.mockResolvedValueOnce(malformedRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(malformedRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 

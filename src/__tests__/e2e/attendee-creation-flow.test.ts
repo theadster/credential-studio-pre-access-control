@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { Account, Client, Databases, ID, Query, Storage } from 'appwrite';
+import { Account, Client, TablesDB, ID, Query, Storage } from 'appwrite';
 
 // Mock Appwrite
 vi.mock('appwrite', () => {
@@ -18,11 +18,11 @@ vi.mock('appwrite', () => {
     get: vi.fn(),
   };
 
-  const mockDatabases = {
-    createDocument: vi.fn(),
-    listDocuments: vi.fn(),
-    getDocument: vi.fn(),
-    updateDocument: vi.fn(),
+  const mockTablesDB = {
+    createRow: vi.fn(),
+    listRows: vi.fn(),
+    getRow: vi.fn(),
+    updateRow: vi.fn(),
   };
 
   const mockStorage = {
@@ -40,7 +40,7 @@ vi.mock('appwrite', () => {
   return {
     Client: vi.fn(() => mockClient),
     Account: vi.fn(() => mockAccount),
-    Databases: vi.fn(() => mockDatabases),
+    TablesDB: vi.fn(() => mockTablesDB),
     Storage: vi.fn(() => mockStorage),
     ID: {
       unique: vi.fn(() => 'unique-id-123'),
@@ -55,7 +55,7 @@ vi.mock('appwrite', () => {
 
 describe('E2E: Creating Attendee with Custom Fields', () => {
   let mockAccount: any;
-  let mockDatabases: any;
+  let mockTablesDB: any;
   let mockStorage: any;
   let mockClient: any;
 
@@ -63,15 +63,15 @@ describe('E2E: Creating Attendee with Custom Fields', () => {
     vi.clearAllMocks();
     mockClient = new Client();
     mockAccount = new Account(mockClient);
-    mockDatabases = new Databases(mockClient);
+    mockTablesDB = new TablesDB(mockClient);
     mockStorage = new Storage(mockClient);
     
     // Reset all mock functions to clear queued mockResolvedValueOnce calls
     mockAccount.get.mockReset();
-    mockDatabases.createDocument.mockReset();
-    mockDatabases.listDocuments.mockReset();
-    mockDatabases.getDocument.mockReset();
-    mockDatabases.updateDocument.mockReset();
+    mockTablesDB.createRow.mockReset();
+    mockTablesDB.listRows.mockReset();
+    mockTablesDB.getRow.mockReset();
+    mockTablesDB.updateRow.mockReset();
     mockStorage.createFile.mockReset();
     mockStorage.getFileView.mockReset();
   });
@@ -98,8 +98,8 @@ describe('E2E: Creating Attendee with Custom Fields', () => {
         roleId: 'role-admin',
       };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockUserProfile],
         total: 1,
       });
 
@@ -111,7 +111,7 @@ describe('E2E: Creating Attendee with Custom Fields', () => {
         }),
       };
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockRole);
 
       // Step 3: Get event settings
       const mockEventSettings = {
@@ -121,8 +121,8 @@ describe('E2E: Creating Attendee with Custom Fields', () => {
         eventName: 'Tech Conference 2024',
       };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockEventSettings],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockEventSettings],
         total: 1,
       });
 
@@ -155,8 +155,8 @@ describe('E2E: Creating Attendee with Custom Fields', () => {
         },
       ];
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: mockCustomFields,
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: mockCustomFields,
         total: 3,
       });
 
@@ -176,8 +176,8 @@ describe('E2E: Creating Attendee with Custom Fields', () => {
       );
 
       // Step 6: Check barcode uniqueness
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [],
         total: 0,
       });
 
@@ -201,10 +201,10 @@ describe('E2E: Creating Attendee with Custom Fields', () => {
         $updatedAt: new Date().toISOString(),
       };
 
-      mockDatabases.createDocument.mockResolvedValueOnce(mockAttendee);
+      mockTablesDB.createRow.mockResolvedValueOnce(mockAttendee);
 
       // Step 8: Create log entry
-      mockDatabases.createDocument.mockResolvedValueOnce({
+      mockTablesDB.createRow.mockResolvedValueOnce({
         $id: 'log-123',
         userId: mockUser.$id,
         attendeeId: mockAttendee.$id,
@@ -219,45 +219,45 @@ describe('E2E: Creating Attendee with Custom Fields', () => {
       const user = await mockAccount.get();
       expect(user.$id).toBe('user-123');
 
-      const userProfile = await mockDatabases.listDocuments(
+      const userProfile = await mockTablesDB.listRows(
         'db-id',
-        'users-collection',
+        'users-table',
         [Query.equal('userId', user.$id)]
       );
-      expect(userProfile.documents).toHaveLength(1);
+      expect(userProfile.rows).toHaveLength(1);
 
-      const role = await mockDatabases.getDocument(
+      const role = await mockTablesDB.getRow(
         'db-id',
-        'roles-collection',
-        userProfile.documents[0].roleId
+        'roles-table',
+        userProfile.rows[0].roleId
       );
       const permissions = JSON.parse(role.permissions);
       expect(permissions.attendees.create).toBe(true);
 
-      const eventSettings = await mockDatabases.listDocuments(
+      const eventSettings = await mockTablesDB.listRows(
         'db-id',
-        'event-settings-collection',
+        'event-settings-table',
         [Query.limit(1)]
       );
-      expect(eventSettings.documents).toHaveLength(1);
+      expect(eventSettings.rows).toHaveLength(1);
 
-      const customFields = await mockDatabases.listDocuments(
+      const customFields = await mockTablesDB.listRows(
         'db-id',
-        'custom-fields-collection',
+        'custom-fields-table',
         [Query.orderAsc('order')]
       );
-      expect(customFields.documents).toHaveLength(3);
+      expect(customFields.rows).toHaveLength(3);
 
-      const barcodeCheck = await mockDatabases.listDocuments(
+      const barcodeCheck = await mockTablesDB.listRows(
         'db-id',
-        'attendees-collection',
+        'attendees-table',
         [Query.equal('barcodeNumber', barcode)]
       );
-      expect(barcodeCheck.documents).toHaveLength(0);
+      expect(barcodeCheck.rows).toHaveLength(0);
 
-      const attendee = await mockDatabases.createDocument(
+      const attendee = await mockTablesDB.createRow(
         'db-id',
-        'attendees-collection',
+        'attendees-table',
         ID.unique(),
         attendeeData
       );
@@ -273,15 +273,15 @@ describe('E2E: Creating Attendee with Custom Fields', () => {
       expect(customFieldValues['field-3']).toBe('Vegetarian');
 
       // Create log entry
-      await mockDatabases.createDocument(
+      await mockTablesDB.createRow(
         'db-id',
-        'logs-collection',
+        'logs-table',
         ID.unique(),
         { userId: mockUser.$id, action: 'attendee_created' }
       );
 
       // Verify all steps completed
-      expect(mockDatabases.createDocument).toHaveBeenCalledTimes(2); // attendee + log
+      expect(mockTablesDB.createRow).toHaveBeenCalledTimes(2); // attendee + log
     });
 
     it('should validate required custom fields', async () => {
@@ -296,18 +296,18 @@ describe('E2E: Creating Attendee with Custom Fields', () => {
         },
       ];
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: mockCustomFields,
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: mockCustomFields,
         total: 1,
       });
 
-      const customFields = await mockDatabases.listDocuments(
+      const customFields = await mockTablesDB.listRows(
         'db-id',
-        'custom-fields-collection',
+        'custom-fields-table',
         [Query.orderAsc('order')]
       );
 
-      const requiredFields = customFields.documents.filter((f: any) => f.required);
+      const requiredFields = customFields.rows.filter((f: any) => f.required);
       expect(requiredFields).toHaveLength(1);
 
       // Validate that required field is provided
@@ -324,8 +324,8 @@ describe('E2E: Creating Attendee with Custom Fields', () => {
     it('should reject duplicate barcode', async () => {
       const existingBarcode = '12345678';
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [
           {
             $id: 'existing-attendee',
             barcodeNumber: existingBarcode,
@@ -334,13 +334,13 @@ describe('E2E: Creating Attendee with Custom Fields', () => {
         total: 1,
       });
 
-      const barcodeCheck = await mockDatabases.listDocuments(
+      const barcodeCheck = await mockTablesDB.listRows(
         'db-id',
-        'attendees-collection',
+        'attendees-table',
         [Query.equal('barcodeNumber', existingBarcode)]
       );
 
-      expect(barcodeCheck.documents).toHaveLength(1);
+      expect(barcodeCheck.rows).toHaveLength(1);
       // Should not proceed with creation
     });
 

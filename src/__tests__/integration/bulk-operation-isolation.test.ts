@@ -8,17 +8,17 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { Databases } from 'node-appwrite';
+import { TablesDB } from 'node-appwrite';
 import {
   updateCredentialFields,
   updatePhotoFields,
   FIELD_GROUPS,
 } from '../../lib/fieldUpdate';
-import { mockDatabases, resetAllMocks } from '../../test/mocks/appwrite';
+import { mockTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 
 describe('Bulk Operation Isolation', () => {
   const testDatabaseId = 'test-database';
-  const testCollectionId = 'attendees';
+  const testTableId = 'attendees';
 
   beforeEach(() => {
     resetAllMocks();
@@ -58,30 +58,30 @@ describe('Bulk Operation Isolation', () => {
       // Track all updates
       const updates: Record<string, any>[] = [];
 
-      // Mock getDocument to return the correct attendee
-      mockDatabases.getDocument.mockImplementation((dbId, collId, docId) => {
+      // Mock getRow to return the correct attendee
+      mockTablesDB.getRow.mockImplementation((dbId, collId, docId) => {
         const attendee = attendees.find(a => a.$id === docId);
         return Promise.resolve(attendee || { $id: docId, version: 1 });
       });
 
-      // Mock updateDocument to track updates
-      mockDatabases.updateDocument.mockImplementation((dbIdOrParams: any, collId?: any, docId?: any, data?: any) => {
+      // Mock updateRow to track updates
+      mockTablesDB.updateRow.mockImplementation((dbIdOrParams: any, collId?: any, docId?: any, data?: any) => {
         // Handle both positional and object parameter styles
         let databaseId: string;
-        let collectionId: string;
+        let tableId: string;
         let documentId: string;
         let updateData: any;
 
         if (typeof dbIdOrParams === 'object' && dbIdOrParams !== null) {
-          // Object-style: { databaseId, collectionId, documentId, data }
+          // Object-style: { databaseId, tableId, documentId, data }
           databaseId = dbIdOrParams.databaseId;
-          collectionId = dbIdOrParams.collectionId;
+          tableId = dbIdOrParams.tableId;
           documentId = dbIdOrParams.documentId;
           updateData = dbIdOrParams.data;
         } else {
           // Positional style: (dbId, collId, docId, data)
           databaseId = dbIdOrParams;
-          collectionId = collId;
+          tableId = collId;
           documentId = docId;
           updateData = data;
         }
@@ -98,9 +98,9 @@ describe('Bulk Operation Isolation', () => {
       // Simulate bulk credential generation for all attendees
       const credentialPromises = attendees.map(attendee =>
         updateCredentialFields(
-          mockDatabases as unknown as Databases,
+          mockTablesDB as unknown as TablesDB,
           testDatabaseId,
-          testCollectionId,
+          testTableId,
           attendee.$id,
           {
             credentialUrl: `https://example.com/credential-${attendee.$id}.pdf`,
@@ -140,12 +140,12 @@ describe('Bulk Operation Isolation', () => {
       // Track updates per attendee
       const updatesByAttendee: Record<string, any[]> = {};
 
-      mockDatabases.getDocument.mockImplementation((dbId, collId, docId) => {
+      mockTablesDB.getRow.mockImplementation((dbId, collId, docId) => {
         const attendee = attendees.find(a => a.$id === docId);
         return Promise.resolve(attendee || { $id: docId, version: 1 });
       });
 
-      mockDatabases.updateDocument.mockImplementation((dbId, collId, docId, data) => {
+      mockTablesDB.updateRow.mockImplementation((dbId, collId, docId, data) => {
         if (!updatesByAttendee[docId]) {
           updatesByAttendee[docId] = [];
         }
@@ -162,9 +162,9 @@ describe('Bulk Operation Isolation', () => {
       // Start bulk credential generation
       const credentialPromises = attendees.map(attendee =>
         updateCredentialFields(
-          mockDatabases as unknown as Databases,
+          mockTablesDB as unknown as TablesDB,
           testDatabaseId,
-          testCollectionId,
+          testTableId,
           attendee.$id,
           { credentialUrl: `https://example.com/credential-${attendee.$id}.pdf` }
         )
@@ -175,9 +175,9 @@ describe('Bulk Operation Isolation', () => {
       const newPhotoUrl = 'https://example.com/new-photo-during-bulk.jpg';
       
       const photoPromise = updatePhotoFields(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         targetAttendeeId,
         { photoUrl: newPhotoUrl }
       );
@@ -232,12 +232,12 @@ describe('Bulk Operation Isolation', () => {
 
       const allUpdateData: any[] = [];
 
-      mockDatabases.getDocument.mockImplementation((dbId, collId, docId) => {
+      mockTablesDB.getRow.mockImplementation((dbId, collId, docId) => {
         const attendee = attendees.find(a => a.$id === docId);
         return Promise.resolve(attendee);
       });
 
-      mockDatabases.updateDocument.mockImplementation((dbId, collId, docId, data) => {
+      mockTablesDB.updateRow.mockImplementation((dbId, collId, docId, data) => {
         allUpdateData.push(data);
         const attendee = attendees.find(a => a.$id === docId);
         return Promise.resolve({ ...attendee, ...data });
@@ -246,9 +246,9 @@ describe('Bulk Operation Isolation', () => {
       // Run bulk credential generation
       const promises = attendees.map(a =>
         updateCredentialFields(
-          mockDatabases as unknown as Databases,
+          mockTablesDB as unknown as TablesDB,
           testDatabaseId,
-          testCollectionId,
+          testTableId,
           a.$id,
           { credentialUrl: `https://example.com/cred-${a.$id}.pdf` }
         )
@@ -287,12 +287,12 @@ describe('Bulk Operation Isolation', () => {
 
       const allUpdateData: any[] = [];
 
-      mockDatabases.getDocument.mockImplementation((dbId, collId, docId) => {
+      mockTablesDB.getRow.mockImplementation((dbId, collId, docId) => {
         const attendee = attendees.find(a => a.$id === docId);
         return Promise.resolve(attendee);
       });
 
-      mockDatabases.updateDocument.mockImplementation((dbId, collId, docId, data) => {
+      mockTablesDB.updateRow.mockImplementation((dbId, collId, docId, data) => {
         allUpdateData.push(data);
         const attendee = attendees.find(a => a.$id === docId);
         return Promise.resolve({ ...attendee, ...data });
@@ -301,9 +301,9 @@ describe('Bulk Operation Isolation', () => {
       // Run bulk photo uploads
       const promises = attendees.map(a =>
         updatePhotoFields(
-          mockDatabases as unknown as Databases,
+          mockTablesDB as unknown as TablesDB,
           testDatabaseId,
-          testCollectionId,
+          testTableId,
           a.$id,
           { photoUrl: `https://example.com/photo-${a.$id}.jpg` }
         )
@@ -341,11 +341,11 @@ describe('Bulk Operation Isolation', () => {
         finalStates[a.$id] = { ...a };
       });
 
-      mockDatabases.getDocument.mockImplementation((dbId, collId, docId) => {
+      mockTablesDB.getRow.mockImplementation((dbId, collId, docId) => {
         return Promise.resolve(finalStates[docId] || { $id: docId, version: 1 });
       });
 
-      mockDatabases.updateDocument.mockImplementation((dbId, collId, docId, data) => {
+      mockTablesDB.updateRow.mockImplementation((dbId, collId, docId, data) => {
         // Merge only the provided fields (simulating Appwrite behavior)
         finalStates[docId] = {
           ...finalStates[docId],
@@ -357,9 +357,9 @@ describe('Bulk Operation Isolation', () => {
       // Generate credentials for all attendees
       const credentialPromises = attendees.map(a =>
         updateCredentialFields(
-          mockDatabases as unknown as Databases,
+          mockTablesDB as unknown as TablesDB,
           testDatabaseId,
-          testCollectionId,
+          testTableId,
           a.$id,
           { credentialUrl: `https://example.com/cred-${a.$id}.pdf` }
         )
@@ -394,7 +394,7 @@ describe('Bulk Operation Isolation', () => {
         photoStates[a.$id] = a.photoUrl;
       });
 
-      mockDatabases.getDocument.mockImplementation((dbIdOrParams: any, collId?: any, docId?: any) => {
+      mockTablesDB.getRow.mockImplementation((dbIdOrParams: any, collId?: any, docId?: any) => {
         // Handle both positional and object-style arguments
         let documentId: string;
         
@@ -402,7 +402,7 @@ describe('Bulk Operation Isolation', () => {
           // Positional style: (dbId, collId, docId)
           documentId = docId;
         } else {
-          // Object-style: { databaseId, collectionId, documentId }
+          // Object-style: { databaseId, tableId, documentId }
           documentId = dbIdOrParams.documentId;
         }
         
@@ -413,7 +413,7 @@ describe('Bulk Operation Isolation', () => {
         });
       });
 
-      mockDatabases.updateDocument.mockImplementation((dbIdOrParams: any, collId?: any, docId?: any, data?: any) => {
+      mockTablesDB.updateRow.mockImplementation((dbIdOrParams: any, collId?: any, docId?: any, data?: any) => {
         // Handle both positional and object-style arguments
         let documentId: string;
         let updateData: any;
@@ -423,7 +423,7 @@ describe('Bulk Operation Isolation', () => {
           documentId = docId;
           updateData = data;
         } else {
-          // Object-style: { databaseId, collectionId, documentId, data }
+          // Object-style: { databaseId, tableId, documentId, data }
           documentId = dbIdOrParams.documentId;
           updateData = dbIdOrParams.data;
         }
@@ -444,9 +444,9 @@ describe('Bulk Operation Isolation', () => {
       // Run bulk credential generation
       const promises = attendeesWithPhotos.map(a =>
         updateCredentialFields(
-          mockDatabases as unknown as Databases,
+          mockTablesDB as unknown as TablesDB,
           testDatabaseId,
-          testCollectionId,
+          testTableId,
           a.$id,
           { credentialUrl: `https://example.com/cred-${a.$id}.pdf` }
         )
@@ -473,28 +473,28 @@ describe('Bulk Operation Isolation', () => {
       
       const updateLog: { docId: string; type: 'credential' | 'photo' | 'violation'; data: any }[] = [];
 
-      mockDatabases.getDocument.mockImplementation((dbId, collId, docId) => {
+      mockTablesDB.getRow.mockImplementation((dbId, collId, docId) => {
         const attendee = attendees.find(a => a.$id === docId);
         return Promise.resolve(attendee);
       });
 
-      mockDatabases.updateDocument.mockImplementation((dbIdOrParams: any, collId?: any, docId?: any, data?: any) => {
+      mockTablesDB.updateRow.mockImplementation((dbIdOrParams: any, collId?: any, docId?: any, data?: any) => {
         // Handle both positional and object parameter styles
         let databaseId: string;
-        let collectionId: string;
+        let tableId: string;
         let documentId: string;
         let updateData: any;
 
         if (typeof dbIdOrParams === 'object' && dbIdOrParams !== null) {
-          // Object-style: { databaseId, collectionId, documentId, data }
+          // Object-style: { databaseId, tableId, documentId, data }
           databaseId = dbIdOrParams.databaseId;
-          collectionId = dbIdOrParams.collectionId;
+          tableId = dbIdOrParams.tableId;
           documentId = dbIdOrParams.documentId;
           updateData = dbIdOrParams.data;
         } else {
           // Positional style: (dbId, collId, docId, data)
           databaseId = dbIdOrParams;
-          collectionId = collId;
+          tableId = collId;
           documentId = docId;
           updateData = data;
         }
@@ -511,9 +511,9 @@ describe('Bulk Operation Isolation', () => {
       // Start both bulk operations simultaneously
       const credentialPromises = attendees.map(a =>
         updateCredentialFields(
-          mockDatabases as unknown as Databases,
+          mockTablesDB as unknown as TablesDB,
           testDatabaseId,
-          testCollectionId,
+          testTableId,
           a.$id,
           { credentialUrl: `https://example.com/cred-${a.$id}.pdf` }
         )
@@ -521,9 +521,9 @@ describe('Bulk Operation Isolation', () => {
 
       const photoPromises = attendees.map(a =>
         updatePhotoFields(
-          mockDatabases as unknown as Databases,
+          mockTablesDB as unknown as TablesDB,
           testDatabaseId,
-          testCollectionId,
+          testTableId,
           a.$id,
           { photoUrl: `https://example.com/photo-${a.$id}.jpg` }
         )

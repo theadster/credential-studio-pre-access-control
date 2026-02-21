@@ -13,12 +13,12 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 
 // Mock environment variables
 process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID = 'test-db-id';
-process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID = 'test-attendees-collection';
-process.env.NEXT_PUBLIC_APPWRITE_ACCESS_CONTROL_COLLECTION_ID = 'test-access-control-collection';
-process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID = 'test-custom-fields-collection';
-process.env.NEXT_PUBLIC_APPWRITE_APPROVAL_PROFILES_COLLECTION_ID = 'test-profiles-collection';
-process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID = 'test-event-settings-collection';
-process.env.NEXT_PUBLIC_APPWRITE_SCAN_LOGS_COLLECTION_ID = 'test-scan-logs-collection';
+process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID = 'test-attendees-table';
+process.env.NEXT_PUBLIC_APPWRITE_ACCESS_CONTROL_TABLE_ID = 'test-access-control-table';
+process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID = 'test-custom-fields-table';
+process.env.NEXT_PUBLIC_APPWRITE_APPROVAL_PROFILES_TABLE_ID = 'test-profiles-table';
+process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID = 'test-event-settings-table';
+process.env.NEXT_PUBLIC_APPWRITE_SCAN_LOGS_TABLE_ID = 'test-scan-logs-table';
 
 describe('Mobile API Endpoints', () => {
   describe('Response Format Validation', () => {

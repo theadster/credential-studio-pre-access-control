@@ -1,18 +1,24 @@
 import { describe, it, expect, beforeEach, vi, beforeAll } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { mockDatabases, resetAllMocks } from '@/test/mocks/appwrite';
+import { mockTablesDB, mockAdminTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 import { RuleGroup } from '@/types/approvalProfile';
 
 // Set environment variables before importing handler
 beforeAll(() => {
   process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID = 'test-database-id';
-  process.env.NEXT_PUBLIC_APPWRITE_APPROVAL_PROFILES_COLLECTION_ID = 'test-approval-profiles-collection';
+  process.env.NEXT_PUBLIC_APPWRITE_APPROVAL_PROFILES_TABLE_ID = 'test-approval-profiles-table';
 });
 
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
-  databases: mockDatabases,
+  createSessionClient: vi.fn(() => ({
+    tablesDB: mockTablesDB,
+  })),
+  createAdminClient: vi.fn(() => ({
+    tablesDB: mockAdminTablesDB,
+  })),
 }));
+
 
 // Import handler after mocks are set up
 import handler from '@/pages/api/approval-profiles/[id]';
@@ -26,8 +32,13 @@ describe('/api/approval-profiles/[id]', () => {
   beforeEach(() => {
     resetAllMocks();
     
-    jsonMock = vi.fn();
-    statusMock = vi.fn(() => ({ json: jsonMock }));
+    jsonMock = vi.fn().mockReturnValue({});
+    statusMock = vi.fn().mockReturnValue({
+      json: jsonMock,
+      send: vi.fn().mockReturnValue({}),
+      end: vi.fn().mockReturnValue({}),
+      setHeader: vi.fn().mockReturnValue({}),
+    });
     
     mockReq = {
       method: 'GET',
@@ -37,6 +48,7 @@ describe('/api/approval-profiles/[id]', () => {
     
     mockRes = {
       status: statusMock as any,
+      json: jsonMock as any,
     };
   });
 
@@ -53,7 +65,8 @@ describe('/api/approval-profiles/[id]', () => {
         $updatedAt: '2025-01-01T00:00:00.000Z',
       };
 
-      mockDatabases.getDocument.mockResolvedValue(mockProfile as any);
+      mockTablesDB.getRow.mockResolvedValue(mockProfile as any);
+    mockAdminTablesDB.getRow.mockResolvedValue(mockProfile as any);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -73,7 +86,8 @@ describe('/api/approval-profiles/[id]', () => {
         isDeleted: true,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(mockProfile as any);
+      mockTablesDB.getRow.mockResolvedValue(mockProfile as any);
+    mockAdminTablesDB.getRow.mockResolvedValue(mockProfile as any);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -89,7 +103,7 @@ describe('/api/approval-profiles/[id]', () => {
     it('should return 404 for non-existent profiles', async () => {
       const error: any = new Error('Not found');
       error.code = 404;
-      mockDatabases.getDocument.mockRejectedValue(error);
+      mockTablesDB.getRow.mockRejectedValue(error);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -122,13 +136,14 @@ describe('/api/approval-profiles/[id]', () => {
         name: 'New Name',
       };
 
-      mockDatabases.getDocument.mockResolvedValue(currentProfile as any);
+      mockTablesDB.getRow.mockResolvedValue(currentProfile as any);
+    mockAdminTablesDB.getRow.mockResolvedValue(currentProfile as any);
       // Mock no existing profiles with the new name
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [],
         total: 0,
       } as any);
-      mockDatabases.updateDocument.mockResolvedValue(updatedProfile as any);
+      mockTablesDB.updateRow.mockResolvedValue(updatedProfile as any);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -143,9 +158,9 @@ describe('/api/approval-profiles/[id]', () => {
         })
       );
 
-      // Verify version was incremented and updateDocument was called
-      expect(mockDatabases.updateDocument).toHaveBeenCalled();
-      const updateCall = mockDatabases.updateDocument.mock.calls[0];
+      // Verify version was incremented and updateRow was called
+      expect(mockTablesDB.updateRow).toHaveBeenCalled();
+      const updateCall = mockTablesDB.updateRow.mock.calls[0];
       expect(updateCall[2]).toBe('profile1'); // Profile ID
       expect(updateCall[3]).toMatchObject({
         version: 2,
@@ -165,11 +180,12 @@ describe('/api/approval-profiles/[id]', () => {
         name: 'Duplicate Name',
       };
 
-      mockDatabases.getDocument.mockResolvedValue(currentProfile as any);
+      mockTablesDB.getRow.mockResolvedValue(currentProfile as any);
+    mockAdminTablesDB.getRow.mockResolvedValue(currentProfile as any);
       
       // Mock existing profile with the new name
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [
           {
             $id: 'profile2',
             name: 'Duplicate Name',
@@ -220,8 +236,9 @@ describe('/api/approval-profiles/[id]', () => {
         rules: newRules,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(currentProfile as any);
-      mockDatabases.updateDocument.mockResolvedValue(updatedProfile as any);
+      mockTablesDB.getRow.mockResolvedValue(currentProfile as any);
+    mockAdminTablesDB.getRow.mockResolvedValue(currentProfile as any);
+      mockTablesDB.updateRow.mockResolvedValue(updatedProfile as any);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -245,7 +262,8 @@ describe('/api/approval-profiles/[id]', () => {
         name: 'New Name',
       };
 
-      mockDatabases.getDocument.mockResolvedValue(mockProfile as any);
+      mockTablesDB.getRow.mockResolvedValue(mockProfile as any);
+    mockAdminTablesDB.getRow.mockResolvedValue(mockProfile as any);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -271,8 +289,9 @@ describe('/api/approval-profiles/[id]', () => {
         isDeleted: true,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(currentProfile as any);
-      mockDatabases.updateDocument.mockResolvedValue(deletedProfile as any);
+      mockTablesDB.getRow.mockResolvedValue(currentProfile as any);
+    mockAdminTablesDB.getRow.mockResolvedValue(currentProfile as any);
+      mockTablesDB.updateRow.mockResolvedValue(deletedProfile as any);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -285,10 +304,10 @@ describe('/api/approval-profiles/[id]', () => {
       );
 
       // Verify soft delete was called
-      expect(mockDatabases.updateDocument).toHaveBeenCalled();
-      const updateCall = mockDatabases.updateDocument.mock.calls[0];
+      expect(mockTablesDB.updateRow).toHaveBeenCalled();
+      const updateCall = mockTablesDB.updateRow.mock.calls[0];
       expect(updateCall[2]).toBe('profile1'); // Profile ID
-      expect(updateCall[3]).toEqual({ isDeleted: true });
+      expect(updateCall[3]).toMatchObject({ isDeleted: true }); // Check isDeleted is set, allow other fields
     });
 
     it('should return 404 for already deleted profiles', async () => {
@@ -298,7 +317,8 @@ describe('/api/approval-profiles/[id]', () => {
         isDeleted: true,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(mockProfile as any);
+      mockTablesDB.getRow.mockResolvedValue(mockProfile as any);
+    mockAdminTablesDB.getRow.mockResolvedValue(mockProfile as any);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -308,7 +328,7 @@ describe('/api/approval-profiles/[id]', () => {
     it('should return 404 for non-existent profiles', async () => {
       const error: any = new Error('Not found');
       error.code = 404;
-      mockDatabases.getDocument.mockRejectedValue(error);
+      mockTablesDB.getRow.mockRejectedValue(error);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 

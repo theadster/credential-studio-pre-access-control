@@ -1,15 +1,19 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
 import handler from '@/pages/api/attendees/index';
-import { mockAccount, mockDatabases, resetAllMocks } from '@/test/mocks/appwrite';
+import { mockAccount, mockTablesDB, mockAdminTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn((req: NextApiRequest) => ({
     account: mockAccount,
-    databases: mockDatabases,
+    tablesDB: mockTablesDB,
   })),
+  createAdminClient: vi.fn(() => ({
+    tablesDB: mockAdminTablesDB,
+})),
 }));
+
 
 describe('/api/attendees - Batch Fetching Integration Tests', () => {
   let mockReq: Partial<NextApiRequest>;
@@ -98,17 +102,17 @@ describe('/api/attendees - Batch Fetching Integration Tests', () => {
     it('should fetch all attendees in a single request for 50 attendees', async () => {
       const mockAttendees = generateMockAttendees(50);
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // User profile lookup
-        .mockResolvedValueOnce({ documents: mockCustomFields, total: 1 }) // Custom fields for visibility
-        .mockResolvedValueOnce({ documents: mockAttendees, total: 50 }); // Attendees list
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 }) // User profile lookup
+        .mockResolvedValueOnce({ rows: mockCustomFields, total: 1 }) // Custom fields for visibility
+        .mockResolvedValueOnce({ rows: mockAttendees, total: 50 }); // Attendees list
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       // Verify single database request for attendees (3rd call)
-      expect(mockDatabases.listDocuments).toHaveBeenCalledTimes(3);
+      expect(mockTablesDB.listRows).toHaveBeenCalledTimes(3);
 
       // Verify no console warnings for small events
       expect(consoleWarnSpy).not.toHaveBeenCalled();
@@ -128,18 +132,18 @@ describe('/api/attendees - Batch Fetching Integration Tests', () => {
       const batch1 = generateMockAttendees(5000, 0);
       const batch2 = generateMockAttendees(1, 5000);
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // User profile lookup
-        .mockResolvedValueOnce({ documents: mockCustomFields, total: 1 }) // Custom fields for visibility
-        .mockResolvedValueOnce({ documents: batch1, total: 5001 }) // First batch (total indicates more)
-        .mockResolvedValueOnce({ documents: batch2, total: 5001 }); // Second batch
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 }) // User profile lookup
+        .mockResolvedValueOnce({ rows: mockCustomFields, total: 1 }) // Custom fields for visibility
+        .mockResolvedValueOnce({ rows: batch1, total: 5001 }) // First batch (total indicates more)
+        .mockResolvedValueOnce({ rows: batch2, total: 5001 }); // Second batch
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       // Verify multiple database requests were made (4 total: profile, custom fields, batch1, batch2)
-      expect(mockDatabases.listDocuments).toHaveBeenCalledTimes(4);
+      expect(mockTablesDB.listRows).toHaveBeenCalledTimes(4);
 
       // Verify console warning was logged
       expect(consoleWarnSpy).toHaveBeenCalledWith(
@@ -164,18 +168,18 @@ describe('/api/attendees - Batch Fetching Integration Tests', () => {
       const batch1 = generateMockAttendees(5000, 0);
       const batch2 = generateMockAttendees(5000, 5000);
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // User profile lookup
-        .mockResolvedValueOnce({ documents: mockCustomFields, total: 1 }) // Custom fields for visibility
-        .mockResolvedValueOnce({ documents: batch1, total: 10000 }) // First batch
-        .mockResolvedValueOnce({ documents: batch2, total: 10000 }); // Second batch
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 }) // User profile lookup
+        .mockResolvedValueOnce({ rows: mockCustomFields, total: 1 }) // Custom fields for visibility
+        .mockResolvedValueOnce({ rows: batch1, total: 10000 }) // First batch
+        .mockResolvedValueOnce({ rows: batch2, total: 10000 }); // Second batch
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       // Verify multiple database requests were made
-      expect(mockDatabases.listDocuments).toHaveBeenCalledTimes(4);
+      expect(mockTablesDB.listRows).toHaveBeenCalledTimes(4);
 
       // Verify console warning was logged
       expect(consoleWarnSpy).toHaveBeenCalledWith(
@@ -202,19 +206,19 @@ describe('/api/attendees - Batch Fetching Integration Tests', () => {
       const batch2 = generateMockAttendees(5000, 5000);
       const batch3 = generateMockAttendees(5000, 10000);
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // User profile lookup
-        .mockResolvedValueOnce({ documents: mockCustomFields, total: 1 }) // Custom fields for visibility
-        .mockResolvedValueOnce({ documents: batch1, total: 15000 }) // First batch
-        .mockResolvedValueOnce({ documents: batch2, total: 15000 }) // Second batch
-        .mockResolvedValueOnce({ documents: batch3, total: 15000 }); // Third batch
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 }) // User profile lookup
+        .mockResolvedValueOnce({ rows: mockCustomFields, total: 1 }) // Custom fields for visibility
+        .mockResolvedValueOnce({ rows: batch1, total: 15000 }) // First batch
+        .mockResolvedValueOnce({ rows: batch2, total: 15000 }) // Second batch
+        .mockResolvedValueOnce({ rows: batch3, total: 15000 }); // Third batch
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       // Verify multiple database requests were made (5 total: profile, custom fields, 3 batches)
-      expect(mockDatabases.listDocuments).toHaveBeenCalledTimes(5);
+      expect(mockTablesDB.listRows).toHaveBeenCalledTimes(5);
 
       // Verify console warning was logged
       expect(consoleWarnSpy).toHaveBeenCalledWith(
@@ -243,14 +247,14 @@ describe('/api/attendees - Batch Fetching Integration Tests', () => {
       const batch2 = generateMockAttendees(5000, 5000);
       const batch3 = generateMockAttendees(5000, 10000);
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: mockCustomFields, total: 1 })
-        .mockResolvedValueOnce({ documents: batch1, total: 15000 })
-        .mockResolvedValueOnce({ documents: batch2, total: 15000 })
-        .mockResolvedValueOnce({ documents: batch3, total: 15000 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: mockCustomFields, total: 1 })
+        .mockResolvedValueOnce({ rows: batch1, total: 15000 })
+        .mockResolvedValueOnce({ rows: batch2, total: 15000 })
+        .mockResolvedValueOnce({ rows: batch3, total: 15000 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -291,7 +295,7 @@ describe('/api/attendees - Batch Fetching Integration Tests', () => {
       };
 
       // Verify the third call (first attendees batch) has queries
-      const firstBatchCall = mockDatabases.listDocuments.mock.calls[2];
+      const firstBatchCall = mockTablesDB.listRows.mock.calls[2];
       const firstBatchQueries = firstBatchCall[2] as any[];
 
       // First batch should have limit but no offset
@@ -303,7 +307,7 @@ describe('/api/attendees - Batch Fetching Integration Tests', () => {
       expect(firstBatchOffset, 'First batch should NOT have offset query').toBeNull();
 
       // Verify the fourth call (second batch) has both limit and offset
-      const secondBatchCall = mockDatabases.listDocuments.mock.calls[3];
+      const secondBatchCall = mockTablesDB.listRows.mock.calls[3];
       const secondBatchQueries = secondBatchCall[2] as any[];
 
       const secondBatchLimit = findQueryByMethod(secondBatchQueries, 'limit');
@@ -315,7 +319,7 @@ describe('/api/attendees - Batch Fetching Integration Tests', () => {
       expect(secondBatchOffset?.value, 'Second batch offset should be 5000').toBe(5000);
 
       // Verify the fifth call (third batch) has both limit and offset
-      const thirdBatchCall = mockDatabases.listDocuments.mock.calls[4];
+      const thirdBatchCall = mockTablesDB.listRows.mock.calls[4];
       const thirdBatchQueries = thirdBatchCall[2] as any[];
 
       const thirdBatchLimit = findQueryByMethod(thirdBatchQueries, 'limit');
@@ -335,24 +339,24 @@ describe('/api/attendees - Batch Fetching Integration Tests', () => {
       const batch1 = generateMockAttendees(5000, 0);
       const batch2 = generateMockAttendees(1, 5000);
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: mockCustomFields, total: 1 })
-        .mockResolvedValueOnce({ documents: batch1, total: 5001 })
-        .mockResolvedValueOnce({ documents: batch2, total: 5001 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: mockCustomFields, total: 1 })
+        .mockResolvedValueOnce({ rows: batch1, total: 5001 })
+        .mockResolvedValueOnce({ rows: batch2, total: 5001 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       // Verify first batch has the search filter
-      const firstBatchCall = mockDatabases.listDocuments.mock.calls[2];
+      const firstBatchCall = mockTablesDB.listRows.mock.calls[2];
       const firstBatchQueries = firstBatchCall[2] as any[];
       const firstBatchQueryStrings = firstBatchQueries.map(q => String(q));
       expect(firstBatchQueryStrings.some(q => q.toLowerCase().includes('search') || q.includes('John'))).toBe(true);
 
       // Verify second batch also has the search filter
-      const secondBatchCall = mockDatabases.listDocuments.mock.calls[3];
+      const secondBatchCall = mockTablesDB.listRows.mock.calls[3];
       const secondBatchQueries = secondBatchCall[2] as any[];
       const secondBatchQueryStrings = secondBatchQueries.map(q => String(q));
       expect(secondBatchQueryStrings.some(q => q.toLowerCase().includes('search') || q.includes('John'))).toBe(true);
@@ -362,24 +366,24 @@ describe('/api/attendees - Batch Fetching Integration Tests', () => {
       const batch1 = generateMockAttendees(5000, 0);
       const batch2 = generateMockAttendees(1, 5000);
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: mockCustomFields, total: 1 })
-        .mockResolvedValueOnce({ documents: batch1, total: 5001 })
-        .mockResolvedValueOnce({ documents: batch2, total: 5001 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: mockCustomFields, total: 1 })
+        .mockResolvedValueOnce({ rows: batch1, total: 5001 })
+        .mockResolvedValueOnce({ rows: batch2, total: 5001 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       // Verify first batch has orderDesc
-      const firstBatchCall = mockDatabases.listDocuments.mock.calls[2];
+      const firstBatchCall = mockTablesDB.listRows.mock.calls[2];
       const firstBatchQueries = firstBatchCall[2] as any[];
       const firstBatchQueryStrings = firstBatchQueries.map(q => String(q));
       expect(firstBatchQueryStrings.some(q => q.toLowerCase().includes('order'))).toBe(true);
 
       // Verify second batch also has orderDesc
-      const secondBatchCall = mockDatabases.listDocuments.mock.calls[3];
+      const secondBatchCall = mockTablesDB.listRows.mock.calls[3];
       const secondBatchQueries = secondBatchCall[2] as any[];
       const secondBatchQueryStrings = secondBatchQueries.map(q => String(q));
       expect(secondBatchQueryStrings.some(q => q.toLowerCase().includes('order'))).toBe(true);
@@ -390,17 +394,17 @@ describe('/api/attendees - Batch Fetching Integration Tests', () => {
     it('should handle exactly 5000 attendees without triggering batch logic', async () => {
       const mockAttendees = generateMockAttendees(5000);
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: mockCustomFields, total: 1 })
-        .mockResolvedValueOnce({ documents: mockAttendees, total: 5000 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: mockCustomFields, total: 1 })
+        .mockResolvedValueOnce({ rows: mockAttendees, total: 5000 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       // Verify only single batch was fetched (3 calls total)
-      expect(mockDatabases.listDocuments).toHaveBeenCalledTimes(3);
+      expect(mockTablesDB.listRows).toHaveBeenCalledTimes(3);
 
       // Verify no console warnings for exactly 5000
       expect(consoleWarnSpy).not.toHaveBeenCalled();
@@ -433,13 +437,13 @@ describe('/api/attendees - Batch Fetching Integration Tests', () => {
         }),
       }));
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: mockCustomFieldsWithHidden, total: 2 })
-        .mockResolvedValueOnce({ documents: batch1, total: 5001 })
-        .mockResolvedValueOnce({ documents: batch2, total: 5001 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: mockCustomFieldsWithHidden, total: 2 })
+        .mockResolvedValueOnce({ rows: batch1, total: 5001 })
+        .mockResolvedValueOnce({ rows: batch2, total: 5001 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -456,17 +460,17 @@ describe('/api/attendees - Batch Fetching Integration Tests', () => {
     });
 
     it('should handle empty batches gracefully', async () => {
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: mockCustomFields, total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: mockCustomFields, total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       // Verify no batch fetching triggered
-      expect(mockDatabases.listDocuments).toHaveBeenCalledTimes(3);
+      expect(mockTablesDB.listRows).toHaveBeenCalledTimes(3);
       expect(consoleWarnSpy).not.toHaveBeenCalled();
 
       // Verify empty array is returned
@@ -507,16 +511,16 @@ describe('/api/attendees - Batch Fetching Integration Tests', () => {
         }
 
         mockAccount.get.mockResolvedValue(mockAuthUser);
-        mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+        mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
         // Setup mock responses
-        mockDatabases.listDocuments
-          .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-          .mockResolvedValueOnce({ documents: mockCustomFields, total: 1 });
+        mockTablesDB.listRows
+          .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+          .mockResolvedValueOnce({ rows: mockCustomFields, total: 1 });
 
         batches.forEach(batch => {
-          mockDatabases.listDocuments.mockResolvedValueOnce({
-            documents: batch,
+          mockTablesDB.listRows.mockResolvedValueOnce({
+            rows: batch,
             total: testCase.total,
           });
         });
@@ -524,7 +528,7 @@ describe('/api/attendees - Batch Fetching Integration Tests', () => {
         await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
         // Verify correct number of database calls
-        expect(mockDatabases.listDocuments).toHaveBeenCalledTimes(testCase.expectedCalls);
+        expect(mockTablesDB.listRows).toHaveBeenCalledTimes(testCase.expectedCalls);
 
         // Verify console logs for large events
         if (testCase.total > 5000) {

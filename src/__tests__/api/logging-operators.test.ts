@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import type { NextApiResponse } from 'next';
-import { mockAccount, mockDatabases, resetAllMocks } from '../../test/mocks/appwrite';
+import { mockAccount, mockTablesDB, mockAdminTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 
 // Import the real handler
 let logsHandler: any;
@@ -9,10 +9,10 @@ let logsHandler: any;
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn((req: any) => ({
     account: mockAccount,
-    databases: mockDatabases,
+    tablesDB: mockTablesDB,
   })),
   createAdminClient: vi.fn(() => ({
-    databases: mockDatabases,
+    tablesDB: mockAdminTablesDB,
   })),
 }));
 
@@ -92,11 +92,12 @@ describe('Logging with Operators', () => {
 
     // Setup default mock responses
     mockAccount.get.mockResolvedValue(mockAuthUser);
-    mockDatabases.listDocuments.mockResolvedValue({
-      documents: [mockUserProfile],
+    mockTablesDB.listRows.mockResolvedValue({
+      rows: [mockUserProfile],
       total: 1,
     });
-    mockDatabases.getDocument.mockResolvedValue(mockAdminRole);
+    mockTablesDB.getRow.mockResolvedValue(mockAdminRole);
+    mockAdminTablesDB.getRow.mockResolvedValue(mockAdminRole);
   });
 
   afterEach(() => {
@@ -116,9 +117,9 @@ describe('Logging with Operators', () => {
         $updatedAt: '2024-01-15T10:30:00.000Z',
       };
 
-      mockDatabases.createDocument.mockResolvedValue(mockLog);
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
+      mockTablesDB.createRow.mockResolvedValue(mockLog);
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockUserProfile],
         total: 1,
       });
 
@@ -131,7 +132,7 @@ describe('Logging with Operators', () => {
       await logsHandler(mockReq, mockRes as NextApiResponse);
 
       // Verify the real handler was invoked and created a document with timestamp
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         expect.any(String),
         expect.any(String),
         expect.any(String),
@@ -163,12 +164,12 @@ describe('Logging with Operators', () => {
         $updatedAt: '2024-01-15T10:29:59.000Z',
       };
 
-      mockDatabases.createDocument.mockResolvedValue(mockLog);
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
+      mockTablesDB.createRow.mockResolvedValue(mockLog);
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockUserProfile],
         total: 1,
       });
-      mockDatabases.getDocument.mockResolvedValueOnce({
+      mockTablesDB.getRow.mockResolvedValueOnce({
         $id: 'attendee-123',
         firstName: 'Jane',
         lastName: 'Doe',
@@ -184,7 +185,7 @@ describe('Logging with Operators', () => {
       await logsHandler(mockReq, mockRes as NextApiResponse);
 
       // Verify the real handler created the document and enriched it with attendee data
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         expect.any(String),
         expect.any(String),
         expect.any(String),
@@ -193,7 +194,7 @@ describe('Logging with Operators', () => {
           attendeeId: 'attendee-123',
         })
       );
-      expect(mockDatabases.getDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.getRow).toHaveBeenCalledWith(
         expect.any(String),
         expect.any(String),
         'attendee-123'
@@ -246,12 +247,12 @@ describe('Logging with Operators', () => {
       ];
 
       let callCount = 0;
-      mockDatabases.createDocument.mockImplementation(() => {
+      mockTablesDB.createRow.mockImplementation(() => {
         return Promise.resolve(mockLogs[callCount++]);
       });
 
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockUserProfile],
         total: 1,
       });
 
@@ -279,8 +280,8 @@ describe('Logging with Operators', () => {
       await Promise.all(promises);
 
       // Verify all logs were created with proper timestamps
-      expect(mockDatabases.createDocument).toHaveBeenCalledTimes(3);
-      expect(mockDatabases.createDocument).toHaveBeenNthCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledTimes(3);
+      expect(mockTablesDB.createRow).toHaveBeenNthCalledWith(
         1,
         expect.any(String),
         expect.any(String),
@@ -290,7 +291,7 @@ describe('Logging with Operators', () => {
           timestamp: expect.any(String),
         })
       );
-      expect(mockDatabases.createDocument).toHaveBeenNthCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenNthCalledWith(
         2,
         expect.any(String),
         expect.any(String),
@@ -300,7 +301,7 @@ describe('Logging with Operators', () => {
           timestamp: expect.any(String),
         })
       );
-      expect(mockDatabases.createDocument).toHaveBeenNthCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenNthCalledWith(
         3,
         expect.any(String),
         expect.any(String),
@@ -324,9 +325,9 @@ describe('Logging with Operators', () => {
         $updatedAt: '2024-01-15T10:30:00.000Z',
       };
 
-      mockDatabases.createDocument.mockResolvedValue(mockLog);
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
+      mockTablesDB.createRow.mockResolvedValue(mockLog);
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockUserProfile],
         total: 1,
       });
 
@@ -361,9 +362,9 @@ describe('Logging with Operators', () => {
         $updatedAt: '2024-01-15T10:30:00.000Z',
       };
 
-      mockDatabases.createDocument.mockResolvedValue(mockLog);
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
+      mockTablesDB.createRow.mockResolvedValue(mockLog);
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockUserProfile],
         total: 1,
       });
 
@@ -418,19 +419,19 @@ describe('Logging with Operators', () => {
       ];
 
       // Reset and setup specific mock sequence for GET request
-      mockDatabases.listDocuments.mockReset();
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: mockLogs,
+      mockTablesDB.listRows.mockReset();
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: mockLogs,
         total: 2,
       });
 
       // Mock user lookups for enrichment (called for each log)
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockUserProfile],
         total: 1,
       });
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockUserProfile],
         total: 1,
       });
 

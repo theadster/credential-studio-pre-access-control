@@ -1,22 +1,17 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import handler from '../[id]';
-import { mockAccount, mockDatabases, resetAllMocks } from '@/test/mocks/appwrite';
-
-// Mock TablesDB
-const mockTablesDB = {
-  createTransaction: vi.fn(),
-  createOperations: vi.fn(),
-  updateTransaction: vi.fn(),
-};
+import handler from '@/pages/api/roles/[id]';
+import { mockAccount, mockTablesDB, mockAdminTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn((req: NextApiRequest) => ({
     account: mockAccount,
-    databases: mockDatabases,
     tablesDB: mockTablesDB,
   })),
+  createAdminClient: vi.fn(() => ({
+    tablesDB: mockAdminTablesDB,
+})),
 }));
 
 // Mock the permissions module
@@ -29,6 +24,7 @@ vi.mock('@/lib/permissions', () => ({
     return permissions?.[resource]?.[action] === true;
   }),
 }));
+
 
 describe('/api/roles/[id] - Single Role API', () => {
   let mockReq: Partial<NextApiRequest>;
@@ -98,11 +94,11 @@ describe('/api/roles/[id] - Single Role API', () => {
 
     // Default mock implementations
     mockAccount.get.mockResolvedValue(mockAuthUser);
-    mockDatabases.listDocuments.mockResolvedValue({
-      documents: [mockUserProfile],
+    mockTablesDB.listRows.mockResolvedValue({
+      rows: [mockUserProfile],
       total: 1,
     });
-    mockDatabases.createDocument.mockResolvedValue({
+    mockTablesDB.createRow.mockResolvedValue({
       $id: 'new-log-123',
       userId: mockAuthUser.$id,
       action: 'view',
@@ -139,8 +135,8 @@ describe('/api/roles/[id] - Single Role API', () => {
     });
 
     it('should return 404 if user profile is not found', async () => {
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [],
         total: 0,
       });
 
@@ -159,10 +155,10 @@ describe('/api/roles/[id] - Single Role API', () => {
     it('should return 400 if role ID is missing', async () => {
       mockReq.query = {};
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(getFreshRole(mockAdminRole));
+      mockTablesDB.getRow.mockResolvedValueOnce(getFreshRole(mockAdminRole));
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -173,10 +169,10 @@ describe('/api/roles/[id] - Single Role API', () => {
     it('should return 400 if role ID is not a string', async () => {
       mockReq.query = { id: ['array', 'value'] };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(getFreshRole(mockAdminRole));
+      mockTablesDB.getRow.mockResolvedValueOnce(getFreshRole(mockAdminRole));
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -187,11 +183,11 @@ describe('/api/roles/[id] - Single Role API', () => {
 
   describe('GET /api/roles/[id]', () => {
     it('should return role with user count', async () => {
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // User profile lookup
-        .mockResolvedValueOnce({ documents: [], total: 5 }); // User count for role
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 }) // User profile lookup
+        .mockResolvedValueOnce({ rows: [], total: 5 }); // User count for role
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(getFreshRole(mockAdminRole)) // Current user's role (will be parsed)
         .mockResolvedValueOnce(getFreshRole(mockViewerRole)); // Requested role
 
@@ -214,10 +210,10 @@ describe('/api/roles/[id] - Single Role API', () => {
         permissions: JSON.stringify({ roles: { read: false } }),
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(getFreshRole(noPermRole));
+      mockTablesDB.getRow.mockResolvedValueOnce(getFreshRole(noPermRole));
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -226,13 +222,13 @@ describe('/api/roles/[id] - Single Role API', () => {
     });
 
     it('should return 404 if role is not found', async () => {
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
       const notFoundError = new Error('Role not found');
       (notFoundError as any).code = 404;
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(getFreshRole(mockAdminRole))
         .mockRejectedValueOnce(notFoundError);
 
@@ -243,19 +239,19 @@ describe('/api/roles/[id] - Single Role API', () => {
     });
 
     it('should create log entry for viewing role', async () => {
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 3 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 3 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(getFreshRole(mockAdminRole))
         .mockResolvedValueOnce(getFreshRole(mockViewerRole));
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
         expect.any(String),
         expect.objectContaining({
           userId: mockAuthUser.$id,
@@ -266,15 +262,15 @@ describe('/api/roles/[id] - Single Role API', () => {
     });
 
     it('should continue even if logging fails', async () => {
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(getFreshRole(mockAdminRole))
         .mockResolvedValueOnce(getFreshRole(mockViewerRole));
 
-      mockDatabases.createDocument.mockRejectedValueOnce(new Error('Logging failed'));
+      mockTablesDB.createRow.mockRejectedValueOnce(new Error('Logging failed'));
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -309,12 +305,12 @@ describe('/api/roles/[id] - Single Role API', () => {
         $updatedAt: '2024-01-06T00:00:00.000Z',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // User profile lookup
-        .mockResolvedValueOnce({ documents: [], total: 0 }) // Name conflict check (no conflicts)
-        .mockResolvedValueOnce({ documents: [], total: 3 }); // User count for updated role
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 }) // User profile lookup
+        .mockResolvedValueOnce({ rows: [], total: 0 }) // Name conflict check (no conflicts)
+        .mockResolvedValueOnce({ rows: [], total: 3 }); // User count for updated role
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(getFreshRole(mockAdminRole)) // Current user's role
         .mockResolvedValueOnce(getFreshRole(mockViewerRole)) // Existing role
         .mockResolvedValueOnce(updatedRole); // Get updated role after transaction
@@ -330,7 +326,7 @@ describe('/api/roles/[id] - Single Role API', () => {
         operations: expect.arrayContaining([
           expect.objectContaining({
             action: 'update',
-            tableId: process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID,
+            tableId: process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID,
             rowId: 'role-viewer',
             data: expect.objectContaining({
               name: 'Updated Viewer',
@@ -339,7 +335,7 @@ describe('/api/roles/[id] - Single Role API', () => {
           }),
           expect.objectContaining({
             action: 'create',
-            tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+            tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
             data: expect.objectContaining({
               userId: mockAuthUser.$id,
               action: 'update',
@@ -369,10 +365,10 @@ describe('/api/roles/[id] - Single Role API', () => {
         permissions: JSON.stringify({ roles: { read: true, update: false } }),
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(getFreshRole(noPermRole));
+      mockTablesDB.getRow.mockResolvedValueOnce(getFreshRole(noPermRole));
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -383,11 +379,11 @@ describe('/api/roles/[id] - Single Role API', () => {
     it('should return 400 if name is missing', async () => {
       mockReq.body = { permissions: {} };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
       // Mock current user's role - handler parses permissions so use fresh copy
-      mockDatabases.getDocument.mockResolvedValueOnce(getFreshRole(mockAdminRole));
+      mockTablesDB.getRow.mockResolvedValueOnce(getFreshRole(mockAdminRole));
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -398,11 +394,11 @@ describe('/api/roles/[id] - Single Role API', () => {
     it('should return 400 if permissions is missing', async () => {
       mockReq.body = { name: 'Updated Role' };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
       // Mock current user's role - handler parses permissions so use fresh copy
-      mockDatabases.getDocument.mockResolvedValueOnce(getFreshRole(mockAdminRole));
+      mockTablesDB.getRow.mockResolvedValueOnce(getFreshRole(mockAdminRole));
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -416,11 +412,11 @@ describe('/api/roles/[id] - Single Role API', () => {
         permissions: 'invalid-string',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
       // Mock current user's role - handler parses permissions so use fresh copy
-      mockDatabases.getDocument.mockResolvedValueOnce(getFreshRole(mockAdminRole));
+      mockTablesDB.getRow.mockResolvedValueOnce(getFreshRole(mockAdminRole));
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -429,13 +425,13 @@ describe('/api/roles/[id] - Single Role API', () => {
     });
 
     it('should return 404 if role to update is not found', async () => {
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
       const notFoundError = new Error('Role not found');
       (notFoundError as any).code = 404;
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(getFreshRole(mockAdminRole)) // Current user's role
         .mockRejectedValueOnce(notFoundError); // Role to update not found
 
@@ -453,11 +449,11 @@ describe('/api/roles/[id] - Single Role API', () => {
         permissions: '{}',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [conflictingRole], total: 1 }); // Name conflict check
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [conflictingRole], total: 1 }); // Name conflict check
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(getFreshRole(mockAdminRole)) // Current user's role
         .mockResolvedValueOnce(getFreshRole(mockViewerRole)); // Existing role
 
@@ -476,22 +472,22 @@ describe('/api/roles/[id] - Single Role API', () => {
         $updatedAt: '2024-01-06T00:00:00.000Z',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 2 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 2 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(getFreshRole(mockAdminRole)) // Current user's role
         .mockResolvedValueOnce(getFreshRole(mockViewerRole)); // Existing role
 
-      mockDatabases.updateDocument.mockResolvedValue(updatedRole);
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'log-123' });
+      mockTablesDB.updateRow.mockResolvedValue(updatedRole);
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'log-123' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       expect(statusMock).toHaveBeenCalledWith(200);
       // Should not check for name conflict since name didn't change
-      expect(mockDatabases.listDocuments).toHaveBeenCalledTimes(2); // Only user profile and user count
+      expect(mockTablesDB.listRows).toHaveBeenCalledTimes(2); // Only user profile and user count
     });
 
     it('should return 403 if trying to modify Super Administrator role as non-super admin', async () => {
@@ -523,10 +519,10 @@ describe('/api/roles/[id] - Single Role API', () => {
         },
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [{ ...mockUserProfile, roleId: 'role-manager' }], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [{ ...mockUserProfile, roleId: 'role-manager' }], total: 1 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(getFreshRole(managerRole))
         .mockResolvedValueOnce(getFreshRole(superAdminRole));
 
@@ -555,16 +551,16 @@ describe('/api/roles/[id] - Single Role API', () => {
         $updatedAt: '2024-01-06T00:00:00.000Z',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [{ ...mockUserProfile, roleId: 'role-super' }], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [{ ...mockUserProfile, roleId: 'role-super' }], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 1 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(getFreshRole(superAdminRole))
         .mockResolvedValueOnce(getFreshRole(superAdminRole));
 
-      mockDatabases.updateDocument.mockResolvedValue(updatedRole);
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'log-123' });
+      mockTablesDB.updateRow.mockResolvedValue(updatedRole);
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'log-123' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -578,12 +574,12 @@ describe('/api/roles/[id] - Single Role API', () => {
         $updatedAt: '2024-01-06T00:00:00.000Z',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 })
-        .mockResolvedValueOnce({ documents: [], total: 2 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 })
+        .mockResolvedValueOnce({ rows: [], total: 2 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(getFreshRole(mockAdminRole)) // Current user's role
         .mockResolvedValueOnce(getFreshRole(mockViewerRole)) // Existing role
         .mockResolvedValueOnce(updatedRole); // Get updated role after transaction
@@ -596,7 +592,7 @@ describe('/api/roles/[id] - Single Role API', () => {
         operations: expect.arrayContaining([
           expect.objectContaining({
             action: 'create',
-            tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+            tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
             data: expect.objectContaining({
               userId: mockAuthUser.$id,
               action: 'update',
@@ -608,11 +604,11 @@ describe('/api/roles/[id] - Single Role API', () => {
     });
 
     it('should rollback transaction on failure', async () => {
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(getFreshRole(mockAdminRole)) // Current user's role
         .mockResolvedValueOnce(getFreshRole(mockViewerRole)); // Existing role
 
@@ -633,12 +629,12 @@ describe('/api/roles/[id] - Single Role API', () => {
     });
 
     it('should handle transaction conflict with retry', async () => {
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 })
-        .mockResolvedValueOnce({ documents: [], total: 2 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 })
+        .mockResolvedValueOnce({ rows: [], total: 2 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(getFreshRole(mockAdminRole)) // Current user's role
         .mockResolvedValueOnce(getFreshRole(mockViewerRole)) // Existing role
         .mockResolvedValueOnce(getFreshRole(mockViewerRole)); // Get updated role after transaction
@@ -672,22 +668,22 @@ describe('/api/roles/[id] - Single Role API', () => {
     });
 
     it('should delete role successfully', async () => {
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // User profile lookup
-        .mockResolvedValueOnce({ documents: [], total: 0 }); // Check users with role
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 }) // User profile lookup
+        .mockResolvedValueOnce({ rows: [], total: 0 }); // Check users with role
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(getFreshRole(mockAdminRole)) // Current user's role
         .mockResolvedValueOnce(getFreshRole(mockViewerRole)); // Role to delete
 
-      mockDatabases.deleteDocument.mockResolvedValue({ success: true });
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'log-123' });
+      mockTablesDB.deleteRow.mockResolvedValue({ success: true });
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'log-123' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.deleteDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.deleteRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID,
         'role-viewer'
       );
 
@@ -701,10 +697,10 @@ describe('/api/roles/[id] - Single Role API', () => {
         permissions: JSON.stringify({ roles: { read: true, delete: false } }),
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(getFreshRole(noPermRole));
+      mockTablesDB.getRow.mockResolvedValueOnce(getFreshRole(noPermRole));
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -713,13 +709,13 @@ describe('/api/roles/[id] - Single Role API', () => {
     });
 
     it('should return 404 if role to delete is not found', async () => {
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
       const notFoundError = new Error('Role not found');
       (notFoundError as any).code = 404;
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(getFreshRole(mockAdminRole)) // Current user's role
         .mockRejectedValueOnce(notFoundError); // Role to delete not found
 
@@ -739,10 +735,10 @@ describe('/api/roles/[id] - Single Role API', () => {
 
       mockReq.query = { id: 'role-super' };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(getFreshRole(mockAdminRole)) // Current user's role
         .mockResolvedValueOnce(getFreshRole(superAdminRole)); // Role to delete
 
@@ -753,11 +749,11 @@ describe('/api/roles/[id] - Single Role API', () => {
     });
 
     it('should return 400 if role has assigned users', async () => {
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [{ $id: 'user-1' }], total: 5 }); // 5 users with this role
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [{ $id: 'user-1' }], total: 5 }); // 5 users with this role
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(getFreshRole(mockAdminRole)) // Current user's role
         .mockResolvedValueOnce(getFreshRole(mockViewerRole)); // Role to delete
 
@@ -770,22 +766,22 @@ describe('/api/roles/[id] - Single Role API', () => {
     });
 
     it('should create log entry for role deletion', async () => {
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(getFreshRole(mockAdminRole)) // Current user's role
         .mockResolvedValueOnce(getFreshRole(mockViewerRole)); // Role to delete
 
-      mockDatabases.deleteDocument.mockResolvedValue({ success: true });
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'log-123' });
+      mockTablesDB.deleteRow.mockResolvedValue({ success: true });
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'log-123' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
         expect.any(String),
         expect.objectContaining({
           userId: mockAuthUser.$id,
@@ -800,10 +796,10 @@ describe('/api/roles/[id] - Single Role API', () => {
     it('should return 405 for unsupported methods', async () => {
       mockReq.method = 'POST';
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(getFreshRole(mockAdminRole));
+      mockTablesDB.getRow.mockResolvedValueOnce(getFreshRole(mockAdminRole));
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -815,10 +811,10 @@ describe('/api/roles/[id] - Single Role API', () => {
 
   describe('Error Handling', () => {
     it('should handle database errors gracefully', async () => {
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(getFreshRole(mockAdminRole)) // Current user's role
         .mockRejectedValueOnce(new Error('Database error')); // Error getting role
 

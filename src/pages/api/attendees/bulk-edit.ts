@@ -29,7 +29,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
     // User and userProfile are already attached by middleware
     const { user, userProfile } = req;
-    const { databases } = createSessionClient(req);
+    const { tablesDB: sessionTablesDB } = createSessionClient(req);
 
     // TablesDB bulk operations require API key authentication (admin client)
     // Session-based JWT authentication doesn't have sufficient permissions
@@ -51,9 +51,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
     const totalRequested = attendeeIds.length;
     const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-    const attendeesCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID!;
-    const logsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!;
-    const customFieldsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID!;
+    const attendeesTableId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID!;
+    const logsTableId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!;
+    const customFieldsTableId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID!;
 
     // Check permissions
     const permissions = userProfile.role ? userProfile.role.permissions : {};
@@ -68,16 +68,16 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     const pageSize = 100;
 
     while (true) {
-      const customFieldsDocs = await databases.listDocuments(
+      const customFieldsDocs = await sessionTablesDB.listRows(
         dbId,
-        customFieldsCollectionId,
+        customFieldsTableId,
         [Query.limit(pageSize), Query.offset(offset)]
       );
 
-      allCustomFields.push(...customFieldsDocs.documents);
+      allCustomFields.push(...customFieldsDocs.rows);
 
       // If we got fewer than pageSize results, we've reached the end
-      if (customFieldsDocs.documents.length < pageSize) {
+      if (customFieldsDocs.rows.length < pageSize) {
         break;
       }
 
@@ -107,7 +107,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     for (const attendeeId of attendeeIds) {
       try {
         // Get current attendee
-        const attendee = await databases.getDocument(dbId, attendeesCollectionId, attendeeId);
+        const attendee = await sessionTablesDB.getRow({
+          databaseId: dbId,
+          tableId: attendeesTableId,
+          rowId: attendeeId
+        });
 
         // Parse current custom field values - handle both array and object formats
         let currentCustomFieldValues: Array<{ customFieldId: string, value: string }> = [];
@@ -370,13 +374,13 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     // Use admin TablesDB client for bulk operations (requires API key)
     // Enable field-specific updates to prevent overwriting concurrent changes
     // (e.g., photo uploads during bulk edit won't be lost)
-    const result = await bulkEditWithFallback(adminTablesDB, databases, {
+    const result = await bulkEditWithFallback(adminTablesDB, {
       databaseId: dbId,
-      tableId: attendeesCollectionId,
+      tableId: attendeesTableId,
       updates,
       useFieldSpecificUpdates: true, // Use optimistic locking in fallback mode
       auditLog: {
-        tableId: logsCollectionId,
+        tableId: logsTableId,
         userId: user.$id,
         action: 'bulk_update',
         details: {

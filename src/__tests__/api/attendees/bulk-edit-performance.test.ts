@@ -16,16 +16,10 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import handler from '../bulk-edit';
-import { mockAccount, mockDatabases, resetAllMocks } from '../../../../test/mocks/appwrite';
+import handler from '@/pages/api/attendees/bulk-edit';
+import { mockAccount, mockTablesDB, mockAdminTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 
 // Mock TablesDB
-const mockTablesDB = {
-  createTransaction: vi.fn(),
-  createOperations: vi.fn(),
-  updateTransaction: vi.fn(),
-};
-
 // Mock bulk operations
 const mockBulkEditWithFallback = vi.fn();
 
@@ -33,12 +27,11 @@ const mockBulkEditWithFallback = vi.fn();
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn((req: NextApiRequest) => ({
     account: mockAccount,
-    databases: mockDatabases,
     tablesDB: mockTablesDB,
+
   })),
   createAdminClient: vi.fn(() => ({
-    databases: mockDatabases,
-    tablesDB: mockTablesDB,
+    tablesDB: mockAdminTablesDB,
   })),
 }));
 
@@ -174,11 +167,11 @@ describe('/api/attendees/bulk-edit - Performance Tests', () => {
     
     // Mock custom fields
     const customFields = createMockCustomFields();
-    mockDatabases.listDocuments.mockImplementation((dbId, collectionId) => {
-      if (collectionId === process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID) {
-        return Promise.resolve({ documents: customFields, total: customFields.length });
+    mockTablesDB.listRows.mockImplementation((dbId, tableId) => {
+      if (tableId === process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID) {
+        return Promise.resolve({ rows: customFields, total: customFields.length });
       }
-      return Promise.resolve({ documents: [], total: 0 });
+      return Promise.resolve({ rows: [], total: 0 });
     });
   });
 
@@ -197,7 +190,7 @@ describe('/api/attendees/bulk-edit - Performance Tests', () => {
 
       // Mock attendee retrieval
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       // Mock transaction-based edit (fast)
@@ -243,7 +236,7 @@ describe('/api/attendees/bulk-edit - Performance Tests', () => {
 
       // Mock attendee retrieval
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       // Mock transaction-based edit
@@ -290,7 +283,7 @@ describe('/api/attendees/bulk-edit - Performance Tests', () => {
 
       // Mock attendee retrieval
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       // Mock transaction-based edit
@@ -335,7 +328,7 @@ describe('/api/attendees/bulk-edit - Performance Tests', () => {
 
       // Mock attendee retrieval
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       // Mock transaction-based edit
@@ -383,9 +376,9 @@ describe('/api/attendees/bulk-edit - Performance Tests', () => {
         };
 
         // Reset mocks for each iteration
-        mockDatabases.getDocument.mockReset();
+        mockTablesDB.getRow.mockReset();
         for (const attendee of attendees) {
-          mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+          mockTablesDB.getRow.mockResolvedValueOnce(attendee);
         }
 
         // Mock transaction-based edit with size-appropriate delay
@@ -455,7 +448,7 @@ describe('/api/attendees/bulk-edit - Performance Tests', () => {
 
       // Mock attendee retrieval
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       // Mock fallback scenario (simulates legacy sequential updates)
@@ -507,7 +500,7 @@ describe('/api/attendees/bulk-edit - Performance Tests', () => {
 
       // Mock attendee retrieval
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       // Mock batched transaction (2 batches for 1500 items at PRO tier)

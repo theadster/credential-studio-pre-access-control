@@ -15,22 +15,22 @@ export async function getLogSettings() {
   }
   
   try {
-    const { databases } = createAdminClient();
+    const { tablesDB } = createAdminClient();
     const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-    const logSettingsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_LOG_SETTINGS_COLLECTION_ID!;
+    const logSettingsTableId = process.env.NEXT_PUBLIC_APPWRITE_LOG_SETTINGS_TABLE_ID!;
 
-    const logSettingsResult = await databases.listDocuments(
+    const logSettingsResult = await tablesDB.listRows(
       dbId,
-      logSettingsCollectionId,
+      logSettingsTableId,
       [Query.limit(1)]
     );
     
     let logSettings;
-    if (logSettingsResult.documents.length === 0) {
+    if (logSettingsResult.rows.length === 0) {
       // Create default log settings if none exist
-      logSettings = await databases.createDocument(
+      logSettings = await tablesDB.createRow(
         dbId,
-        logSettingsCollectionId,
+        logSettingsTableId,
         ID.unique(),
         {
           attendeeCreate: true,
@@ -74,7 +74,7 @@ export async function getLogSettings() {
         }
       );
     } else {
-      logSettings = logSettingsResult.documents[0];
+      logSettings = logSettingsResult.rows[0];
     }
     
     // Update cache

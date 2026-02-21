@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { Account, Client, Databases, ID, Models, Query } from 'appwrite';
+import { Account, Client, TablesDB, ID, Models, Query } from 'appwrite';
 
 // Mock Appwrite
 vi.mock('appwrite', () => {
@@ -22,11 +22,11 @@ vi.mock('appwrite', () => {
     createRecovery: vi.fn(),
   };
 
-  const mockDatabases = {
-    createDocument: vi.fn(),
-    listDocuments: vi.fn(),
-    getDocument: vi.fn(),
-    updateDocument: vi.fn(),
+  const mockTablesDB = {
+    createRow: vi.fn(),
+    listRows: vi.fn(),
+    getRow: vi.fn(),
+    updateRow: vi.fn(),
   };
 
   const mockClient = {
@@ -39,7 +39,7 @@ vi.mock('appwrite', () => {
   return {
     Client: vi.fn(() => mockClient),
     Account: vi.fn(() => mockAccount),
-    Databases: vi.fn(() => mockDatabases),
+    TablesDB: vi.fn(() => mockTablesDB),
     ID: {
       unique: vi.fn(() => 'unique-id-123'),
     },
@@ -52,14 +52,24 @@ vi.mock('appwrite', () => {
 
 describe('E2E: Complete Signup and Login Flow', () => {
   let mockAccount: any;
-  let mockDatabases: any;
+  let mockTablesDB: any;
   let mockClient: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
     mockClient = new Client();
     mockAccount = new Account(mockClient);
-    mockDatabases = new Databases(mockClient);
+    mockTablesDB = new TablesDB(mockClient);
+    
+    // Ensure mocks are properly set up
+    mockAccount.create = vi.fn();
+    mockAccount.createEmailPasswordSession = vi.fn();
+    mockAccount.get = vi.fn();
+    mockAccount.deleteSession = vi.fn();
+    mockTablesDB.createRow = vi.fn();
+    mockTablesDB.listRows = vi.fn();
+    mockTablesDB.getRow = vi.fn();
+    mockTablesDB.updateRow = vi.fn();
   });
 
   afterEach(() => {
@@ -95,14 +105,24 @@ describe('E2E: Complete Signup and Login Flow', () => {
         isInvited: false,
       };
 
-      mockDatabases.createDocument.mockResolvedValueOnce(mockUserProfile);
-
       // Step 3: Create log entry
-      mockDatabases.createDocument.mockResolvedValueOnce({
+      const mockLogEntry = {
         $id: 'log-123',
         userId: mockAuthUser.$id,
         action: 'signup',
         details: JSON.stringify({ type: 'self_signup', email: userData.email }),
+      };
+
+      // Use implementation-based mocking instead of call-order-based
+      mockTablesDB.createRow.mockImplementation(async (params: any) => {
+        if (params.data?.userId && params.data?.roleId !== undefined) {
+          // This is a user profile creation
+          return mockUserProfile;
+        } else if (params.data?.action === 'signup') {
+          // This is a log entry creation
+          return mockLogEntry;
+        }
+        throw new Error('Unexpected createRow call');
       });
 
       // Execute signup flow
@@ -116,27 +136,27 @@ describe('E2E: Complete Signup and Login Flow', () => {
       expect(authUser.$id).toBe('auth-user-123');
       expect(authUser.email).toBe(userData.email);
 
-      const userProfile = await mockDatabases.createDocument(
-        'db-id',
-        'users-collection',
-        ID.unique(),
-        mockUserProfile
-      );
+      const userProfile = await mockTablesDB.createRow({
+        databaseId: 'db-id',
+        tableId: 'users-table',
+        rowId: ID.unique(),
+        data: mockUserProfile,
+      });
 
       expect(userProfile.userId).toBe(authUser.$id);
       expect(userProfile.isInvited).toBe(false);
 
       // Create log entry
-      await mockDatabases.createDocument(
-        'db-id',
-        'logs-collection',
-        ID.unique(),
-        { userId: mockAuthUser.$id, action: 'signup' }
-      );
+      await mockTablesDB.createRow({
+        databaseId: 'db-id',
+        tableId: 'logs-table',
+        rowId: ID.unique(),
+        data: { userId: mockAuthUser.$id, action: 'signup' },
+      });
 
       // Verify all steps completed
       expect(mockAccount.create).toHaveBeenCalledTimes(1);
-      expect(mockDatabases.createDocument).toHaveBeenCalledTimes(2); // profile + log
+      expect(mockTablesDB.createRow).toHaveBeenCalledTimes(2); // profile + log
     });
   });
 
@@ -175,8 +195,8 @@ describe('E2E: Complete Signup and Login Flow', () => {
         roleId: 'role-123',
       };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockUserProfile],
         total: 1,
       });
 
@@ -190,7 +210,7 @@ describe('E2E: Complete Signup and Login Flow', () => {
         }),
       };
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockRole);
 
       // Execute login flow
       const session = await mockAccount.createEmailPasswordSession(
@@ -203,19 +223,19 @@ describe('E2E: Complete Signup and Login Flow', () => {
       const user = await mockAccount.get();
       expect(user.$id).toBe('user-123');
 
-      const userProfile = await mockDatabases.listDocuments(
-        'db-id',
-        'users-collection',
-        [Query.equal('userId', user.$id)]
-      );
+      const userProfile = await mockTablesDB.listRows({
+        databaseId: 'db-id',
+        tableId: 'users-table',
+        queries: [Query.equal('userId', user.$id)]
+      });
 
-      expect(userProfile.documents).toHaveLength(1);
+      expect(userProfile.rows).toHaveLength(1);
 
-      const role = await mockDatabases.getDocument(
-        'db-id',
-        'roles-collection',
-        userProfile.documents[0].roleId
-      );
+      const role = await mockTablesDB.getRow({
+        databaseId: 'db-id',
+        tableId: 'roles-table',
+        rowId: userProfile.rows[0].roleId
+      });
 
       const permissions = JSON.parse(role.permissions);
       expect(permissions.attendees.read).toBe(true);
@@ -223,8 +243,8 @@ describe('E2E: Complete Signup and Login Flow', () => {
       // Verify all steps completed
       expect(mockAccount.createEmailPasswordSession).toHaveBeenCalledTimes(1);
       expect(mockAccount.get).toHaveBeenCalledTimes(1);
-      expect(mockDatabases.listDocuments).toHaveBeenCalledTimes(1);
-      expect(mockDatabases.getDocument).toHaveBeenCalledTimes(1);
+      expect(mockTablesDB.listRows).toHaveBeenCalledTimes(1);
+      expect(mockTablesDB.getRow).toHaveBeenCalledTimes(1);
     });
 
     it('should handle invalid credentials', async () => {
@@ -257,8 +277,8 @@ describe('E2E: Complete Signup and Login Flow', () => {
       mockAccount.get.mockResolvedValueOnce(mockUser);
 
       // Mock empty profile result
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [],
         total: 0,
       });
 
@@ -268,13 +288,13 @@ describe('E2E: Complete Signup and Login Flow', () => {
       const user = await mockAccount.get();
       expect(user.$id).toBe('user-without-profile');
 
-      const profile = await mockDatabases.listDocuments(
+      const profile = await mockTablesDB.listRows(
         'db-id',
-        'users-collection',
+        'users-table',
         [Query.equal('userId', user.$id)]
       );
 
-      expect(profile.documents).toHaveLength(0);
+      expect(profile.rows).toHaveLength(0);
     });
   });
 

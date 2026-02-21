@@ -27,7 +27,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
   }
 
   const { userProfile } = req;
-  const { databases } = createSessionClient(req);
+  const { tablesDB } = createSessionClient(req);
 
   // Check permissions - scanner operators need attendee read permission
   const permissions = userProfile.role ? userProfile.role.permissions : {};
@@ -42,14 +42,14 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
   // Validate required environment variables
   const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
-  const eventSettingsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID;
+  const eventSettingsTableId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID;
 
   const missingEnvVars: string[] = [];
   if (!dbId || dbId.trim() === '') {
     missingEnvVars.push('NEXT_PUBLIC_APPWRITE_DATABASE_ID');
   }
-  if (!eventSettingsCollectionId || eventSettingsCollectionId.trim() === '') {
-    missingEnvVars.push('NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID');
+  if (!eventSettingsTableId || eventSettingsTableId.trim() === '') {
+    missingEnvVars.push('NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID');
   }
 
   if (missingEnvVars.length > 0) {
@@ -66,23 +66,23 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
   try {
     // At this point, both values are guaranteed to be non-empty strings
     const validatedDbId = dbId as string;
-    const validatedEventSettingsCollectionId = eventSettingsCollectionId as string;
+    const validatedEventSettingsTableId = eventSettingsTableId as string;
 
     // Fetch event settings - there should only be one document
-    const eventSettingsResult = await databases.listDocuments(
+    const eventSettingsResult = await tablesDB.listRows(
       validatedDbId,
-      validatedEventSettingsCollectionId,
+      validatedEventSettingsTableId,
       []
     );
 
-    if (eventSettingsResult.documents.length === 0) {
+    if (eventSettingsResult.rows.length === 0) {
       return res.status(404).json({
         success: false,
         error: { code: 'NOT_FOUND', message: 'Event settings not configured' }
       });
     }
 
-    const eventSettings = eventSettingsResult.documents[0];
+    const eventSettings = eventSettingsResult.rows[0];
 
     // Return minimal event info for mobile app
     return res.status(200).json({

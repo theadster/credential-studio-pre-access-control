@@ -48,6 +48,16 @@ await databases.createStringAttribute(
 );
 ```
 
+**Note:** The `createStringAttribute` call above is from the legacy Databases API. For TablesDB, use:
+```typescript
+await tablesDB.createLongtextColumn({
+  databaseId: DATABASE_ID,
+  tableId: TABLES.ATTENDEES,
+  key: 'notes',
+  required: false
+});
+```
+
 ### 2. Updated API to Track Significant Changes
 **File:** `src/pages/api/attendees/[id].ts`
 

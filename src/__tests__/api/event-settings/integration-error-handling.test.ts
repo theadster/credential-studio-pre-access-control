@@ -7,7 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextApiRequest, NextApiResponse } from 'next';
-import handler from '../index';
+import handler from '@/pages/api/event-settings/index';
 
 // Mock Appwrite
 vi.mock('@/lib/appwrite', () => ({
@@ -62,6 +62,7 @@ vi.mock('@/lib/logSettings', () => ({
   shouldLog: vi.fn(() => Promise.resolve(false))
 }));
 
+
 import { createSessionClient } from '@/lib/appwrite';
 import {
   IntegrationConflictError,
@@ -73,17 +74,17 @@ import {
 describe('Integration Error Handling', () => {
   let req: Partial<NextApiRequest>;
   let res: Partial<NextApiResponse>;
-  let mockDatabases: any;
+  let mockTablesDB: any;
   let mockAccount: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
 
     // Setup mock databases
-    mockDatabases = {
-      listDocuments: vi.fn(),
-      updateDocument: vi.fn(),
-      createDocument: vi.fn()
+    mockTablesDB = {
+      listRows: vi.fn(),
+      updateRow: vi.fn(),
+      createRow: vi.fn()
     };
 
     // Setup mock account
@@ -93,7 +94,7 @@ describe('Integration Error Handling', () => {
 
     // Mock createSessionClient
     (createSessionClient as any).mockReturnValue({
-      databases: mockDatabases,
+      tablesDB: mockTablesDB,
       account: mockAccount
     });
 
@@ -117,10 +118,10 @@ describe('Integration Error Handling', () => {
     };
 
     // Mock event settings fetch
-    mockDatabases.listDocuments.mockImplementation((dbId: string, collectionId: string) => {
-      if (collectionId === process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID) {
+    mockTablesDB.listRows.mockImplementation((dbId: string, tableId: string) => {
+      if (tableId === process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID) {
         return Promise.resolve({
-          documents: [{
+          rows: [{
             $id: 'settings123',
             eventName: 'Old Event',
             eventDate: '2023-12-31',
@@ -129,18 +130,18 @@ describe('Integration Error Handling', () => {
           }]
         });
       }
-      if (collectionId === process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID) {
-        return Promise.resolve({ documents: [] });
+      if (tableId === process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID) {
+        return Promise.resolve({ rows: [] });
       }
-      if (collectionId === process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID) {
-        return Promise.resolve({ documents: [{ $id: 'user123', userId: 'user123' }] });
+      if (tableId === process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID) {
+        return Promise.resolve({ rows: [{ $id: 'user123', userId: 'user123' }] });
       }
       // Integration collections
-      return Promise.resolve({ documents: [] });
+      return Promise.resolve({ rows: [] });
     });
 
     // Mock update
-    mockDatabases.updateDocument.mockResolvedValue({
+    mockTablesDB.updateRow.mockResolvedValue({
       $id: 'settings123',
       eventName: 'Test Event',
       eventDate: '2024-01-01',

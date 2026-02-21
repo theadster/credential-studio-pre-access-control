@@ -9,6 +9,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    // Validate required environment variables
+    const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
+    const usersTableId = process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID;
+    const logsTableId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID;
+
+    if (!dbId || !usersTableId || !logsTableId) {
+      console.error('Missing required environment variables:', {
+        dbId: !dbId ? 'NEXT_PUBLIC_APPWRITE_DATABASE_ID' : undefined,
+        usersTableId: !usersTableId ? 'NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID' : undefined,
+        logsTableId: !logsTableId ? 'NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID' : undefined
+      });
+      return res.status(500).json({ error: 'Server configuration error: missing database configuration' });
+    }
+
     const { email, password, name } = req.body;
 
     if (!email || !password) {
@@ -20,16 +34,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Create admin client for database operations
-    const { databases, users } = createAdminClient();
+    const { tablesDB, users } = createAdminClient();
 
     // Check if user already exists in database
-    const existingUserDocs = await databases.listDocuments(
-      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-      process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
-      [Query.equal('email', email)]
-    );
+    const existingUserDocs = await tablesDB.listRows({
+      databaseId: dbId,
+      tableId: usersTableId,
+      queries: [Query.equal('email', email)]
+    });
 
-    if (existingUserDocs.documents.length > 0) {
+    if (existingUserDocs.rows.length > 0) {
       return res.status(400).json({ error: 'User with this email already exists' });
     }
 
@@ -46,25 +60,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Create new user profile in database
       // NOTE: Self-signup users are NOT automatically added to teams
       // They must be manually linked by an administrator
-      await databases.createDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
-        ID.unique(),
-        {
+      await tablesDB.createRow({
+        databaseId: dbId,
+        tableId: usersTableId,
+        rowId: ID.unique(),
+        data: {
           userId: authUser.$id,
           email: email,
           name: name,
           roleId: null, // No role assigned for self-signup
           isInvited: false
         }
-      );
+      });
 
       // Log the signup
-      await databases.createDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
-        ID.unique(),
-        {
+      await tablesDB.createRow({
+        databaseId: dbId,
+        tableId: logsTableId,
+        rowId: ID.unique(),
+        data: {
           userId: authUser.$id,
           action: 'signup',
           details: JSON.stringify({
@@ -72,7 +86,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             email: email
           })
         }
-      );
+      });
 
       return res.status(200).json({
         success: true,

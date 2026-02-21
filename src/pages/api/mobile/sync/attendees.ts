@@ -35,7 +35,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
   }
 
   const { user, userProfile } = req;
-  const { databases } = createSessionClient(req);
+  const { tablesDB } = createSessionClient(req);
 
   // Check permissions - scanner operators need attendee read permission
   const permissions = userProfile.role ? userProfile.role.permissions : {};
@@ -49,10 +49,10 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
   }
 
   const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-  const attendeesCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID!;
-  const accessControlCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ACCESS_CONTROL_COLLECTION_ID!;
-  const customFieldsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID!;
-  const eventSettingsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID!;
+  const attendeesTableId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID!;
+  const accessControlTableId = process.env.NEXT_PUBLIC_APPWRITE_ACCESS_CONTROL_TABLE_ID!;
+  const customFieldsTableId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID!;
+  const eventSettingsTableId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID!;
 
   try {
     // Parse query parameters
@@ -89,11 +89,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
         // DELTA SYNC FIX: Also check for access control records updated since 'since'
         // This ensures attendees with updated access control fields are included in delta sync
-        if (accessControlCollectionId) {
+        if (accessControlTableId) {
           try {
-            const updatedAccessControlResult = await databases.listDocuments(
+            const updatedAccessControlResult = await tablesDB.listRows(
               dbId,
-              accessControlCollectionId,
+              accessControlTableId,
               [
                 Query.greaterThan('$updatedAt', since),
                 Query.limit(5000) // Max limit to get all updated access control records
@@ -101,7 +101,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             );
             
             // Extract attendee IDs from updated access control records
-            additionalAttendeeIds = updatedAccessControlResult.documents.map((ac: any) => ac.attendeeId);
+            additionalAttendeeIds = updatedAccessControlResult.rows.map((ac: any) => ac.attendeeId);
             
             console.log(`[Mobile Sync Attendees] Found ${additionalAttendeeIds.length} attendees with updated access control since ${since}`);
           } catch (error) {
@@ -128,15 +128,15 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     let customFieldMap = new Map<string, string>(); // Maps fieldId -> fieldName
     let customFieldInternalMap = new Map<string, string>(); // Maps fieldId -> internalFieldName
     try {
-      const customFieldsResult = await databases.listDocuments(
+      const customFieldsResult = await tablesDB.listRows(
         dbId,
-        customFieldsCollectionId,
+        customFieldsTableId,
         [Query.limit(1000)] // Reasonable limit for custom fields
       );
       
       // Build mappings from field IDs to display names and internal names
       // Custom field values are stored with field ID as key, not internalFieldName
-      customFieldsResult.documents.forEach((field: any) => {
+      customFieldsResult.rows.forEach((field: any) => {
         if (field.$id && field.fieldName) {
           customFieldMap.set(field.$id, field.fieldName);
         }
@@ -150,9 +150,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     }
 
     // Fetch attendees
-    let attendeesResult = await databases.listDocuments(
+    let attendeesResult = await tablesDB.listRows(
       dbId,
-      attendeesCollectionId,
+      attendeesTableId,
       queries
     );
 
@@ -164,7 +164,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     if (additionalAttendeeIds.length > 0) {
       try {
         // Remove duplicates - attendees already in the main result
-        const existingAttendeeIds = new Set(attendeesResult.documents.map((doc: any) => doc.$id));
+        const existingAttendeeIds = new Set(attendeesResult.rows.map((doc: any) => doc.$id));
         const uniqueAdditionalIds = additionalAttendeeIds.filter(id => !existingAttendeeIds.has(id));
         
         if (uniqueAdditionalIds.length > 0) {
@@ -176,16 +176,16 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           
           for (let i = 0; i < uniqueAdditionalIds.length; i += chunkSize) {
             const chunk = uniqueAdditionalIds.slice(i, i + chunkSize);
-            const additionalResult = await databases.listDocuments(
+            const additionalResult = await tablesDB.listRows(
               dbId,
-              attendeesCollectionId,
+              attendeesTableId,
               [Query.equal('$id', chunk), Query.limit(chunkSize)]
             );
-            additionalAttendees.push(...additionalResult.documents);
+            additionalAttendees.push(...additionalResult.rows);
           }
           
           // Merge additional attendees with main result
-          attendeesResult.documents.push(...additionalAttendees);
+          attendeesResult.rows.push(...additionalAttendees);
           
           // Update combined unique count (main total + additional unique count)
           combinedUniqueCount = attendeesResult.total + additionalAttendees.length;
@@ -200,7 +200,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     
     // PAGINATION FIX: Enforce the original limit by trimming merged attendees to requested limit
     // This ensures pagination works correctly and responses don't exceed the requested page size
-    const combinedDocuments = attendeesResult.documents.slice(0, limit);
+    const combinedDocuments = attendeesResult.rows.slice(0, limit);
     const actualReturnedCount = combinedDocuments.length;
 
     /**
@@ -215,7 +215,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     const attendeeIds = combinedDocuments.map((doc: any) => doc.$id);
     const accessControlMap = new Map<string, any>();
     
-    if (attendeeIds.length > 0 && accessControlCollectionId) {
+    if (attendeeIds.length > 0 && accessControlTableId) {
       // Fetch access control records for the attendees being synced
       // Uses Query.equal with array for efficient "IN" query
       // Appwrite supports up to 100 values per "IN" query
@@ -226,14 +226,14 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           const chunk = attendeeIds.slice(i, i + chunkSize);
           
           // Use Query.equal with array for "IN" query (same as attendees/index.ts)
-          const accessControlResult = await databases.listDocuments(
+          const accessControlResult = await tablesDB.listRows(
             dbId,
-            accessControlCollectionId,
+            accessControlTableId,
             [Query.equal('attendeeId', chunk), Query.limit(chunkSize)]
           );
           
           // Map access control records by attendeeId
-          accessControlResult.documents.forEach((ac: any) => {
+          accessControlResult.rows.forEach((ac: any) => {
             accessControlMap.set(ac.attendeeId, {
               accessEnabled: ac.accessEnabled ?? true,
               validFrom: ac.validFrom || null,

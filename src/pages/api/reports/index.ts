@@ -71,11 +71,11 @@ function isAdminUser(role: { name: string } | null): boolean {
 
 export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   const { user, userProfile } = req;
-  const { databases } = createSessionClient(req);
+  const { tablesDB } = createSessionClient(req);
   const role = userProfile.role;
 
   const databaseId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
-  const reportsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_REPORTS_COLLECTION_ID;
+  const reportsTableId = process.env.NEXT_PUBLIC_APPWRITE_REPORTS_TABLE_ID;
 
   // Validate environment variables
   if (!databaseId) {
@@ -86,8 +86,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     } as ReportErrorResponse);
   }
 
-  if (!reportsCollectionId) {
-    console.error('[Reports API] Missing NEXT_PUBLIC_APPWRITE_REPORTS_COLLECTION_ID');
+  if (!reportsTableId) {
+    console.error('[Reports API] Missing NEXT_PUBLIC_APPWRITE_REPORTS_TABLE_ID');
     return res.status(500).json({
       code: 'DATABASE_ERROR',
       message: 'Server configuration error',
@@ -116,17 +116,17 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           queries.push(Query.equal('userId', user.$id));
         }
 
-        const reportsResponse = await databases.listDocuments(
+        const reportsResponse = await tablesDB.listRows({
           databaseId,
-          reportsCollectionId,
+          tableId: reportsTableId,
           queries
-        );
+        });
 
         // Transform documents to SavedReport format
         // Skip reports with malformed filterConfiguration to ensure type safety
         const reports: SavedReport[] = [];
         
-        for (const doc of reportsResponse.documents) {
+        for (const doc of reportsResponse.rows) {
           // Normalize filterConfiguration: parse if it's a string, otherwise use as-is
           let filterConfig = doc.filterConfiguration;
           if (typeof filterConfig === 'string') {
@@ -199,16 +199,16 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
       try {
         // Check for duplicate name for this user
-        const existingReports = await databases.listDocuments(
+        const existingReports = await tablesDB.listRows(
           databaseId,
-          reportsCollectionId,
+          reportsTableId,
           [
             Query.equal('userId', user.$id),
             Query.equal('name', body.name.trim()),
           ]
         );
 
-        if (existingReports.documents.length > 0) {
+        if (existingReports.rows.length > 0) {
           return res.status(409).json({
             code: 'DUPLICATE_NAME',
             message: 'A report with this name already exists',
@@ -222,9 +222,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         const now = new Date().toISOString();
         const reportId = ID.unique();
 
-        const newReport = await databases.createDocument(
+        const newReport = await tablesDB.createRow(
           databaseId,
-          reportsCollectionId,
+          reportsTableId,
           reportId,
           {
             name: body.name.trim(),

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { Databases } from 'appwrite';
+import { TablesDB } from 'node-appwrite';
 import {
   IntegrationConflictError,
   updateCloudinaryIntegration,
@@ -9,14 +9,14 @@ import {
   getSwitchboardIntegration,
   getOneSimpleApiIntegration,
 } from '../appwrite-integrations';
-import { mockDatabases, resetAllMocks } from '@/test/mocks/appwrite';
+import { mockTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 
 describe('Integration Optimistic Locking', () => {
   const mockEventSettingsId = 'test-event-123';
   const mockDatabaseId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-  const mockCloudinaryCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CLOUDINARY_COLLECTION_ID!;
-  const mockSwitchboardCollectionId = process.env.NEXT_PUBLIC_APPWRITE_SWITCHBOARD_COLLECTION_ID!;
-  const mockOneSimpleApiCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ONESIMPLEAPI_COLLECTION_ID!;
+  const mockCloudinaryTableId = process.env.NEXT_PUBLIC_APPWRITE_CLOUDINARY_TABLE_ID!;
+  const mockSwitchboardTableId = process.env.NEXT_PUBLIC_APPWRITE_SWITCHBOARD_TABLE_ID!;
+  const mockOneSimpleApiTableId = process.env.NEXT_PUBLIC_APPWRITE_ONESIMPLEAPI_TABLE_ID!;
 
   beforeEach(() => {
     resetAllMocks();
@@ -70,8 +70,8 @@ describe('Integration Optimistic Locking', () => {
   describe('Cloudinary Integration - Version Increment', () => {
     it('should create integration with version 1', async () => {
       // Mock no existing integration
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [],
         total: 0,
       });
 
@@ -90,10 +90,10 @@ describe('Integration Optimistic Locking', () => {
         disableSkipCrop: false,
         cropAspectRatio: '1',
       };
-      mockDatabases.createDocument.mockResolvedValue(mockCreated);
+      mockTablesDB.createRow.mockResolvedValue(mockCreated);
 
       const result = await updateCloudinaryIntegration(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         mockEventSettingsId,
         {
           enabled: true,
@@ -109,9 +109,9 @@ describe('Integration Optimistic Locking', () => {
       );
 
       expect(result.version).toBe(1);
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         mockDatabaseId,
-        mockCloudinaryCollectionId,
+        mockCloudinaryTableId,
         'unique()',
         expect.objectContaining({
           eventSettingsId: mockEventSettingsId,
@@ -136,8 +136,8 @@ describe('Integration Optimistic Locking', () => {
         disableSkipCrop: false,
         cropAspectRatio: '1',
       };
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockExisting],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockExisting],
         total: 1,
       });
 
@@ -147,18 +147,18 @@ describe('Integration Optimistic Locking', () => {
         version: 2,
         cloudName: 'new-cloud',
       };
-      mockDatabases.updateDocument.mockResolvedValue(mockUpdated);
+      mockTablesDB.updateRow.mockResolvedValue(mockUpdated);
 
       const result = await updateCloudinaryIntegration(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         mockEventSettingsId,
         { cloudName: 'new-cloud' }
       );
 
       expect(result.version).toBe(2);
-      expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.updateRow).toHaveBeenCalledWith(
         mockDatabaseId,
-        mockCloudinaryCollectionId,
+        mockCloudinaryTableId,
         'cloudinary-123',
         expect.objectContaining({
           version: 2,
@@ -182,18 +182,18 @@ describe('Integration Optimistic Locking', () => {
         disableSkipCrop: false,
         cropAspectRatio: '1',
       };
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockExisting1],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockExisting1],
         total: 1,
       });
-      mockDatabases.updateDocument.mockResolvedValueOnce({
+      mockTablesDB.updateRow.mockResolvedValueOnce({
         ...mockExisting1,
         version: 2,
         cloudName: 'cloud-v2',
       });
 
       const result1 = await updateCloudinaryIntegration(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         mockEventSettingsId,
         { cloudName: 'cloud-v2' }
       );
@@ -201,18 +201,18 @@ describe('Integration Optimistic Locking', () => {
 
       // Second update: version 2 -> 3
       const mockExisting2 = { ...result1, version: 2 };
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockExisting2],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockExisting2],
         total: 1,
       });
-      mockDatabases.updateDocument.mockResolvedValueOnce({
+      mockTablesDB.updateRow.mockResolvedValueOnce({
         ...mockExisting2,
         version: 3,
         cloudName: 'cloud-v3',
       });
 
       const result2 = await updateCloudinaryIntegration(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         mockEventSettingsId,
         { cloudName: 'cloud-v3' }
       );
@@ -237,15 +237,15 @@ describe('Integration Optimistic Locking', () => {
         disableSkipCrop: false,
         cropAspectRatio: '1',
       };
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockExisting],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockExisting],
         total: 1,
       });
 
       // Attempt update with expectedVersion 1 (should fail)
       await expect(
         updateCloudinaryIntegration(
-          mockDatabases as unknown as Databases,
+          mockTablesDB as unknown as TablesDB,
           mockEventSettingsId,
           { cloudName: 'new-cloud' },
           1 // expectedVersion
@@ -253,7 +253,7 @@ describe('Integration Optimistic Locking', () => {
       ).rejects.toThrow(IntegrationConflictError);
 
       // Verify update was not called
-      expect(mockDatabases.updateDocument).not.toHaveBeenCalled();
+      expect(mockTablesDB.updateRow).not.toHaveBeenCalled();
     });
 
     it('should include correct version information in conflict error', async () => {
@@ -269,14 +269,14 @@ describe('Integration Optimistic Locking', () => {
         templateId: 'template-1',
         fieldMappings: '[]',
       };
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockExisting],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockExisting],
         total: 1,
       });
 
       try {
         await updateSwitchboardIntegration(
-          mockDatabases as unknown as Databases,
+          mockTablesDB as unknown as TablesDB,
           mockEventSettingsId,
           { apiEndpoint: 'https://new-api.test.com' },
           3 // expectedVersion
@@ -308,8 +308,8 @@ describe('Integration Optimistic Locking', () => {
         disableSkipCrop: false,
         cropAspectRatio: '1',
       };
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockExisting],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockExisting],
         total: 1,
       });
 
@@ -318,17 +318,17 @@ describe('Integration Optimistic Locking', () => {
         version: 4,
         cloudName: 'new-cloud',
       };
-      mockDatabases.updateDocument.mockResolvedValue(mockUpdated);
+      mockTablesDB.updateRow.mockResolvedValue(mockUpdated);
 
       const result = await updateCloudinaryIntegration(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         mockEventSettingsId,
         { cloudName: 'new-cloud' },
         3 // expectedVersion matches
       );
 
       expect(result.version).toBe(4);
-      expect(mockDatabases.updateDocument).toHaveBeenCalled();
+      expect(mockTablesDB.updateRow).toHaveBeenCalled();
     });
   });
 
@@ -348,8 +348,8 @@ describe('Integration Optimistic Locking', () => {
         disableSkipCrop: false,
         cropAspectRatio: '1',
       };
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockExisting],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockExisting],
         total: 1,
       });
 
@@ -358,17 +358,17 @@ describe('Integration Optimistic Locking', () => {
         version: 11,
         cloudName: 'new-cloud',
       };
-      mockDatabases.updateDocument.mockResolvedValue(mockUpdated);
+      mockTablesDB.updateRow.mockResolvedValue(mockUpdated);
 
       // No expectedVersion provided - should succeed regardless of current version
       const result = await updateCloudinaryIntegration(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         mockEventSettingsId,
         { cloudName: 'new-cloud' }
       );
 
       expect(result.version).toBe(11);
-      expect(mockDatabases.updateDocument).toHaveBeenCalled();
+      expect(mockTablesDB.updateRow).toHaveBeenCalled();
     });
 
     it('should handle missing version field in existing document', async () => {
@@ -386,8 +386,8 @@ describe('Integration Optimistic Locking', () => {
         disableSkipCrop: false,
         cropAspectRatio: '1',
       };
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockExisting],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockExisting],
         total: 1,
       });
 
@@ -396,18 +396,18 @@ describe('Integration Optimistic Locking', () => {
         version: 1, // Should be set to 1 (0 + 1)
         cloudName: 'new-cloud',
       };
-      mockDatabases.updateDocument.mockResolvedValue(mockUpdated);
+      mockTablesDB.updateRow.mockResolvedValue(mockUpdated);
 
       const result = await updateCloudinaryIntegration(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         mockEventSettingsId,
         { cloudName: 'new-cloud' }
       );
 
       expect(result.version).toBe(1);
-      expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.updateRow).toHaveBeenCalledWith(
         mockDatabaseId,
-        mockCloudinaryCollectionId,
+        mockCloudinaryTableId,
         'cloudinary-123',
         expect.objectContaining({
           version: 1, // 0 + 1
@@ -430,8 +430,8 @@ describe('Integration Optimistic Locking', () => {
         disableSkipCrop: false,
         cropAspectRatio: '1',
       };
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockExisting],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockExisting],
         total: 1,
       });
 
@@ -441,10 +441,10 @@ describe('Integration Optimistic Locking', () => {
         version: 1,
         cloudName: 'new-cloud',
       };
-      mockDatabases.updateDocument.mockResolvedValue(mockUpdated);
+      mockTablesDB.updateRow.mockResolvedValue(mockUpdated);
 
       const result = await updateCloudinaryIntegration(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         mockEventSettingsId,
         { cloudName: 'new-cloud' },
         0 // expectedVersion 0 for missing version
@@ -456,8 +456,8 @@ describe('Integration Optimistic Locking', () => {
 
   describe('Switchboard Integration', () => {
     it('should create with version 1', async () => {
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [],
         total: 0,
       });
 
@@ -473,10 +473,10 @@ describe('Integration Optimistic Locking', () => {
         templateId: 'template-1',
         fieldMappings: '[]',
       };
-      mockDatabases.createDocument.mockResolvedValue(mockCreated);
+      mockTablesDB.createRow.mockResolvedValue(mockCreated);
 
       const result = await updateSwitchboardIntegration(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         mockEventSettingsId,
         {
           enabled: true,
@@ -505,8 +505,8 @@ describe('Integration Optimistic Locking', () => {
         templateId: 'template-1',
         fieldMappings: '[]',
       };
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockExisting],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockExisting],
         total: 1,
       });
 
@@ -515,10 +515,10 @@ describe('Integration Optimistic Locking', () => {
         version: 3,
         apiKey: 'new-key',
       };
-      mockDatabases.updateDocument.mockResolvedValue(mockUpdated);
+      mockTablesDB.updateRow.mockResolvedValue(mockUpdated);
 
       const result = await updateSwitchboardIntegration(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         mockEventSettingsId,
         { apiKey: 'new-key' }
       );
@@ -539,14 +539,14 @@ describe('Integration Optimistic Locking', () => {
         templateId: 'template-1',
         fieldMappings: '[]',
       };
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockExisting],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockExisting],
         total: 1,
       });
 
       await expect(
         updateSwitchboardIntegration(
-          mockDatabases as unknown as Databases,
+          mockTablesDB as unknown as TablesDB,
           mockEventSettingsId,
           { apiKey: 'new-key' },
           2 // expectedVersion doesn't match
@@ -557,8 +557,8 @@ describe('Integration Optimistic Locking', () => {
 
   describe('OneSimpleAPI Integration', () => {
     it('should create with version 1', async () => {
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [],
         total: 0,
       });
 
@@ -572,10 +572,10 @@ describe('Integration Optimistic Locking', () => {
         formDataValue: 'value',
         recordTemplate: '{}',
       };
-      mockDatabases.createDocument.mockResolvedValue(mockCreated);
+      mockTablesDB.createRow.mockResolvedValue(mockCreated);
 
       const result = await updateOneSimpleApiIntegration(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         mockEventSettingsId,
         {
           enabled: true,
@@ -600,8 +600,8 @@ describe('Integration Optimistic Locking', () => {
         formDataValue: 'old-value',
         recordTemplate: '{}',
       };
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockExisting],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockExisting],
         total: 1,
       });
 
@@ -610,10 +610,10 @@ describe('Integration Optimistic Locking', () => {
         version: 2,
         formDataValue: 'new-value',
       };
-      mockDatabases.updateDocument.mockResolvedValue(mockUpdated);
+      mockTablesDB.updateRow.mockResolvedValue(mockUpdated);
 
       const result = await updateOneSimpleApiIntegration(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         mockEventSettingsId,
         { formDataValue: 'new-value' }
       );
@@ -632,14 +632,14 @@ describe('Integration Optimistic Locking', () => {
         formDataValue: 'value',
         recordTemplate: '{}',
       };
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockExisting],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockExisting],
         total: 1,
       });
 
       await expect(
         updateOneSimpleApiIntegration(
-          mockDatabases as unknown as Databases,
+          mockTablesDB as unknown as TablesDB,
           mockEventSettingsId,
           { formDataValue: 'new-value' },
           1 // expectedVersion doesn't match
@@ -651,17 +651,17 @@ describe('Integration Optimistic Locking', () => {
   describe('Concurrent Create Handling', () => {
     it('should retry as update when concurrent create causes duplicate', async () => {
       // First call: no existing document
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [],
         total: 0,
       });
 
       // Create fails with duplicate error
       const duplicateError = new Error('Document already exists');
       (duplicateError as any).code = 409;
-      mockDatabases.createDocument.mockRejectedValueOnce(duplicateError);
+      mockTablesDB.createRow.mockRejectedValueOnce(duplicateError);
 
-      // Second listDocuments call finds the document created by concurrent request
+      // Second listRows call finds the document created by concurrent request
       const mockExisting = {
         $id: 'cloudinary-123',
         eventSettingsId: mockEventSettingsId,
@@ -676,8 +676,8 @@ describe('Integration Optimistic Locking', () => {
         disableSkipCrop: false,
         cropAspectRatio: '1',
       };
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockExisting],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockExisting],
         total: 1,
       });
 
@@ -687,10 +687,10 @@ describe('Integration Optimistic Locking', () => {
         version: 2,
         cloudName: 'new-cloud',
       };
-      mockDatabases.updateDocument.mockResolvedValue(mockUpdated);
+      mockTablesDB.updateRow.mockResolvedValue(mockUpdated);
 
       const result = await updateCloudinaryIntegration(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         mockEventSettingsId,
         {
           enabled: true,
@@ -706,19 +706,19 @@ describe('Integration Optimistic Locking', () => {
       );
 
       expect(result.version).toBe(2);
-      expect(mockDatabases.createDocument).toHaveBeenCalledTimes(1);
-      expect(mockDatabases.updateDocument).toHaveBeenCalledTimes(1);
+      expect(mockTablesDB.createRow).toHaveBeenCalledTimes(1);
+      expect(mockTablesDB.updateRow).toHaveBeenCalledTimes(1);
     });
 
     it('should handle duplicate error message format', async () => {
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [],
         total: 0,
       });
 
       // Create fails with duplicate in message
       const duplicateError = new Error('A document with this ID already exists (duplicate key)');
-      mockDatabases.createDocument.mockRejectedValueOnce(duplicateError);
+      mockTablesDB.createRow.mockRejectedValueOnce(duplicateError);
 
       const mockExisting = {
         $id: 'switchboard-123',
@@ -732,8 +732,8 @@ describe('Integration Optimistic Locking', () => {
         templateId: 'template-1',
         fieldMappings: '[]',
       };
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockExisting],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockExisting],
         total: 1,
       });
 
@@ -742,10 +742,10 @@ describe('Integration Optimistic Locking', () => {
         version: 2,
         apiKey: 'new-key',
       };
-      mockDatabases.updateDocument.mockResolvedValue(mockUpdated);
+      mockTablesDB.updateRow.mockResolvedValue(mockUpdated);
 
       const result = await updateSwitchboardIntegration(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         mockEventSettingsId,
         {
           enabled: true,

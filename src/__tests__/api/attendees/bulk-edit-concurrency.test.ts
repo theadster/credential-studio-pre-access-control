@@ -19,7 +19,6 @@ import { updateFields } from '@/lib/fieldUpdate';
 
 describe('bulkEditWithFallback - Concurrency Handling', () => {
   let mockTablesDB: any;
-  let mockDatabases: any;
   const mockUpdateFields = updateFields as ReturnType<typeof vi.fn>;
 
   const baseConfig = {
@@ -40,10 +39,10 @@ describe('bulkEditWithFallback - Concurrency Handling', () => {
       upsertRows: vi.fn(),
     };
 
-    mockDatabases = {
-      getDocument: vi.fn(),
-      updateDocument: vi.fn(),
-      createDocument: vi.fn(),
+    mockTablesDB = {
+      getRow: vi.fn(),
+      updateRow: vi.fn(),
+      createRow: vi.fn(),
     };
   });
 
@@ -59,7 +58,7 @@ describe('bulkEditWithFallback - Concurrency Handling', () => {
       ];
 
       // Mock successful document fetches
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce({ $id: 'att-1', firstName: 'John', customFieldValues: '{}' })
         .mockResolvedValueOnce({ $id: 'att-2', firstName: 'Jane', customFieldValues: '{}' });
 
@@ -67,9 +66,9 @@ describe('bulkEditWithFallback - Concurrency Handling', () => {
       mockTablesDB.upsertRows.mockResolvedValue({ success: true });
 
       // Mock audit log creation
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'log-1' });
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'log-1' });
 
-      const result = await bulkEditWithFallback(mockTablesDB, mockDatabases, {
+      const result = await bulkEditWithFallback(mockTablesDB, mockTablesDB, {
         ...baseConfig,
         updates,
       });
@@ -96,9 +95,9 @@ describe('bulkEditWithFallback - Concurrency Handling', () => {
         .mockResolvedValueOnce({ success: true, data: { $id: 'att-2' } });
 
       // Mock audit log creation
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'log-1' });
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'log-1' });
 
-      const result = await bulkEditWithFallback(mockTablesDB, mockDatabases, {
+      const result = await bulkEditWithFallback(mockTablesDB, mockTablesDB, {
         ...baseConfig,
         updates,
         useFieldSpecificUpdates: true,
@@ -110,7 +109,7 @@ describe('bulkEditWithFallback - Concurrency Handling', () => {
       
       // Verify field-specific update was called with correct parameters
       expect(mockUpdateFields).toHaveBeenCalledWith(
-        mockDatabases,
+        mockTablesDB,
         'test-db',
         'attendees',
         'att-1',
@@ -142,9 +141,9 @@ describe('bulkEditWithFallback - Concurrency Handling', () => {
         .mockResolvedValueOnce({ success: true, data: { $id: 'att-3' } });
 
       // Mock audit log creation
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'log-1' });
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'log-1' });
 
-      const result = await bulkEditWithFallback(mockTablesDB, mockDatabases, {
+      const result = await bulkEditWithFallback(mockTablesDB, mockTablesDB, {
         ...baseConfig,
         updates,
         useFieldSpecificUpdates: true,
@@ -178,9 +177,9 @@ describe('bulkEditWithFallback - Concurrency Handling', () => {
         });
 
       // Mock audit log creation
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'log-1' });
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'log-1' });
 
-      const result = await bulkEditWithFallback(mockTablesDB, mockDatabases, {
+      const result = await bulkEditWithFallback(mockTablesDB, mockTablesDB, {
         ...baseConfig,
         updates,
         useFieldSpecificUpdates: true,
@@ -194,7 +193,7 @@ describe('bulkEditWithFallback - Concurrency Handling', () => {
   });
 
   describe('Fallback without Field-Specific Updates', () => {
-    it('should use standard updateDocument when useFieldSpecificUpdates is false', async () => {
+    it('should use standard updateRow when useFieldSpecificUpdates is false', async () => {
       const updates = [
         { rowId: 'att-1', data: { customFieldValues: '{"field1":"value1"}' } },
       ];
@@ -203,12 +202,12 @@ describe('bulkEditWithFallback - Concurrency Handling', () => {
       mockTablesDB.upsertRows.mockRejectedValue(new Error('TablesDB unavailable'));
 
       // Mock successful standard update
-      mockDatabases.updateDocument.mockResolvedValue({ $id: 'att-1' });
+      mockTablesDB.updateRow.mockResolvedValue({ $id: 'att-1' });
 
       // Mock audit log creation
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'log-1' });
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'log-1' });
 
-      const result = await bulkEditWithFallback(mockTablesDB, mockDatabases, {
+      const result = await bulkEditWithFallback(mockTablesDB, mockTablesDB, {
         ...baseConfig,
         updates,
         useFieldSpecificUpdates: false,
@@ -216,7 +215,7 @@ describe('bulkEditWithFallback - Concurrency Handling', () => {
 
       expect(result.usedTransactions).toBe(false);
       expect(result.updatedCount).toBe(1);
-      expect(mockDatabases.updateDocument).toHaveBeenCalledTimes(1);
+      expect(mockTablesDB.updateRow).toHaveBeenCalledTimes(1);
       expect(mockUpdateFields).not.toHaveBeenCalled();
     });
   });
@@ -237,16 +236,16 @@ describe('bulkEditWithFallback - Concurrency Handling', () => {
       });
 
       // Mock audit log creation
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'log-1' });
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'log-1' });
 
-      await bulkEditWithFallback(mockTablesDB, mockDatabases, {
+      await bulkEditWithFallback(mockTablesDB, mockTablesDB, {
         ...baseConfig,
         updates,
         useFieldSpecificUpdates: true,
       });
 
       // Verify audit log includes conflict information
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         'test-db',
         'logs',
         expect.any(String),

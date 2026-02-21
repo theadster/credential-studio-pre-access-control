@@ -594,11 +594,11 @@ describe('Transaction Utilities', () => {
       }));
 
       const legacyFn = vi.fn().mockResolvedValue({ created: 50 });
-      const mockDatabases = {};
+      const mockLegacyDB = {};
 
       const result = await executeBulkOperationWithFallback(
         mockTablesDB as any,
-        mockDatabases,
+        mockLegacyDB,
         operations,
         legacyFn,
         { operationType: 'import', itemCount: 50 }
@@ -624,11 +624,11 @@ describe('Transaction Utilities', () => {
       }));
 
       const legacyFn = vi.fn().mockResolvedValue({ created: 50 });
-      const mockDatabases = {};
+      const mockLegacyDB = {};
 
       const result = await executeBulkOperationWithFallback(
         mockTablesDB as any,
-        mockDatabases,
+        mockLegacyDB,
         operations,
         legacyFn,
         { operationType: 'import', itemCount: 50 }
@@ -655,11 +655,11 @@ describe('Transaction Utilities', () => {
       }));
 
       const legacyFn = vi.fn().mockResolvedValue({ created: 1500 });
-      const mockDatabases = {};
+      const mockLegacyDB = {};
 
       const result = await executeBulkOperationWithFallback(
         mockTablesDB as any,
-        mockDatabases,
+        mockLegacyDB,
         operations,
         legacyFn,
         { operationType: 'import', itemCount: 1500 }
@@ -687,13 +687,13 @@ describe('Transaction Utilities', () => {
       }));
 
       const legacyFn = vi.fn().mockResolvedValue({ created: 50 });
-      const mockDatabases = {};
+      const mockLegacyDB = {};
 
       // Mock executeBatchedTransaction to throw an error
       // This happens when fallback is disabled or not provided
       const result = await executeBulkOperationWithFallback(
         mockTablesDB as any,
-        mockDatabases,
+        mockLegacyDB,
         operations,
         legacyFn,
         { operationType: 'delete', itemCount: 50 }

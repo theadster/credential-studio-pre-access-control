@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import handler from '../index';
+import handler from '@/pages/api/event-settings/index';
 import { createAdminClient, createSessionClient } from '@/lib/appwrite';
 import { eventSettingsCache } from '@/lib/cache';
 
@@ -37,6 +37,7 @@ vi.mock('@/lib/appwrite-integrations', () => ({
   updateSwitchboardIntegration: vi.fn(),
   updateOneSimpleApiIntegration: vi.fn(),
 }));
+
 
 describe('Event Settings API - Performance Benchmarking Tests', () => {
   let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
@@ -117,32 +118,32 @@ describe('Event Settings API - Performance Benchmarking Tests', () => {
     };
   };
 
-  const setupMockDatabases = () => {
-    const mockDatabases = {
-      listDocuments: vi.fn()
-        .mockResolvedValueOnce({ documents: [mockEventSettings] })
-        .mockImplementation((_, collectionId) => {
-          if (collectionId === 'custom-fields') {
-            return Promise.resolve({ documents: mockCustomFields });
+  const setupMockTablesDB = () => {
+    const mockTablesDB = {
+      listRows: vi.fn()
+        .mockResolvedValueOnce({ rows: [mockEventSettings] })
+        .mockImplementation((_, tableId) => {
+          if (tableId === 'custom-fields') {
+            return Promise.resolve({ rows: mockCustomFields });
           }
-          if (collectionId === 'switchboard') {
-            return Promise.resolve({ documents: [mockSwitchboardIntegration] });
+          if (tableId === 'switchboard') {
+            return Promise.resolve({ rows: [mockSwitchboardIntegration] });
           }
-          if (collectionId === 'cloudinary') {
-            return Promise.resolve({ documents: [mockCloudinaryIntegration] });
+          if (tableId === 'cloudinary') {
+            return Promise.resolve({ rows: [mockCloudinaryIntegration] });
           }
-          if (collectionId === 'onesimpleapi') {
-            return Promise.resolve({ documents: [mockOneSimpleApiIntegration] });
+          if (tableId === 'onesimpleapi') {
+            return Promise.resolve({ rows: [mockOneSimpleApiIntegration] });
           }
-          return Promise.resolve({ documents: [] });
+          return Promise.resolve({ rows: [] });
         }),
     };
 
     vi.mocked(createAdminClient).mockReturnValue({
-      databases: mockDatabases,
+      tablesDB: mockTablesDB,
     } as any);
 
-    return mockDatabases;
+    return mockTablesDB;
   };
 
   beforeEach(() => {
@@ -152,14 +153,14 @@ describe('Event Settings API - Performance Benchmarking Tests', () => {
 
     // Set up environment variables
     process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID = 'test-db';
-    process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID = 'users';
-    process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID = 'roles';
-    process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID = 'custom-fields';
-    process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID = 'event-settings';
-    process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID = 'logs';
-    process.env.NEXT_PUBLIC_APPWRITE_SWITCHBOARD_COLLECTION_ID = 'switchboard';
-    process.env.NEXT_PUBLIC_APPWRITE_CLOUDINARY_COLLECTION_ID = 'cloudinary';
-    process.env.NEXT_PUBLIC_APPWRITE_ONESIMPLEAPI_COLLECTION_ID = 'onesimpleapi';
+    process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID = 'users';
+    process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID = 'roles';
+    process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID = 'custom-fields';
+    process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID = 'event-settings';
+    process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID = 'logs';
+    process.env.NEXT_PUBLIC_APPWRITE_SWITCHBOARD_TABLE_ID = 'switchboard';
+    process.env.NEXT_PUBLIC_APPWRITE_CLOUDINARY_TABLE_ID = 'cloudinary';
+    process.env.NEXT_PUBLIC_APPWRITE_ONESIMPLEAPI_TABLE_ID = 'onesimpleapi';
   });
 
   afterEach(() => {
@@ -169,29 +170,29 @@ describe('Event Settings API - Performance Benchmarking Tests', () => {
   describe('Load Testing - 50 Concurrent GET Requests', () => {
     it('should handle 50 concurrent GET requests with cold cache', async () => {
       // Setup mock that works for multiple concurrent calls
-      const mockDatabases = {
-        listDocuments: vi.fn().mockImplementation((_, collectionId) => {
-          if (collectionId === 'event-settings') {
-            return Promise.resolve({ documents: [mockEventSettings] });
+      const mockTablesDB = {
+        listRows: vi.fn().mockImplementation((_, tableId) => {
+          if (tableId === 'event-settings') {
+            return Promise.resolve({ rows: [mockEventSettings] });
           }
-          if (collectionId === 'custom-fields') {
-            return Promise.resolve({ documents: mockCustomFields });
+          if (tableId === 'custom-fields') {
+            return Promise.resolve({ rows: mockCustomFields });
           }
-          if (collectionId === 'switchboard') {
-            return Promise.resolve({ documents: [mockSwitchboardIntegration] });
+          if (tableId === 'switchboard') {
+            return Promise.resolve({ rows: [mockSwitchboardIntegration] });
           }
-          if (collectionId === 'cloudinary') {
-            return Promise.resolve({ documents: [mockCloudinaryIntegration] });
+          if (tableId === 'cloudinary') {
+            return Promise.resolve({ rows: [mockCloudinaryIntegration] });
           }
-          if (collectionId === 'onesimpleapi') {
-            return Promise.resolve({ documents: [mockOneSimpleApiIntegration] });
+          if (tableId === 'onesimpleapi') {
+            return Promise.resolve({ rows: [mockOneSimpleApiIntegration] });
           }
-          return Promise.resolve({ documents: [] });
+          return Promise.resolve({ rows: [] });
         }),
       };
 
       vi.mocked(createAdminClient).mockReturnValue({
-        databases: mockDatabases,
+        tablesDB: mockTablesDB,
       } as any);
 
       const requests = Array.from({ length: 50 }, () => {
@@ -236,7 +237,7 @@ describe('Event Settings API - Performance Benchmarking Tests', () => {
     });
 
     it('should handle 50 concurrent GET requests with warm cache', async () => {
-      setupMockDatabases();
+      setupMockTablesDB();
 
       // Pre-populate cache
       const cachedResponse = {
@@ -292,29 +293,29 @@ describe('Event Settings API - Performance Benchmarking Tests', () => {
   describe('Load Testing - 100 Concurrent GET Requests', () => {
     it('should handle 100 concurrent GET requests with cold cache', async () => {
       // Setup mock that works for multiple concurrent calls
-      const mockDatabases = {
-        listDocuments: vi.fn().mockImplementation((_, collectionId) => {
-          if (collectionId === 'event-settings') {
-            return Promise.resolve({ documents: [mockEventSettings] });
+      const mockTablesDB = {
+        listRows: vi.fn().mockImplementation((_, tableId) => {
+          if (tableId === 'event-settings') {
+            return Promise.resolve({ rows: [mockEventSettings] });
           }
-          if (collectionId === 'custom-fields') {
-            return Promise.resolve({ documents: mockCustomFields });
+          if (tableId === 'custom-fields') {
+            return Promise.resolve({ rows: mockCustomFields });
           }
-          if (collectionId === 'switchboard') {
-            return Promise.resolve({ documents: [mockSwitchboardIntegration] });
+          if (tableId === 'switchboard') {
+            return Promise.resolve({ rows: [mockSwitchboardIntegration] });
           }
-          if (collectionId === 'cloudinary') {
-            return Promise.resolve({ documents: [mockCloudinaryIntegration] });
+          if (tableId === 'cloudinary') {
+            return Promise.resolve({ rows: [mockCloudinaryIntegration] });
           }
-          if (collectionId === 'onesimpleapi') {
-            return Promise.resolve({ documents: [mockOneSimpleApiIntegration] });
+          if (tableId === 'onesimpleapi') {
+            return Promise.resolve({ rows: [mockOneSimpleApiIntegration] });
           }
-          return Promise.resolve({ documents: [] });
+          return Promise.resolve({ rows: [] });
         }),
       };
 
       vi.mocked(createAdminClient).mockReturnValue({
-        databases: mockDatabases,
+        tablesDB: mockTablesDB,
       } as any);
 
       const requests = Array.from({ length: 100 }, () => {
@@ -359,7 +360,7 @@ describe('Event Settings API - Performance Benchmarking Tests', () => {
     });
 
     it('should handle 100 concurrent GET requests with warm cache', async () => {
-      setupMockDatabases();
+      setupMockTablesDB();
 
       // Pre-populate cache
       const cachedResponse = {
@@ -414,7 +415,7 @@ describe('Event Settings API - Performance Benchmarking Tests', () => {
 
   describe('Response Time Verification', () => {
     it('should verify cold cache response time is under 5 seconds', async () => {
-      setupMockDatabases();
+      setupMockTablesDB();
 
       const mockReq = createMockRequest();
       const mockRes = createMockResponse();
@@ -436,7 +437,7 @@ describe('Event Settings API - Performance Benchmarking Tests', () => {
     });
 
     it('should verify warm cache response time is under 100ms', async () => {
-      setupMockDatabases();
+      setupMockTablesDB();
 
       // Pre-populate cache
       const cachedResponse = {
@@ -468,7 +469,7 @@ describe('Event Settings API - Performance Benchmarking Tests', () => {
     });
 
     it('should measure response time distribution across multiple requests', async () => {
-      setupMockDatabases();
+      setupMockTablesDB();
 
       const responseTimes: number[] = [];
       const requestCount = 20;
@@ -504,7 +505,7 @@ describe('Event Settings API - Performance Benchmarking Tests', () => {
 
   describe('Cache Hit Rate Tracking', () => {
     it('should track cache hit rates and verify they exceed 80% after warmup', async () => {
-      setupMockDatabases();
+      setupMockTablesDB();
 
       const totalRequests = 100;
       let cacheHits = 0;
@@ -557,29 +558,29 @@ describe('Event Settings API - Performance Benchmarking Tests', () => {
 
     it('should demonstrate cache effectiveness with mixed read/write operations', async () => {
       // Setup mock that works for multiple calls
-      const mockDatabases = {
-        listDocuments: vi.fn().mockImplementation((_, collectionId) => {
-          if (collectionId === 'event-settings') {
-            return Promise.resolve({ documents: [mockEventSettings] });
+      const mockTablesDB = {
+        listRows: vi.fn().mockImplementation((_, tableId) => {
+          if (tableId === 'event-settings') {
+            return Promise.resolve({ rows: [mockEventSettings] });
           }
-          if (collectionId === 'custom-fields') {
-            return Promise.resolve({ documents: mockCustomFields });
+          if (tableId === 'custom-fields') {
+            return Promise.resolve({ rows: mockCustomFields });
           }
-          if (collectionId === 'switchboard') {
-            return Promise.resolve({ documents: [mockSwitchboardIntegration] });
+          if (tableId === 'switchboard') {
+            return Promise.resolve({ rows: [mockSwitchboardIntegration] });
           }
-          if (collectionId === 'cloudinary') {
-            return Promise.resolve({ documents: [mockCloudinaryIntegration] });
+          if (tableId === 'cloudinary') {
+            return Promise.resolve({ rows: [mockCloudinaryIntegration] });
           }
-          if (collectionId === 'onesimpleapi') {
-            return Promise.resolve({ documents: [mockOneSimpleApiIntegration] });
+          if (tableId === 'onesimpleapi') {
+            return Promise.resolve({ rows: [mockOneSimpleApiIntegration] });
           }
-          return Promise.resolve({ documents: [] });
+          return Promise.resolve({ rows: [] });
         }),
       };
 
       vi.mocked(createAdminClient).mockReturnValue({
-        databases: mockDatabases,
+        tablesDB: mockTablesDB,
       } as any);
 
       let cacheHits = 0;
@@ -636,7 +637,7 @@ describe('Event Settings API - Performance Benchmarking Tests', () => {
     });
 
     it('should track cache performance over time', async () => {
-      setupMockDatabases();
+      setupMockTablesDB();
 
       const batches = 5;
       const requestsPerBatch = 20;
@@ -697,7 +698,7 @@ describe('Event Settings API - Performance Benchmarking Tests', () => {
 
   describe('Performance Under Load', () => {
     it('should maintain performance with sustained load', async () => {
-      setupMockDatabases();
+      setupMockTablesDB();
 
       // Pre-populate cache
       const cachedResponse = {

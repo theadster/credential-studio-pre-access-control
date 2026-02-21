@@ -15,6 +15,9 @@ global.fetch = vi.fn();
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn(),
+  createAdminClient: vi.fn(() => ({
+    tablesDB: { listRows: vi.fn(), getRow: vi.fn(), createRow: vi.fn(), updateRow: vi.fn(), deleteRow: vi.fn() },
+  })),
 }));
 
 // Mock the API middleware
@@ -29,7 +32,7 @@ describe('Bulk Export PDF API - Outdated Credential Detection', () => {
   let mockRes: Partial<NextApiResponse>;
   let jsonMock: ReturnType<typeof vi.fn>;
   let statusMock: ReturnType<typeof vi.fn>;
-  let mockDatabases: any;
+  let mockTablesDB: any;
 
   const mockAuthUser = {
     $id: 'user123',
@@ -70,15 +73,15 @@ describe('Bulk Export PDF API - Outdated Credential Detection', () => {
     vi.clearAllMocks();
 
     // Setup mock databases
-    mockDatabases = {
-      listDocuments: vi.fn(),
-      getDocument: vi.fn(),
+    mockTablesDB = {
+      listRows: vi.fn(),
+      getRow: vi.fn(),
     };
 
     // Import and mock after clearing
     const appwrite = await import('@/lib/appwrite');
     vi.mocked(appwrite.createSessionClient).mockReturnValue({
-      databases: mockDatabases,
+      tablesDB: mockTablesDB,
     } as any);
 
     // Mock successful PDF generation response
@@ -125,12 +128,12 @@ describe('Bulk Export PDF API - Outdated Credential Detection', () => {
       };
 
       // Mock database responses
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockEventSettings] }) // Event settings
-        .mockResolvedValueOnce({ documents: [mockOneSimpleApi] }) // OneSimpleAPI config
-        .mockResolvedValueOnce({ documents: [] }); // Custom fields
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockEventSettings] }) // Event settings
+        .mockResolvedValueOnce({ rows: [mockOneSimpleApi] }) // OneSimpleAPI config
+        .mockResolvedValueOnce({ rows: [] }); // Custom fields
 
-      mockDatabases.getDocument.mockResolvedValue(mockAttendee);
+      mockTablesDB.getRow.mockResolvedValue(mockAttendee);
 
       await handler(mockReq as any, mockRes as any);
 
@@ -162,12 +165,12 @@ describe('Bulk Export PDF API - Outdated Credential Detection', () => {
       };
 
       // Mock database responses
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockEventSettings] })
-        .mockResolvedValueOnce({ documents: [mockOneSimpleApi] })
-        .mockResolvedValueOnce({ documents: [] });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockEventSettings] })
+        .mockResolvedValueOnce({ rows: [mockOneSimpleApi] })
+        .mockResolvedValueOnce({ rows: [] });
 
-      mockDatabases.getDocument.mockResolvedValue(mockAttendee);
+      mockTablesDB.getRow.mockResolvedValue(mockAttendee);
 
       await handler(mockReq as any, mockRes as any);
 
@@ -197,12 +200,12 @@ describe('Bulk Export PDF API - Outdated Credential Detection', () => {
         $updatedAt: timestamp,
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockEventSettings] })
-        .mockResolvedValueOnce({ documents: [mockOneSimpleApi] })
-        .mockResolvedValueOnce({ documents: [] });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockEventSettings] })
+        .mockResolvedValueOnce({ rows: [mockOneSimpleApi] })
+        .mockResolvedValueOnce({ rows: [] });
 
-      mockDatabases.getDocument.mockResolvedValue(mockAttendee);
+      mockTablesDB.getRow.mockResolvedValue(mockAttendee);
 
       await handler(mockReq as any, mockRes as any);
 
@@ -232,12 +235,12 @@ describe('Bulk Export PDF API - Outdated Credential Detection', () => {
         $updatedAt: lastSignificantUpdate,
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockEventSettings] })
-        .mockResolvedValueOnce({ documents: [mockOneSimpleApi] })
-        .mockResolvedValueOnce({ documents: [] });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockEventSettings] })
+        .mockResolvedValueOnce({ rows: [mockOneSimpleApi] })
+        .mockResolvedValueOnce({ rows: [] });
 
-      mockDatabases.getDocument.mockResolvedValue(mockAttendee);
+      mockTablesDB.getRow.mockResolvedValue(mockAttendee);
 
       await handler(mockReq as any, mockRes as any);
 
@@ -265,12 +268,12 @@ describe('Bulk Export PDF API - Outdated Credential Detection', () => {
         updatedAt,
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockEventSettings] })
-        .mockResolvedValueOnce({ documents: [mockOneSimpleApi] })
-        .mockResolvedValueOnce({ documents: [] });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockEventSettings] })
+        .mockResolvedValueOnce({ rows: [mockOneSimpleApi] })
+        .mockResolvedValueOnce({ rows: [] });
 
-      mockDatabases.getDocument.mockResolvedValue(mockAttendee);
+      mockTablesDB.getRow.mockResolvedValue(mockAttendee);
 
       await handler(mockReq as any, mockRes as any);
 
@@ -301,12 +304,12 @@ describe('Bulk Export PDF API - Outdated Credential Detection', () => {
         updatedAt,
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockEventSettings] })
-        .mockResolvedValueOnce({ documents: [mockOneSimpleApi] })
-        .mockResolvedValueOnce({ documents: [] });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockEventSettings] })
+        .mockResolvedValueOnce({ rows: [mockOneSimpleApi] })
+        .mockResolvedValueOnce({ rows: [] });
 
-      mockDatabases.getDocument.mockResolvedValue(mockAttendee);
+      mockTablesDB.getRow.mockResolvedValue(mockAttendee);
 
       await handler(mockReq as any, mockRes as any);
 
@@ -330,12 +333,12 @@ describe('Bulk Export PDF API - Outdated Credential Detection', () => {
         updatedAt: '2024-01-10T10:00:00.000Z',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockEventSettings] })
-        .mockResolvedValueOnce({ documents: [mockOneSimpleApi] })
-        .mockResolvedValueOnce({ documents: [] });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockEventSettings] })
+        .mockResolvedValueOnce({ rows: [mockOneSimpleApi] })
+        .mockResolvedValueOnce({ rows: [] });
 
-      mockDatabases.getDocument.mockResolvedValue(mockAttendee);
+      mockTablesDB.getRow.mockResolvedValue(mockAttendee);
 
       await handler(mockReq as any, mockRes as any);
 
@@ -369,12 +372,12 @@ describe('Bulk Export PDF API - Outdated Credential Detection', () => {
         lastSignificantUpdate: '2024-01-11T10:00:00.000Z', // After credential
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockEventSettings] })
-        .mockResolvedValueOnce({ documents: [mockOneSimpleApi] })
-        .mockResolvedValueOnce({ documents: [] });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockEventSettings] })
+        .mockResolvedValueOnce({ rows: [mockOneSimpleApi] })
+        .mockResolvedValueOnce({ rows: [] });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(currentAttendee)
         .mockResolvedValueOnce(outdatedAttendee);
 
@@ -403,11 +406,11 @@ describe('Bulk Export PDF API - Outdated Credential Detection', () => {
         // No credentialUrl
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockEventSettings] })
-        .mockResolvedValueOnce({ documents: [mockOneSimpleApi] });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockEventSettings] })
+        .mockResolvedValueOnce({ rows: [mockOneSimpleApi] });
 
-      mockDatabases.getDocument.mockResolvedValue(mockAttendee);
+      mockTablesDB.getRow.mockResolvedValue(mockAttendee);
 
       await handler(mockReq as any, mockRes as any);
 

@@ -9,7 +9,7 @@ import {
 import { shouldLog } from '@/lib/logSettings';
 
 const databaseId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-const collectionId = process.env.NEXT_PUBLIC_APPWRITE_APPROVAL_PROFILES_COLLECTION_ID!;
+const tableId = process.env.NEXT_PUBLIC_APPWRITE_APPROVAL_PROFILES_TABLE_ID!;
 
 /**
  * GET /api/approval-profiles/[id] - Get a single approval profile
@@ -52,12 +52,36 @@ async function handleGet(
   res: NextApiResponse
 ) {
   try {
-    const { databases } = createSessionClient(req);
-    const profile = await databases.getDocument<ApprovalProfile>(
+    // Check authorization - guard on userProfile first
+    const userProfile = (req as any).userProfile;
+    if (!userProfile) {
+      return res.status(401).json({
+        success: false,
+        error: 'Unauthorized - user profile not found',
+      });
+    }
+
+    if (!userProfile?.role?.permissions?.approvalProfiles?.read) {
+      return res.status(403).json({
+        success: false,
+        error: 'Insufficient permissions to read approval profiles',
+      });
+    }
+
+    const { tablesDB } = createSessionClient(req);
+    const profile = await tablesDB.getRow({
       databaseId,
-      collectionId,
-      id
-    );
+      tableId,
+      rowId: id,
+    });
+
+    // Verify user owns this profile (per-resource access control)
+    if (profile.ownerId !== userProfile.id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Insufficient permissions to access this profile',
+      });
+    }
 
     // Don't return soft-deleted profiles
     if (profile.isDeleted) {
@@ -81,8 +105,10 @@ async function handleGet(
       }
     }
 
+    // Filter out internal fields before returning to client
+    const { isDeleted, ...safeProfile } = profile;
     const responseProfile = {
-      ...profile,
+      ...safeProfile,
       rules: parsedRules,
     };
 
@@ -115,7 +141,7 @@ async function handlePut(
   res: NextApiResponse
 ) {
   try {
-    const { databases } = createSessionClient(req);
+    const { tablesDB } = createSessionClient(req);
     
     // Validate request body
     const validation = UpdateApprovalProfileSchema.safeParse(req.body);
@@ -131,11 +157,27 @@ async function handlePut(
     const input: UpdateApprovalProfileInput = validation.data;
 
     // Get current profile
-    const currentProfile = await databases.getDocument<ApprovalProfile>(
+    const currentProfile = await tablesDB.getRow({
       databaseId,
-      collectionId,
-      id
-    );
+      tableId,
+      rowId: id,
+    });
+
+    // Verify user owns this profile (per-resource access control) - guard on userProfile first
+    const userProfile = (req as any).userProfile;
+    if (!userProfile) {
+      return res.status(401).json({
+        success: false,
+        error: 'Unauthorized - user profile not found',
+      });
+    }
+
+    if (currentProfile.ownerId !== userProfile.id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Insufficient permissions to modify this profile',
+      });
+    }
 
     if (currentProfile.isDeleted) {
       return res.status(404).json({
@@ -146,17 +188,17 @@ async function handlePut(
 
     // Check for duplicate name if name is being changed
     if (input.name && input.name !== currentProfile.name) {
-      const existingProfiles = await databases.listDocuments<ApprovalProfile>(
+      const existingProfiles = await tablesDB.listRows({
         databaseId,
-        collectionId,
-        [
+        tableId,
+        queries: [
           Query.equal('name', input.name),
           Query.equal('isDeleted', false),
           Query.notEqual('$id', id),
         ]
-      );
+      });
 
-      if (existingProfiles.documents.length > 0) {
+      if (existingProfiles.rows.length > 0) {
         return res.status(409).json({
           success: false,
           error: 'A profile with this name already exists',
@@ -183,17 +225,17 @@ async function handlePut(
     }
 
     // Update the profile
-    const updatedProfile = await databases.updateDocument<ApprovalProfile>(
+    const updatedProfile = await tablesDB.updateRow({
       databaseId,
-      collectionId,
-      id,
-      updateData
-    );
+      tableId,
+      rowId: id,
+      data: updateData,
+    });
 
     // Log the profile update if enabled
     if (await shouldLog('approvalProfileUpdate')) {
       try {
-        const logsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!;
+        const logsTableId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!;
         // Try to get user ID from session if available
         let userId = 'unknown';
         try {
@@ -204,11 +246,11 @@ async function handlePut(
           // Session not available, use unknown
         }
         
-        await databases.createDocument(
+        await tablesDB.createRow({
           databaseId,
-          logsCollectionId,
-          ID.unique(),
-          {
+          tableId: logsTableId,
+          rowId: ID.unique(),
+          data: {
             userId,
             action: 'update',
             details: JSON.stringify({
@@ -223,8 +265,8 @@ async function handlePut(
                 rulesUpdated: input.rules !== undefined,
               },
             }),
-          }
-        );
+          },
+        });
       } catch (logError) {
         console.error('[Approval Profiles API] Error creating audit log:', logError);
         // Continue even if logging fails
@@ -232,8 +274,10 @@ async function handlePut(
     }
 
     // Parse rules JSON string to object for consistent API response
+    // Filter out internal fields before returning to client
+    const { isDeleted, ...safeProfile } = updatedProfile;
     const responseProfile = {
-      ...updatedProfile,
+      ...safeProfile,
       rules: typeof updatedProfile.rules === 'string' ? JSON.parse(updatedProfile.rules) : updatedProfile.rules,
     };
 
@@ -266,14 +310,30 @@ async function handleDelete(
   res: NextApiResponse
 ) {
   try {
-    const { databases } = createSessionClient(req);
+    const { tablesDB } = createSessionClient(req);
     
     // Get current profile
-    const currentProfile = await databases.getDocument<ApprovalProfile>(
+    const currentProfile = await tablesDB.getRow({
       databaseId,
-      collectionId,
-      id
-    );
+      tableId,
+      rowId: id,
+    });
+
+    // Verify user owns this profile (per-resource access control) - guard on userProfile first
+    const userProfile = (req as any).userProfile;
+    if (!userProfile) {
+      return res.status(401).json({
+        success: false,
+        error: 'Unauthorized - user profile not found',
+      });
+    }
+
+    if (currentProfile.ownerId !== userProfile.id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Insufficient permissions to delete this profile',
+      });
+    }
 
     if (currentProfile.isDeleted) {
       return res.status(404).json({
@@ -283,19 +343,19 @@ async function handleDelete(
     }
 
     // Soft delete by setting isDeleted flag
-    const deletedProfile = await databases.updateDocument<ApprovalProfile>(
+    const deletedProfile = await tablesDB.updateRow({
       databaseId,
-      collectionId,
-      id,
-      {
+      tableId,
+      rowId: id,
+      data: {
         isDeleted: true,
-      }
-    );
+      },
+    });
 
     // Log the profile deletion if enabled
     if (await shouldLog('approvalProfileDelete')) {
       try {
-        const logsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!;
+        const logsTableId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!;
         // Try to get user ID from session if available
         let userId = 'unknown';
         try {
@@ -306,11 +366,11 @@ async function handleDelete(
           // Session not available, use unknown
         }
         
-        await databases.createDocument(
+        await tablesDB.createRow({
           databaseId,
-          logsCollectionId,
-          ID.unique(),
-          {
+          tableId: logsTableId,
+          rowId: ID.unique(),
+          data: {
             userId,
             action: 'delete',
             details: JSON.stringify({
@@ -319,8 +379,8 @@ async function handleDelete(
               profileName: currentProfile.name,
               profileVersion: currentProfile.version,
             }),
-          }
-        );
+          },
+        });
       } catch (logError) {
         console.error('[Approval Profiles API] Error creating audit log:', logError);
         // Continue even if logging fails
@@ -328,8 +388,10 @@ async function handleDelete(
     }
 
     // Parse rules JSON string to object for consistent API response
+    // Filter out internal fields before returning to client
+    const { isDeleted, ...safeProfile } = deletedProfile;
     const responseProfile = {
-      ...deletedProfile,
+      ...safeProfile,
       rules: typeof deletedProfile.rules === 'string' ? JSON.parse(deletedProfile.rules) : deletedProfile.rules,
     };
 

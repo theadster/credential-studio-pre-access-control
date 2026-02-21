@@ -1,13 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import handler from '../check-barcode';
-import { databases } from '@/lib/appwrite';
+import handler from '@/pages/api/attendees/check-barcode';
+import { tablesDB } from '@/lib/appwrite';
 
 vi.mock('@/lib/appwrite', () => ({
-  databases: {
-    listDocuments: vi.fn()
-  }
+  tablesDB: {
+    listRows: vi.fn()
+  },
+  createAdminClient: vi.fn(() => ({
+    tablesDB: { listRows: vi.fn(), getRow: vi.fn(), createRow: vi.fn(), updateRow: vi.fn(), deleteRow: vi.fn() },
+  })),
 }));
+
 
 describe('/api/attendees/check-barcode', () => {
   let req: Partial<NextApiRequest>;
@@ -50,8 +54,8 @@ describe('/api/attendees/check-barcode', () => {
   it('should return exists: true when barcode exists', async () => {
     req.query = { barcode: 'ABC123' };
     
-    vi.mocked(databases.listDocuments).mockResolvedValue({
-      documents: [{ $id: '1', barcodeNumber: 'ABC123' }],
+    vi.mocked(tablesDB.listRows).mockResolvedValue({
+      rows: [{ $id: '1', barcodeNumber: 'ABC123' }],
       total: 1
     } as any);
 
@@ -64,8 +68,8 @@ describe('/api/attendees/check-barcode', () => {
   it('should return exists: false when barcode does not exist', async () => {
     req.query = { barcode: 'XYZ789' };
     
-    vi.mocked(databases.listDocuments).mockResolvedValue({
-      documents: [],
+    vi.mocked(tablesDB.listRows).mockResolvedValue({
+      rows: [],
       total: 0
     } as any);
 
@@ -78,7 +82,7 @@ describe('/api/attendees/check-barcode', () => {
   it('should handle database errors gracefully', async () => {
     req.query = { barcode: 'ABC123' };
     
-    vi.mocked(databases.listDocuments).mockRejectedValue(new Error('Database error'));
+    vi.mocked(tablesDB.listRows).mockRejectedValue(new Error('Database error'));
 
     await handler(req as NextApiRequest, res as NextApiResponse);
 
@@ -92,15 +96,15 @@ describe('/api/attendees/check-barcode', () => {
     const specialBarcode = 'ABC#123';
     req.query = { barcode: specialBarcode };
     
-    vi.mocked(databases.listDocuments).mockResolvedValue({
-      documents: [],
+    vi.mocked(tablesDB.listRows).mockResolvedValue({
+      rows: [],
       total: 0
     } as any);
 
     await handler(req as NextApiRequest, res as NextApiResponse);
 
-    expect(databases.listDocuments).toHaveBeenCalled();
-    const callArgs = vi.mocked(databases.listDocuments).mock.calls[0];
+    expect(tablesDB.listRows).toHaveBeenCalled();
+    const callArgs = vi.mocked(tablesDB.listRows).mock.calls[0];
     
     // Verify the query includes the barcode
     expect(callArgs[2]).toBeDefined();

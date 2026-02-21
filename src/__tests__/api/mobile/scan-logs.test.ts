@@ -9,26 +9,27 @@
 
 import { describe, it, expect, beforeEach, vi, beforeAll } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { mockAccount, mockDatabases, resetAllMocks } from '@/test/mocks/appwrite';
+import { mockAccount, mockTablesDB, mockAdminTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 
 // Set environment variables before importing handler
 beforeAll(() => {
   process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID = 'test-db';
-  process.env.NEXT_PUBLIC_APPWRITE_SCAN_LOGS_COLLECTION_ID = 'scan_logs';
-  process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID = 'users';
-  process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID = 'roles';
+  process.env.NEXT_PUBLIC_APPWRITE_SCAN_LOGS_TABLE_ID = 'scan_logs';
+  process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID = 'users';
+  process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID = 'roles';
 });
 
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn(() => ({
     account: mockAccount,
-    databases: mockDatabases,
+    tablesDB: mockTablesDB,
   })),
   createAdminClient: vi.fn(() => ({
-    databases: mockDatabases,
+    tablesDB: mockAdminTablesDB,
   })),
 }));
+
 
 // Import handler after mocks are set up
 import handler from '@/pages/api/mobile/scan-logs';
@@ -80,7 +81,8 @@ describe('/api/mobile/scan-logs - Mobile Scan Logs Upload API', () => {
 
   const setupAuthMocks = () => {
     mockAccount.get.mockResolvedValue(mockAuthUser);
-    mockDatabases.getDocument.mockResolvedValue(mockScannerRole);
+    mockTablesDB.getRow.mockResolvedValue(mockScannerRole);
+    mockAdminTablesDB.getRow.mockResolvedValue(mockScannerRole);
   };
 
   beforeEach(() => {
@@ -107,10 +109,10 @@ describe('/api/mobile/scan-logs - Mobile Scan Logs Upload API', () => {
   describe('Log Upload', () => {
     it('should upload a single scan log successfully', async () => {
       // Mock: 1) user profile lookup, 2) deduplication check, 3) create document
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 }); // No existing logs
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'new-log-id' });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 }); // No existing logs
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'new-log-id' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -136,10 +138,10 @@ describe('/api/mobile/scan-logs - Mobile Scan Logs Upload API', () => {
       mockReq.body = { logs };
 
       // Mock: 1) user profile lookup, 2) deduplication check, 3) create documents
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'new-log-id' });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'new-log-id' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -154,18 +156,18 @@ describe('/api/mobile/scan-logs - Mobile Scan Logs Upload API', () => {
           }),
         })
       );
-      expect(mockDatabases.createDocument).toHaveBeenCalledTimes(3);
+      expect(mockTablesDB.createRow).toHaveBeenCalledTimes(3);
     });
 
     it('should include operatorId from authenticated user', async () => {
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'new-log-id' });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'new-log-id' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         'test-db',
         'scan_logs',
         expect.any(String),
@@ -176,14 +178,14 @@ describe('/api/mobile/scan-logs - Mobile Scan Logs Upload API', () => {
     });
 
     it('should set uploadedAt timestamp', async () => {
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'new-log-id' });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'new-log-id' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         'test-db',
         'scan_logs',
         expect.any(String),
@@ -203,13 +205,13 @@ describe('/api/mobile/scan-logs - Mobile Scan Logs Upload API', () => {
       mockReq.body = { logs };
 
       // Mock: 1) user profile lookup, 2) deduplication check returns existing log
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
         .mockResolvedValueOnce({ 
-          documents: [{ localId: 'existing-local-id' }], 
+          rows: [{ localId: 'existing-local-id' }], 
           total: 1 
         });
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'new-log-id' });
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'new-log-id' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -224,7 +226,7 @@ describe('/api/mobile/scan-logs - Mobile Scan Logs Upload API', () => {
           }),
         })
       );
-      expect(mockDatabases.createDocument).toHaveBeenCalledTimes(1);
+      expect(mockTablesDB.createRow).toHaveBeenCalledTimes(1);
     });
 
     it('should prevent duplicates within same batch', async () => {
@@ -234,10 +236,10 @@ describe('/api/mobile/scan-logs - Mobile Scan Logs Upload API', () => {
       ];
       mockReq.body = { logs };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'new-log-id' });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'new-log-id' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -253,7 +255,7 @@ describe('/api/mobile/scan-logs - Mobile Scan Logs Upload API', () => {
           }),
         })
       );
-      expect(mockDatabases.createDocument).toHaveBeenCalledTimes(1);
+      expect(mockTablesDB.createRow).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -261,8 +263,8 @@ describe('/api/mobile/scan-logs - Mobile Scan Logs Upload API', () => {
     it('should return 400 for empty logs array', async () => {
       mockReq.body = { logs: [] };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -285,8 +287,8 @@ describe('/api/mobile/scan-logs - Mobile Scan Logs Upload API', () => {
         }] 
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -309,8 +311,8 @@ describe('/api/mobile/scan-logs - Mobile Scan Logs Upload API', () => {
         }] 
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -325,8 +327,8 @@ describe('/api/mobile/scan-logs - Mobile Scan Logs Upload API', () => {
         }] 
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -341,9 +343,10 @@ describe('/api/mobile/scan-logs - Mobile Scan Logs Upload API', () => {
         permissions: JSON.stringify({}),
       };
 
-      mockDatabases.getDocument.mockResolvedValue(noPermRole);
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValue(noPermRole);
+    mockAdminTablesDB.getRow.mockResolvedValue(noPermRole);
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -363,8 +366,8 @@ describe('/api/mobile/scan-logs - Mobile Scan Logs Upload API', () => {
     it('should return 405 for non-POST methods', async () => {
       mockReq.method = 'GET';
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 

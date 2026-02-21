@@ -9,26 +9,27 @@
 
 import { describe, it, expect, beforeEach, vi, beforeAll } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { mockAccount, mockDatabases, resetAllMocks } from '@/test/mocks/appwrite';
+import { mockAccount, mockTablesDB, mockAdminTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 
 // Set environment variables before importing handler
 beforeAll(() => {
   process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID = 'test-db';
-  process.env.NEXT_PUBLIC_APPWRITE_SCAN_LOGS_COLLECTION_ID = 'scan_logs';
-  process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID = 'users';
-  process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID = 'roles';
+  process.env.NEXT_PUBLIC_APPWRITE_SCAN_LOGS_TABLE_ID = 'scan_logs';
+  process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID = 'users';
+  process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID = 'roles';
 });
 
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn(() => ({
     account: mockAccount,
-    databases: mockDatabases,
+    tablesDB: mockTablesDB,
   })),
   createAdminClient: vi.fn(() => ({
-    databases: mockDatabases,
+    tablesDB: mockAdminTablesDB,
   })),
 }));
+
 
 // Import handler after mocks are set up
 import handler from '@/pages/api/scan-logs/index';
@@ -102,7 +103,8 @@ describe('/api/scan-logs - Scan Logs Viewer API', () => {
 
   const setupAuthMocks = () => {
     mockAccount.get.mockResolvedValue(mockAuthUser);
-    mockDatabases.getDocument.mockResolvedValue(mockAdminRole);
+    mockTablesDB.getRow.mockResolvedValue(mockAdminRole);
+    mockAdminTablesDB.getRow.mockResolvedValue(mockAdminRole);
   };
 
   beforeEach(() => {
@@ -129,9 +131,9 @@ describe('/api/scan-logs - Scan Logs Viewer API', () => {
 
   describe('List Logs', () => {
     it('should return all scan logs', async () => {
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: mockScanLogs, total: 2 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: mockScanLogs, total: 2 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -169,9 +171,9 @@ describe('/api/scan-logs - Scan Logs Viewer API', () => {
     it('should filter by deviceId', async () => {
       mockReq.query = { deviceId: 'device-1' };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: mockScanLogs, total: 2 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: mockScanLogs, total: 2 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -181,9 +183,9 @@ describe('/api/scan-logs - Scan Logs Viewer API', () => {
     it('should filter by operatorId', async () => {
       mockReq.query = { operatorId: 'operator-1' };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: mockScanLogs, total: 2 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: mockScanLogs, total: 2 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -193,9 +195,9 @@ describe('/api/scan-logs - Scan Logs Viewer API', () => {
     it('should filter by result', async () => {
       mockReq.query = { result: 'approved' };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [mockScanLogs[0]], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [mockScanLogs[0]], total: 1 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -210,9 +212,9 @@ describe('/api/scan-logs - Scan Logs Viewer API', () => {
         dateTo: '2024-01-15T23:59:59.000Z',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: mockScanLogs, total: 2 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: mockScanLogs, total: 2 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -222,9 +224,9 @@ describe('/api/scan-logs - Scan Logs Viewer API', () => {
     it('should filter by attendeeId', async () => {
       mockReq.query = { attendeeId: 'att-1' };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [mockScanLogs[0]], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [mockScanLogs[0]], total: 1 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -236,9 +238,9 @@ describe('/api/scan-logs - Scan Logs Viewer API', () => {
     it('should respect limit parameter', async () => {
       mockReq.query = { limit: '10' };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: mockScanLogs, total: 2 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: mockScanLogs, total: 2 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -250,9 +252,9 @@ describe('/api/scan-logs - Scan Logs Viewer API', () => {
     it('should respect offset parameter', async () => {
       mockReq.query = { offset: '1' };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [mockScanLogs[1]], total: 2 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [mockScanLogs[1]], total: 2 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -264,9 +266,9 @@ describe('/api/scan-logs - Scan Logs Viewer API', () => {
     it('should cap limit at 100', async () => {
       mockReq.query = { limit: '500' };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: mockScanLogs, total: 2 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: mockScanLogs, total: 2 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -278,9 +280,9 @@ describe('/api/scan-logs - Scan Logs Viewer API', () => {
     it('should indicate hasMore when more results exist', async () => {
       mockReq.query = { limit: '1' };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [mockScanLogs[0]], total: 2 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [mockScanLogs[0]], total: 2 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -297,9 +299,10 @@ describe('/api/scan-logs - Scan Logs Viewer API', () => {
         permissions: JSON.stringify({}),
       };
 
-      mockDatabases.getDocument.mockResolvedValue(noPermRole);
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValue(noPermRole);
+    mockAdminTablesDB.getRow.mockResolvedValue(noPermRole);
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -322,10 +325,11 @@ describe('/api/scan-logs - Scan Logs Viewer API', () => {
         }),
       };
 
-      mockDatabases.getDocument.mockResolvedValue(logsReadRole);
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: mockScanLogs, total: 2 });
+      mockTablesDB.getRow.mockResolvedValue(logsReadRole);
+    mockAdminTablesDB.getRow.mockResolvedValue(logsReadRole);
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: mockScanLogs, total: 2 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -337,8 +341,8 @@ describe('/api/scan-logs - Scan Logs Viewer API', () => {
     it('should return 405 for non-GET methods', async () => {
       mockReq.method = 'POST';
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 

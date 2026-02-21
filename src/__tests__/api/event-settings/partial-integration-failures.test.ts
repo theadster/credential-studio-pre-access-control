@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import handler from '../index';
+import handler from '@/pages/api/event-settings/index';
 import { createAdminClient, createSessionClient } from '@/lib/appwrite';
 import { Query } from 'appwrite';
 
@@ -55,6 +55,7 @@ vi.mock('@/lib/appwrite-integrations', () => ({
   updateSwitchboardIntegration: vi.fn(),
   updateOneSimpleApiIntegration: vi.fn(),
 }));
+
 
 describe('Event Settings API - Partial Integration Failures', () => {
   let mockReq: Partial<NextApiRequest>;
@@ -136,14 +137,14 @@ describe('Event Settings API - Partial Integration Failures', () => {
 
     // Set up environment variables
     process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID = 'test-db';
-    process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID = 'users';
-    process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID = 'roles';
-    process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID = 'custom-fields';
-    process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID = 'event-settings';
-    process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID = 'logs';
-    process.env.NEXT_PUBLIC_APPWRITE_SWITCHBOARD_COLLECTION_ID = 'switchboard';
-    process.env.NEXT_PUBLIC_APPWRITE_CLOUDINARY_COLLECTION_ID = 'cloudinary';
-    process.env.NEXT_PUBLIC_APPWRITE_ONESIMPLEAPI_COLLECTION_ID = 'onesimpleapi';
+    process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID = 'users';
+    process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID = 'roles';
+    process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID = 'custom-fields';
+    process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID = 'event-settings';
+    process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID = 'logs';
+    process.env.NEXT_PUBLIC_APPWRITE_SWITCHBOARD_TABLE_ID = 'switchboard';
+    process.env.NEXT_PUBLIC_APPWRITE_CLOUDINARY_TABLE_ID = 'cloudinary';
+    process.env.NEXT_PUBLIC_APPWRITE_ONESIMPLEAPI_TABLE_ID = 'onesimpleapi';
   });
 
   afterEach(() => {
@@ -153,28 +154,28 @@ describe('Event Settings API - Partial Integration Failures', () => {
 
   describe('Partial Integration Failures', () => {
     it('should return event settings with null for failed Switchboard integration', async () => {
-      const mockDatabases = {
-        listDocuments: vi.fn()
-          .mockResolvedValueOnce({ documents: [mockEventSettings] }) // Event settings
-          .mockImplementation((dbId, collectionId) => {
-            if (collectionId === 'custom-fields') {
-              return Promise.resolve({ documents: mockCustomFields });
+      const mockTablesDB = {
+        listRows: vi.fn()
+          .mockResolvedValueOnce({ rows: [mockEventSettings] }) // Event settings
+          .mockImplementation((dbId, tableId) => {
+            if (tableId === 'custom-fields') {
+              return Promise.resolve({ rows: mockCustomFields });
             }
-            if (collectionId === 'switchboard') {
+            if (tableId === 'switchboard') {
               return Promise.reject(new Error('Switchboard connection failed'));
             }
-            if (collectionId === 'cloudinary') {
-              return Promise.resolve({ documents: [mockCloudinaryIntegration] });
+            if (tableId === 'cloudinary') {
+              return Promise.resolve({ rows: [mockCloudinaryIntegration] });
             }
-            if (collectionId === 'onesimpleapi') {
-              return Promise.resolve({ documents: [mockOneSimpleApiIntegration] });
+            if (tableId === 'onesimpleapi') {
+              return Promise.resolve({ rows: [mockOneSimpleApiIntegration] });
             }
-            return Promise.resolve({ documents: [] });
+            return Promise.resolve({ rows: [] });
           }),
       };
 
       vi.mocked(createAdminClient).mockReturnValue({
-        databases: mockDatabases,
+        tablesDB: mockTablesDB,
       } as any);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
@@ -205,28 +206,28 @@ describe('Event Settings API - Partial Integration Failures', () => {
     });
 
     it('should return event settings with null for failed Cloudinary integration', async () => {
-      const mockDatabases = {
-        listDocuments: vi.fn()
-          .mockResolvedValueOnce({ documents: [mockEventSettings] })
-          .mockImplementation((dbId, collectionId) => {
-            if (collectionId === 'custom-fields') {
-              return Promise.resolve({ documents: mockCustomFields });
+      const mockTablesDB = {
+        listRows: vi.fn()
+          .mockResolvedValueOnce({ rows: [mockEventSettings] })
+          .mockImplementation((dbId, tableId) => {
+            if (tableId === 'custom-fields') {
+              return Promise.resolve({ rows: mockCustomFields });
             }
-            if (collectionId === 'switchboard') {
-              return Promise.resolve({ documents: [mockSwitchboardIntegration] });
+            if (tableId === 'switchboard') {
+              return Promise.resolve({ rows: [mockSwitchboardIntegration] });
             }
-            if (collectionId === 'cloudinary') {
+            if (tableId === 'cloudinary') {
               return Promise.reject(new Error('Cloudinary API error'));
             }
-            if (collectionId === 'onesimpleapi') {
-              return Promise.resolve({ documents: [mockOneSimpleApiIntegration] });
+            if (tableId === 'onesimpleapi') {
+              return Promise.resolve({ rows: [mockOneSimpleApiIntegration] });
             }
-            return Promise.resolve({ documents: [] });
+            return Promise.resolve({ rows: [] });
           }),
       };
 
       vi.mocked(createAdminClient).mockReturnValue({
-        databases: mockDatabases,
+        tablesDB: mockTablesDB,
       } as any);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
@@ -254,28 +255,28 @@ describe('Event Settings API - Partial Integration Failures', () => {
     });
 
     it('should return event settings with null for failed OneSimpleAPI integration', async () => {
-      const mockDatabases = {
-        listDocuments: vi.fn()
-          .mockResolvedValueOnce({ documents: [mockEventSettings] })
-          .mockImplementation((dbId, collectionId) => {
-            if (collectionId === 'custom-fields') {
-              return Promise.resolve({ documents: mockCustomFields });
+      const mockTablesDB = {
+        listRows: vi.fn()
+          .mockResolvedValueOnce({ rows: [mockEventSettings] })
+          .mockImplementation((dbId, tableId) => {
+            if (tableId === 'custom-fields') {
+              return Promise.resolve({ rows: mockCustomFields });
             }
-            if (collectionId === 'switchboard') {
-              return Promise.resolve({ documents: [mockSwitchboardIntegration] });
+            if (tableId === 'switchboard') {
+              return Promise.resolve({ rows: [mockSwitchboardIntegration] });
             }
-            if (collectionId === 'cloudinary') {
-              return Promise.resolve({ documents: [mockCloudinaryIntegration] });
+            if (tableId === 'cloudinary') {
+              return Promise.resolve({ rows: [mockCloudinaryIntegration] });
             }
-            if (collectionId === 'onesimpleapi') {
+            if (tableId === 'onesimpleapi') {
               return Promise.reject(new Error('OneSimpleAPI timeout'));
             }
-            return Promise.resolve({ documents: [] });
+            return Promise.resolve({ rows: [] });
           }),
       };
 
       vi.mocked(createAdminClient).mockReturnValue({
-        databases: mockDatabases,
+        tablesDB: mockTablesDB,
       } as any);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
@@ -303,12 +304,12 @@ describe('Event Settings API - Partial Integration Failures', () => {
     });
 
     it('should return event settings even when ALL integrations fail', async () => {
-      const mockDatabases = {
-        listDocuments: vi.fn()
-          .mockResolvedValueOnce({ documents: [mockEventSettings] })
-          .mockImplementation((dbId, collectionId) => {
-            if (collectionId === 'custom-fields') {
-              return Promise.resolve({ documents: mockCustomFields });
+      const mockTablesDB = {
+        listRows: vi.fn()
+          .mockResolvedValueOnce({ rows: [mockEventSettings] })
+          .mockImplementation((dbId, tableId) => {
+            if (tableId === 'custom-fields') {
+              return Promise.resolve({ rows: mockCustomFields });
             }
             // All integrations fail
             return Promise.reject(new Error('Integration service unavailable'));
@@ -316,7 +317,7 @@ describe('Event Settings API - Partial Integration Failures', () => {
       };
 
       vi.mocked(createAdminClient).mockReturnValue({
-        databases: mockDatabases,
+        tablesDB: mockTablesDB,
       } as any);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
@@ -349,28 +350,28 @@ describe('Event Settings API - Partial Integration Failures', () => {
     });
 
     it('should return event settings when custom fields fail but integrations succeed', async () => {
-      const mockDatabases = {
-        listDocuments: vi.fn()
-          .mockResolvedValueOnce({ documents: [mockEventSettings] })
-          .mockImplementation((dbId, collectionId) => {
-            if (collectionId === 'custom-fields') {
+      const mockTablesDB = {
+        listRows: vi.fn()
+          .mockResolvedValueOnce({ rows: [mockEventSettings] })
+          .mockImplementation((dbId, tableId) => {
+            if (tableId === 'custom-fields') {
               return Promise.reject(new Error('Custom fields query failed'));
             }
-            if (collectionId === 'switchboard') {
-              return Promise.resolve({ documents: [mockSwitchboardIntegration] });
+            if (tableId === 'switchboard') {
+              return Promise.resolve({ rows: [mockSwitchboardIntegration] });
             }
-            if (collectionId === 'cloudinary') {
-              return Promise.resolve({ documents: [mockCloudinaryIntegration] });
+            if (tableId === 'cloudinary') {
+              return Promise.resolve({ rows: [mockCloudinaryIntegration] });
             }
-            if (collectionId === 'onesimpleapi') {
-              return Promise.resolve({ documents: [mockOneSimpleApiIntegration] });
+            if (tableId === 'onesimpleapi') {
+              return Promise.resolve({ rows: [mockOneSimpleApiIntegration] });
             }
-            return Promise.resolve({ documents: [] });
+            return Promise.resolve({ rows: [] });
           }),
       };
 
       vi.mocked(createAdminClient).mockReturnValue({
-        databases: mockDatabases,
+        tablesDB: mockTablesDB,
       } as any);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
@@ -403,22 +404,22 @@ describe('Event Settings API - Partial Integration Failures', () => {
       const testError = new Error('Network timeout');
       testError.stack = 'Error: Network timeout\n  at test.ts:123';
 
-      const mockDatabases = {
-        listDocuments: vi.fn()
-          .mockResolvedValueOnce({ documents: [mockEventSettings] })
-          .mockImplementation((dbId, collectionId) => {
-            if (collectionId === 'custom-fields') {
-              return Promise.resolve({ documents: [] });
+      const mockTablesDB = {
+        listRows: vi.fn()
+          .mockResolvedValueOnce({ rows: [mockEventSettings] })
+          .mockImplementation((dbId, tableId) => {
+            if (tableId === 'custom-fields') {
+              return Promise.resolve({ rows: [] });
             }
-            if (collectionId === 'switchboard') {
+            if (tableId === 'switchboard') {
               return Promise.reject(testError);
             }
-            return Promise.resolve({ documents: [] });
+            return Promise.resolve({ rows: [] });
           }),
       };
 
       vi.mocked(createAdminClient).mockReturnValue({
-        databases: mockDatabases,
+        tablesDB: mockTablesDB,
       } as any);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
@@ -432,34 +433,34 @@ describe('Event Settings API - Partial Integration Failures', () => {
           message: 'Network timeout',
           stack: expect.stringContaining('Error: Network timeout'),
           eventSettingsId: 'event-123',
-          collectionId: 'switchboard',
+          tableId: 'switchboard',
         })
       );
     });
 
     it('should handle multiple simultaneous integration failures gracefully', async () => {
-      const mockDatabases = {
-        listDocuments: vi.fn()
-          .mockResolvedValueOnce({ documents: [mockEventSettings] })
-          .mockImplementation((dbId, collectionId) => {
-            if (collectionId === 'custom-fields') {
-              return Promise.resolve({ documents: mockCustomFields });
+      const mockTablesDB = {
+        listRows: vi.fn()
+          .mockResolvedValueOnce({ rows: [mockEventSettings] })
+          .mockImplementation((dbId, tableId) => {
+            if (tableId === 'custom-fields') {
+              return Promise.resolve({ rows: mockCustomFields });
             }
-            if (collectionId === 'switchboard') {
+            if (tableId === 'switchboard') {
               return Promise.reject(new Error('Switchboard error'));
             }
-            if (collectionId === 'cloudinary') {
+            if (tableId === 'cloudinary') {
               return Promise.reject(new Error('Cloudinary error'));
             }
-            if (collectionId === 'onesimpleapi') {
-              return Promise.resolve({ documents: [mockOneSimpleApiIntegration] });
+            if (tableId === 'onesimpleapi') {
+              return Promise.resolve({ rows: [mockOneSimpleApiIntegration] });
             }
-            return Promise.resolve({ documents: [] });
+            return Promise.resolve({ rows: [] });
           }),
       };
 
       vi.mocked(createAdminClient).mockReturnValue({
-        databases: mockDatabases,
+        tablesDB: mockTablesDB,
       } as any);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);

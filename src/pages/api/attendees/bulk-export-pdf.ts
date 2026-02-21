@@ -46,7 +46,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
   try {
     // User and userProfile are already attached by middleware
     const { user, userProfile } = req;
-    const { databases } = createSessionClient(req);
+    const { tablesDB } = createSessionClient(req);
 
     const { attendeeIds } = req.body;
 
@@ -55,8 +55,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     }
 
     const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-    const attendeesCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID!;
-    const eventSettingsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID!;
+    const attendeesTableId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID!;
+    const eventSettingsTableId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID!;
 
     // Check permissions
     const permissions = userProfile.role ? userProfile.role.permissions : {};
@@ -67,27 +67,35 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     }
     
     // Get event settings with integrations
-    const eventSettingsDocs = await databases.listDocuments(dbId, eventSettingsCollectionId, [Query.limit(1)]);
+    const eventSettingsDocs = await tablesDB.listRows({
+      databaseId: dbId,
+      tableId: eventSettingsTableId,
+      queries: [Query.limit(1)]
+    });
     
-    if (eventSettingsDocs.documents.length === 0) {
+    if (eventSettingsDocs.rows.length === 0) {
       return res.status(400).json({ error: 'Event settings not configured' });
     }
 
-    const eventSettings = eventSettingsDocs.documents[0];
+    const eventSettings = eventSettingsDocs.rows[0];
     const eventSettingsId = eventSettings.$id;
     
     // Get OneSimpleAPI integration
-    const oneSimpleApiCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ONESIMPLEAPI_COLLECTION_ID!;
-    const oneSimpleApiDocs = await databases.listDocuments(dbId, oneSimpleApiCollectionId, [
-      Query.equal('eventSettingsId', eventSettingsId),
-      Query.limit(1)
-    ]);
+    const oneSimpleApiTableId = process.env.NEXT_PUBLIC_APPWRITE_ONESIMPLEAPI_TABLE_ID!;
+    const oneSimpleApiDocs = await tablesDB.listRows({
+      databaseId: dbId,
+      tableId: oneSimpleApiTableId,
+      queries: [
+        Query.equal('eventSettingsId', eventSettingsId),
+        Query.limit(1)
+      ]
+    });
     
-    if (oneSimpleApiDocs.documents.length === 0 || !oneSimpleApiDocs.documents[0].enabled) {
+    if (oneSimpleApiDocs.rows.length === 0 || !oneSimpleApiDocs.rows[0].enabled) {
       return res.status(400).json({ error: 'OneSimpleAPI integration is not enabled' });
     }
     
-    const oneSimpleApi = oneSimpleApiDocs.documents[0];
+    const oneSimpleApi = oneSimpleApiDocs.rows[0];
     
     if (!oneSimpleApi.url || !oneSimpleApi.formDataKey || !oneSimpleApi.formDataValue) {
       return res.status(400).json({ error: 'OneSimpleAPI is not properly configured' });
@@ -97,7 +105,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     const allAttendees: any[] = [];
     for (const id of attendeeIds) {
       try {
-        const attendee = await databases.getDocument(dbId, attendeesCollectionId, id);
+        const attendee = await tablesDB.getRow({
+          databaseId: dbId,
+          tableId: attendeesTableId,
+          rowId: id
+        });
         allAttendees.push(attendee);
       } catch (error) {
         console.warn(`Attendee ${id} not found`);
@@ -179,13 +191,13 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     }
 
     // Get custom fields for mapping
-    const customFieldsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID!;
-    const customFieldsDocs = await databases.listDocuments(
+    const customFieldsTableId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID!;
+    const customFieldsDocs = await tablesDB.listRows(
       dbId,
-      customFieldsCollectionId,
+      customFieldsTableId,
       [Query.limit(100)]
     );
-    const customFieldsMap = new Map(customFieldsDocs.documents.map(cf => [cf.$id, cf]));
+    const customFieldsMap = new Map(customFieldsDocs.rows.map(cf => [cf.$id, cf]));
 
     // Generate individual record HTML for each attendee using the record template
     const recordsHtml = attendees.map((attendee) => {

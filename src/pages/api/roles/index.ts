@@ -8,7 +8,7 @@ import { shouldLog } from '@/lib/logSettings';
 export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   // User and userProfile are already attached by middleware
   const { user, userProfile } = req;
-  const { databases } = createSessionClient(req);
+  const { tablesDB } = createSessionClient(req);
   
   // Extract role from userProfile for permission checks
   const role = userProfile.role;
@@ -16,18 +16,18 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     switch (req.method) {
       case 'GET':
         // List all roles with user count
-        const rolesResponse = await databases.listDocuments(
+        const rolesResponse = await tablesDB.listRows(
           process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+          process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
           [Query.orderAsc('$createdAt')]
         );
 
         // Get user count for each role and parse permissions
         const rolesWithCount = await Promise.all(
-          rolesResponse.documents.map(async (roleDoc) => {
-            const usersWithRole = await databases.listDocuments(
+          rolesResponse.rows.map(async (roleDoc) => {
+            const usersWithRole = await tablesDB.listRows(
               process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-              process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+              process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID!,
               [Query.equal('roleId', roleDoc.$id), Query.limit(1)]
             );
             
@@ -50,9 +50,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         if (await shouldLog('systemViewRolesList')) {
           try {
             // Check for recent duplicate logs (within last 5 seconds)
-            const recentLogs = await databases.listDocuments(
+            const recentLogs = await tablesDB.listRows(
               process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-              process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+              process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
               [
                 Query.equal('userId', user.$id),
                 Query.equal('action', 'view'),
@@ -62,7 +62,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             );
 
             // Check if there's already a recent roles view log
-            const hasDuplicate = recentLogs.documents.some(log => {
+            const hasDuplicate = recentLogs.rows.some(log => {
               try {
                 const details = JSON.parse(log.details);
                 return details.target === 'Roles' || (details.type === 'system' && details.operation === 'view_roles');
@@ -72,9 +72,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             });
 
             if (!hasDuplicate) {
-              await databases.createDocument(
+              await tablesDB.createRow(
                 process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-                process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+                process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
                 ID.unique(),
                 {
                   userId: user.$id,
@@ -117,18 +117,17 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         }
 
         // Check if role name already exists
-        const existingRoles = await databases.listDocuments(
+        const existingRoles = await tablesDB.listRows(
           process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+          process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
           [Query.equal('name', name)]
         );
 
-        if (existingRoles.documents.length > 0) {
+        if (existingRoles.rows.length > 0) {
           return res.status(400).json({ error: 'Role name already exists' });
         }
 
         // Use transactions for atomic role creation with audit log
-        const { tablesDB } = createSessionClient(req);
         const { executeTransactionWithRetry, handleTransactionError } = await import('@/lib/transactions');
         const { createRoleLogDetails } = await import('@/lib/logFormatting');
         
@@ -141,7 +140,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             {
               action: 'create' as const,
               databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-              tableId: process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+              tableId: process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
               rowId: roleId,
               data: {
                 name,
@@ -152,7 +151,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             {
               action: 'create' as const,
               databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-              tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+              tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
               rowId: logId,
               data: {
                 userId: user.$id,
@@ -172,9 +171,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           await executeTransactionWithRetry(tablesDB, operations);
 
           // Fetch the created role to return to client
-          const newRole = await databases.getDocument(
+          const newRole = await tablesDB.getRow(
             process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-            process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+            process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
             roleId
           );
 

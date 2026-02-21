@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
 import handler from '@/pages/api/attendees/index';
-import { mockAccount, mockDatabases, resetAllMocks } from '@/test/mocks/appwrite';
+import { mockAccount, mockTablesDB, mockAdminTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 
 // Mock the transactions module
 vi.mock('@/lib/transactions', () => ({
@@ -10,13 +10,27 @@ vi.mock('@/lib/transactions', () => ({
     for (const op of operations) {
       switch (op.type || op.action) {
         case 'create':
-          await mockDatabases.createDocument(op.databaseId, op.collectionId, op.documentId, op.data);
+          await mockTablesDB.createRow({
+            databaseId: op.databaseId,
+            tableId: op.tableId,
+            rowId: op.rowId,
+            data: op.data
+          });
           break;
         case 'update':
-          await mockDatabases.updateDocument(op.databaseId, op.collectionId, op.documentId, op.data);
+          await mockTablesDB.updateRow({
+            databaseId: op.databaseId,
+            tableId: op.tableId,
+            rowId: op.rowId,
+            data: op.data
+          });
           break;
         case 'delete':
-          await mockDatabases.deleteDocument(op.databaseId, op.collectionId, op.documentId);
+          await mockTablesDB.deleteRow({
+            databaseId: op.databaseId,
+            tableId: op.tableId,
+            rowId: op.rowId
+          });
           break;
       }
     }
@@ -41,13 +55,11 @@ vi.mock('@/lib/logSettings', () => ({
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn((req: NextApiRequest) => ({
     account: mockAccount,
-    databases: mockDatabases,
-    tablesDB: {
-      createTransaction: vi.fn(),
-    },
+    tablesDB: mockTablesDB,
+
   })),
   createAdminClient: vi.fn(() => ({
-    databases: mockDatabases,
+    tablesDB: mockAdminTablesDB,
   })),
 }));
 
@@ -146,12 +158,13 @@ describe('/api/attendees - Attendee Management API', () => {
 
     // Default mock implementations
     mockAccount.get.mockResolvedValue(mockAuthUser);
-    mockDatabases.listDocuments.mockResolvedValue({
-      documents: [],
+    mockTablesDB.listRows.mockResolvedValue({
+      rows: [],
       total: 0,
     });
-    mockDatabases.getDocument.mockResolvedValue(mockAdminRole);
-    mockDatabases.createDocument.mockResolvedValue({
+    mockTablesDB.getRow.mockResolvedValue(mockAdminRole);
+    mockAdminTablesDB.getRow.mockResolvedValue(mockAdminRole);
+    mockTablesDB.createRow.mockResolvedValue({
       $id: 'new-log-123',
       userId: mockAuthUser.$id,
       action: 'view',
@@ -229,9 +242,9 @@ describe('/api/attendees - Attendee Management API', () => {
         total: 2,
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: mockAttendees, total: 2 }) // Attendees list
-        .mockResolvedValueOnce({ documents: [], total: 0 }); // Access control (empty)
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: mockAttendees, total: 2 }) // Attendees list
+        .mockResolvedValueOnce({ rows: [], total: 0 }); // Access control (empty)
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -264,9 +277,9 @@ describe('/api/attendees - Attendee Management API', () => {
         firstName: JSON.stringify({ value: 'John', operator: 'contains' }),
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockAttendee], total: 1 }) // Attendees
-        .mockResolvedValueOnce({ documents: [], total: 0 }); // Access control (empty)
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockAttendee], total: 1 }) // Attendees
+        .mockResolvedValueOnce({ rows: [], total: 0 }); // Access control (empty)
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -296,9 +309,9 @@ describe('/api/attendees - Attendee Management API', () => {
         lastName: JSON.stringify({ value: 'Doe', operator: 'equals' }),
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockAttendee], total: 1 }) // Attendees
-        .mockResolvedValueOnce({ documents: [], total: 0 }); // Access control (empty)
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockAttendee], total: 1 }) // Attendees
+        .mockResolvedValueOnce({ rows: [], total: 0 }); // Access control (empty)
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -338,9 +351,9 @@ describe('/api/attendees - Attendee Management API', () => {
         photoFilter: 'with',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockAttendee], total: 1 }) // Attendees
-        .mockResolvedValueOnce({ documents: [], total: 0 }); // Access control (empty)
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockAttendee], total: 1 }) // Attendees
+        .mockResolvedValueOnce({ rows: [], total: 0 }); // Access control (empty)
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -372,9 +385,9 @@ describe('/api/attendees - Attendee Management API', () => {
 
       const attendeeWithoutPhoto = { ...mockAttendee, photoUrl: null };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [attendeeWithoutPhoto], total: 1 }) // Attendees
-        .mockResolvedValueOnce({ documents: [], total: 0 }); // Access control (empty)
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [attendeeWithoutPhoto], total: 1 }) // Attendees
+        .mockResolvedValueOnce({ rows: [], total: 0 }); // Access control (empty)
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -406,9 +419,9 @@ describe('/api/attendees - Attendee Management API', () => {
         }),
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockAttendee], total: 1 }) // Attendees
-        .mockResolvedValueOnce({ documents: [], total: 0 }); // Access control (empty)
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockAttendee], total: 1 }) // Attendees
+        .mockResolvedValueOnce({ rows: [], total: 0 }); // Access control (empty)
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -476,15 +489,15 @@ describe('/api/attendees - Attendee Management API', () => {
         customFieldValues: [{ customFieldId: 'field-1', value: 'value1' }],
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [], total: 0 }) // Check barcode uniqueness
-        .mockResolvedValueOnce({ documents: [{ $id: 'field-1', fieldName: 'Field 1' }], total: 1 }); // Custom fields
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [], total: 0 }) // Check barcode uniqueness
+        .mockResolvedValueOnce({ rows: [{ $id: 'field-1', fieldName: 'Field 1' }], total: 1 }); // Custom fields
 
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce(newAttendee) // Create attendee (called through transaction)
         .mockResolvedValueOnce({ $id: 'log-123' }); // Create log (called through transaction)
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(newAttendee); // Fetch created attendee
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
@@ -541,8 +554,8 @@ describe('/api/attendees - Attendee Management API', () => {
     });
 
     it('should return 400 if barcode already exists', async () => {
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockAttendee], total: 1 }); // Barcode exists
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockAttendee], total: 1 }); // Barcode exists
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -562,9 +575,9 @@ describe('/api/attendees - Attendee Management API', () => {
         { customFieldId: 'invalid-field', value: 'value1' },
       ];
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [], total: 0 }) // Barcode check
-        .mockResolvedValueOnce({ documents: [{ $id: 'field-1' }], total: 1 }); // Valid fields
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [], total: 0 }) // Barcode check
+        .mockResolvedValueOnce({ rows: [{ $id: 'field-1' }], total: 1 }); // Valid fields
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -590,15 +603,15 @@ describe('/api/attendees - Attendee Management API', () => {
         $updatedAt: '2024-01-05T00:00:00.000Z',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [], total: 0 }) // Barcode check
-        .mockResolvedValueOnce({ documents: [{ $id: 'field-1' }], total: 1 }); // Custom fields
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [], total: 0 }) // Barcode check
+        .mockResolvedValueOnce({ rows: [{ $id: 'field-1' }], total: 1 }); // Custom fields
 
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce(newAttendee)
         .mockResolvedValueOnce({ $id: 'log-123' });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(newAttendee);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
@@ -627,15 +640,15 @@ describe('/api/attendees - Attendee Management API', () => {
         $updatedAt: '2024-01-05T00:00:00.000Z',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [], total: 0 }) // Barcode check
-        .mockResolvedValueOnce({ documents: [{ $id: 'field-1' }, { $id: 'field-2' }, { $id: 'field-3' }], total: 3 }); // Custom fields
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [], total: 0 }) // Barcode check
+        .mockResolvedValueOnce({ rows: [{ $id: 'field-1' }, { $id: 'field-2' }, { $id: 'field-3' }], total: 3 }); // Custom fields
 
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce(newAttendee)
         .mockResolvedValueOnce({ $id: 'log-123' });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(newAttendee);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
@@ -659,36 +672,36 @@ describe('/api/attendees - Attendee Management API', () => {
         $updatedAt: '2024-01-05T00:00:00.000Z',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [], total: 0 }) // Barcode check
-        .mockResolvedValueOnce({ documents: [{ $id: 'field-1' }], total: 1 }); // Custom fields
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [], total: 0 }) // Barcode check
+        .mockResolvedValueOnce({ rows: [{ $id: 'field-1' }], total: 1 }); // Custom fields
 
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce(newAttendee)
         .mockResolvedValueOnce({ $id: 'log-123' });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(newAttendee);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      // Verify that createDocument was called for both attendee and log
-      expect(mockDatabases.createDocument).toHaveBeenCalledTimes(2);
+      // Verify that createRow was called for both attendee and log
+      expect(mockTablesDB.createRow).toHaveBeenCalledTimes(2);
       
       // Verify the first call was for the attendee
-      expect(mockDatabases.createDocument).toHaveBeenNthCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenNthCalledWith(
         1,
         expect.any(String), // dbId
-        expect.any(String), // attendeesCollectionId
+        expect.any(String), // attendeesTableId
         expect.any(String), // attendeeId
         expect.any(Object)  // attendee data
       );
       
       // Verify the second call was for the log entry
-      expect(mockDatabases.createDocument).toHaveBeenNthCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenNthCalledWith(
         2,
         expect.any(String), // dbId
-        expect.any(String), // logsCollectionId
+        expect.any(String), // logsTableId
         expect.any(String), // logId
         expect.objectContaining({
           userId: expect.any(String),
@@ -705,8 +718,8 @@ describe('/api/attendees - Attendee Management API', () => {
     it('should return 405 for unsupported methods', async () => {
       mockReq.method = 'PATCH';
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 

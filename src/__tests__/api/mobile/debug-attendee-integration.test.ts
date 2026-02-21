@@ -28,7 +28,7 @@ import { createSessionClient } from '@/lib/appwrite';
 describe('Mobile Debug Attendee Endpoint - Integration Tests', () => {
   let mockReq: Partial<NextApiRequest>;
   let mockRes: Partial<NextApiResponse>;
-  let mockDatabases: any;
+  let mockTablesDB: any;
   let statusCode: number;
   let responseData: any;
 
@@ -59,13 +59,13 @@ describe('Mobile Debug Attendee Endpoint - Integration Tests', () => {
       setHeader: vi.fn().mockReturnThis(),
     };
 
-    mockDatabases = {
-      listDocuments: vi.fn(),
-      getDocument: vi.fn(),
+    mockTablesDB = {
+      listRows: vi.fn(),
+      getRow: vi.fn(),
     };
 
     (createSessionClient as any).mockReturnValue({
-      databases: mockDatabases,
+      tablesDB: mockTablesDB,
     });
   });
 
@@ -107,10 +107,10 @@ describe('Mobile Debug Attendee Endpoint - Integration Tests', () => {
         }
       } as any;
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockAttendee], total: 1 })
-        .mockResolvedValueOnce({ documents: [mockAccessControl], total: 1 })
-        .mockResolvedValueOnce({ documents: mockCustomFields, total: 2 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockAttendee], total: 1 })
+        .mockResolvedValueOnce({ rows: [mockAccessControl], total: 1 })
+        .mockResolvedValueOnce({ rows: mockCustomFields, total: 2 });
 
       const handler = await import('@/pages/api/mobile/debug/attendee/[barcode]');
       await handler.default(mockReq as NextApiRequest, mockRes as NextApiResponse);
@@ -154,10 +154,10 @@ describe('Mobile Debug Attendee Endpoint - Integration Tests', () => {
         }
       } as any;
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockAttendee], total: 1 })
-        .mockResolvedValueOnce({ documents: [mockAccessControl], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockAttendee], total: 1 })
+        .mockResolvedValueOnce({ rows: [mockAccessControl], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
       const handler = await import('@/pages/api/mobile/debug/attendee/[barcode]');
       await handler.default(mockReq as NextApiRequest, mockRes as NextApiResponse);
@@ -197,10 +197,10 @@ describe('Mobile Debug Attendee Endpoint - Integration Tests', () => {
         }
       } as any;
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockAttendee], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 })
-        .mockResolvedValueOnce({ documents: mockCustomFields, total: 2 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockAttendee], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 })
+        .mockResolvedValueOnce({ rows: mockCustomFields, total: 2 });
 
       const handler = await import('@/pages/api/mobile/debug/attendee/[barcode]');
       await handler.default(mockReq as NextApiRequest, mockRes as NextApiResponse);
@@ -223,7 +223,7 @@ describe('Mobile Debug Attendee Endpoint - Integration Tests', () => {
         }
       } as any;
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [], total: 0 });
 
       const handler = await import('@/pages/api/mobile/debug/attendee/[barcode]');
       await handler.default(mockReq as NextApiRequest, mockRes as NextApiResponse);
@@ -370,10 +370,10 @@ describe('Mobile Debug Attendee Endpoint - Integration Tests', () => {
         }
       } as any;
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockAttendee], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockAttendee], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
       const handler = await import('@/pages/api/mobile/debug/attendee/[barcode]');
       await handler.default(mockReq as NextApiRequest, mockRes as NextApiResponse);
@@ -395,7 +395,7 @@ describe('Mobile Debug Attendee Endpoint - Integration Tests', () => {
 
       const error = new Error('Service unavailable');
       (error as any).code = 'service_unavailable';
-      mockDatabases.listDocuments.mockRejectedValueOnce(error);
+      mockTablesDB.listRows.mockRejectedValueOnce(error);
 
       const handler = await import('@/pages/api/mobile/debug/attendee/[barcode]');
       await handler.default(mockReq as NextApiRequest, mockRes as NextApiResponse);
@@ -419,7 +419,7 @@ describe('Mobile Debug Attendee Endpoint - Integration Tests', () => {
 
       const error = new Error('Connection timeout');
       (error as any).message = 'service unavailable';
-      mockDatabases.listDocuments.mockRejectedValueOnce(error);
+      mockTablesDB.listRows.mockRejectedValueOnce(error);
 
       const handler = await import('@/pages/api/mobile/debug/attendee/[barcode]');
       await handler.default(mockReq as NextApiRequest, mockRes as NextApiResponse);
@@ -438,7 +438,7 @@ describe('Mobile Debug Attendee Endpoint - Integration Tests', () => {
       } as any;
 
       const error = new Error('Unexpected database error');
-      mockDatabases.listDocuments.mockRejectedValueOnce(error);
+      mockTablesDB.listRows.mockRejectedValueOnce(error);
 
       const handler = await import('@/pages/api/mobile/debug/attendee/[barcode]');
       await handler.default(mockReq as NextApiRequest, mockRes as NextApiResponse);
@@ -470,10 +470,10 @@ describe('Mobile Debug Attendee Endpoint - Integration Tests', () => {
       } as any;
 
       const error = new Error('Access control query failed');
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockAttendee], total: 1 })
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockAttendee], total: 1 })
         .mockRejectedValueOnce(error)
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
       const handler = await import('@/pages/api/mobile/debug/attendee/[barcode]');
       await handler.default(mockReq as NextApiRequest, mockRes as NextApiResponse);
@@ -506,9 +506,9 @@ describe('Mobile Debug Attendee Endpoint - Integration Tests', () => {
       } as any;
 
       const error = new Error('Custom fields query failed');
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockAttendee], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 })
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockAttendee], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 })
         .mockRejectedValueOnce(error);
 
       const handler = await import('@/pages/api/mobile/debug/attendee/[barcode]');
@@ -592,10 +592,10 @@ describe('Mobile Debug Attendee Endpoint - Integration Tests', () => {
         }
       } as any;
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockAttendee], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockAttendee], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
       const handler = await import('@/pages/api/mobile/debug/attendee/[barcode]');
       await handler.default(mockReq as NextApiRequest, mockRes as NextApiResponse);
@@ -614,7 +614,7 @@ describe('Mobile Debug Attendee Endpoint - Integration Tests', () => {
         }
       } as any;
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [], total: 0 });
 
       const handler = await import('@/pages/api/mobile/debug/attendee/[barcode]');
       await handler.default(mockReq as NextApiRequest, mockRes as NextApiResponse);

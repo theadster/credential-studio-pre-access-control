@@ -1,14 +1,17 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import handler from '../index';
-import { mockAccount, mockDatabases, resetAllMocks } from '@/test/mocks/appwrite';
+import handler from '@/pages/api/custom-fields/index';
+import { mockAccount, mockTablesDB, mockAdminTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn((req: NextApiRequest) => ({
     account: mockAccount,
-    databases: mockDatabases,
+    tablesDB: mockTablesDB,
   })),
+  createAdminClient: vi.fn(() => ({
+    tablesDB: mockAdminTablesDB,
+})),
 }));
 
 // Mock the string utility
@@ -17,6 +20,7 @@ vi.mock('@/util/string', () => ({
     fieldName.toLowerCase().replace(/\s+/g, '_')
   ),
 }));
+
 
 describe('/api/custom-fields - Custom Fields Management API', () => {
   let mockReq: Partial<NextApiRequest>;
@@ -102,12 +106,13 @@ describe('/api/custom-fields - Custom Fields Management API', () => {
 
     // Default mock implementations
     mockAccount.get.mockResolvedValue(mockAuthUser);
-    mockDatabases.listDocuments.mockResolvedValue({
-      documents: [mockUserProfile],
+    mockTablesDB.listRows.mockResolvedValue({
+      rows: [mockUserProfile],
       total: 1,
     });
-    mockDatabases.getDocument.mockResolvedValue(mockAdminRole);
-    mockDatabases.createDocument.mockResolvedValue({
+    mockTablesDB.getRow.mockResolvedValue(mockAdminRole);
+    mockAdminTablesDB.getRow.mockResolvedValue(mockAdminRole);
+    mockTablesDB.createRow.mockResolvedValue({
       $id: 'new-log-123',
       userId: mockAuthUser.$id,
       action: 'view',
@@ -139,18 +144,18 @@ describe('/api/custom-fields - Custom Fields Management API', () => {
       const mockFields = [mockCustomField1, mockCustomField2];
 
       // First call is for user profile lookup in middleware
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: mockFields, total: 2 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: mockFields, total: 2 });
       
       // Role lookup in middleware
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.listDocuments).toHaveBeenCalledWith(
+      expect(mockTablesDB.listRows).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID,
         expect.arrayContaining([
           expect.stringContaining('orderAsc'),
           expect.stringContaining('limit'),
@@ -168,17 +173,17 @@ describe('/api/custom-fields - Custom Fields Management API', () => {
       };
 
       // First call is for user profile lookup in middleware
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [fieldWithoutInternal], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [fieldWithoutInternal], total: 1 });
       
       // Role lookup in middleware
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      // Should NOT call updateDocument - internal field names are generated on-the-fly
-      expect(mockDatabases.updateDocument).not.toHaveBeenCalled();
+      // Should NOT call updateRow - internal field names are generated on-the-fly
+      expect(mockTablesDB.updateRow).not.toHaveBeenCalled();
 
       expect(statusMock).toHaveBeenCalledWith(200);
       
@@ -193,12 +198,12 @@ describe('/api/custom-fields - Custom Fields Management API', () => {
 
     it('should handle empty custom fields list', async () => {
       // First call is for user profile lookup in middleware
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
       
       // Role lookup in middleware
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -213,15 +218,15 @@ describe('/api/custom-fields - Custom Fields Management API', () => {
       const selectField = { ...mockCustomField2, $id: 'field-5', fieldType: 'select' };
 
       // First call is for user profile lookup in middleware
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
         .mockResolvedValueOnce({
-          documents: [textField, numberField, dateField, selectField],
+          rows: [textField, numberField, dateField, selectField],
           total: 4,
         });
       
       // Role lookup in middleware
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -264,24 +269,24 @@ describe('/api/custom-fields - Custom Fields Management API', () => {
         $updatedAt: '2024-01-05T00:00:00.000Z',
       };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockUserProfile],
         total: 1,
       });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockEventSettings);
 
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce(newField)
         .mockResolvedValueOnce({ $id: 'log-123' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID,
         expect.any(String),
         expect.objectContaining({
           eventSettingsId: 'event-settings-123',
@@ -306,12 +311,12 @@ describe('/api/custom-fields - Custom Fields Management API', () => {
         }),
       };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockUserProfile],
         total: 1,
       });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(noPermRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(noPermRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -327,12 +332,12 @@ describe('/api/custom-fields - Custom Fields Management API', () => {
         fieldType: 'text',
       };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockUserProfile],
         total: 1,
       });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -346,12 +351,12 @@ describe('/api/custom-fields - Custom Fields Management API', () => {
         fieldType: 'text',
       };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockUserProfile],
         total: 1,
       });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -365,12 +370,12 @@ describe('/api/custom-fields - Custom Fields Management API', () => {
         fieldName: 'Job Title',
       };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockUserProfile],
         total: 1,
       });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -379,12 +384,12 @@ describe('/api/custom-fields - Custom Fields Management API', () => {
     });
 
     it('should return 404 if event settings not found', async () => {
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockUserProfile],
         total: 1,
       });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockRejectedValueOnce(new Error('Not found'));
 
@@ -403,15 +408,15 @@ describe('/api/custom-fields - Custom Fields Management API', () => {
 
       const lastField = { ...mockCustomField2, order: 5 };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [lastField], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [lastField], total: 1 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockEventSettings);
 
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce({
           $id: 'new-field-123',
           order: 6,
@@ -420,9 +425,9 @@ describe('/api/custom-fields - Custom Fields Management API', () => {
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID,
         expect.any(String),
         expect.objectContaining({
           order: 6,
@@ -437,15 +442,15 @@ describe('/api/custom-fields - Custom Fields Management API', () => {
         fieldType: 'text',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockEventSettings);
 
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce({
           $id: 'new-field-123',
           order: 1,
@@ -454,9 +459,9 @@ describe('/api/custom-fields - Custom Fields Management API', () => {
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID,
         expect.any(String),
         expect.objectContaining({
           order: 1,
@@ -473,16 +478,16 @@ describe('/api/custom-fields - Custom Fields Management API', () => {
         order: 1,
       };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockUserProfile],
         total: 1,
       });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockEventSettings);
 
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce({
           $id: 'new-field-123',
           fieldOptions: JSON.stringify(['Engineering', 'Sales', 'Marketing']),
@@ -491,9 +496,9 @@ describe('/api/custom-fields - Custom Fields Management API', () => {
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID,
         expect.any(String),
         expect.objectContaining({
           fieldOptions: JSON.stringify(['Engineering', 'Sales', 'Marketing']),
@@ -510,16 +515,16 @@ describe('/api/custom-fields - Custom Fields Management API', () => {
         order: 1,
       };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockUserProfile],
         total: 1,
       });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockEventSettings);
 
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce({
           $id: 'new-field-123',
           fieldOptions: '["Engineering","Sales","Marketing"]',
@@ -528,9 +533,9 @@ describe('/api/custom-fields - Custom Fields Management API', () => {
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID,
         expect.any(String),
         expect.objectContaining({
           fieldOptions: '["Engineering","Sales","Marketing"]',
@@ -546,16 +551,16 @@ describe('/api/custom-fields - Custom Fields Management API', () => {
         order: 1,
       };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockUserProfile],
         total: 1,
       });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockEventSettings);
 
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce({
           $id: 'new-field-123',
           fieldOptions: null,
@@ -564,9 +569,9 @@ describe('/api/custom-fields - Custom Fields Management API', () => {
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID,
         expect.any(String),
         expect.objectContaining({
           fieldOptions: null,
@@ -582,16 +587,16 @@ describe('/api/custom-fields - Custom Fields Management API', () => {
         order: 1,
       };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockUserProfile],
         total: 1,
       });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockEventSettings);
 
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce({
           $id: 'new-field-123',
           required: false,
@@ -600,9 +605,9 @@ describe('/api/custom-fields - Custom Fields Management API', () => {
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID,
         expect.any(String),
         expect.objectContaining({
           required: false,
@@ -624,24 +629,24 @@ describe('/api/custom-fields - Custom Fields Management API', () => {
         $updatedAt: '2024-01-05T00:00:00.000Z',
       };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockUserProfile],
         total: 1,
       });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockEventSettings);
 
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce(newField)
         .mockResolvedValueOnce({ $id: 'log-123' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
         expect.any(String),
         expect.objectContaining({
           userId: mockAuthUser.$id,
@@ -659,16 +664,16 @@ describe('/api/custom-fields - Custom Fields Management API', () => {
         order: 1,
       };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockUserProfile],
         total: 1,
       });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockEventSettings);
 
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce({
           $id: 'new-field-123',
           internalFieldName: 'company_name',
@@ -677,9 +682,9 @@ describe('/api/custom-fields - Custom Fields Management API', () => {
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID,
         expect.any(String),
         expect.objectContaining({
           internalFieldName: 'company_name',
@@ -695,16 +700,16 @@ describe('/api/custom-fields - Custom Fields Management API', () => {
         order: 1,
       };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockUserProfile],
         total: 1,
       });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockEventSettings);
 
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce({
           $id: 'new-field-123',
           showOnMainPage: true,
@@ -713,9 +718,9 @@ describe('/api/custom-fields - Custom Fields Management API', () => {
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID,
         expect.any(String),
         expect.objectContaining({
           showOnMainPage: true,
@@ -731,12 +736,12 @@ describe('/api/custom-fields - Custom Fields Management API', () => {
         showOnMainPage: 'invalid', // Invalid type
       };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockUserProfile],
         total: 1,
       });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -764,7 +769,7 @@ describe('/api/custom-fields - Custom Fields Management API', () => {
     it('should handle database errors gracefully', async () => {
       const dbError = new Error('Database error');
       (dbError as any).code = 500;
-      mockDatabases.listDocuments.mockRejectedValueOnce(dbError);
+      mockTablesDB.listRows.mockRejectedValueOnce(dbError);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -781,7 +786,7 @@ describe('/api/custom-fields - Custom Fields Management API', () => {
     it('should handle Appwrite 404 errors', async () => {
       const notFoundError = new Error('Not found');
       (notFoundError as any).code = 404;
-      mockDatabases.listDocuments.mockRejectedValueOnce(notFoundError);
+      mockTablesDB.listRows.mockRejectedValueOnce(notFoundError);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -798,7 +803,7 @@ describe('/api/custom-fields - Custom Fields Management API', () => {
     it('should handle Appwrite 409 conflict errors', async () => {
       const conflictError = new Error('Conflict');
       (conflictError as any).code = 409;
-      mockDatabases.listDocuments.mockRejectedValueOnce(conflictError);
+      mockTablesDB.listRows.mockRejectedValueOnce(conflictError);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 

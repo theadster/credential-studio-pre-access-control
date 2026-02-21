@@ -33,7 +33,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
   }
 
   const { user, userProfile } = req;
-  const { databases } = createSessionClient(req);
+  const { tablesDB } = createSessionClient(req);
 
   // Check permissions - need scan logs export permission
   const permissions = userProfile.role ? userProfile.role.permissions : {};
@@ -50,10 +50,10 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
   }
 
   const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-  const scanLogsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_SCAN_LOGS_COLLECTION_ID!;
-  const usersCollectionId = process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!;
-  const attendeesCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID!;
-  const profilesCollectionId = process.env.NEXT_PUBLIC_APPWRITE_APPROVAL_PROFILES_COLLECTION_ID!;
+  const scanLogsTableId = process.env.NEXT_PUBLIC_APPWRITE_SCAN_LOGS_TABLE_ID!;
+  const usersTableId = process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID!;
+  const attendeesTableId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID!;
+  const profilesTableId = process.env.NEXT_PUBLIC_APPWRITE_APPROVAL_PROFILES_TABLE_ID!;
 
   try {
     const { fields, filters, timezone = 'UTC' } = req.body;
@@ -117,23 +117,23 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
     while (hasMore && totalFetched < MAX_RECORDS) {
       const batchQueries = [...queries, Query.limit(batchSize), Query.offset(offset)];
-      const logsResponse = await databases.listDocuments(
+      const logsResponse = await tablesDB.listRows(
         dbId,
-        scanLogsCollectionId,
+        scanLogsTableId,
         batchQueries
       );
 
       const remainingCapacity = MAX_RECORDS - totalFetched;
-      const logsToAdd = logsResponse.documents.slice(0, remainingCapacity);
+      const logsToAdd = logsResponse.rows.slice(0, remainingCapacity);
       
       allLogs = allLogs.concat(logsToAdd);
       totalFetched += logsToAdd.length;
 
       // Check if we've hit the cap
-      if (logsToAdd.length < logsResponse.documents.length || totalFetched >= MAX_RECORDS) {
+      if (logsToAdd.length < logsResponse.rows.length || totalFetched >= MAX_RECORDS) {
         hasMore = false;
-        isCapped = totalFetched >= MAX_RECORDS && logsResponse.documents.length >= batchSize;
-      } else if (logsResponse.documents.length < batchSize) {
+        isCapped = totalFetched >= MAX_RECORDS && logsResponse.rows.length >= batchSize;
+      } else if (logsResponse.rows.length < batchSize) {
         hasMore = false;
       } else {
         offset += batchSize;
@@ -155,12 +155,12 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       for (let i = 0; i < operatorIds.length; i += 100) {
         const chunk = operatorIds.slice(i, i + 100);
         try {
-          const usersResult = await databases.listDocuments(
+          const usersResult = await tablesDB.listRows(
             dbId,
-            usersCollectionId,
+            usersTableId,
             [Query.equal('userId', chunk), Query.limit(100)]
           );
-          usersResult.documents.forEach((doc: any) => {
+          usersResult.rows.forEach((doc: any) => {
             operatorMap.set(doc.userId, { name: doc.name, email: doc.email });
           });
         } catch (e) { /* skip if fetch fails */ }
@@ -172,12 +172,12 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       for (let i = 0; i < attendeeIds.length; i += 100) {
         const chunk = attendeeIds.slice(i, i + 100);
         try {
-          const attendeesResult = await databases.listDocuments(
+          const attendeesResult = await tablesDB.listRows(
             dbId,
-            attendeesCollectionId,
+            attendeesTableId,
             [Query.equal('$id', chunk), Query.limit(100)]
           );
-          attendeesResult.documents.forEach((doc: any) => {
+          attendeesResult.rows.forEach((doc: any) => {
             attendeeMap.set(doc.$id, { firstName: doc.firstName, lastName: doc.lastName });
           });
         } catch (e) { /* skip if fetch fails */ }
@@ -189,12 +189,12 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       for (let i = 0; i < profileIds.length; i += 100) {
         const chunk = profileIds.slice(i, i + 100);
         try {
-          const profilesResult = await databases.listDocuments(
+          const profilesResult = await tablesDB.listRows(
             dbId,
-            profilesCollectionId,
+            profilesTableId,
             [Query.equal('$id', chunk), Query.limit(100)]
           );
-          profilesResult.documents.forEach((doc: any) => {
+          profilesResult.rows.forEach((doc: any) => {
             profileMap.set(doc.$id, { name: doc.name });
           });
         } catch (e) { /* skip if fetch fails */ }
@@ -299,9 +299,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     // Log the export action
     if (await shouldLog('scanLogsExport')) {
       try {
-        await databases.createDocument(
+        await tablesDB.createRow(
           dbId,
-          process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+          process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
           ID.unique(),
           {
             userId: user.$id,

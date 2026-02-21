@@ -1186,7 +1186,7 @@ export default function Dashboard() {
    * not here, to ensure freshness is only marked on successful data retrieval
    */
   useRealtimeSubscription({
-    channels: [`databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID}.documents`],
+    channels: [`databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.tables.${process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID}.rows`],
     callback: useCallback((response: any) => {
       console.log('Attendee change received!', response);
       debouncedRefreshAttendees();
@@ -1206,7 +1206,7 @@ export default function Dashboard() {
    * not here, to ensure freshness is only marked on successful data retrieval
    */
   useRealtimeSubscription({
-    channels: [`databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID}.documents`],
+    channels: [`databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.tables.${process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID}.rows`],
     callback: useCallback((response: any) => {
       console.log('Users change received!', response);
       debouncedRefreshUsers();
@@ -1226,7 +1226,7 @@ export default function Dashboard() {
    * not here, to ensure freshness is only marked on successful data retrieval
    */
   useRealtimeSubscription({
-    channels: [`databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID}.documents`],
+    channels: [`databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.tables.${process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID}.rows`],
     callback: useCallback((response: any) => {
       console.log('Roles change received!', response);
       debouncedRefreshRoles();
@@ -1249,8 +1249,8 @@ export default function Dashboard() {
    */
   useRealtimeSubscription({
     channels: [
-      `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID}.documents`,
-      `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID}.documents`
+      `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.tables.${process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID}.rows`,
+      `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.tables.${process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID}.rows`
     ],
     callback: useCallback((response: any) => {
       console.log('Event settings or custom fields change received!', response);
@@ -1278,7 +1278,7 @@ export default function Dashboard() {
    * so no need for redundant checks in the callback
    */
   useRealtimeSubscription({
-    channels: [`databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID}.documents`],
+    channels: [`databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.tables.${process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID}.rows`],
     callback: useCallback((response: any) => {
       console.log('Logs change received!', response);
       debouncedLoadLogs();

@@ -6,14 +6,14 @@ import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
 import { logger } from '@/lib/logger';
 
 /**
- * Enriches a log document with related user and attendee data
+ * Enriches a log row with related user and attendee data
  */
 async function enrichLogWithRelations(
   log: any,
-  databases: any,
+  tablesDB: any,
   dbId: string,
-  usersCollectionId: string,
-  attendeesCollectionId: string
+  usersTableId: string,
+  attendeesTableId: string
 ) {
   let userDoc = null;
   let attendeeDoc = null;
@@ -21,13 +21,13 @@ async function enrichLogWithRelations(
   // Fetch user if userId exists
   if (log.userId) {
     try {
-      const userDocs = await databases.listDocuments(
+      const userDocs = await tablesDB.listRows(
         dbId,
-        usersCollectionId,
+        usersTableId,
         [Query.equal('userId', log.userId)]
       );
-      if (userDocs.documents.length > 0) {
-        const user = userDocs.documents[0];
+      if (userDocs.rows.length > 0) {
+        const user = userDocs.rows[0];
         userDoc = {
           id: user.userId,
           email: user.email,
@@ -42,9 +42,9 @@ async function enrichLogWithRelations(
   // Fetch attendee if attendeeId exists
   if (log.attendeeId) {
     try {
-      attendeeDoc = await databases.getDocument(
+      attendeeDoc = await tablesDB.getRow(
         dbId,
-        attendeesCollectionId,
+        attendeesTableId,
         log.attendeeId
       );
       attendeeDoc = {
@@ -91,7 +91,7 @@ async function enrichLogWithRelations(
  * Requires authentication via withAuth middleware
  */
 async function handleGet(req: AuthenticatedRequest, res: NextApiResponse) {
-  const { databases: getDatabases } = createSessionClient(req);
+  const { tablesDB: getTablesDB } = createSessionClient(req);
   const { page = '1', limit = '50', action: actionFilter, userId: filterUserId } = req.query;
 
   const pageNum = parseInt(page as string);
@@ -118,21 +118,21 @@ async function handleGet(req: AuthenticatedRequest, res: NextApiResponse) {
   queries.push(Query.offset(skip));
 
   // Fetch logs from Appwrite
-  const logsResponse = await getDatabases.listDocuments(
+  const logsResponse = await getTablesDB.listRows(
     process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-    process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+    process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
     queries
   );
 
   // Fetch related user and attendee data for each log
   const logsWithRelations = await Promise.all(
-    logsResponse.documents.map(log =>
+    logsResponse.rows.map(log =>
       enrichLogWithRelations(
         log,
-        getDatabases,
+        getTablesDB,
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
-        process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID!
+        process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID!,
+        process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID!
       )
     )
   );
@@ -161,9 +161,9 @@ async function handleGet(req: AuthenticatedRequest, res: NextApiResponse) {
   allLogsQueries.push(Query.orderDesc('$createdAt'));
   allLogsQueries.push(Query.limit(10000)); // Fetch up to 10k logs for metrics
 
-  const allLogsResponse = await getDatabases.listDocuments(
+  const allLogsResponse = await getTablesDB.listRows(
     process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-    process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+    process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
     allLogsQueries
   );
 
@@ -174,14 +174,14 @@ async function handleGet(req: AuthenticatedRequest, res: NextApiResponse) {
     totalTodayCount: 0
   };
 
-  if (allLogsResponse.documents.length > 0) {
+  if (allLogsResponse.rows.length > 0) {
     // Calculate most common action across all logs
     const actionCounts: Record<string, number> = {};
     const activeUserIds = new Set<string>();
     const today = new Date().toDateString();
     let todayCount = 0;
 
-    allLogsResponse.documents.forEach(log => {
+    allLogsResponse.rows.forEach(log => {
       // Count actions
       actionCounts[log.action] = (actionCounts[log.action] || 0) + 1;
 
@@ -259,7 +259,7 @@ async function handlePost(req: AuthenticatedRequest, res: NextApiResponse) {
     // For authentication events (login/logout), use admin client since user may not be authenticated yet
     // For other events, use session client with authenticated user
     const isAuthEvent = action === 'auth_login' || action === 'auth_logout';
-    let postDatabases;
+    let postTablesDB;
     let logUserId;
 
     logger.debug('[Logs API] Determining client type', { action, isAuthEvent });
@@ -268,7 +268,7 @@ async function handlePost(req: AuthenticatedRequest, res: NextApiResponse) {
       // Use admin client for auth events (user may not be authenticated yet during login)
       const { createAdminClient } = await import('@/lib/appwrite');
       const adminClient = createAdminClient();
-      postDatabases = adminClient.databases;
+      postTablesDB = adminClient.tablesDB;
       
       // For auth events, userId MUST be provided in request body
       if (!requestUserId) {
@@ -282,19 +282,19 @@ async function handlePost(req: AuthenticatedRequest, res: NextApiResponse) {
         logger.error('[Logs API] Unauthorized - no user for non-auth event', { action });
         return res.status(401).json({ error: 'Unauthorized' });
       }
-      const { databases: sessionDatabases } = createSessionClient(req);
-      postDatabases = sessionDatabases;
+      const { tablesDB: sessionTablesDB } = createSessionClient(req);
+      postTablesDB = sessionTablesDB;
       logUserId = requestUserId || req.user.$id;
     }
 
-    logger.debug('[Logs API] Creating log document', { action, hasAttendeeId: !!attendeeId });
+    logger.debug('[Logs API] Creating log row', { action, hasAttendeeId: !!attendeeId });
 
-    // Create log document in Appwrite with timestamp
+    // Create log row in Appwrite with timestamp
     // Note: For auth events using admin client, we can't use operators (no TablesDB proxy)
     // So we use a regular ISO timestamp instead
-    const newLog = await postDatabases.createDocument(
+    const newLog = await postTablesDB.createRow(
       process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-      process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+      process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
       ID.unique(),
       {
         userId: logUserId,
@@ -305,15 +305,15 @@ async function handlePost(req: AuthenticatedRequest, res: NextApiResponse) {
       }
     );
 
-    logger.debug('[Logs API] Log document created', { action, logId: newLog.$id });
+    logger.debug('[Logs API] Log row created', { action, logId: newLog.$id });
 
     // Enrich the new log with related user and attendee data
     const enrichedLog = await enrichLogWithRelations(
       newLog,
-      postDatabases,
+      postTablesDB,
       process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-      process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
-      process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID!
+      process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID!,
+      process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID!
     );
 
     logger.info('[Logs API] Log created successfully', { action, logId: enrichedLog.id });

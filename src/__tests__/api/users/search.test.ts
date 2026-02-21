@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextApiRequest, NextApiResponse } from 'next';
-import searchHandler from '../search';
+import searchHandler from '@/pages/api/users/search';
 
 // Mock dependencies
 vi.mock('@/lib/appwrite', () => ({
@@ -39,7 +39,7 @@ describe('POST /api/users/search', () => {
   };
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
 
     jsonMock = vi.fn();
     statusMock = vi.fn(() => ({ json: jsonMock }));
@@ -92,15 +92,15 @@ describe('POST /api/users/search', () => {
       total: 1,
     });
 
-    const mockDatabases = {
-      listDocuments: vi.fn().mockResolvedValue({
-        documents: [mockLinkedUser],
+    const mockTablesDB = {
+      listRows: vi.fn().mockResolvedValue({
+        rows: [mockLinkedUser],
       }),
     };
 
     vi.mocked(createAdminClient).mockReturnValue({
       users: { list: mockUsers },
-      databases: mockDatabases,
+      tablesDB: mockTablesDB,
     } as any);
 
     req.userProfile = {
@@ -116,7 +116,7 @@ describe('POST /api/users/search', () => {
     await searchHandler(req as any, res as any);
 
     expect(mockUsers).toHaveBeenCalled();
-    expect(mockDatabases.listDocuments).toHaveBeenCalled();
+    expect(mockTablesDB.listRows).toHaveBeenCalled();
     expect(statusMock).toHaveBeenCalledWith(200);
     expect(jsonMock).toHaveBeenCalledWith({
       users: [
@@ -147,15 +147,15 @@ describe('POST /api/users/search', () => {
       total: 1,
     });
 
-    const mockDatabases = {
-      listDocuments: vi.fn().mockResolvedValue({
-        documents: [{ userId: 'auth-user-2' }],
+    const mockTablesDB = {
+      listRows: vi.fn().mockResolvedValue({
+        rows: [{ userId: 'auth-user-2' }],
       }),
     };
 
     vi.mocked(createAdminClient).mockReturnValue({
       users: { list: mockUsers },
-      databases: mockDatabases,
+      tablesDB: mockTablesDB,
     } as any);
 
     req.userProfile = {
@@ -182,15 +182,15 @@ describe('POST /api/users/search', () => {
       total: 50,
     });
 
-    const mockDatabases = {
-      listDocuments: vi.fn().mockResolvedValue({
-        documents: [],
+    const mockTablesDB = {
+      listRows: vi.fn().mockResolvedValue({
+        rows: [],
       }),
     };
 
     vi.mocked(createAdminClient).mockReturnValue({
       users: { list: mockUsers },
-      databases: mockDatabases,
+      tablesDB: mockTablesDB,
     } as any);
 
     req.userProfile = {
@@ -222,15 +222,15 @@ describe('POST /api/users/search', () => {
       total: 0,
     });
 
-    const mockDatabases = {
-      listDocuments: vi.fn().mockResolvedValue({
-        documents: [],
+    const mockTablesDB = {
+      listRows: vi.fn().mockResolvedValue({
+        rows: [],
       }),
     };
 
     vi.mocked(createAdminClient).mockReturnValue({
       users: { list: mockUsers },
-      databases: mockDatabases,
+      tablesDB: mockTablesDB,
     } as any);
 
     req.userProfile = {
@@ -257,15 +257,15 @@ describe('POST /api/users/search', () => {
       total: 0,
     });
 
-    const mockDatabases = {
-      listDocuments: vi.fn().mockResolvedValue({
-        documents: [],
+    const mockTablesDB = {
+      listRows: vi.fn().mockResolvedValue({
+        rows: [],
       }),
     };
 
     vi.mocked(createAdminClient).mockReturnValue({
       users: { list: mockUsers },
-      databases: mockDatabases,
+      tablesDB: mockTablesDB,
     } as any);
 
     req.userProfile = {
@@ -312,15 +312,15 @@ describe('POST /api/users/search', () => {
       total: 0,
     });
 
-    const mockDatabases = {
-      listDocuments: vi.fn().mockResolvedValue({
-        documents: [],
+    const mockTablesDB = {
+      listRows: vi.fn().mockResolvedValue({
+        rows: [],
       }),
     };
 
     vi.mocked(createAdminClient).mockReturnValue({
       users: { list: mockUsers },
-      databases: mockDatabases,
+      tablesDB: mockTablesDB,
     } as any);
 
     req.userProfile = {

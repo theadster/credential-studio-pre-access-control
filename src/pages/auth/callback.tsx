@@ -19,7 +19,7 @@ const createCookieString = (name: string, value: string, maxAge: number = 60 * 6
 
 export default function AuthCallback() {
   const router = useRouter()
-  const { account, databases } = createBrowserClient()
+  const { account, tablesDB } = createBrowserClient()
   const { success, error } = useSweetAlert()
   const [processing, setProcessing] = useState(true)
   const callbackExecuted = useRef(false)
@@ -45,22 +45,22 @@ export default function AuthCallback() {
   const createUserProfile = async (userId: string, email: string, name?: string): Promise<boolean> => {
     try {
       // Check if user profile already exists
-      const response = await databases.listDocuments(
+      const response = await tablesDB.listRows(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+        process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID!,
         [Query.equal('userId', userId)]
       );
 
-      if (response.documents.length === 0) {
+      if (response.rows.length === 0) {
         // Create user profile in database with retry logic
         const maxRetries = 3;
         let lastError: any;
 
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
           try {
-            await databases.createDocument(
+            await tablesDB.createRow(
               process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-              process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+              process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID!,
               ID.unique(),
               {
                 userId,

@@ -5,7 +5,7 @@ import { Query, ID } from 'appwrite';
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     // Create session client
-    const { account, databases } = createSessionClient(req);
+    const { account, tablesDB } = createSessionClient(req);
     
     // Verify authentication
     const user = await account.get();
@@ -16,28 +16,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Get current user's role for permission checking
-    const userDocs = await databases.listDocuments(
-      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-      process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
-      [Query.equal('userId', user.$id)]
-    );
+    const userDocs = await tablesDB.listRows({
+      databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+      tableId: process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID!,
+      queries: [Query.equal('userId', user.$id)]
+    });
 
-    if (userDocs.documents.length === 0) {
+    if (userDocs.rows.length === 0) {
       return res.status(403).json({ error: 'User not found or no role assigned' });
     }
 
-    const userProfile = userDocs.documents[0];
+    const userProfile = userDocs.rows[0];
 
     if (!userProfile.roleId) {
       return res.status(403).json({ error: 'User not found or no role assigned' });
     }
 
     // Get user's role
-    const currentUserRole = await databases.getDocument(
-      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-      process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
-      userProfile.roleId
-    );
+    const currentUserRole = await tablesDB.getRow({
+      databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+      tableId: process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
+      rowId: userProfile.roleId
+    });
 
     // Only allow Super Administrators to run this fix
     if (currentUserRole.name !== 'Super Administrator') {
@@ -45,17 +45,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Find the Super Administrator role
-    const superAdminRoleDocs = await databases.listDocuments(
-      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-      process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
-      [Query.equal('name', 'Super Administrator')]
-    );
+    const superAdminRoleDocs = await tablesDB.listRows({
+      databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+      tableId: process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
+      queries: [Query.equal('name', 'Super Administrator')]
+    });
 
-    if (superAdminRoleDocs.documents.length === 0) {
+    if (superAdminRoleDocs.rows.length === 0) {
       return res.status(404).json({ error: 'Super Administrator role not found' });
     }
 
-    const superAdminRole = superAdminRoleDocs.documents[0];
+    const superAdminRole = superAdminRoleDocs.rows[0];
 
     // Parse current permissions
     let currentPermissions;
@@ -87,22 +87,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     };
 
     // Update the role
-    const updatedRole = await databases.updateDocument(
-      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-      process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
-      superAdminRole.$id,
-      {
+    const updatedRole = await tablesDB.updateRow({
+      databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+      tableId: process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
+      rowId: superAdminRole.$id,
+      data: {
         permissions: JSON.stringify(updatedPermissions)
       }
-    );
+    });
 
     // Log the fix action
     try {
-      await databases.createDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
-        ID.unique(),
-        {
+      await tablesDB.createRow({
+        databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
+        rowId: ID.unique(),
+        data: {
           userId: user.$id,
           action: 'update',
           details: JSON.stringify({ 
@@ -112,7 +112,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             addedPermission: 'logs:delete'
           })
         }
-      );
+      });
     } catch (logError) {
       console.error('Error creating log:', logError);
       // Continue even if logging fails

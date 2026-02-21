@@ -61,7 +61,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
   }
 
   const { userProfile } = req;
-  const { databases } = createSessionClient(req);
+  const { tablesDB } = createSessionClient(req);
 
   // Requirement 2.2, 2.3: Check permissions for mobile access
   // Mobile access requires attendees read permission
@@ -76,9 +76,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
   }
 
   const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-  const attendeesCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID!;
-  const accessControlCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ACCESS_CONTROL_COLLECTION_ID!;
-  const customFieldsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID!;
+  const attendeesTableId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID!;
+  const accessControlTableId = process.env.NEXT_PUBLIC_APPWRITE_ACCESS_CONTROL_TABLE_ID!;
+  const customFieldsTableId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID!;
 
   try {
     // Requirement 1.6: Extract and validate barcode parameter from route
@@ -105,21 +105,21 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     }
 
     // Requirement 1.1: Query attendees collection by barcode number
-    const attendeesResult = await databases.listDocuments(
+    const attendeesResult = await tablesDB.listRows(
       dbId,
-      attendeesCollectionId,
+      attendeesTableId,
       [Query.equal('barcodeNumber', decodedBarcode), Query.limit(1)]
     );
 
     // Requirement 1.5: Handle case where attendee is not found (404 response)
-    if (attendeesResult.documents.length === 0) {
+    if (attendeesResult.rows.length === 0) {
       return res.status(404).json({
         error: 'NOT_FOUND',
         message: 'Attendee not found'
       });
     }
 
-    const attendee = attendeesResult.documents[0];
+    const attendee = attendeesResult.rows[0];
 
     // Requirement 1.2: Retrieve core fields
     const coreData = {
@@ -140,14 +140,14 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     };
 
     try {
-      const accessControlResult = await databases.listDocuments(
+      const accessControlResult = await tablesDB.listRows(
         dbId,
-        accessControlCollectionId,
+        accessControlTableId,
         [Query.equal('attendeeId', attendee.$id), Query.limit(1)]
       );
 
-      if (accessControlResult.documents.length > 0) {
-        const ac = accessControlResult.documents[0];
+      if (accessControlResult.rows.length > 0) {
+        const ac = accessControlResult.rows[0];
         accessControl = {
           accessEnabled: ac.accessEnabled ?? true,
           validFrom: ac.validFrom || null,
@@ -165,15 +165,15 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
     try {
       // Fetch custom field definitions for field name mapping
-      const customFieldsResult = await databases.listDocuments(
+      const customFieldsResult = await tablesDB.listRows(
         dbId,
-        customFieldsCollectionId,
+        customFieldsTableId,
         [Query.limit(1000)]
       );
 
       const fieldNameMap = new Map<string, string>();
       const fieldInternalMap = new Map<string, string>();
-      customFieldsResult.documents.forEach((field: any) => {
+      customFieldsResult.rows.forEach((field: any) => {
         if (field.$id && field.fieldName) {
           fieldNameMap.set(field.$id, field.fieldName);
         }

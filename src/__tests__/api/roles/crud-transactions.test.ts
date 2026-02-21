@@ -18,27 +18,19 @@
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import indexHandler from '../index';
-import idHandler from '../[id]';
-import { mockAccount, mockDatabases, resetAllMocks } from '@/test/mocks/appwrite';
-
-// Mock TablesDB
-const mockTablesDB = {
-  createTransaction: vi.fn(),
-  createOperations: vi.fn(),
-  updateTransaction: vi.fn(),
-};
+import indexHandler from '@/pages/api/roles/index';
+import idHandler from '@/pages/api/roles/[id]';
+import { mockAccount, mockTablesDB, mockAdminTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn((req: NextApiRequest) => ({
     account: mockAccount,
-    databases: mockDatabases,
     tablesDB: mockTablesDB,
+
   })),
   createAdminClient: vi.fn(() => ({
-    databases: mockDatabases,
-    tablesDB: mockTablesDB,
+    tablesDB: mockAdminTablesDB,
   })),
 }));
 
@@ -178,13 +170,14 @@ describe('/api/roles CRUD - Transaction Integration Tests', () => {
       mockTablesDB.updateTransaction.mockResolvedValue(undefined);
 
       // Mock role name uniqueness check
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [],
         total: 0,
       });
 
-      // Mock getDocument to return created role
-      mockDatabases.getDocument.mockResolvedValue(newRole);
+      // Mock getRow to return created role
+      mockTablesDB.getRow.mockResolvedValue(newRole);
+    mockAdminTablesDB.getRow.mockResolvedValue(newRole);
 
       mockReq.method = 'POST';
       mockReq.body = {
@@ -208,7 +201,7 @@ describe('/api/roles CRUD - Transaction Integration Tests', () => {
       // Verify role creation operation
       expect(operations[0]).toMatchObject({
         action: 'create',
-        tableId: process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID,
+        tableId: process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID,
         data: {
           name: 'Test Role',
           description: 'Test role description',
@@ -221,7 +214,7 @@ describe('/api/roles CRUD - Transaction Integration Tests', () => {
       // Verify audit log operation
       expect(operations[1]).toMatchObject({
         action: 'create',
-        tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+        tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
         data: {
           userId: mockAuthUser.$id,
           action: 'create',
@@ -260,8 +253,8 @@ describe('/api/roles CRUD - Transaction Integration Tests', () => {
       mockTablesDB.updateTransaction.mockResolvedValue(undefined);
 
       // Mock role name uniqueness check
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [],
         total: 0,
       });
 
@@ -296,8 +289,8 @@ describe('/api/roles CRUD - Transaction Integration Tests', () => {
 
     it('should reject duplicate role names', async () => {
       // Mock existing role with same name
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [{ $id: 'existing-role', name: 'Test Role' }],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [{ $id: 'existing-role', name: 'Test Role' }],
         total: 1,
       });
 
@@ -377,18 +370,18 @@ describe('/api/roles CRUD - Transaction Integration Tests', () => {
       mockTablesDB.updateTransaction.mockResolvedValue(undefined);
 
       // Mock user profile and role fetch
-      mockDatabases.listDocuments
+      mockTablesDB.listRows
         .mockResolvedValueOnce({ // User profile fetch
-          documents: [mockUserProfile],
+          rows: [mockUserProfile],
           total: 1,
         })
         .mockResolvedValueOnce({ // Role name uniqueness check
-          documents: [],
+          rows: [],
           total: 0,
         });
 
-      // Mock getDocument to return existing role first, then updated
-      mockDatabases.getDocument
+      // Mock getRow to return existing role first, then updated
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockSuperAdminRole) // User's role
         .mockResolvedValueOnce(existingRole) // Existing role to update
         .mockResolvedValueOnce(updatedRole); // After update
@@ -416,7 +409,7 @@ describe('/api/roles CRUD - Transaction Integration Tests', () => {
       // Verify update operation
       expect(operations[0]).toMatchObject({
         action: 'update',
-        tableId: process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID,
+        tableId: process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID,
         rowId: roleId,
         data: expect.objectContaining({
           name: 'Updated Role',
@@ -427,7 +420,7 @@ describe('/api/roles CRUD - Transaction Integration Tests', () => {
       // Verify audit log operation
       expect(operations[1]).toMatchObject({
         action: 'create',
-        tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+        tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
         data: {
           userId: mockAuthUser.$id,
           action: 'update',
@@ -459,22 +452,22 @@ describe('/api/roles CRUD - Transaction Integration Tests', () => {
       mockTablesDB.updateTransaction.mockResolvedValue(undefined);
 
       // Mock user profile and role fetch
-      mockDatabases.listDocuments
+      mockTablesDB.listRows
         .mockResolvedValueOnce({ // User profile fetch
-          documents: [mockUserProfile],
+          rows: [mockUserProfile],
           total: 1,
         })
         .mockResolvedValueOnce({ // Role name uniqueness check
-          documents: [],
+          rows: [],
           total: 0,
         });
 
-      // Mock getDocument to return roles
+      // Mock getRow to return roles
       const mockSuperAdminRoleWithStringPerms = {
         ...mockSuperAdminRole,
         permissions: JSON.stringify(mockSuperAdminRole.permissions),
       };
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockSuperAdminRoleWithStringPerms) // User's role
         .mockResolvedValueOnce(existingRole); // Existing role to update
 
@@ -505,13 +498,13 @@ describe('/api/roles CRUD - Transaction Integration Tests', () => {
 
     it('should prevent updating non-existent role', async () => {
       // Mock user profile fetch
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockUserProfile],
         total: 1,
       });
 
-      // Mock getDocument to return user's role, then throw 404 for target role
-      mockDatabases.getDocument
+      // Mock getRow to return user's role, then throw 404 for target role
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockSuperAdminRole) // User's role
         .mockRejectedValueOnce(
           Object.assign(new Error('Role not found'), { code: 404 })
@@ -559,16 +552,16 @@ describe('/api/roles CRUD - Transaction Integration Tests', () => {
       };
 
       // Mock user profile fetch
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [{
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [{
           ...mockUserProfile,
           roleId: 'role-staff',
         }],
         total: 1,
       });
 
-      // Mock getDocument to return staff role and super admin role
-      mockDatabases.getDocument
+      // Mock getRow to return staff role and super admin role
+      mockTablesDB.getRow
         .mockResolvedValueOnce(staffRole) // User's role
         .mockResolvedValueOnce(superAdminRole); // Target role to update
 
@@ -617,13 +610,13 @@ describe('/api/roles CRUD - Transaction Integration Tests', () => {
       mockTablesDB.updateTransaction.mockResolvedValue(undefined);
 
       // Mock user profile fetch
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockUserProfile],
         total: 1,
       });
 
-      // Mock getDocument to return user's role and existing role
-      mockDatabases.getDocument
+      // Mock getRow to return user's role and existing role
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockSuperAdminRole) // User's role
         .mockResolvedValueOnce(existingRole); // Role to delete
 
@@ -643,14 +636,14 @@ describe('/api/roles CRUD - Transaction Integration Tests', () => {
       // Verify delete operation
       expect(operations[0]).toMatchObject({
         action: 'delete',
-        tableId: process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID,
+        tableId: process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID,
         rowId: roleId,
       });
 
       // Verify audit log operation
       expect(operations[1]).toMatchObject({
         action: 'create',
-        tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+        tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
         data: {
           userId: mockAuthUser.$id,
           action: 'delete',
@@ -685,13 +678,13 @@ describe('/api/roles CRUD - Transaction Integration Tests', () => {
       mockTablesDB.updateTransaction.mockResolvedValue(undefined);
 
       // Mock user profile fetch
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockUserProfile],
         total: 1,
       });
 
-      // Mock getDocument to return roles
-      mockDatabases.getDocument
+      // Mock getRow to return roles
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockSuperAdminRole) // User's role
         .mockResolvedValueOnce(existingRole); // Role to delete
 
@@ -722,13 +715,13 @@ describe('/api/roles CRUD - Transaction Integration Tests', () => {
       };
 
       // Mock user profile fetch
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockUserProfile],
         total: 1,
       });
 
-      // Mock getDocument to return roles
-      mockDatabases.getDocument
+      // Mock getRow to return roles
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockSuperAdminRole) // User's role
         .mockResolvedValueOnce(superAdminRole); // Role to delete
 
@@ -754,13 +747,13 @@ describe('/api/roles CRUD - Transaction Integration Tests', () => {
       vi.mocked(getRoleUserCount).mockResolvedValue(5); // 5 users assigned
 
       // Mock user profile fetch
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockUserProfile],
         total: 1,
       });
 
-      // Mock getDocument to return roles
-      mockDatabases.getDocument
+      // Mock getRow to return roles
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockSuperAdminRole) // User's role
         .mockResolvedValueOnce(existingRole); // Role to delete
 
@@ -783,13 +776,13 @@ describe('/api/roles CRUD - Transaction Integration Tests', () => {
 
     it('should return 404 when role not found', async () => {
       // Mock user profile fetch
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockUserProfile],
         total: 1,
       });
 
-      // Mock getDocument to return user's role, then throw 404 for target role
-      mockDatabases.getDocument
+      // Mock getRow to return user's role, then throw 404 for target role
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockSuperAdminRole) // User's role
         .mockRejectedValueOnce(
           Object.assign(new Error('Role not found'), { code: 404 })
@@ -836,13 +829,14 @@ describe('/api/roles CRUD - Transaction Integration Tests', () => {
       mockTablesDB.updateTransaction.mockResolvedValue(undefined);
 
       // Mock role name uniqueness check
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [],
         total: 0,
       });
 
-      // Mock getDocument to return created role
-      mockDatabases.getDocument.mockResolvedValue(newRole);
+      // Mock getRow to return created role
+      mockTablesDB.getRow.mockResolvedValue(newRole);
+    mockAdminTablesDB.getRow.mockResolvedValue(newRole);
 
       mockReq.method = 'POST';
       mockReq.body = {
@@ -886,14 +880,14 @@ describe('/api/roles CRUD - Transaction Integration Tests', () => {
       mockTablesDB.updateTransaction.mockResolvedValue(undefined);
 
       // Mock user profile and role fetch
-      mockDatabases.listDocuments
+      mockTablesDB.listRows
         .mockResolvedValue({ // User profile fetch
-          documents: [mockUserProfile],
+          rows: [mockUserProfile],
           total: 1,
         });
 
-      // Mock getDocument
-      mockDatabases.getDocument
+      // Mock getRow
+      mockTablesDB.getRow
         .mockResolvedValue(mockSuperAdminRole) // User's role (multiple calls)
         .mockResolvedValueOnce(existingRole) // Existing role first call
         .mockResolvedValueOnce(existingRole); // Existing role retry call
@@ -941,13 +935,13 @@ describe('/api/roles CRUD - Transaction Integration Tests', () => {
       mockTablesDB.updateTransaction.mockResolvedValue(undefined);
 
       // Mock user profile fetch
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockUserProfile],
         total: 1,
       });
 
-      // Mock getDocument
-      mockDatabases.getDocument
+      // Mock getRow
+      mockTablesDB.getRow
         .mockResolvedValue(mockSuperAdminRole) // User's role (multiple calls)
         .mockResolvedValueOnce(existingRole) // Role to delete first call
         .mockResolvedValueOnce(existingRole); // Role to delete retry call
@@ -975,8 +969,8 @@ describe('/api/roles CRUD - Transaction Integration Tests', () => {
       mockTablesDB.updateTransaction.mockResolvedValue(undefined);
 
       // Mock role name uniqueness check
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [],
         total: 0,
       });
 
@@ -1024,12 +1018,13 @@ describe('/api/roles CRUD - Transaction Integration Tests', () => {
       mockTablesDB.createOperations.mockResolvedValue(undefined);
       mockTablesDB.updateTransaction.mockResolvedValue(undefined);
 
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [],
         total: 0,
       });
 
-      mockDatabases.getDocument.mockResolvedValue(newRole);
+      mockTablesDB.getRow.mockResolvedValue(newRole);
+    mockAdminTablesDB.getRow.mockResolvedValue(newRole);
 
       mockReq.method = 'POST';
       mockReq.body = {
@@ -1074,17 +1069,17 @@ describe('/api/roles CRUD - Transaction Integration Tests', () => {
       mockTablesDB.updateTransaction.mockResolvedValue(undefined);
 
       // Mock user profile and role fetch
-      mockDatabases.listDocuments
+      mockTablesDB.listRows
         .mockResolvedValueOnce({ // User profile fetch
-          documents: [mockUserProfile],
+          rows: [mockUserProfile],
           total: 1,
         })
         .mockResolvedValueOnce({ // Role name uniqueness check
-          documents: [],
+          rows: [],
           total: 0,
         });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockSuperAdminRole) // User's role
         .mockResolvedValueOnce(existingRole) // Existing role
         .mockResolvedValueOnce(existingRole); // After update
@@ -1130,12 +1125,12 @@ describe('/api/roles CRUD - Transaction Integration Tests', () => {
       mockTablesDB.updateTransaction.mockResolvedValue(undefined);
 
       // Mock user profile fetch
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockUserProfile],
         total: 1,
       });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockSuperAdminRole) // User's role
         .mockResolvedValueOnce(existingRole); // Role to delete
 
@@ -1213,15 +1208,16 @@ describe('/api/roles CRUD - Transaction Integration Tests', () => {
       };
 
       // Mock user profile fetch
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [{
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [{
           ...mockUserProfile,
           roleId: 'role-staff',
         }],
         total: 1,
       });
 
-      mockDatabases.getDocument.mockResolvedValue(staffRole);
+      mockTablesDB.getRow.mockResolvedValue(staffRole);
+    mockAdminTablesDB.getRow.mockResolvedValue(staffRole);
 
       mockReq.method = 'PUT';
       mockReq.query = { id: 'role-123' };
@@ -1258,15 +1254,16 @@ describe('/api/roles CRUD - Transaction Integration Tests', () => {
       };
 
       // Mock user profile fetch
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [{
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [{
           ...mockUserProfile,
           roleId: 'role-staff',
         }],
         total: 1,
       });
 
-      mockDatabases.getDocument.mockResolvedValue(staffRole);
+      mockTablesDB.getRow.mockResolvedValue(staffRole);
+    mockAdminTablesDB.getRow.mockResolvedValue(staffRole);
 
       mockReq.method = 'DELETE';
       mockReq.query = { id: 'role-123' };

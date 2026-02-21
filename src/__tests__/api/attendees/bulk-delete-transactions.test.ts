@@ -7,15 +7,8 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import handler from '../bulk-delete';
-import { mockAccount, mockDatabases, resetAllMocks } from '@/test/mocks/appwrite';
-
-// Mock TablesDB
-const mockTablesDB = {
-  createTransaction: vi.fn(),
-  createOperations: vi.fn(),
-  updateTransaction: vi.fn(),
-};
+import handler from '@/pages/api/attendees/bulk-delete';
+import { mockAccount, mockTablesDB, mockAdminTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 
 // Mock bulk operations
 const mockBulkDeleteWithFallback = vi.fn();
@@ -28,11 +21,10 @@ const mockCreateBulkDeleteOperations = vi.fn();
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn((req: NextApiRequest) => ({
     account: mockAccount,
-    databases: mockDatabases,
+    tablesDB: mockTablesDB,
   })),
   createAdminClient: vi.fn(() => ({
-    databases: mockDatabases,
-    tablesDB: mockTablesDB,
+    tablesDB: mockAdminTablesDB,
   })),
 }));
 
@@ -47,6 +39,7 @@ vi.mock('@/lib/transactions', () => ({
   createBulkDeleteOperations: (...args: any[]) => mockCreateBulkDeleteOperations(...args),
   getTransactionLimit: vi.fn(() => 1000), // PRO tier limit
 }));
+
 
 describe('/api/attendees/bulk-delete - Transaction Integration Tests', () => {
   let mockReq: Partial<NextApiRequest>;
@@ -116,11 +109,12 @@ describe('/api/attendees/bulk-delete - Transaction Integration Tests', () => {
 
     // Default mock implementations
     mockAccount.get.mockResolvedValue(mockAuthUser);
-    mockDatabases.listDocuments.mockResolvedValue({
-      documents: [mockUserProfile],
+    mockTablesDB.listRows.mockResolvedValue({
+      rows: [mockUserProfile],
       total: 1,
     });
-    mockDatabases.getDocument.mockResolvedValue(mockAdminRole);
+    mockTablesDB.getRow.mockResolvedValue(mockAdminRole);
+    mockAdminTablesDB.getRow.mockResolvedValue(mockAdminRole);
     
     // Default bulk delete mock - successful deletion with transactions
     mockBulkDeleteWithFallback.mockResolvedValue({
@@ -138,12 +132,12 @@ describe('/api/attendees/bulk-delete - Transaction Integration Tests', () => {
       mockReq.body = { attendeeIds };
 
       // Mock validation - all attendees exist
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       
       // Mock each attendee validation
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       // Mock successful transaction
@@ -159,13 +153,13 @@ describe('/api/attendees/bulk-delete - Transaction Integration Tests', () => {
       expect(mockBulkDeleteWithFallback).toHaveBeenCalledTimes(1);
       expect(mockBulkDeleteWithFallback).toHaveBeenCalledWith(
         mockTablesDB,
-        mockDatabases,
+        mockTablesDB,
         expect.objectContaining({
           databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-          tableId: process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID,
+          tableId: process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID,
           rowIds: attendeeIds,
           auditLog: expect.objectContaining({
-            tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+            tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
             userId: mockAuthUser.$id,
             action: 'bulk_delete',
           }),
@@ -193,11 +187,11 @@ describe('/api/attendees/bulk-delete - Transaction Integration Tests', () => {
       mockReq.body = { attendeeIds };
 
       // Mock validation
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       // Mock successful transaction
@@ -228,11 +222,11 @@ describe('/api/attendees/bulk-delete - Transaction Integration Tests', () => {
       mockReq.body = { attendeeIds };
 
       // Mock validation
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       // Mock successful transaction at limit
@@ -265,11 +259,11 @@ describe('/api/attendees/bulk-delete - Transaction Integration Tests', () => {
       mockReq.body = { attendeeIds };
 
       // Mock validation
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       // Mock successful batched transaction (2 batches for 1500 items at 1000 limit)
@@ -301,11 +295,11 @@ describe('/api/attendees/bulk-delete - Transaction Integration Tests', () => {
       mockReq.body = { attendeeIds };
 
       // Mock validation
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       // Mock successful batched transaction (3 batches for 2500 items)
@@ -335,11 +329,11 @@ describe('/api/attendees/bulk-delete - Transaction Integration Tests', () => {
       mockReq.body = { attendeeIds };
 
       // Mock validation
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       // Mock transaction failure
@@ -360,7 +354,7 @@ describe('/api/attendees/bulk-delete - Transaction Integration Tests', () => {
       );
 
       // No partial deletions should occur
-      expect(mockDatabases.deleteDocument).not.toHaveBeenCalled();
+      expect(mockTablesDB.deleteRow).not.toHaveBeenCalled();
     });
 
     it('should not perform any deletions if validation fails', async () => {
@@ -370,13 +364,13 @@ describe('/api/attendees/bulk-delete - Transaction Integration Tests', () => {
       mockReq.body = { attendeeIds };
 
       // Mock validation - first 3 succeed, 4th fails
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       
-      mockDatabases.getDocument.mockResolvedValueOnce(attendees[0]);
-      mockDatabases.getDocument.mockResolvedValueOnce(attendees[1]);
-      mockDatabases.getDocument.mockResolvedValueOnce(attendees[2]);
-      mockDatabases.getDocument.mockRejectedValueOnce(new Error('Attendee not found'));
+      mockTablesDB.getRow.mockResolvedValueOnce(attendees[0]);
+      mockTablesDB.getRow.mockResolvedValueOnce(attendees[1]);
+      mockTablesDB.getRow.mockResolvedValueOnce(attendees[2]);
+      mockTablesDB.getRow.mockRejectedValueOnce(new Error('Attendee not found'));
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -400,11 +394,11 @@ describe('/api/attendees/bulk-delete - Transaction Integration Tests', () => {
       mockReq.body = { attendeeIds };
 
       // Mock validation
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       // Mock batch failure - second batch fails
@@ -431,11 +425,11 @@ describe('/api/attendees/bulk-delete - Transaction Integration Tests', () => {
       mockReq.body = { attendeeIds };
 
       // Mock validation
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       mockBulkDeleteWithFallback.mockResolvedValue({
@@ -449,10 +443,10 @@ describe('/api/attendees/bulk-delete - Transaction Integration Tests', () => {
       // Verify audit log was included in transaction config
       expect(mockBulkDeleteWithFallback).toHaveBeenCalledWith(
         mockTablesDB,
-        mockDatabases,
+        mockTablesDB,
         expect.objectContaining({
           auditLog: expect.objectContaining({
-            tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+            tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
             userId: mockAuthUser.$id,
             action: 'bulk_delete',
             details: expect.any(String), // Details are stringified
@@ -468,11 +462,11 @@ describe('/api/attendees/bulk-delete - Transaction Integration Tests', () => {
       mockReq.body = { attendeeIds };
 
       // Mock validation
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       mockBulkDeleteWithFallback.mockResolvedValue({
@@ -504,11 +498,11 @@ describe('/api/attendees/bulk-delete - Transaction Integration Tests', () => {
       mockReq.body = { attendeeIds };
 
       // Mock validation
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       mockBulkDeleteWithFallback.mockResolvedValue({
@@ -544,11 +538,11 @@ describe('/api/attendees/bulk-delete - Transaction Integration Tests', () => {
       mockReq.body = { attendeeIds };
 
       // Mock validation
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       // Mock conflict error
@@ -576,11 +570,11 @@ describe('/api/attendees/bulk-delete - Transaction Integration Tests', () => {
       mockReq.body = { attendeeIds };
 
       // Mock validation
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       // Mock conflict with message containing 'conflict'
@@ -607,11 +601,11 @@ describe('/api/attendees/bulk-delete - Transaction Integration Tests', () => {
       mockReq.body = { attendeeIds };
 
       // Mock validation
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       const conflictError = new Error('Conflict');
@@ -640,11 +634,11 @@ describe('/api/attendees/bulk-delete - Transaction Integration Tests', () => {
       mockReq.body = { attendeeIds };
 
       // Mock validation
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       const conflictError = new Error('Conflict');
@@ -668,11 +662,11 @@ describe('/api/attendees/bulk-delete - Transaction Integration Tests', () => {
       mockReq.body = { attendeeIds };
 
       // Mock validation
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       const conflictError = new Error('Conflict');
@@ -700,11 +694,11 @@ describe('/api/attendees/bulk-delete - Transaction Integration Tests', () => {
       mockReq.body = { attendeeIds };
 
       // Mock validation
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       // Mock fallback to legacy API
@@ -734,11 +728,11 @@ describe('/api/attendees/bulk-delete - Transaction Integration Tests', () => {
       mockReq.body = { attendeeIds };
 
       // Mock validation
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       // Mock fallback
@@ -763,11 +757,11 @@ describe('/api/attendees/bulk-delete - Transaction Integration Tests', () => {
       mockReq.body = { attendeeIds };
 
       // Mock validation
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       // Simulate TablesDB unavailable, fallback succeeds
@@ -794,11 +788,11 @@ describe('/api/attendees/bulk-delete - Transaction Integration Tests', () => {
       mockReq.body = { attendeeIds };
 
       // Mock validation
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       mockBulkDeleteWithFallback.mockResolvedValue({
@@ -830,11 +824,11 @@ describe('/api/attendees/bulk-delete - Transaction Integration Tests', () => {
       mockReq.body = { attendeeIds };
 
       // Mock validation
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       mockBulkDeleteWithFallback.mockResolvedValue({
@@ -867,11 +861,11 @@ describe('/api/attendees/bulk-delete - Transaction Integration Tests', () => {
       mockReq.body = { attendeeIds };
 
       // Mock validation
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       mockBulkDeleteWithFallback.mockResolvedValue({
@@ -904,11 +898,11 @@ describe('/api/attendees/bulk-delete - Transaction Integration Tests', () => {
       mockReq.body = { attendeeIds };
 
       // Mock validation
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       mockBulkDeleteWithFallback.mockResolvedValue({
@@ -943,11 +937,11 @@ describe('/api/attendees/bulk-delete - Transaction Integration Tests', () => {
       mockReq.body = { attendeeIds };
 
       // Mock validation
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       mockBulkDeleteWithFallback.mockResolvedValue({
@@ -974,11 +968,11 @@ describe('/api/attendees/bulk-delete - Transaction Integration Tests', () => {
       mockReq.body = { attendeeIds };
 
       // Mock validation
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       mockBulkDeleteWithFallback.mockResolvedValue({
@@ -1014,9 +1008,9 @@ describe('/api/attendees/bulk-delete - Transaction Integration Tests', () => {
       mockReq.body = { attendeeIds };
 
       // Mock validation
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
-      mockDatabases.getDocument.mockResolvedValueOnce(attendees[0]);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(attendees[0]);
 
       mockBulkDeleteWithFallback.mockResolvedValue({
         deletedCount: 1,
@@ -1041,11 +1035,11 @@ describe('/api/attendees/bulk-delete - Transaction Integration Tests', () => {
       mockReq.body = { attendeeIds };
 
       // Mock validation
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       mockBulkDeleteWithFallback.mockResolvedValue({
@@ -1056,7 +1050,7 @@ describe('/api/attendees/bulk-delete - Transaction Integration Tests', () => {
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       // Verify all attendees were validated (100 + 1 for role)
-      expect(mockDatabases.getDocument).toHaveBeenCalledTimes(101);
+      expect(mockTablesDB.getRow).toHaveBeenCalledTimes(101);
       
       // Then bulk delete was called
       expect(mockBulkDeleteWithFallback).toHaveBeenCalledTimes(1);
@@ -1069,11 +1063,11 @@ describe('/api/attendees/bulk-delete - Transaction Integration Tests', () => {
       mockReq.body = { attendeeIds };
 
       // Mock validation
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       // Mock successful batched transaction (3 batches for 3000 items)
@@ -1101,11 +1095,11 @@ describe('/api/attendees/bulk-delete - Transaction Integration Tests', () => {
       mockReq.body = { attendeeIds };
 
       // Mock validation
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       // Mock successful batched transaction
@@ -1136,11 +1130,11 @@ describe('/api/attendees/bulk-delete - Transaction Integration Tests', () => {
       mockReq.body = { attendeeIds };
 
       // Mock validation
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       mockBulkDeleteWithFallback.mockResolvedValue({
@@ -1153,7 +1147,7 @@ describe('/api/attendees/bulk-delete - Transaction Integration Tests', () => {
       // Verify correct parameters passed
       expect(mockBulkDeleteWithFallback).toHaveBeenCalledWith(
         mockTablesDB, // TablesDB instance
-        mockDatabases, // Legacy databases instance
+        mockTablesDB, // Legacy databases instance
         expect.objectContaining({
           databaseId: expect.any(String),
           tableId: expect.any(String),
@@ -1174,11 +1168,11 @@ describe('/api/attendees/bulk-delete - Transaction Integration Tests', () => {
       mockReq.body = { attendeeIds };
 
       // Mock validation
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       
       for (const attendee of attendees) {
-        mockDatabases.getDocument.mockResolvedValueOnce(attendee);
+        mockTablesDB.getRow.mockResolvedValueOnce(attendee);
       }
 
       mockBulkDeleteWithFallback.mockResolvedValue({

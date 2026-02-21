@@ -1,17 +1,17 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import handler from '../index';
-import { mockAccount, mockDatabases, mockUsers, mockTeams, resetAllMocks } from '@/test/mocks/appwrite';
+import handler from '@/pages/api/users/index';
+import { mockAccount, mockTablesDB, mockAdminTablesDB, mockUsers, mockTeams, resetAllMocks } from '@/test/mocks/appwrite';
 
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn((req: NextApiRequest) => ({
     account: mockAccount,
-    databases: mockDatabases,
+    tablesDB: mockTablesDB,
   })),
   createAdminClient: vi.fn(() => ({
     users: mockUsers,
-    databases: mockDatabases,
+    tablesDB: mockAdminTablesDB,
     teams: mockTeams,
   })),
 }));
@@ -31,6 +31,7 @@ vi.mock('@/lib/permissions', () => ({
 vi.mock('@/lib/logSettings', () => ({
   shouldLog: vi.fn(() => Promise.resolve(true)),
 }));
+
 
 describe('/api/users - User Management API', () => {
   let mockReq: Partial<NextApiRequest>;
@@ -95,12 +96,13 @@ describe('/api/users - User Management API', () => {
 
     // Default mock implementations
     mockAccount.get.mockResolvedValue(mockAuthUser);
-    mockDatabases.listDocuments.mockResolvedValue({
-      documents: [mockUserProfile],
+    mockTablesDB.listRows.mockResolvedValue({
+      rows: [mockUserProfile],
       total: 1,
     });
-    mockDatabases.getDocument.mockResolvedValue(mockAdminRole);
-    mockDatabases.createDocument.mockResolvedValue({
+    mockTablesDB.getRow.mockResolvedValue(mockAdminRole);
+    mockAdminTablesDB.getRow.mockResolvedValue(mockAdminRole);
+    mockTablesDB.createRow.mockResolvedValue({
       $id: 'new-log-123',
       userId: mockAuthUser.$id,
       action: 'view',
@@ -125,8 +127,8 @@ describe('/api/users - User Management API', () => {
     });
 
     it('should return 404 if user profile is not found', async () => {
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [],
         total: 0,
       });
 
@@ -168,11 +170,11 @@ describe('/api/users - User Management API', () => {
         },
       ];
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // User profile lookup
-        .mockResolvedValueOnce({ documents: mockUsers, total: 2 }); // Users list
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 }) // User profile lookup
+        .mockResolvedValueOnce({ rows: mockUsers, total: 2 }); // Users list
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole) // Current user's role
         .mockResolvedValueOnce(mockAdminRole) // User 1's role
         .mockResolvedValueOnce(mockViewerRole); // User 2's role
@@ -202,7 +204,7 @@ describe('/api/users - User Management API', () => {
         permissions: JSON.stringify({ users: { read: false } }),
       };
 
-      mockDatabases.getDocument.mockResolvedValueOnce(noPermRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(noPermRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -224,11 +226,11 @@ describe('/api/users - User Management API', () => {
         $updatedAt: '2024-01-03T00:00:00.000Z',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [userWithoutRole], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [userWithoutRole], total: 1 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -243,17 +245,17 @@ describe('/api/users - User Management API', () => {
     });
 
     it('should create log entry for viewing users list', async () => {
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
         expect.any(String),
         expect.objectContaining({
           userId: mockAuthUser.$id,
@@ -292,16 +294,16 @@ describe('/api/users - User Management API', () => {
         $updatedAt: '2024-01-05T00:00:00.000Z',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // Current user lookup
-        .mockResolvedValueOnce({ documents: [], total: 0 }); // Check if user already linked
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 }) // Current user lookup
+        .mockResolvedValueOnce({ rows: [], total: 0 }); // Check if user already linked
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole) // Current user's role
         .mockResolvedValueOnce(mockViewerRole); // New user's role
 
       mockUsers.get.mockResolvedValue(existingAuthUser);
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce(newUserDoc) // Create user profile
         .mockResolvedValueOnce({ $id: 'log-123' }); // Create log
 
@@ -309,9 +311,9 @@ describe('/api/users - User Management API', () => {
 
       expect(mockUsers.get).toHaveBeenCalledWith('existing-auth-user-123');
 
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID,
         expect.any(String),
         expect.objectContaining({
           userId: 'existing-auth-user-123',
@@ -346,10 +348,10 @@ describe('/api/users - User Management API', () => {
         permissions: JSON.stringify({ users: { create: false, read: true } }),
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(noPermRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(noPermRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -365,10 +367,10 @@ describe('/api/users - User Management API', () => {
     it('should return 400 if authUserId is missing', async () => {
       mockReq.body = { roleId: 'role-viewer' };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -384,10 +386,10 @@ describe('/api/users - User Management API', () => {
     it('should return 400 if roleId is missing', async () => {
       mockReq.body = { authUserId: 'existing-auth-user-123' };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -401,10 +403,10 @@ describe('/api/users - User Management API', () => {
     });
 
     it('should return 400 if authUserId is invalid', async () => {
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       mockUsers.get.mockRejectedValue(new Error('User not found'));
 
@@ -424,11 +426,11 @@ describe('/api/users - User Management API', () => {
         name: 'New User',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [{ userId: 'existing-auth-user-123' }], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [{ userId: 'existing-auth-user-123' }], total: 1 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       mockUsers.get.mockResolvedValue(existingAuthUser);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
@@ -447,11 +449,11 @@ describe('/api/users - User Management API', () => {
         name: 'New User',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockRejectedValueOnce(new Error('Role not found'));
 
@@ -486,24 +488,24 @@ describe('/api/users - User Management API', () => {
         $updatedAt: '2024-01-05T00:00:00.000Z',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockViewerRole);
 
       mockUsers.get.mockResolvedValue(existingAuthUser);
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce(newUserDoc)
         .mockResolvedValueOnce({ $id: 'log-123' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
         expect.any(String),
         expect.objectContaining({
           userId: mockAuthUser.$id,
@@ -536,18 +538,18 @@ describe('/api/users - User Management API', () => {
         $updatedAt: '2024-01-06T00:00:00.000Z',
       };
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole) // Current user's role
         .mockResolvedValueOnce(mockViewerRole); // Updated user's role
 
-      mockDatabases.updateDocument.mockResolvedValue(updatedUserDoc);
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'log-123' });
+      mockTablesDB.updateRow.mockResolvedValue(updatedUserDoc);
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'log-123' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.updateRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID,
         'user-to-update',
         expect.objectContaining({
           name: 'Updated Name',
@@ -571,10 +573,10 @@ describe('/api/users - User Management API', () => {
         permissions: JSON.stringify({ users: { update: false, read: true } }),
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(noPermRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(noPermRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -587,7 +589,7 @@ describe('/api/users - User Management API', () => {
     it('should return 400 if user ID is missing', async () => {
       mockReq.body = { name: 'Updated Name' };
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -596,10 +598,10 @@ describe('/api/users - User Management API', () => {
     });
 
     it('should return 400 if roleId is invalid', async () => {
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockRejectedValueOnce(new Error('Role not found'));
 
@@ -626,18 +628,18 @@ describe('/api/users - User Management API', () => {
         $updatedAt: '2024-01-06T00:00:00.000Z',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
-      mockDatabases.updateDocument.mockResolvedValue(updatedUserDoc);
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'log-123' });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.updateRow.mockResolvedValue(updatedUserDoc);
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'log-123' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.updateRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID,
         'user-to-update',
         expect.objectContaining({
           name: 'Updated Name Only',
@@ -657,18 +659,18 @@ describe('/api/users - User Management API', () => {
         $updatedAt: '2024-01-06T00:00:00.000Z',
       };
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockViewerRole);
 
-      mockDatabases.updateDocument.mockResolvedValue(updatedUserDoc);
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'log-123' });
+      mockTablesDB.updateRow.mockResolvedValue(updatedUserDoc);
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'log-123' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
         expect.any(String),
         expect.objectContaining({
           userId: mockAuthUser.$id,
@@ -700,20 +702,20 @@ describe('/api/users - User Management API', () => {
         $updatedAt: '2024-01-01T00:00:00.000Z',
       };
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole) // Current user's role
         .mockResolvedValueOnce(userToDelete); // User to delete
 
       mockUsers.delete.mockResolvedValue({ success: true });
-      mockDatabases.deleteDocument.mockResolvedValue({ success: true });
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'log-123' });
+      mockTablesDB.deleteRow.mockResolvedValue({ success: true });
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'log-123' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       expect(mockUsers.delete).toHaveBeenCalledWith('auth-user-to-delete');
-      expect(mockDatabases.deleteDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.deleteRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID,
         'user-to-delete'
       );
 
@@ -733,7 +735,7 @@ describe('/api/users - User Management API', () => {
         permissions: JSON.stringify({ users: { delete: false, read: true } }),
       };
 
-      mockDatabases.getDocument.mockResolvedValueOnce(noPermRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(noPermRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -746,7 +748,7 @@ describe('/api/users - User Management API', () => {
     it('should return 400 if user ID is missing', async () => {
       mockReq.body = { deleteFromAuth: true };
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -755,7 +757,7 @@ describe('/api/users - User Management API', () => {
     });
 
     it('should return 404 if user to delete is not found', async () => {
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockRejectedValueOnce(new Error('User not found'));
 
@@ -777,10 +779,10 @@ describe('/api/users - User Management API', () => {
         $updatedAt: '2024-01-01T00:00:00.000Z',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(userToDelete);
 
@@ -806,20 +808,20 @@ describe('/api/users - User Management API', () => {
         $updatedAt: '2024-01-01T00:00:00.000Z',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(userToDelete);
 
-      mockDatabases.deleteDocument.mockResolvedValue({ success: true });
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'log-123' });
+      mockTablesDB.deleteRow.mockResolvedValue({ success: true });
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'log-123' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       expect(mockUsers.delete).not.toHaveBeenCalled();
-      expect(mockDatabases.deleteDocument).toHaveBeenCalled();
+      expect(mockTablesDB.deleteRow).toHaveBeenCalled();
 
       expect(statusMock).toHaveBeenCalledWith(200);
       expect(jsonMock).toHaveBeenCalledWith(
@@ -843,17 +845,17 @@ describe('/api/users - User Management API', () => {
         $updatedAt: '2024-01-01T00:00:00.000Z',
       };
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(userToDelete);
 
       mockUsers.delete.mockRejectedValue(new Error('Auth user not found'));
-      mockDatabases.deleteDocument.mockResolvedValue({ success: true });
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'log-123' });
+      mockTablesDB.deleteRow.mockResolvedValue({ success: true });
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'log-123' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.deleteDocument).toHaveBeenCalled();
+      expect(mockTablesDB.deleteRow).toHaveBeenCalled();
       expect(statusMock).toHaveBeenCalledWith(200);
       expect(jsonMock).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -876,22 +878,22 @@ describe('/api/users - User Management API', () => {
         $updatedAt: '2024-01-01T00:00:00.000Z',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(userToDelete);
 
       mockUsers.delete.mockResolvedValue({ success: true });
-      mockDatabases.deleteDocument.mockResolvedValue({ success: true });
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'log-123' });
+      mockTablesDB.deleteRow.mockResolvedValue({ success: true });
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'log-123' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
         expect.any(String),
         expect.objectContaining({
           userId: mockAuthUser.$id,
@@ -931,7 +933,7 @@ describe('/api/users - User Management API', () => {
           roles: ['member'],
         };
 
-        mockDatabases.getDocument
+        mockTablesDB.getRow
           .mockResolvedValueOnce(mockAdminRole)
           .mockResolvedValueOnce(userToDelete);
 
@@ -941,8 +943,8 @@ describe('/api/users - User Management API', () => {
         });
         mockTeams.deleteMembership.mockResolvedValue({ success: true });
         mockUsers.delete.mockResolvedValue({ success: true });
-        mockDatabases.deleteDocument.mockResolvedValue({ success: true });
-        mockDatabases.createDocument.mockResolvedValue({ $id: 'log-123' });
+        mockTablesDB.deleteRow.mockResolvedValue({ success: true });
+        mockTablesDB.createRow.mockResolvedValue({ $id: 'log-123' });
 
         await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -991,20 +993,20 @@ describe('/api/users - User Management API', () => {
         $updatedAt: '2024-01-01T00:00:00.000Z',
       };
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(userToDelete);
 
       mockTeams.listMemberships.mockRejectedValue(new Error('Team API error'));
       mockUsers.delete.mockResolvedValue({ success: true });
-      mockDatabases.deleteDocument.mockResolvedValue({ success: true });
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'log-123' });
+      mockTablesDB.deleteRow.mockResolvedValue({ success: true });
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'log-123' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       // Should still delete user even if team removal fails
       expect(mockUsers.delete).toHaveBeenCalled();
-      expect(mockDatabases.deleteDocument).toHaveBeenCalled();
+      expect(mockTablesDB.deleteRow).toHaveBeenCalled();
 
       expect(statusMock).toHaveBeenCalledWith(200);
       expect(jsonMock).toHaveBeenCalledWith(
@@ -1041,13 +1043,13 @@ describe('/api/users - User Management API', () => {
         $updatedAt: '2024-01-01T00:00:00.000Z',
       };
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(userToDelete);
 
       mockUsers.delete.mockResolvedValue({ success: true });
-      mockDatabases.deleteDocument.mockResolvedValue({ success: true });
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'log-123' });
+      mockTablesDB.deleteRow.mockResolvedValue({ success: true });
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'log-123' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -1096,7 +1098,7 @@ describe('/api/users - User Management API', () => {
         roles: ['member'],
       };
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(userToDelete);
 
@@ -1106,14 +1108,14 @@ describe('/api/users - User Management API', () => {
       });
       mockTeams.deleteMembership.mockResolvedValue({ success: true });
       mockUsers.delete.mockResolvedValue({ success: true });
-      mockDatabases.deleteDocument.mockResolvedValue({ success: true });
-      mockDatabases.createDocument.mockResolvedValue({ $id: 'log-123' });
+      mockTablesDB.deleteRow.mockResolvedValue({ success: true });
+      mockTablesDB.createRow.mockResolvedValue({ $id: 'log-123' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
         expect.any(String),
         expect.objectContaining({
           userId: mockAuthUser.$id,
@@ -1123,7 +1125,7 @@ describe('/api/users - User Management API', () => {
       );
 
       // Parse the details to verify all fields are present
-      const logCall = mockDatabases.createDocument.mock.calls.find(
+      const logCall = mockTablesDB.createRow.mock.calls.find(
         call => call[2] && call[3]?.action === 'delete'
       );
       const details = JSON.parse(logCall![3].details);
@@ -1148,7 +1150,7 @@ describe('/api/users - User Management API', () => {
     it('should return 405 for unsupported methods', async () => {
       mockReq.method = 'PATCH';
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -1164,7 +1166,7 @@ describe('/api/users - User Management API', () => {
     it('should handle database errors gracefully', async () => {
       const dbError = new Error('Database connection failed');
       (dbError as any).code = 500;
-      mockDatabases.listDocuments.mockRejectedValue(dbError);
+      mockTablesDB.listRows.mockRejectedValue(dbError);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -1191,16 +1193,16 @@ describe('/api/users - User Management API', () => {
         name: 'New User',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockViewerRole);
 
       mockUsers.get.mockResolvedValue(existingAuthUser);
-      mockDatabases.createDocument.mockRejectedValue(new Error('Database error'));
+      mockTablesDB.createRow.mockRejectedValue(new Error('Database error'));
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 

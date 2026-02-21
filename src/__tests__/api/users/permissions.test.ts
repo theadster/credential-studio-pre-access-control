@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import handler from '../index';
-import { mockAccount, mockDatabases, mockUsers, resetAllMocks } from '@/test/mocks/appwrite';
+import handler from '@/pages/api/users/index';
+import { mockAccount, mockTablesDB, mockAdminTablesDB, mockUsers, resetAllMocks } from '@/test/mocks/appwrite';
 
 vi.mock('@/lib/appwrite', () => ({
-  createSessionClient: vi.fn(() => ({ account: mockAccount, databases: mockDatabases })),
-  createAdminClient: vi.fn(() => ({ users: mockUsers, databases: mockDatabases })),
+  createSessionClient: vi.fn(() => ({ account: mockAccount, tablesDB: mockTablesDB })),
+  createAdminClient: vi.fn(() => ({ users: mockUsers, tablesDB: mockAdminTablesDB })),
 }));
 
 vi.mock('@/lib/permissions', () => ({
@@ -18,6 +18,7 @@ vi.mock('@/lib/permissions', () => ({
 
 vi.mock('@/lib/logSettings', () => ({ shouldLog: vi.fn(() => Promise.resolve(true)) }));
 vi.mock('@/lib/rateLimiter', () => ({ checkRateLimit: vi.fn(() => Promise.resolve({ allowed: true, remaining: 10 })) }));
+
 
 describe('User Management Permissions', () => {
   let mockReq: Partial<NextApiRequest>;
@@ -35,10 +36,10 @@ describe('User Management Permissions', () => {
   it('should return 403 when user lacks users.read permission', async () => {
     mockReq = { method: 'GET', headers: {} };
     mockAccount.get.mockResolvedValue({ $id: 'user123', email: 'viewer@test.com' });
-    mockDatabases.listDocuments.mockResolvedValueOnce({
-      documents: [{ $id: 'profile123', userId: 'user123', email: 'viewer@test.com', roleId: 'role123' }],
+    mockTablesDB.listRows.mockResolvedValueOnce({
+      rows: [{ $id: 'profile123', userId: 'user123', email: 'viewer@test.com', roleId: 'role123' }],
     });
-    mockDatabases.getDocument.mockResolvedValueOnce({
+    mockTablesDB.getRow.mockResolvedValueOnce({
       $id: 'role123', name: 'Viewer', permissions: { users: { read: false } },
     });
 
@@ -50,10 +51,10 @@ describe('User Management Permissions', () => {
   it('should return 403 when user lacks users.create permission', async () => {
     mockReq = { method: 'POST', headers: {}, body: { authUserId: 'auth123' } };
     mockAccount.get.mockResolvedValue({ $id: 'user123', email: 'staff@test.com' });
-    mockDatabases.listDocuments.mockResolvedValueOnce({
-      documents: [{ $id: 'profile123', userId: 'user123', roleId: 'staffRole' }],
+    mockTablesDB.listRows.mockResolvedValueOnce({
+      rows: [{ $id: 'profile123', userId: 'user123', roleId: 'staffRole' }],
     });
-    mockDatabases.getDocument.mockResolvedValueOnce({
+    mockTablesDB.getRow.mockResolvedValueOnce({
       $id: 'staffRole', name: 'Staff', permissions: { users: { create: false } },
     });
 

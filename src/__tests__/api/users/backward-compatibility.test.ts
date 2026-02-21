@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextApiRequest, NextApiResponse } from 'next';
-import handler from '../index';
+import handler from '@/pages/api/users/index';
 import { createSessionClient, createAdminClient } from '@/lib/appwrite';
 
 // Mock dependencies
@@ -28,7 +28,7 @@ const mockCreateAdminClient = vi.mocked(createAdminClient);
 describe('User API - Backward Compatibility Tests', () => {
   let req: Partial<NextApiRequest>;
   let res: Partial<NextApiResponse>;
-  let mockDatabases: any;
+  let mockTablesDB: any;
   let mockAdminUsers: any;
   let mockAdminTeams: any;
 
@@ -50,12 +50,12 @@ describe('User API - Backward Compatibility Tests', () => {
     };
 
     // Setup database mock
-    mockDatabases = {
-      listDocuments: vi.fn(),
-      getDocument: vi.fn(),
-      createDocument: vi.fn(),
-      updateDocument: vi.fn(),
-      deleteDocument: vi.fn(),
+    mockTablesDB = {
+      listRows: vi.fn(),
+      getRow: vi.fn(),
+      createRow: vi.fn(),
+      updateRow: vi.fn(),
+      deleteRow: vi.fn(),
     };
 
     mockAdminUsers = {
@@ -69,7 +69,7 @@ describe('User API - Backward Compatibility Tests', () => {
     };
 
     mockCreateSessionClient.mockReturnValue({
-      databases: mockDatabases,
+      tablesDB: mockTablesDB,
     } as any);
 
     mockCreateAdminClient.mockReturnValue({
@@ -127,12 +127,12 @@ describe('User API - Backward Compatibility Tests', () => {
         permissions: JSON.stringify({ 'attendees.read': true }),
       };
 
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [oldUserProfile],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [oldUserProfile],
         total: 1,
       });
 
-      mockDatabases.getDocument.mockResolvedValue(mockRole);
+      mockTablesDB.getRow.mockResolvedValue(mockRole);
 
       req.method = 'GET';
 
@@ -174,12 +174,12 @@ describe('User API - Backward Compatibility Tests', () => {
         permissions: JSON.stringify({ 'attendees.read': true }),
       };
 
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [newUserProfile],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [newUserProfile],
         total: 1,
       });
 
-      mockDatabases.getDocument.mockResolvedValue(mockRole);
+      mockTablesDB.getRow.mockResolvedValue(mockRole);
 
       req.method = 'GET';
 
@@ -225,12 +225,12 @@ describe('User API - Backward Compatibility Tests', () => {
         permissions: JSON.stringify({ 'attendees.read': true }),
       };
 
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: mixedProfiles,
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: mixedProfiles,
         total: 2,
       });
 
-      mockDatabases.getDocument.mockResolvedValue(mockRole);
+      mockTablesDB.getRow.mockResolvedValue(mockRole);
 
       req.method = 'GET';
 
@@ -264,9 +264,9 @@ describe('User API - Backward Compatibility Tests', () => {
         permissions: JSON.stringify({ 'attendees.read': true }),
       };
 
-      mockDatabases.getDocument.mockResolvedValue(newRole);
-      mockDatabases.updateDocument.mockResolvedValue(oldUserProfile);
-      mockDatabases.createDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue(newRole);
+      mockTablesDB.updateRow.mockResolvedValue(oldUserProfile);
+      mockTablesDB.createRow.mockResolvedValue({
         $id: 'log-1',
       });
 
@@ -279,9 +279,9 @@ describe('User API - Backward Compatibility Tests', () => {
 
       await handler(req as any, res as any);
 
-      expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.updateRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID,
         'old-user-1',
         expect.objectContaining({
           name: 'Old User',
@@ -317,9 +317,9 @@ describe('User API - Backward Compatibility Tests', () => {
         permissions: JSON.stringify({ 'attendees.read': true }),
       };
 
-      mockDatabases.getDocument.mockResolvedValue(mockRole);
-      mockDatabases.updateDocument.mockResolvedValue(oldUserProfile);
-      mockDatabases.createDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue(mockRole);
+      mockTablesDB.updateRow.mockResolvedValue(oldUserProfile);
+      mockTablesDB.createRow.mockResolvedValue({
         $id: 'log-1',
       });
 
@@ -332,9 +332,9 @@ describe('User API - Backward Compatibility Tests', () => {
 
       await handler(req as any, res as any);
 
-      expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.updateRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID,
         'old-user-1',
         expect.objectContaining({
           name: 'Updated Name',
@@ -365,12 +365,12 @@ describe('User API - Backward Compatibility Tests', () => {
         permissions: JSON.stringify({ 'attendees.read': true }),
       };
 
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [oldUserProfile],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [oldUserProfile],
         total: 1,
       });
 
-      mockDatabases.getDocument.mockResolvedValue(mockRole);
+      mockTablesDB.getRow.mockResolvedValue(mockRole);
 
       req.method = 'GET';
 
@@ -399,12 +399,12 @@ describe('User API - Backward Compatibility Tests', () => {
         permissions: JSON.stringify({ 'attendees.read': true }),
       };
 
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [newUserProfile],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [newUserProfile],
         total: 1,
       });
 
-      mockDatabases.getDocument.mockResolvedValue(mockRole);
+      mockTablesDB.getRow.mockResolvedValue(mockRole);
 
       req.method = 'GET';
 
@@ -428,10 +428,10 @@ describe('User API - Backward Compatibility Tests', () => {
         $updatedAt: '2024-01-01T00:00:00.000Z',
       };
 
-      mockDatabases.getDocument.mockResolvedValue(oldUserProfile);
+      mockTablesDB.getRow.mockResolvedValue(oldUserProfile);
       mockAdminUsers.delete.mockResolvedValue({});
-      mockDatabases.deleteDocument.mockResolvedValue({});
-      mockDatabases.createDocument.mockResolvedValue({
+      mockTablesDB.deleteRow.mockResolvedValue({});
+      mockTablesDB.createRow.mockResolvedValue({
         $id: 'log-1',
       });
 
@@ -444,9 +444,9 @@ describe('User API - Backward Compatibility Tests', () => {
       await handler(req as any, res as any);
 
       expect(mockAdminUsers.delete).toHaveBeenCalledWith('auth-user-1');
-      expect(mockDatabases.deleteDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.deleteRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID,
         'old-user-1'
       );
 
@@ -471,9 +471,9 @@ describe('User API - Backward Compatibility Tests', () => {
         $updatedAt: '2024-01-01T00:00:00.000Z',
       };
 
-      mockDatabases.getDocument.mockResolvedValue(oldUserProfile);
-      mockDatabases.deleteDocument.mockResolvedValue({});
-      mockDatabases.createDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue(oldUserProfile);
+      mockTablesDB.deleteRow.mockResolvedValue({});
+      mockTablesDB.createRow.mockResolvedValue({
         $id: 'log-1',
       });
 
@@ -486,9 +486,9 @@ describe('User API - Backward Compatibility Tests', () => {
       await handler(req as any, res as any);
 
       expect(mockAdminUsers.delete).not.toHaveBeenCalled();
-      expect(mockDatabases.deleteDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.deleteRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID,
         'old-user-1'
       );
 
@@ -514,10 +514,10 @@ describe('User API - Backward Compatibility Tests', () => {
         $updatedAt: '2024-01-01T00:00:00.000Z',
       };
 
-      mockDatabases.getDocument.mockResolvedValue(oldUserProfile);
+      mockTablesDB.getRow.mockResolvedValue(oldUserProfile);
       mockAdminUsers.delete.mockRejectedValue(new Error('Auth user not found'));
-      mockDatabases.deleteDocument.mockResolvedValue({});
-      mockDatabases.createDocument.mockResolvedValue({
+      mockTablesDB.deleteRow.mockResolvedValue({});
+      mockTablesDB.createRow.mockResolvedValue({
         $id: 'log-1',
       });
 
@@ -530,7 +530,7 @@ describe('User API - Backward Compatibility Tests', () => {
       await handler(req as any, res as any);
 
       // Should still delete from database even if auth deletion fails
-      expect(mockDatabases.deleteDocument).toHaveBeenCalled();
+      expect(mockTablesDB.deleteRow).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -565,12 +565,12 @@ describe('User API - Backward Compatibility Tests', () => {
         }),
       };
 
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [userProfile],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [userProfile],
         total: 1,
       });
 
-      mockDatabases.getDocument.mockResolvedValue(mockRole);
+      mockTablesDB.getRow.mockResolvedValue(mockRole);
 
       req.method = 'GET';
 
@@ -611,8 +611,8 @@ describe('User API - Backward Compatibility Tests', () => {
         $updatedAt: '2024-01-01T00:00:00.000Z',
       };
 
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [userProfile],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [userProfile],
         total: 1,
       });
 

@@ -13,15 +13,26 @@ import { withAuth, AuthenticatedRequest, hasPermission, withPermission } from '@
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn(),
+  createAdminClient: vi.fn(),
 }));
 
-import { createSessionClient } from '@/lib/appwrite';
+// Mock the cache to prevent cross-test contamination
+vi.mock('@/lib/userProfileCache', () => ({
+  userProfileCache: {
+    get: vi.fn().mockReturnValue(null),
+    set: vi.fn(),
+    invalidate: vi.fn(),
+  },
+  CachedUserProfile: {},
+}));
+
+import { createSessionClient, createAdminClient } from '@/lib/appwrite';
 
 describe('API Middleware Integration Tests', () => {
   let mockReq: Partial<NextApiRequest>;
   let mockRes: Partial<NextApiResponse>;
   let mockAccount: any;
-  let mockDatabases: any;
+  let mockTablesDB: any;
   let jsonSpy: any;
   let statusSpy: any;
 
@@ -53,14 +64,18 @@ describe('API Middleware Integration Tests', () => {
       get: vi.fn(),
     };
 
-    mockDatabases = {
-      listDocuments: vi.fn(),
-      getDocument: vi.fn(),
+    mockTablesDB = {
+      listRows: vi.fn(),
+      getRow: vi.fn(),
     };
 
     (createSessionClient as any).mockReturnValue({
       account: mockAccount,
-      databases: mockDatabases,
+      tablesDB: mockTablesDB,
+    });
+
+    (createAdminClient as any).mockReturnValue({
+      tablesDB: mockTablesDB,
     });
   });
 
@@ -91,8 +106,8 @@ describe('API Middleware Integration Tests', () => {
       };
 
       mockAccount.get.mockResolvedValue(mockUser);
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockUserProfile],
         total: 1,
       });
 
@@ -141,11 +156,11 @@ describe('API Middleware Integration Tests', () => {
       };
 
       mockAccount.get.mockResolvedValue(mockUser);
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockUserProfile],
         total: 1,
       });
-      mockDatabases.getDocument.mockResolvedValue(mockRole);
+      mockTablesDB.getRow.mockResolvedValue(mockRole);
 
       let capturedReq: AuthenticatedRequest | null = null;
 
@@ -229,7 +244,7 @@ describe('API Middleware Integration Tests', () => {
       expect(jsonSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           code: 401,
-          tokenExpired: true,
+          type: 'user_unauthorized',
         })
       );
     });
@@ -266,8 +281,8 @@ describe('API Middleware Integration Tests', () => {
       };
 
       mockAccount.get.mockResolvedValue(mockUser);
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [],
         total: 0,
       });
 
@@ -324,8 +339,8 @@ describe('API Middleware Integration Tests', () => {
       };
 
       mockAccount.get.mockResolvedValue(mockUser);
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockUserProfile],
         total: 1,
       });
 
@@ -336,9 +351,9 @@ describe('API Middleware Integration Tests', () => {
       const wrappedHandler = withAuth(handler);
       await wrappedHandler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.listDocuments).toHaveBeenCalledWith(
+      expect(mockTablesDB.listRows).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID,
         expect.any(Array)
       );
 
@@ -382,11 +397,11 @@ describe('API Middleware Integration Tests', () => {
       };
 
       mockAccount.get.mockResolvedValue(mockUser);
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockUserProfile],
         total: 1,
       });
-      mockDatabases.getDocument.mockResolvedValue(mockRole);
+      mockTablesDB.getRow.mockResolvedValue(mockRole);
 
       const handler = vi.fn(async (req: AuthenticatedRequest, res: NextApiResponse) => {
         res.status(200).json({ role: req.userProfile.role });
@@ -395,9 +410,9 @@ describe('API Middleware Integration Tests', () => {
       const wrappedHandler = withAuth(handler);
       await wrappedHandler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.getDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.getRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID,
         'adminRole'
       );
 
@@ -435,11 +450,11 @@ describe('API Middleware Integration Tests', () => {
       };
 
       mockAccount.get.mockResolvedValue(mockUser);
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockUserProfile],
         total: 1,
       });
-      mockDatabases.getDocument.mockRejectedValue(new Error('Role not found'));
+      mockTablesDB.getRow.mockRejectedValue(new Error('Role not found'));
 
       const handler = vi.fn(async (req: AuthenticatedRequest, res: NextApiResponse) => {
         res.status(200).json({ role: req.userProfile.role });
@@ -552,11 +567,11 @@ describe('API Middleware Integration Tests', () => {
       };
 
       mockAccount.get.mockResolvedValue(mockUser);
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockUserProfile],
         total: 1,
       });
-      mockDatabases.getDocument.mockResolvedValue(mockRole);
+      mockTablesDB.getRow.mockResolvedValue(mockRole);
 
       const handler = vi.fn(async (req: AuthenticatedRequest, res: NextApiResponse) => {
         res.status(200).json({ success: true });
@@ -604,11 +619,11 @@ describe('API Middleware Integration Tests', () => {
       };
 
       mockAccount.get.mockResolvedValue(mockUser);
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockUserProfile],
         total: 1,
       });
-      mockDatabases.getDocument.mockResolvedValue(mockRole);
+      mockTablesDB.getRow.mockResolvedValue(mockRole);
 
       const handler = vi.fn(async (req: AuthenticatedRequest, res: NextApiResponse) => {
         res.status(200).json({ success: true });
@@ -697,8 +712,8 @@ describe('API Middleware Integration Tests', () => {
 
       // Second call: valid token (after client refreshed)
       mockAccount.get.mockResolvedValue(mockUser);
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockUserProfile],
         total: 1,
       });
 
@@ -733,7 +748,7 @@ describe('API Middleware Integration Tests', () => {
       };
 
       mockAccount.get.mockResolvedValue(mockUser);
-      mockDatabases.listDocuments.mockRejectedValue(new Error('Database connection failed'));
+      mockTablesDB.listRows.mockRejectedValue(new Error('Database connection failed'));
 
       const handler = vi.fn();
       const wrappedHandler = withAuth(handler);
@@ -769,11 +784,11 @@ describe('API Middleware Integration Tests', () => {
       };
 
       mockAccount.get.mockResolvedValue(mockUser);
-      mockDatabases.listDocuments.mockResolvedValue({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValue({
+        rows: [mockUserProfile],
         total: 1,
       });
-      mockDatabases.getDocument.mockResolvedValue(mockRole);
+      mockTablesDB.getRow.mockResolvedValue(mockRole);
 
       const handler = vi.fn(async (req: AuthenticatedRequest, res: NextApiResponse) => {
         res.status(200).json({ permissions: req.userProfile.role?.permissions });

@@ -36,18 +36,18 @@ const TEST_PREFIX = 'photo-tracking-test';
 const CONCURRENT_TEST_COUNT = 5;
 
 describe('Photo Tracking with Operators', () => {
-  let databases: any;
+  let tablesDB: any;
   let dbId: string;
-  let attendeesCollectionId: string;
+  let attendeesTableId: string;
   let testAttendeeIds: string[] = [];
 
   beforeAll(async () => {
-    const { databases: db } = createAdminClient();
-    databases = db;
+    const { tablesDB: db } = createAdminClient();
+    tablesDB = db;
     dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-    attendeesCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID!;
+    attendeesTableId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID!;
 
-    if (!dbId || !attendeesCollectionId) {
+    if (!dbId || !attendeesTableId) {
       throw new Error('Missing required environment variables for testing');
     }
   });
@@ -62,7 +62,11 @@ describe('Photo Tracking with Operators', () => {
       console.log(`Cleaning up ${testAttendeeIds.length} test attendees...`);
       for (const id of testAttendeeIds) {
         try {
-          await databases.deleteDocument(dbId, attendeesCollectionId, id);
+          await tablesDB.deleteRow({
+            databaseId: dbId,
+            tableId: attendeesTableId,
+            rowId: id
+          });
         } catch (error) {
           console.error(`Failed to delete test attendee ${id}:`, error);
         }
@@ -71,15 +75,19 @@ describe('Photo Tracking with Operators', () => {
 
     // Also cleanup any attendees with test prefix that might have been missed
     try {
-      const testAttendees = await databases.listDocuments(
-        dbId,
-        attendeesCollectionId,
-        [Query.startsWith('barcodeNumber', TEST_PREFIX)]
-      );
+      const testAttendees = await tablesDB.listRows({
+        databaseId: dbId,
+        tableId: attendeesTableId,
+        queries: [Query.startsWith('barcodeNumber', TEST_PREFIX)]
+      });
 
-      for (const attendee of testAttendees.documents) {
+      for (const attendee of testAttendees.rows) {
         try {
-          await databases.deleteDocument(dbId, attendeesCollectionId, attendee.$id);
+          await tablesDB.deleteRow({
+            databaseId: dbId,
+            tableId: attendeesTableId,
+            rowId: attendee.$id
+          });
         } catch (error) {
           console.error(`Failed to cleanup attendee ${attendee.$id}:`, error);
         }
@@ -104,12 +112,12 @@ describe('Photo Tracking with Operators', () => {
       ...overrides
     };
 
-    const attendee = await databases.createDocument(
-      dbId,
-      attendeesCollectionId,
-      ID.unique(),
-      attendeeData
-    );
+    const attendee = await tablesDB.createRow({
+      databaseId: dbId,
+      tableId: attendeesTableId,
+      rowId: ID.unique(),
+      data: attendeeData
+    });
 
     testAttendeeIds.push(attendee.$id);
     return attendee;
@@ -124,7 +132,11 @@ describe('Photo Tracking with Operators', () => {
     const { createIncrement, createDecrement, dateOperators } = await import('@/lib/operators');
     
     // Get current attendee state
-    const current = await databases.getDocument(dbId, attendeesCollectionId, attendeeId);
+    const current = await tablesDB.getRow({
+      databaseId: dbId,
+      tableId: attendeesTableId,
+      rowId: attendeeId
+    });
     const hadPhoto = current.photoUrl && current.photoUrl !== '';
     const hasPhoto = photoUrl && photoUrl !== '';
     
@@ -140,12 +152,12 @@ describe('Photo Tracking with Operators', () => {
       updateData.photoUploadCount = createDecrement(1, { min: 0 });
     }
     
-    return await databases.updateDocument(
-      dbId,
-      attendeesCollectionId,
-      attendeeId,
-      updateData
-    );
+    return await tablesDB.updateRow({
+      databaseId: dbId,
+      tableId: attendeesTableId,
+      rowId: attendeeId,
+      data: updateData
+    });
   }
 
   it('should increment photoUploadCount when photo is uploaded', async () => {
@@ -254,7 +266,11 @@ describe('Photo Tracking with Operators', () => {
     // Verify all counts incremented correctly
     const updatedAttendees = await Promise.all(
       attendees.map(attendee =>
-        databases.getDocument(dbId, attendeesCollectionId, attendee.$id)
+        tablesDB.getRow({
+          databaseId: dbId,
+          tableId: attendeesTableId,
+          rowId: attendee.$id
+        })
       )
     );
 
@@ -271,7 +287,11 @@ describe('Photo Tracking with Operators', () => {
     // Verify all counts decremented correctly
     const finalAttendees = await Promise.all(
       attendees.map(attendee =>
-        databases.getDocument(dbId, attendeesCollectionId, attendee.$id)
+        tablesDB.getRow({
+          databaseId: dbId,
+          tableId: attendeesTableId,
+          rowId: attendee.$id
+        })
       )
     );
 

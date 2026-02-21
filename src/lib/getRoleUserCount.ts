@@ -1,12 +1,12 @@
 import { Query } from 'appwrite';
-import { Databases } from 'node-appwrite';
+import { TablesDB } from 'node-appwrite';
 import { roleUserCountCache } from './roleUserCountCache';
 import { logger } from './logger';
 
 /**
  * Get user count for a role with caching support
  * 
- * @param databases - Appwrite databases instance (server-side)
+ * @param tablesDB - Appwrite TablesDB instance (server-side)
  * @param roleId - The role ID
  * @returns The user count, or 0 if the query fails
  * 
@@ -15,7 +15,7 @@ import { logger } from './logger';
  * Cache is not updated on failure to avoid storing invalid data.
  */
 export async function getRoleUserCount(
-  databases: Databases,
+  tablesDB: TablesDB,
   roleId: string
 ): Promise<number> {
   // Try to get from cache first
@@ -26,12 +26,12 @@ export async function getRoleUserCount(
 
   // Cache miss - query the database
   const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-  const usersCollectionId = process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!;
+  const usersTableId = process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID!;
 
   try {
-    const usersWithRole = await databases.listDocuments(
+    const usersWithRole = await tablesDB.listRows(
       dbId,
-      usersCollectionId,
+      usersTableId,
       [Query.equal('roleId', roleId), Query.limit(1)]
     );
 
@@ -51,7 +51,7 @@ export async function getRoleUserCount(
       error: errorMessage,
       code: errorCode,
       dbId,
-      usersCollectionId
+      usersTableId
     });
 
     // Return safe fallback without caching the error state

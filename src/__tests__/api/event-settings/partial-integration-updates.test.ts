@@ -7,7 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextApiRequest, NextApiResponse } from 'next';
-import handler from '../index';
+import handler from '@/pages/api/event-settings/index';
 import { eventSettingsCache } from '@/lib/cache';
 
 // Mock Appwrite
@@ -59,6 +59,7 @@ vi.mock('@/lib/logSettings', () => ({
   shouldLog: vi.fn(() => Promise.resolve(false))
 }));
 
+
 import { createSessionClient, createAdminClient } from '@/lib/appwrite';
 import {
   updateCloudinaryIntegration,
@@ -70,7 +71,7 @@ import {
 describe('Partial Integration Updates Tests (Task 6.7)', () => {
   let req: Partial<NextApiRequest>;
   let res: Partial<NextApiResponse>;
-  let mockDatabases: any;
+  let mockTablesDB: any;
   let mockAccount: any;
 
   const mockEventSettings = {
@@ -135,11 +136,11 @@ describe('Partial Integration Updates Tests (Task 6.7)', () => {
     eventSettingsCache.clear();
 
     // Setup mock databases
-    mockDatabases = {
-      listDocuments: vi.fn(),
-      updateDocument: vi.fn(),
-      createDocument: vi.fn(),
-      getDocument: vi.fn()
+    mockTablesDB = {
+      listRows: vi.fn(),
+      updateRow: vi.fn(),
+      createRow: vi.fn(),
+      getRow: vi.fn()
     };
 
     // Setup mock account
@@ -149,12 +150,12 @@ describe('Partial Integration Updates Tests (Task 6.7)', () => {
 
     // Mock createSessionClient and createAdminClient
     (createSessionClient as any).mockReturnValue({
-      databases: mockDatabases,
+      tablesDB: mockTablesDB,
       account: mockAccount
     });
 
     (createAdminClient as any).mockReturnValue({
-      databases: mockDatabases
+      tablesDB: mockTablesDB
     });
 
     // Setup request and response
@@ -169,29 +170,29 @@ describe('Partial Integration Updates Tests (Task 6.7)', () => {
     };
 
     // Default database mocks
-    mockDatabases.listDocuments.mockImplementation((dbId: string, collectionId: string) => {
-      if (collectionId === process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID) {
-        return Promise.resolve({ documents: [mockEventSettings] });
+    mockTablesDB.listRows.mockImplementation((dbId: string, tableId: string) => {
+      if (tableId === process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID) {
+        return Promise.resolve({ rows: [mockEventSettings] });
       }
-      if (collectionId === process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID) {
-        return Promise.resolve({ documents: [] });
+      if (tableId === process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID) {
+        return Promise.resolve({ rows: [] });
       }
-      if (collectionId === process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID) {
-        return Promise.resolve({ documents: [{ $id: 'user123', userId: 'user123' }] });
+      if (tableId === process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID) {
+        return Promise.resolve({ rows: [{ $id: 'user123', userId: 'user123' }] });
       }
-      if (collectionId === process.env.NEXT_PUBLIC_APPWRITE_CLOUDINARY_COLLECTION_ID) {
-        return Promise.resolve({ documents: [mockCloudinaryIntegration] });
+      if (tableId === process.env.NEXT_PUBLIC_APPWRITE_CLOUDINARY_TABLE_ID) {
+        return Promise.resolve({ rows: [mockCloudinaryIntegration] });
       }
-      if (collectionId === process.env.NEXT_PUBLIC_APPWRITE_SWITCHBOARD_COLLECTION_ID) {
-        return Promise.resolve({ documents: [mockSwitchboardIntegration] });
+      if (tableId === process.env.NEXT_PUBLIC_APPWRITE_SWITCHBOARD_TABLE_ID) {
+        return Promise.resolve({ rows: [mockSwitchboardIntegration] });
       }
-      if (collectionId === process.env.NEXT_PUBLIC_APPWRITE_ONESIMPLEAPI_COLLECTION_ID) {
-        return Promise.resolve({ documents: [mockOneSimpleApiIntegration] });
+      if (tableId === process.env.NEXT_PUBLIC_APPWRITE_ONESIMPLEAPI_TABLE_ID) {
+        return Promise.resolve({ rows: [mockOneSimpleApiIntegration] });
       }
-      return Promise.resolve({ documents: [] });
+      return Promise.resolve({ rows: [] });
     });
 
-    mockDatabases.updateDocument.mockResolvedValue({
+    mockTablesDB.updateRow.mockResolvedValue({
       ...mockEventSettings,
       eventName: 'Test Event'
     });
@@ -331,23 +332,23 @@ describe('Partial Integration Updates Tests (Task 6.7)', () => {
         cloudinaryCropAspectRatio: settings.cloudinary?.cropAspectRatio || '1',
       }));
 
-      mockDatabases.listDocuments.mockImplementation((dbId: string, collectionId: string) => {
-        if (collectionId === process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID) {
-          return Promise.resolve({ documents: [mockEventSettings] });
+      mockTablesDB.listRows.mockImplementation((dbId: string, tableId: string) => {
+        if (tableId === process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID) {
+          return Promise.resolve({ rows: [mockEventSettings] });
         }
-        if (collectionId === process.env.NEXT_PUBLIC_APPWRITE_CLOUDINARY_COLLECTION_ID) {
+        if (tableId === process.env.NEXT_PUBLIC_APPWRITE_CLOUDINARY_TABLE_ID) {
           return Promise.resolve({ 
-            documents: [{
+            rows: [{
               ...mockCloudinaryIntegration,
               version: 2,
               cloudName: 'updated-cloud-name', // Only this changed
             }]
           });
         }
-        if (collectionId === process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID) {
-          return Promise.resolve({ documents: [] });
+        if (tableId === process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID) {
+          return Promise.resolve({ rows: [] });
         }
-        return Promise.resolve({ documents: [] });
+        return Promise.resolve({ rows: [] });
       });
 
       await handler(req as NextApiRequest, res as NextApiResponse);
@@ -493,23 +494,23 @@ describe('Partial Integration Updates Tests (Task 6.7)', () => {
         switchboardFieldMappings: settings.switchboard?.fieldMappings ? JSON.parse(settings.switchboard.fieldMappings) : [],
       }));
 
-      mockDatabases.listDocuments.mockImplementation((dbId: string, collectionId: string) => {
-        if (collectionId === process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID) {
-          return Promise.resolve({ documents: [mockEventSettings] });
+      mockTablesDB.listRows.mockImplementation((dbId: string, tableId: string) => {
+        if (tableId === process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID) {
+          return Promise.resolve({ rows: [mockEventSettings] });
         }
-        if (collectionId === process.env.NEXT_PUBLIC_APPWRITE_SWITCHBOARD_COLLECTION_ID) {
+        if (tableId === process.env.NEXT_PUBLIC_APPWRITE_SWITCHBOARD_TABLE_ID) {
           return Promise.resolve({ 
-            documents: [{
+            rows: [{
               ...mockSwitchboardIntegration,
               version: 2,
               authHeaderType: 'ApiKey', // Only this changed
             }]
           });
         }
-        if (collectionId === process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID) {
-          return Promise.resolve({ documents: [] });
+        if (tableId === process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID) {
+          return Promise.resolve({ rows: [] });
         }
-        return Promise.resolve({ documents: [] });
+        return Promise.resolve({ rows: [] });
       });
 
       await handler(req as NextApiRequest, res as NextApiResponse);
@@ -648,23 +649,23 @@ describe('Partial Integration Updates Tests (Task 6.7)', () => {
         oneSimpleApiRecordTemplate: settings.oneSimpleApi?.recordTemplate || '',
       }));
 
-      mockDatabases.listDocuments.mockImplementation((dbId: string, collectionId: string) => {
-        if (collectionId === process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID) {
-          return Promise.resolve({ documents: [mockEventSettings] });
+      mockTablesDB.listRows.mockImplementation((dbId: string, tableId: string) => {
+        if (tableId === process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID) {
+          return Promise.resolve({ rows: [mockEventSettings] });
         }
-        if (collectionId === process.env.NEXT_PUBLIC_APPWRITE_ONESIMPLEAPI_COLLECTION_ID) {
+        if (tableId === process.env.NEXT_PUBLIC_APPWRITE_ONESIMPLEAPI_TABLE_ID) {
           return Promise.resolve({ 
-            documents: [{
+            rows: [{
               ...mockOneSimpleApiIntegration,
               version: 2,
               url: 'https://updated.onesimple.com', // Only this changed
             }]
           });
         }
-        if (collectionId === process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID) {
-          return Promise.resolve({ documents: [] });
+        if (tableId === process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID) {
+          return Promise.resolve({ rows: [] });
         }
-        return Promise.resolve({ documents: [] });
+        return Promise.resolve({ rows: [] });
       });
 
       await handler(req as NextApiRequest, res as NextApiResponse);

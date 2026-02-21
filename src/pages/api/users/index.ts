@@ -31,7 +31,7 @@ function parseRolePermissions(permissions: unknown): Record<string, any> {
 export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   // User and userProfile are already attached by middleware
   const { user, userProfile } = req;
-  const { databases } = createSessionClient(req);
+  const { tablesDB } = createSessionClient(req);
 
   // Extract role from userProfile for permission checks
   const role = userProfile.role ? {
@@ -64,21 +64,21 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         const offset = parseInt(req.query.offset as string) || 0;
 
         // Fetch users with pagination
-        const usersResponse = await databases.listDocuments(
+        const usersResponse = await tablesDB.listRows(
           process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+          process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID!,
           [Query.orderDesc('$createdAt'), Query.limit(limit), Query.offset(offset)]
         );
 
         // Fetch roles for each user
         const usersWithRoles = await Promise.all(
-          usersResponse.documents.map(async (userDoc) => {
+          usersResponse.rows.map(async (userDoc) => {
             let userRole = null;
             if (userDoc.roleId) {
               try {
-                userRole = await databases.getDocument(
+                userRole = await tablesDB.getRow(
                   process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-                  process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+                  process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
                   userDoc.roleId
                 );
               } catch (error) {
@@ -108,9 +108,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         if (await shouldLog('systemViewUsersList')) {
           try {
             // Check for recent duplicate logs (within last 5 seconds)
-            const recentLogs = await databases.listDocuments(
+            const recentLogs = await tablesDB.listRows(
               process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-              process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+              process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
               [
                 Query.equal('userId', user.$id),
                 Query.equal('action', 'view'),
@@ -120,7 +120,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             );
 
             // Check if there's already a recent users view log
-            const hasDuplicate = recentLogs.documents.some(log => {
+            const hasDuplicate = recentLogs.rows.some(log => {
               try {
                 const details = JSON.parse(log.details);
                 return details.target === 'Users List';
@@ -130,9 +130,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             });
 
             if (!hasDuplicate) {
-              await databases.createDocument(
+              await tablesDB.createRow(
                 process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-                process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+                process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
                 ID.unique(),
                 {
                   userId: user.$id,
@@ -212,13 +212,13 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         }
 
         // Check if user is already linked to the application
-        const existingUserDocs = await databases.listDocuments(
+        const existingUserDocs = await tablesDB.listRows(
           process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+          process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID!,
           [Query.equal('userId', authUserId)]
         );
 
-        if (existingUserDocs.documents.length > 0) {
+        if (existingUserDocs.rows.length > 0) {
           throw new ApiError(
             'This user is already linked to the application',
             ErrorCode.USER_ALREADY_LINKED,
@@ -230,9 +230,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         let userRole = null;
         if (roleId) {
           try {
-            userRole = await databases.getDocument(
+            userRole = await tablesDB.getRow(
               process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-              process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+              process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
               roleId
             );
           } catch (error) {
@@ -246,9 +246,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
         try {
           // Create user profile in database linking to existing auth user
-          const newUserDoc = await databases.createDocument(
+          const newUserDoc = await tablesDB.createRow(
             process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-            process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+            process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID!,
             ID.unique(),
             {
               userId: authUser.$id,
@@ -309,9 +309,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
                 console.log('Team membership created successfully:', membership.$id);
 
                 // Log team membership creation (Requirement 1.6)
-                await databases.createDocument(
+                await tablesDB.createRow(
                   process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-                  process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+                  process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
                   ID.unique(),
                   {
                     userId: user.$id,
@@ -339,9 +339,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
                 };
 
                 // Log team membership failure (Requirement 1.6)
-                await databases.createDocument(
+                await tablesDB.createRow(
                   process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-                  process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+                  process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
                   ID.unique(),
                   {
                     userId: user.$id,
@@ -366,9 +366,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
           // Log the linking action (Requirement 1.6, 9.7)
           if (await shouldLog('userCreate')) {
-            await databases.createDocument(
+            await tablesDB.createRow(
               process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-              process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+              process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
               ID.unique(),
               {
                 userId: user.$id,
@@ -443,9 +443,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         let updatedRole = null;
         if (updateRoleId) {
           try {
-            updatedRole = await databases.getDocument(
+            updatedRole = await tablesDB.getRow(
               process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-              process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+              process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
               updateRoleId
             );
           } catch (error) {
@@ -454,9 +454,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         }
 
         // Get current user to check for role changes
-        const currentUserDoc = await databases.getDocument(
+        const currentUserDoc = await tablesDB.getRow(
           process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+          process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID!,
           id
         );
 
@@ -465,9 +465,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         if (updateName !== undefined) updateData.name = updateName;
         if (updateRoleId !== undefined) updateData.roleId = updateRoleId;
 
-        const updatedUserDoc = await databases.updateDocument(
+        const updatedUserDoc = await tablesDB.updateRow(
           process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+          process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID!,
           id,
           updateData
         );
@@ -487,9 +487,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
         // Log the update action if enabled
         if (await shouldLog('userUpdate')) {
-          await databases.createDocument(
+          await tablesDB.createRow(
             process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-            process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+            process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
             ID.unique(),
             {
               userId: user.$id,
@@ -548,9 +548,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         // Get user info before deletion for logging
         let userToDelete;
         try {
-          userToDelete = await databases.getDocument(
+          userToDelete = await tablesDB.getRow(
             process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-            process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+            process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID!,
             deleteId
           );
         } catch (error) {
@@ -593,9 +593,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
                 console.log('Team membership removed successfully');
 
                 // Log team membership removal (Requirement 1.6)
-                await databases.createDocument(
+                await tablesDB.createRow(
                   process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-                  process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+                  process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
                   ID.unique(),
                   {
                     userId: user.$id,
@@ -621,9 +621,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
               teamRemovalError = teamError.message;
 
               // Log team membership removal failure (Requirement 1.6)
-              await databases.createDocument(
+              await tablesDB.createRow(
                 process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-                process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+                process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
                 ID.unique(),
                 {
                   userId: user.$id,
@@ -664,18 +664,18 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         }
 
         // Delete user from database
-        await databases.deleteDocument(
+        await tablesDB.deleteRow(
           process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+          process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID!,
           deleteId
         );
 
         // Log the delete action if enabled
         if (await shouldLog('userDelete')) {
           const { createUserLogDetails } = await import('@/lib/logFormatting');
-          await databases.createDocument(
+          await tablesDB.createRow(
             process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-            process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+            process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
             ID.unique(),
             {
               userId: user.$id,

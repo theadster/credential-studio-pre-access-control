@@ -12,6 +12,9 @@ import { createBrowserClient } from '@/lib/appwrite';
 // Mock the Appwrite client
 vi.mock('@/lib/appwrite', () => ({
   createBrowserClient: vi.fn(),
+  createAdminClient: vi.fn(() => ({
+    tablesDB: { listRows: vi.fn(), getRow: vi.fn(), createRow: vi.fn(), updateRow: vi.fn(), deleteRow: vi.fn() },
+  })),
 }));
 
 describe('Dashboard Real-time Integration', () => {
@@ -38,19 +41,19 @@ describe('Dashboard Real-time Integration', () => {
 
     // Mock environment variables
     process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID = 'test-db';
-    process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID = 'attendees';
-    process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID = 'logs';
-    process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID = 'users';
-    process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID = 'roles';
-    process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID = 'event-settings';
-    process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID = 'custom-fields';
+    process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID = 'attendees';
+    process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID = 'logs';
+    process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID = 'users';
+    process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID = 'roles';
+    process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID = 'event-settings';
+    process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID = 'custom-fields';
   });
 
   describe('Attendee Real-time Updates', () => {
     it('should receive real-time updates when attendee is created', async () => {
       const callback = vi.fn();
       const channels = [
-        `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID}.documents`,
+        `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.tables.${process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID}.rows`,
       ];
 
       renderHook(() =>
@@ -68,7 +71,7 @@ describe('Dashboard Real-time Integration', () => {
       
       const createEvent: Partial<RealtimeResponseEvent<any>> = {
         events: [
-          `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID}.documents.123.create`,
+          `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.tables.${process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID}.rows.123.create`,
         ],
         payload: {
           $id: '123',
@@ -92,7 +95,7 @@ describe('Dashboard Real-time Integration', () => {
     it('should receive real-time updates when attendee is updated', async () => {
       const callback = vi.fn();
       const channels = [
-        `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID}.documents`,
+        `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.tables.${process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID}.rows`,
       ];
 
       renderHook(() =>
@@ -110,7 +113,7 @@ describe('Dashboard Real-time Integration', () => {
       
       const updateEvent: Partial<RealtimeResponseEvent<any>> = {
         events: [
-          `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID}.documents.123.update`,
+          `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.tables.${process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID}.rows.123.update`,
         ],
         payload: {
           $id: '123',
@@ -134,7 +137,7 @@ describe('Dashboard Real-time Integration', () => {
     it('should receive real-time updates when attendee is deleted', async () => {
       const callback = vi.fn();
       const channels = [
-        `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID}.documents`,
+        `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.tables.${process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID}.rows`,
       ];
 
       renderHook(() =>
@@ -152,7 +155,7 @@ describe('Dashboard Real-time Integration', () => {
       
       const deleteEvent: Partial<RealtimeResponseEvent<any>> = {
         events: [
-          `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID}.documents.123.delete`,
+          `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.tables.${process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID}.rows.123.delete`,
         ],
         payload: {
           $id: '123',
@@ -169,7 +172,7 @@ describe('Dashboard Real-time Integration', () => {
     it('should handle multiple attendee updates in sequence', async () => {
       const callback = vi.fn();
       const channels = [
-        `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID}.documents`,
+        `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.tables.${process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID}.rows`,
       ];
 
       renderHook(() =>
@@ -188,7 +191,7 @@ describe('Dashboard Real-time Integration', () => {
       // Create first attendee
       subscribedCallback({
         events: [
-          `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID}.documents.1.create`,
+          `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.tables.${process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID}.rows.1.create`,
         ],
         payload: { $id: '1', firstName: 'John', lastName: 'Doe' },
       });
@@ -196,7 +199,7 @@ describe('Dashboard Real-time Integration', () => {
       // Create second attendee
       subscribedCallback({
         events: [
-          `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID}.documents.2.create`,
+          `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.tables.${process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID}.rows.2.create`,
         ],
         payload: { $id: '2', firstName: 'Jane', lastName: 'Smith' },
       });
@@ -204,7 +207,7 @@ describe('Dashboard Real-time Integration', () => {
       // Update first attendee
       subscribedCallback({
         events: [
-          `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID}.documents.1.update`,
+          `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.tables.${process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID}.rows.1.update`,
         ],
         payload: { $id: '1', firstName: 'John', lastName: 'Updated' },
       });
@@ -219,7 +222,7 @@ describe('Dashboard Real-time Integration', () => {
     it('should receive real-time updates when log is created', async () => {
       const callback = vi.fn();
       const channels = [
-        `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID}.documents`,
+        `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.tables.${process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID}.rows`,
       ];
 
       renderHook(() =>
@@ -237,7 +240,7 @@ describe('Dashboard Real-time Integration', () => {
       
       const logEvent: Partial<RealtimeResponseEvent<any>> = {
         events: [
-          `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID}.documents.log1.create`,
+          `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.tables.${process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID}.rows.log1.create`,
         ],
         payload: {
           $id: 'log1',
@@ -259,7 +262,7 @@ describe('Dashboard Real-time Integration', () => {
     it('should handle rapid log creation events', async () => {
       const callback = vi.fn();
       const channels = [
-        `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID}.documents`,
+        `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.tables.${process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID}.rows`,
       ];
 
       renderHook(() =>
@@ -279,7 +282,7 @@ describe('Dashboard Real-time Integration', () => {
       for (let i = 1; i <= 5; i++) {
         subscribedCallback({
           events: [
-            `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID}.documents.log${i}.create`,
+            `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.tables.${process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID}.rows.log${i}.create`,
           ],
           payload: {
             $id: `log${i}`,
@@ -301,8 +304,8 @@ describe('Dashboard Real-time Integration', () => {
     it('should subscribe to multiple collections simultaneously', async () => {
       const callback = vi.fn();
       const channels = [
-        `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID}.documents`,
-        `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID}.documents`,
+        `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.tables.${process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID}.rows`,
+        `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.tables.${process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID}.rows`,
       ];
 
       renderHook(() =>
@@ -320,8 +323,8 @@ describe('Dashboard Real-time Integration', () => {
     it('should handle events from different collections', async () => {
       const callback = vi.fn();
       const channels = [
-        `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID}.documents`,
-        `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID}.documents`,
+        `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.tables.${process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID}.rows`,
+        `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.tables.${process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID}.rows`,
       ];
 
       renderHook(() =>
@@ -340,7 +343,7 @@ describe('Dashboard Real-time Integration', () => {
       // Attendee event
       subscribedCallback({
         events: [
-          `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID}.documents.123.create`,
+          `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.tables.${process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID}.rows.123.create`,
         ],
         payload: { $id: '123', firstName: 'John' },
       });
@@ -348,7 +351,7 @@ describe('Dashboard Real-time Integration', () => {
       // Log event
       subscribedCallback({
         events: [
-          `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID}.documents.log1.create`,
+          `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.tables.${process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID}.rows.log1.create`,
         ],
         payload: { $id: 'log1', action: 'attendee_created' },
       });
@@ -363,7 +366,7 @@ describe('Dashboard Real-time Integration', () => {
     it('should receive updates when user is created', async () => {
       const callback = vi.fn();
       const channels = [
-        `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID}.documents`,
+        `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.tables.${process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID}.rows`,
       ];
 
       renderHook(() =>
@@ -381,7 +384,7 @@ describe('Dashboard Real-time Integration', () => {
       
       subscribedCallback({
         events: [
-          `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID}.documents.user1.create`,
+          `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.tables.${process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID}.rows.user1.create`,
         ],
         payload: {
           $id: 'user1',
@@ -400,7 +403,7 @@ describe('Dashboard Real-time Integration', () => {
     it('should receive updates when role is modified', async () => {
       const callback = vi.fn();
       const channels = [
-        `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID}.documents`,
+        `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.tables.${process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID}.rows`,
       ];
 
       renderHook(() =>
@@ -418,7 +421,7 @@ describe('Dashboard Real-time Integration', () => {
       
       subscribedCallback({
         events: [
-          `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID}.documents.role1.update`,
+          `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.tables.${process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID}.rows.role1.update`,
         ],
         payload: {
           $id: 'role1',
@@ -437,7 +440,7 @@ describe('Dashboard Real-time Integration', () => {
     it('should receive updates when event settings change', async () => {
       const callback = vi.fn();
       const channels = [
-        `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID}.documents`,
+        `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.tables.${process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID}.rows`,
       ];
 
       renderHook(() =>
@@ -455,7 +458,7 @@ describe('Dashboard Real-time Integration', () => {
       
       subscribedCallback({
         events: [
-          `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID}.documents.settings1.update`,
+          `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.tables.${process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID}.rows.settings1.update`,
         ],
         payload: {
           $id: 'settings1',
@@ -472,7 +475,7 @@ describe('Dashboard Real-time Integration', () => {
     it('should receive updates when custom field is added', async () => {
       const callback = vi.fn();
       const channels = [
-        `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID}.documents`,
+        `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.tables.${process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID}.rows`,
       ];
 
       renderHook(() =>
@@ -490,7 +493,7 @@ describe('Dashboard Real-time Integration', () => {
       
       subscribedCallback({
         events: [
-          `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID}.documents.field1.create`,
+          `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.tables.${process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID}.rows.field1.create`,
         ],
         payload: {
           $id: 'field1',
@@ -512,7 +515,7 @@ describe('Dashboard Real-time Integration', () => {
       const callback = vi.fn();
       const onError = vi.fn();
       const channels = [
-        `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID}.documents`,
+        `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.tables.${process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID}.rows`,
       ];
 
       mockSubscribe.mockImplementationOnce(() => {
@@ -543,7 +546,7 @@ describe('Dashboard Real-time Integration', () => {
       
       const onError = vi.fn();
       const channels = [
-        `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.collections.${process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID}.documents`,
+        `databases.${process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID}.tables.${process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID}.rows`,
       ];
 
       renderHook(() =>
@@ -562,7 +565,7 @@ describe('Dashboard Real-time Integration', () => {
 
       // First event causes error
       subscribedCallback({
-        events: ['databases.test-db.collections.attendees.documents.1.create'],
+        events: ['databases.test-db.tables.attendees.rows.1.create'],
         payload: { $id: '1' },
       });
 
@@ -572,7 +575,7 @@ describe('Dashboard Real-time Integration', () => {
 
       // Second event should still be processed
       subscribedCallback({
-        events: ['databases.test-db.collections.attendees.documents.2.create'],
+        events: ['databases.test-db.tables.attendees.rows.2.create'],
         payload: { $id: '2' },
       });
 

@@ -12,11 +12,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
   try {
     const { user, userProfile } = req;
-    const { databases } = createSessionClient(req);
+    const { tablesDB } = createSessionClient(req);
 
     const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-    const attendeesCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID!;
-    const logsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!;
+    const attendeesTableId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID!;
+    const logsTableId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!;
 
     // Check if user has permission to manage attendees
     const permissions = userProfile?.role?.permissions ?? {};
@@ -40,10 +40,10 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     for (const attendeeId of attendeeIds) {
       try {
         // Get the attendee first to check if it exists and has a credential
-        const existingAttendee = await databases.getDocument({
+        const existingAttendee = await tablesDB.getRow({
           databaseId: dbId,
-          collectionId: attendeesCollectionId,
-          documentId: attendeeId
+          tableId: attendeesTableId,
+          rowId: attendeeId
         });
 
         const fullName = `${existingAttendee.firstName} ${existingAttendee.lastName}`;
@@ -51,10 +51,10 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
         // Only update if there's actually a credential to clear
         if (hasCredential) {
-          await databases.updateDocument({
+          await tablesDB.updateRow({
             databaseId: dbId,
-            collectionId: attendeesCollectionId,
-            documentId: attendeeId,
+            tableId: attendeesTableId,
+            rowId: attendeeId,
             data: {
               credentialUrl: null,
               credentialGeneratedAt: null
@@ -69,10 +69,10 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
               ? `Cleared credential for ${fullName}`
               : `Attempted to clear credential for ${fullName} (no credential existed)`;
 
-            await databases.createDocument({
+            await tablesDB.createRow({
               databaseId: dbId,
-              collectionId: logsCollectionId,
-              documentId: ID.unique(),
+              tableId: logsTableId,
+              rowId: ID.unique(),
               data: {
                 userId: user.$id,
                 attendeeId: attendeeId,

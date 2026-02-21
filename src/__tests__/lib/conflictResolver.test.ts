@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { Databases } from 'node-appwrite';
+import { TablesDB } from 'node-appwrite';
 import {
   ConflictType,
   OperationType,
@@ -26,7 +26,7 @@ import {
   ResolutionStrategy,
 } from '../../lib/conflictResolver';
 import { FIELD_GROUPS } from '../../lib/fieldUpdate';
-import { mockDatabases, resetAllMocks } from '../../test/mocks/appwrite';
+import { mockTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 import { logger } from '../../lib/logger';
 
 // Mock the logger
@@ -41,7 +41,7 @@ vi.mock('../../lib/logger', () => ({
 
 describe('ConflictResolver', () => {
   const testDatabaseId = 'test-database';
-  const testCollectionId = 'test-collection';
+  const testTableId = 'test-table';
   const testDocumentId = 'test-document-123';
 
   beforeEach(() => {
@@ -264,8 +264,8 @@ describe('ConflictResolver', () => {
         credentialUrl: 'credential.pdf',
       };
 
-      mockDatabases.getDocument.mockResolvedValue(mockDocument);
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue(mockDocument);
+      mockTablesDB.updateRow.mockResolvedValue({
         ...mockDocument,
         photoUrl: 'photo.jpg',
         version: 6,
@@ -279,9 +279,9 @@ describe('ConflictResolver', () => {
       };
 
       const result = await resolve(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId,
         strategy,
         { photoUrl: 'photo.jpg' }
@@ -297,8 +297,8 @@ describe('ConflictResolver', () => {
         version: 5,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(mockDocument);
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue(mockDocument);
+      mockTablesDB.updateRow.mockResolvedValue({
         ...mockDocument,
         photoUrl: 'newer-photo.jpg',
         version: 6,
@@ -312,9 +312,9 @@ describe('ConflictResolver', () => {
       };
 
       const result = await resolve(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId,
         strategy,
         { photoUrl: 'newer-photo.jpg' }
@@ -332,9 +332,9 @@ describe('ConflictResolver', () => {
       };
 
       const result = await resolve(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId,
         strategy,
         { photoUrl: 'photo.jpg' }
@@ -351,8 +351,8 @@ describe('ConflictResolver', () => {
         version: 5,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(mockDocument);
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue(mockDocument);
+      mockTablesDB.updateRow.mockResolvedValue({
         ...mockDocument,
         photoUrl: 'photo.jpg',
         version: 6,
@@ -365,9 +365,9 @@ describe('ConflictResolver', () => {
       };
 
       const result = await resolve(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId,
         strategy,
         { photoUrl: 'photo.jpg' }

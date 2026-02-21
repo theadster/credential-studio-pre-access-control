@@ -2,7 +2,7 @@ import { NextApiResponse } from 'next';
 import { createSessionClient } from '@/lib/appwrite';
 import { ID } from 'node-appwrite';
 import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
-import { getAppwriteCollectionIds } from '@/lib/envValidation';
+import { getAppwriteTableIds } from '@/lib/envValidation';
 import { logger } from '@/lib/logger';
 import { shouldLog } from '@/lib/logSettings';
 import { executeTransactionWithRetry, handleTransactionError, type TransactionOperation } from '@/lib/transactions';
@@ -12,7 +12,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
   try {
     // User and userProfile are already attached by middleware
     const { user, userProfile } = req;
-    const { databases, tablesDB } = createSessionClient(req);
+    const { tablesDB } = createSessionClient(req);
 
     const { id } = req.query;
 
@@ -22,14 +22,14 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
     // Validate required environment variables using centralized utility
     let dbId: string;
-    let customFieldsCollectionId: string;
-    let logsCollectionId: string;
+    let customFieldsTableId: string;
+    let logsTableId: string;
 
     try {
-      const collectionIds = getAppwriteCollectionIds();
+      const collectionIds = getAppwriteTableIds();
       dbId = collectionIds.dbId;
-      customFieldsCollectionId = collectionIds.customFieldsCollectionId;
-      logsCollectionId = collectionIds.logsCollectionId;
+      customFieldsTableId = collectionIds.customFieldsTableId;
+      logsTableId = collectionIds.logsTableId;
     } catch (envError: unknown) {
       const errorMessage = envError instanceof Error ? envError.message : 'Server configuration error';
       console.error('Environment validation failed:', errorMessage);
@@ -53,10 +53,10 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         // Fetch custom field
         let customField;
         try {
-          customField = await databases.getDocument({
+          customField = await tablesDB.getRow({
             databaseId: dbId,
-            collectionId: customFieldsCollectionId,
-            documentId: id
+            tableId: customFieldsTableId,
+            rowId: id
           });
         } catch (error) {
           return res.status(404).json({ error: 'Custom field not found' });
@@ -146,10 +146,10 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         // Fetch current document to check version and soft-delete status
         let currentField;
         try {
-          currentField = await databases.getDocument({
+          currentField = await tablesDB.getRow({
             databaseId: dbId,
-            collectionId: customFieldsCollectionId,
-            documentId: id
+            tableId: customFieldsTableId,
+            rowId: id
           });
         } catch (error) {
           return res.status(404).json({ error: 'Custom field not found' });
@@ -201,7 +201,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           {
             action: 'update',
             databaseId: dbId,
-            tableId: customFieldsCollectionId,
+            tableId: customFieldsTableId,
             rowId: id,
             data: updateData
           }
@@ -212,7 +212,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           operations.push({
             action: 'create',
             databaseId: dbId,
-            tableId: logsCollectionId,
+            tableId: logsTableId,
             rowId: ID.unique(),
             data: {
               userId: user.$id,
@@ -307,10 +307,10 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         // Check if field exists
         let fieldToDelete;
         try {
-          fieldToDelete = await databases.getDocument({
+          fieldToDelete = await tablesDB.getRow({
             databaseId: dbId,
-            collectionId: customFieldsCollectionId,
-            documentId: id
+            tableId: customFieldsTableId,
+            rowId: id
           });
         } catch (error) {
           return res.status(404).json({ error: 'Custom field not found' });
@@ -373,7 +373,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           {
             action: 'update',
             databaseId: dbId,
-            tableId: customFieldsCollectionId,
+            tableId: customFieldsTableId,
             rowId: id,
             data: {
               deletedAt,
@@ -388,7 +388,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           deleteOperations.push({
             action: 'create',
             databaseId: dbId,
-            tableId: logsCollectionId,
+            tableId: logsTableId,
             rowId: ID.unique(),
             data: {
               userId: user.$id,

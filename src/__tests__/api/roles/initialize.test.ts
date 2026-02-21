@@ -1,15 +1,19 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import handler from '../initialize';
-import { mockAccount, mockDatabases, resetAllMocks } from '@/test/mocks/appwrite';
+import handler from '@/pages/api/roles/initialize';
+import { mockAccount, mockTablesDB, mockAdminTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn((req: NextApiRequest) => ({
     account: mockAccount,
-    databases: mockDatabases,
+    tablesDB: mockTablesDB,
   })),
+  createAdminClient: vi.fn(() => ({
+    tablesDB: mockAdminTablesDB,
+})),
 }));
+
 
 describe('/api/roles/initialize - Role Initialization API', () => {
   let mockReq: Partial<NextApiRequest>;
@@ -66,8 +70,8 @@ describe('/api/roles/initialize - Role Initialization API', () => {
   describe('POST /api/roles/initialize', () => {
     it('should create default roles successfully', async () => {
       // Mock empty roles collection
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [],
         total: 0,
       });
 
@@ -139,7 +143,7 @@ describe('/api/roles/initialize - Role Initialization API', () => {
         },
       ];
 
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce(mockCreatedRoles[0])
         .mockResolvedValueOnce(mockCreatedRoles[1])
         .mockResolvedValueOnce(mockCreatedRoles[2])
@@ -149,12 +153,12 @@ describe('/api/roles/initialize - Role Initialization API', () => {
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       // Verify all 4 roles were created
-      expect(mockDatabases.createDocument).toHaveBeenCalledTimes(5); // 4 roles + 1 log
+      expect(mockTablesDB.createRow).toHaveBeenCalledTimes(5); // 4 roles + 1 log
 
       // Verify Super Administrator role
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID,
         expect.any(String),
         expect.objectContaining({
           name: 'Super Administrator',
@@ -163,9 +167,9 @@ describe('/api/roles/initialize - Role Initialization API', () => {
       );
 
       // Verify Event Manager role
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID,
         expect.any(String),
         expect.objectContaining({
           name: 'Event Manager',
@@ -174,9 +178,9 @@ describe('/api/roles/initialize - Role Initialization API', () => {
       );
 
       // Verify Registration Staff role
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID,
         expect.any(String),
         expect.objectContaining({
           name: 'Registration Staff',
@@ -185,9 +189,9 @@ describe('/api/roles/initialize - Role Initialization API', () => {
       );
 
       // Verify Viewer role
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID,
         expect.any(String),
         expect.objectContaining({
           name: 'Viewer',
@@ -204,8 +208,8 @@ describe('/api/roles/initialize - Role Initialization API', () => {
 
     it('should return 400 if roles already exist', async () => {
       // Mock existing roles
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [{ $id: 'existing-role', name: 'Existing Role' }],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [{ $id: 'existing-role', name: 'Existing Role' }],
         total: 1,
       });
 
@@ -213,12 +217,12 @@ describe('/api/roles/initialize - Role Initialization API', () => {
 
       expect(statusMock).toHaveBeenCalledWith(400);
       expect(jsonMock).toHaveBeenCalledWith({ error: 'Roles already initialized' });
-      expect(mockDatabases.createDocument).not.toHaveBeenCalled();
+      expect(mockTablesDB.createRow).not.toHaveBeenCalled();
     });
 
     it('should create log entry for initialization', async () => {
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [],
         total: 0,
       });
 
@@ -229,7 +233,7 @@ describe('/api/roles/initialize - Role Initialization API', () => {
         { $id: 'role-4', name: 'Viewer' },
       ];
 
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce(mockCreatedRoles[0])
         .mockResolvedValueOnce(mockCreatedRoles[1])
         .mockResolvedValueOnce(mockCreatedRoles[2])
@@ -238,9 +242,9 @@ describe('/api/roles/initialize - Role Initialization API', () => {
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
         expect.any(String),
         expect.objectContaining({
           userId: mockAuthUser.$id,
@@ -251,8 +255,8 @@ describe('/api/roles/initialize - Role Initialization API', () => {
     });
 
     it('should continue even if logging fails', async () => {
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [],
         total: 0,
       });
 
@@ -263,7 +267,7 @@ describe('/api/roles/initialize - Role Initialization API', () => {
         { $id: 'role-4', name: 'Viewer' },
       ];
 
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce(mockCreatedRoles[0])
         .mockResolvedValueOnce(mockCreatedRoles[1])
         .mockResolvedValueOnce(mockCreatedRoles[2])
@@ -281,19 +285,19 @@ describe('/api/roles/initialize - Role Initialization API', () => {
     });
 
     it('should serialize permissions as JSON strings', async () => {
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [],
         total: 0,
       });
 
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValue({ $id: 'role-123', name: 'Test Role' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       // Check that permissions are stringified
-      const createCalls = mockDatabases.createDocument.mock.calls.filter(
-        call => call[1] === process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID
+      const createCalls = mockTablesDB.createRow.mock.calls.filter(
+        call => call[1] === process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID
       );
 
       createCalls.forEach(call => {
@@ -305,18 +309,18 @@ describe('/api/roles/initialize - Role Initialization API', () => {
     });
 
     it('should create roles with correct permission structures', async () => {
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [],
         total: 0,
       });
 
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValue({ $id: 'role-123', name: 'Test Role' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       // Verify Super Administrator has all permissions
-      const superAdminCall = mockDatabases.createDocument.mock.calls.find(
+      const superAdminCall = mockTablesDB.createRow.mock.calls.find(
         call => call[3]?.name === 'Super Administrator'
       );
       expect(superAdminCall).toBeDefined();
@@ -329,7 +333,7 @@ describe('/api/roles/initialize - Role Initialization API', () => {
       expect(superAdminPerms.system.configure).toBe(true);
 
       // Verify Viewer has limited permissions
-      const viewerCall = mockDatabases.createDocument.mock.calls.find(
+      const viewerCall = mockTablesDB.createRow.mock.calls.find(
         call => call[3]?.name === 'Viewer'
       );
       expect(viewerCall).toBeDefined();
@@ -376,7 +380,7 @@ describe('/api/roles/initialize - Role Initialization API', () => {
 
   describe('Error Handling', () => {
     it('should handle database errors gracefully', async () => {
-      mockDatabases.listDocuments.mockRejectedValueOnce(new Error('Database error'));
+      mockTablesDB.listRows.mockRejectedValueOnce(new Error('Database error'));
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -391,12 +395,12 @@ describe('/api/roles/initialize - Role Initialization API', () => {
     });
 
     it('should handle role creation errors', async () => {
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [],
         total: 0,
       });
 
-      mockDatabases.createDocument.mockRejectedValueOnce(new Error('Creation failed'));
+      mockTablesDB.createRow.mockRejectedValueOnce(new Error('Creation failed'));
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 

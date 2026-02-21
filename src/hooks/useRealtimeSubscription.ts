@@ -15,7 +15,7 @@ type ConnectionHealthWithInternal = UseConnectionHealthReturn;
 export interface RealtimeSubscriptionOptions<T extends Models.Document> {
   /**
    * Channels to subscribe to
-   * Example: [`databases.${dbId}.collections.${collectionId}.documents`]
+   * Example: [`databases.${dbId}.tables.${tableId}.rows`]
    */
   channels: string[];
   
@@ -91,10 +91,10 @@ export interface RealtimeSubscriptionOptions<T extends Models.Document> {
  * ```tsx
  * // Basic usage
  * useRealtimeSubscription({
- *   channels: [`databases.${dbId}.collections.${collectionId}.documents`],
+ *   channels: [`databases.${dbId}.tables.${tableId}.rows`],
  *   callback: (response) => {
- *     if (response.events.includes('databases.*.collections.*.documents.*.create')) {
- *       console.log('New document created:', response.payload);
+ *     if (response.events.includes('databases.*.tables.*.rows.*.create')) {
+ *       console.log('New row created:', response.payload);
  *     }
  *   },
  *   onError: (error) => console.error('Realtime error:', error),
@@ -105,7 +105,7 @@ export interface RealtimeSubscriptionOptions<T extends Models.Document> {
  * const dataFreshness = useDataFreshness({ dataType: 'attendees' }, fetchAttendees);
  * 
  * useRealtimeSubscription({
- *   channels: [`databases.${dbId}.collections.${collectionId}.documents`],
+ *   channels: [`databases.${dbId}.tables.${tableId}.rows`],
  *   callback: handleRealtimeEvent,
  *   connectionHealth,
  *   dataFreshness,
@@ -341,34 +341,34 @@ export function useRealtimeSubscription<T extends Models.Document = Models.Docum
  */
 export const buildChannels = {
   /**
-   * Subscribe to all documents in a collection
+   * Subscribe to all rows in a table
    */
-  collection: (databaseId: string, collectionId: string) => {
-    return [`databases.${databaseId}.collections.${collectionId}.documents`];
+  collection: (databaseId: string, tableId: string) => {
+    return [`databases.${databaseId}.tables.${tableId}.rows`];
   },
   
   /**
-   * Subscribe to a specific document
+   * Subscribe to a specific row
    */
-  document: (databaseId: string, collectionId: string, documentId: string) => {
-    return [`databases.${databaseId}.collections.${collectionId}.documents.${documentId}`];
+  document: (databaseId: string, tableId: string, rowId: string) => {
+    return [`databases.${databaseId}.tables.${tableId}.rows.${rowId}`];
   },
   
   /**
-   * Subscribe to multiple collections
+   * Subscribe to multiple tables
    */
-  collections: (databaseId: string, collectionIds: string[]) => {
-    return collectionIds.map(
-      collectionId => `databases.${databaseId}.collections.${collectionId}.documents`
+  collections: (databaseId: string, tableIds: string[]) => {
+    return tableIds.map(
+      tableId => `databases.${databaseId}.tables.${tableId}.rows`
     );
   },
   
   /**
-   * Subscribe to multiple documents
+   * Subscribe to multiple rows
    */
-  documents: (databaseId: string, collectionId: string, documentIds: string[]) => {
-    return documentIds.map(
-      documentId => `databases.${databaseId}.collections.${collectionId}.documents.${documentId}`
+  documents: (databaseId: string, tableId: string, rowIds: string[]) => {
+    return rowIds.map(
+      rowId => `databases.${databaseId}.tables.${tableId}.rows.${rowId}`
     );
   },
 };

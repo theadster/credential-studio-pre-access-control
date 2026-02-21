@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { Account, Client, Databases, ID, Query } from 'appwrite';
+import { Account, Client, TablesDB, ID, Query } from 'appwrite';
 
 // Mock Appwrite
 vi.mock('appwrite', () => {
@@ -18,11 +18,11 @@ vi.mock('appwrite', () => {
     get: vi.fn(),
   };
 
-  const mockDatabases = {
-    createDocument: vi.fn(),
-    listDocuments: vi.fn(),
-    getDocument: vi.fn(),
-    updateDocument: vi.fn(),
+  const mockTablesDB = {
+    createRow: vi.fn(),
+    listRows: vi.fn(),
+    getRow: vi.fn(),
+    updateRow: vi.fn(),
   };
 
   const mockClient = {
@@ -35,7 +35,7 @@ vi.mock('appwrite', () => {
   return {
     Client: vi.fn(() => mockClient),
     Account: vi.fn(() => mockAccount),
-    Databases: vi.fn(() => mockDatabases),
+    TablesDB: vi.fn(() => mockTablesDB),
     ID: {
       unique: vi.fn(() => `unique-${Math.random().toString(36).substr(2, 9)}`),
     },
@@ -51,21 +51,21 @@ vi.mock('appwrite', () => {
 
 describe('E2E: Bulk Import and Export Workflow', () => {
   let mockAccount: any;
-  let mockDatabases: any;
+  let mockTablesDB: any;
   let mockClient: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
     mockClient = new Client();
     mockAccount = new Account(mockClient);
-    mockDatabases = new Databases(mockClient);
+    mockTablesDB = new TablesDB(mockClient);
     
     // Reset all mock functions to clear queued mockResolvedValueOnce calls
     mockAccount.get.mockReset();
-    mockDatabases.createDocument.mockReset();
-    mockDatabases.listDocuments.mockReset();
-    mockDatabases.getDocument.mockReset();
-    mockDatabases.updateDocument.mockReset();
+    mockTablesDB.createRow.mockReset();
+    mockTablesDB.listRows.mockReset();
+    mockTablesDB.getRow.mockReset();
+    mockTablesDB.updateRow.mockReset();
   });
 
   afterEach(() => {
@@ -83,8 +83,8 @@ describe('E2E: Bulk Import and Export Workflow', () => {
       mockAccount.get.mockResolvedValueOnce(mockUser);
 
       // Step 2: Verify permissions
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [
           {
             $id: 'profile-123',
             userId: 'user-123',
@@ -94,7 +94,7 @@ describe('E2E: Bulk Import and Export Workflow', () => {
         total: 1,
       });
 
-      mockDatabases.getDocument.mockResolvedValueOnce({
+      mockTablesDB.getRow.mockResolvedValueOnce({
         $id: 'role-admin',
         permissions: JSON.stringify({
           attendees: { create: true },
@@ -102,8 +102,8 @@ describe('E2E: Bulk Import and Export Workflow', () => {
       });
 
       // Step 3: Get event settings for barcode generation
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [
           {
             $id: 'event-settings-123',
             barcodeType: 'numerical',
@@ -129,8 +129,8 @@ describe('E2E: Bulk Import and Export Workflow', () => {
         },
       ];
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: mockCustomFields,
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: mockCustomFields,
         total: 2,
       });
 
@@ -160,31 +160,31 @@ Bob,Johnson,Startup LLC,Sales`;
       expect(user.$id).toBe('user-123');
 
       // Verify permissions
-      await mockDatabases.listDocuments(
+      await mockTablesDB.listRows(
         'db-id',
-        'users-collection',
+        'users-table',
         [Query.equal('userId', user.$id)]
       );
 
-      await mockDatabases.getDocument(
+      await mockTablesDB.getRow(
         'db-id',
-        'roles-collection',
+        'roles-table',
         'role-admin'
       );
 
       // Get event settings
-      await mockDatabases.listDocuments(
+      await mockTablesDB.listRows(
         'db-id',
-        'event-settings-collection',
+        'event-settings-table',
         [Query.limit(1)]
       );
 
-      const customFields = await mockDatabases.listDocuments(
+      const customFields = await mockTablesDB.listRows(
         'db-id',
-        'custom-fields-collection',
+        'custom-fields-table',
         [Query.orderAsc('order')]
       );
-      expect(customFields.documents).toHaveLength(2);
+      expect(customFields.rows).toHaveLength(2);
 
       // Step 6: Import each attendee
       const importResults = {
@@ -201,14 +201,14 @@ Bob,Johnson,Startup LLC,Sales`;
           .padStart(8, '0');
 
         // Check barcode uniqueness
-        mockDatabases.listDocuments.mockResolvedValueOnce({
-          documents: [],
+        mockTablesDB.listRows.mockResolvedValueOnce({
+          rows: [],
           total: 0,
         });
 
-        await mockDatabases.listDocuments(
+        await mockTablesDB.listRows(
           'db-id',
-          'attendees-collection',
+          'attendees-table',
           [Query.equal('barcodeNumber', barcode)]
         );
 
@@ -229,14 +229,14 @@ Bob,Johnson,Startup LLC,Sales`;
           customFieldValues: JSON.stringify(customFieldValues),
         };
 
-        mockDatabases.createDocument.mockResolvedValueOnce({
+        mockTablesDB.createRow.mockResolvedValueOnce({
           $id: `attendee-${i + 1}`,
           ...attendeeData,
         });
 
-        await mockDatabases.createDocument(
+        await mockTablesDB.createRow(
           'db-id',
-          'attendees-collection',
+          'attendees-table',
           ID.unique(),
           attendeeData
         );
@@ -245,7 +245,7 @@ Bob,Johnson,Startup LLC,Sales`;
       }
 
       // Step 7: Create import log
-      mockDatabases.createDocument.mockResolvedValueOnce({
+      mockTablesDB.createRow.mockResolvedValueOnce({
         $id: 'log-import',
         userId: mockUser.$id,
         action: 'attendees_imported',
@@ -256,9 +256,9 @@ Bob,Johnson,Startup LLC,Sales`;
         }),
       });
 
-      await mockDatabases.createDocument(
+      await mockTablesDB.createRow(
         'db-id',
-        'logs-collection',
+        'logs-table',
         ID.unique(),
         { action: 'attendees_imported' }
       );
@@ -267,7 +267,7 @@ Bob,Johnson,Startup LLC,Sales`;
       expect(importResults.failed).toHaveLength(0);
 
       // Verify attendees were created
-      expect(mockDatabases.createDocument).toHaveBeenCalledTimes(4); // 3 attendees + 1 log
+      expect(mockTablesDB.createRow).toHaveBeenCalledTimes(4); // 3 attendees + 1 log
     });
 
     it('should handle partial import failures', async () => {
@@ -296,12 +296,12 @@ Bob,Johnson,Startup LLC,Sales`;
 
         const barcode = `${10000000 + i}`;
 
-        mockDatabases.listDocuments.mockResolvedValueOnce({
-          documents: [],
+        mockTablesDB.listRows.mockResolvedValueOnce({
+          rows: [],
           total: 0,
         });
 
-        mockDatabases.createDocument.mockResolvedValueOnce({
+        mockTablesDB.createRow.mockResolvedValueOnce({
           $id: `attendee-${i + 1}`,
           firstName: row.firstName,
           lastName: row.lastName,
@@ -320,50 +320,50 @@ Bob,Johnson,Startup LLC,Sales`;
       const existingBarcode = '12345678';
 
       // Scenario 1: First import - barcode available
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [],
         total: 0,
       });
 
-      const firstCheck = await mockDatabases.listDocuments(
+      const firstCheck = await mockTablesDB.listRows(
         'db-id',
-        'attendees-collection',
+        'attendees-table',
         [Query.equal('barcodeNumber', existingBarcode)]
       );
-      expect(firstCheck.documents).toHaveLength(0);
+      expect(firstCheck.rows).toHaveLength(0);
 
       // Create first attendee with this barcode
-      mockDatabases.createDocument.mockResolvedValueOnce({
+      mockTablesDB.createRow.mockResolvedValueOnce({
         $id: 'attendee-duplicate-test',
         barcodeNumber: existingBarcode,
       });
 
-      const createdAttendee = await mockDatabases.createDocument(
+      const createdAttendee = await mockTablesDB.createRow(
         'db-id',
-        'attendees-collection',
+        'attendees-table',
         ID.unique(),
         { barcodeNumber: existingBarcode }
       );
       expect(createdAttendee.$id).toBe('attendee-duplicate-test');
 
       // Scenario 2: Second import attempt - barcode now exists (should be rejected)
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [{ $id: 'attendee-duplicate-test', barcodeNumber: existingBarcode }],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [{ $id: 'attendee-duplicate-test', barcodeNumber: existingBarcode }],
         total: 1,
       });
 
-      const secondCheck = await mockDatabases.listDocuments(
+      const secondCheck = await mockTablesDB.listRows(
         'db-id',
-        'attendees-collection',
+        'attendees-table',
         [Query.equal('barcodeNumber', existingBarcode)]
       );
       
-      expect(secondCheck.documents).toHaveLength(1);
-      expect(secondCheck.documents[0].$id).toBe('attendee-duplicate-test');
-      expect(secondCheck.documents[0].barcodeNumber).toBe(existingBarcode);
+      expect(secondCheck.rows).toHaveLength(1);
+      expect(secondCheck.rows[0].$id).toBe('attendee-duplicate-test');
+      expect(secondCheck.rows[0].barcodeNumber).toBe(existingBarcode);
       
       // In real implementation, would generate new barcode and retry
-      const isDuplicate = secondCheck.documents.length > 0;
+      const isDuplicate = secondCheck.rows.length > 0;
       expect(isDuplicate).toBe(true);
     });
   });
@@ -382,8 +382,8 @@ Bob,Johnson,Startup LLC,Sales`;
       mockAccount.get.mockResolvedValueOnce(mockUser);
 
       // Step 2: Verify permissions
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [
           {
             $id: 'profile-export-123',
             userId: 'user-export-123',
@@ -393,7 +393,7 @@ Bob,Johnson,Startup LLC,Sales`;
         total: 1,
       });
 
-      mockDatabases.getDocument.mockResolvedValueOnce({
+      mockTablesDB.getRow.mockResolvedValueOnce({
         $id: 'role-export-admin',
         permissions: JSON.stringify({
           attendees: { read: true },
@@ -414,8 +414,8 @@ Bob,Johnson,Startup LLC,Sales`;
         },
       ];
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: mockCustomFields,
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: mockCustomFields,
         total: 2,
       });
 
@@ -443,8 +443,8 @@ Bob,Johnson,Startup LLC,Sales`;
         },
       ];
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: mockAttendees,
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: mockAttendees,
         total: 2,
       });
 
@@ -475,39 +475,39 @@ Bob,Johnson,Startup LLC,Sales`;
       expect(user.$id).toBe('user-export-123');
 
       // Verify permissions
-      await mockDatabases.listDocuments(
+      await mockTablesDB.listRows(
         'db-id',
-        'users-collection',
+        'users-table',
         [Query.equal('userId', user.$id)]
       );
 
-      await mockDatabases.getDocument(
+      await mockTablesDB.getRow(
         'db-id',
-        'roles-collection',
+        'roles-table',
         'role-export-admin'
       );
 
-      const customFields = await mockDatabases.listDocuments(
+      const customFields = await mockTablesDB.listRows(
         'db-id',
-        'custom-fields-collection',
+        'custom-fields-table',
         [Query.orderAsc('order')]
       );
 
       // Mock attendees list for export
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: mockAttendees,
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: mockAttendees,
         total: 2,
       });
 
-      const attendees = await mockDatabases.listDocuments(
+      const attendees = await mockTablesDB.listRows(
         'db-id',
-        'attendees-collection',
+        'attendees-table',
         [Query.limit(100)]
       );
 
-      expect(attendees.documents).toHaveLength(2);
+      expect(attendees.rows).toHaveLength(2);
 
-      const csv = generateCSV(attendees.documents, customFields.documents);
+      const csv = generateCSV(attendees.rows, customFields.rows);
 
       expect(csv).toContain('firstName,lastName,barcodeNumber');
       expect(csv).toContain('John,Doe,12345678');
@@ -522,12 +522,12 @@ Bob,Johnson,Startup LLC,Sales`;
       
       mockAccount.get.mockResolvedValueOnce({ $id: 'user-search-123' });
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [{ $id: 'profile-search-123', roleId: 'role-search-admin' }],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [{ $id: 'profile-search-123', roleId: 'role-search-admin' }],
         total: 1,
       });
 
-      mockDatabases.getDocument.mockResolvedValueOnce({
+      mockTablesDB.getRow.mockResolvedValueOnce({
         $id: 'role-search-admin',
         permissions: JSON.stringify({ attendees: { read: true } }),
       });
@@ -536,14 +536,14 @@ Bob,Johnson,Startup LLC,Sales`;
       const user = await mockAccount.get();
       expect(user.$id).toBe('user-search-123');
 
-      await mockDatabases.listDocuments(
+      await mockTablesDB.listRows(
         'db-id',
-        'users-collection',
+        'users-table',
         [Query.equal('userId', 'user-search-123')]
       );
-      await mockDatabases.getDocument(
+      await mockTablesDB.getRow(
         'db-id',
-        'roles-collection',
+        'roles-table',
         'role-search-admin'
       );
 
@@ -555,20 +555,20 @@ Bob,Johnson,Startup LLC,Sales`;
         barcodeNumber: '87654321',
       };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockSearchResult],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockSearchResult],
         total: 1,
       });
 
-      const attendees = await mockDatabases.listDocuments(
+      const attendees = await mockTablesDB.listRows(
         'db-id',
-        'attendees-collection',
+        'attendees-table',
         [Query.search('lastName', 'Smith')]
       );
 
-      expect(attendees.documents).toHaveLength(1);
-      expect(attendees.documents[0].$id).toBe('attendee-search-smith');
-      expect(attendees.documents[0].lastName).toBe('Smith');
+      expect(attendees.rows).toHaveLength(1);
+      expect(attendees.rows[0].$id).toBe('attendee-search-smith');
+      expect(attendees.rows[0].lastName).toBe('Smith');
     });
 
     it('should handle pagination for large exports', async () => {
@@ -602,36 +602,36 @@ Bob,Johnson,Startup LLC,Sales`;
       }));
 
       // First page
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: page1,
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: page1,
         total: totalRecords,
       });
 
       // Second page
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: page2,
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: page2,
         total: totalRecords,
       });
 
       // Third page
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: page3,
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: page3,
         total: totalRecords,
       });
 
       const allAttendees = [];
 
       for (let page = 0; page < Math.ceil(totalRecords / pageSize); page++) {
-        const result = await mockDatabases.listDocuments(
+        const result = await mockTablesDB.listRows(
           'db-id',
-          'attendees-collection',
+          'attendees-table',
           [Query.limit(pageSize), Query.offset(page * pageSize)]
         );
-        allAttendees.push(...result.documents);
+        allAttendees.push(...result.rows);
       }
 
       expect(allAttendees).toHaveLength(totalRecords);
-      expect(mockDatabases.listDocuments).toHaveBeenCalledTimes(3);
+      expect(mockTablesDB.listRows).toHaveBeenCalledTimes(3);
     });
   });
 
@@ -650,7 +650,7 @@ Bob,Johnson,Startup LLC,Sales`;
       };
 
       for (const id of attendeeIds) {
-        mockDatabases.getDocument.mockResolvedValueOnce({
+        mockTablesDB.getRow.mockResolvedValueOnce({
           $id: id,
           firstName: 'Test',
           customFieldValues: '{}',
@@ -661,7 +661,7 @@ Bob,Johnson,Startup LLC,Sales`;
         const updated = JSON.parse(updates.customFieldValues);
         const merged = { ...existing, ...updated };
 
-        mockDatabases.createDocument.mockResolvedValueOnce({
+        mockTablesDB.createRow.mockResolvedValueOnce({
           $id: id,
           customFieldValues: JSON.stringify(merged),
         });

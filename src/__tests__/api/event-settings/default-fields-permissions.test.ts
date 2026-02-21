@@ -1,16 +1,16 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import handler from '../index';
-import { mockAccount, mockDatabases, resetAllMocks } from '@/test/mocks/appwrite';
+import handler from '@/pages/api/event-settings/index';
+import { mockAccount, mockTablesDB, mockAdminTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn((req: NextApiRequest) => ({
     account: mockAccount,
-    databases: mockDatabases,
+    tablesDB: mockTablesDB,
   })),
   createAdminClient: vi.fn(() => ({
-    databases: mockDatabases,
+    tablesDB: mockAdminTablesDB,
   })),
 }));
 
@@ -44,6 +44,7 @@ vi.mock('@/lib/appwrite-integrations', () => ({
   updateOneSimpleApiIntegration: vi.fn(),
   flattenEventSettings: vi.fn((settings) => settings),
 }));
+
 
 /**
  * DEFAULT FIELDS CREATION PERMISSION TESTS
@@ -122,11 +123,12 @@ describe('/api/event-settings - Default Fields Creation Permissions', () => {
 
     // Default mock implementations
     mockAccount.get.mockResolvedValue(mockAuthUser);
-    mockDatabases.listDocuments.mockResolvedValue({
-      documents: [mockUserProfile],
+    mockTablesDB.listRows.mockResolvedValue({
+      rows: [mockUserProfile],
       total: 1,
     });
-    mockDatabases.getDocument.mockResolvedValue(mockAdminRole);
+    mockTablesDB.getRow.mockResolvedValue(mockAdminRole);
+    mockAdminTablesDB.getRow.mockResolvedValue(mockAdminRole);
   });
 
   describe('Super Administrator - Default Fields Creation', () => {
@@ -165,13 +167,13 @@ describe('/api/event-settings - Default Fields Creation Permissions', () => {
       };
 
       // Mock sequence: user profile, role, event settings creation, 2 default fields, log
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // User profile
-        .mockResolvedValueOnce({ documents: [], total: 0 }); // No existing event settings
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 }) // User profile
+        .mockResolvedValueOnce({ rows: [], total: 0 }); // No existing event settings
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce(mockEventSettings) // Event settings
         .mockResolvedValueOnce(mockCredentialTypeField) // Credential Type field
         .mockResolvedValueOnce(mockNotesField) // Notes field
@@ -180,9 +182,9 @@ describe('/api/event-settings - Default Fields Creation Permissions', () => {
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       // Verify event settings was created
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID,
         expect.any(String),
         expect.objectContaining({
           eventName: 'Test Event',
@@ -190,9 +192,9 @@ describe('/api/event-settings - Default Fields Creation Permissions', () => {
       );
 
       // Verify Credential Type field was created
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID,
         expect.any(String),
         expect.objectContaining({
           eventSettingsId: 'event-settings-123',
@@ -208,9 +210,9 @@ describe('/api/event-settings - Default Fields Creation Permissions', () => {
       );
 
       // Verify Notes field was created
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID,
         expect.any(String),
         expect.objectContaining({
           eventSettingsId: 'event-settings-123',
@@ -234,13 +236,13 @@ describe('/api/event-settings - Default Fields Creation Permissions', () => {
         ...mockEventSettingsData,
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce(mockEventSettings)
         .mockResolvedValueOnce({ $id: 'field-1', showOnMainPage: true })
         .mockResolvedValueOnce({ $id: 'field-2', showOnMainPage: true })
@@ -249,8 +251,8 @@ describe('/api/event-settings - Default Fields Creation Permissions', () => {
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       // Both default fields should have showOnMainPage: true
-      const customFieldCalls = (mockDatabases.createDocument as any).mock.calls.filter(
-        (call: any) => call[1] === process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID
+      const customFieldCalls = (mockTablesDB.createRow as any).mock.calls.filter(
+        (call: any) => call[1] === process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID
       );
 
       expect(customFieldCalls).toHaveLength(2);
@@ -277,13 +279,13 @@ describe('/api/event-settings - Default Fields Creation Permissions', () => {
         ...mockEventSettingsData,
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(eventManagerRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(eventManagerRole);
 
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce(mockEventSettings)
         .mockResolvedValueOnce({ $id: 'field-1' })
         .mockResolvedValueOnce({ $id: 'field-2' })
@@ -292,7 +294,7 @@ describe('/api/event-settings - Default Fields Creation Permissions', () => {
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       // Should create event settings and both default fields
-      expect(mockDatabases.createDocument).toHaveBeenCalledTimes(4); // settings + 2 fields + log
+      expect(mockTablesDB.createRow).toHaveBeenCalledTimes(4); // settings + 2 fields + log
       expect(statusMock).toHaveBeenCalledWith(201);
     });
   });
@@ -310,16 +312,16 @@ describe('/api/event-settings - Default Fields Creation Permissions', () => {
     };
 
     it('should deny Registration Staff from creating event settings', async () => {
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockUserProfile],
         total: 1,
       });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(registrationStaffRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(registrationStaffRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.createDocument).not.toHaveBeenCalled();
+      expect(mockTablesDB.createRow).not.toHaveBeenCalled();
       expect(statusMock).toHaveBeenCalledWith(403);
       expect(jsonMock).toHaveBeenCalledWith({
         error: 'Insufficient permissions to create event settings',
@@ -340,16 +342,16 @@ describe('/api/event-settings - Default Fields Creation Permissions', () => {
     };
 
     it('should deny Viewer from creating event settings', async () => {
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockUserProfile],
         total: 1,
       });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(viewerRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(viewerRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.createDocument).not.toHaveBeenCalled();
+      expect(mockTablesDB.createRow).not.toHaveBeenCalled();
       expect(statusMock).toHaveBeenCalledWith(403);
     });
   });
@@ -361,14 +363,14 @@ describe('/api/event-settings - Default Fields Creation Permissions', () => {
         ...mockEventSettingsData,
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       // Event settings succeeds, but default fields fail
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce(mockEventSettings) // Event settings succeeds
         .mockRejectedValueOnce(new Error('Database error')) // Credential Type fails
         .mockResolvedValueOnce({ $id: 'log-123' }); // Log still succeeds
@@ -392,13 +394,13 @@ describe('/api/event-settings - Default Fields Creation Permissions', () => {
         ...mockEventSettingsData,
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce(mockEventSettings)
         .mockRejectedValueOnce(new Error('Field creation failed'))
         .mockResolvedValueOnce({ $id: 'log-123' });
@@ -426,13 +428,13 @@ describe('/api/event-settings - Default Fields Creation Permissions', () => {
         ...mockEventSettingsData,
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce(mockEventSettings)
         .mockResolvedValueOnce({ $id: 'field-1' }) // First field succeeds
         .mockRejectedValueOnce(new Error('Second field failed')) // Second field fails
@@ -452,13 +454,13 @@ describe('/api/event-settings - Default Fields Creation Permissions', () => {
         ...mockEventSettingsData,
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce(mockEventSettings)
         .mockResolvedValueOnce({ $id: 'field-1' })
         .mockResolvedValueOnce({ $id: 'field-2' })
@@ -467,7 +469,7 @@ describe('/api/event-settings - Default Fields Creation Permissions', () => {
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       // Find the Credential Type field creation call
-      const credentialTypeCall = (mockDatabases.createDocument as any).mock.calls.find(
+      const credentialTypeCall = (mockTablesDB.createRow as any).mock.calls.find(
         (call: any) => call[3]?.fieldName === 'Credential Type'
       );
 
@@ -484,13 +486,13 @@ describe('/api/event-settings - Default Fields Creation Permissions', () => {
         ...mockEventSettingsData,
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce(mockEventSettings)
         .mockResolvedValueOnce({ $id: 'field-1' })
         .mockResolvedValueOnce({ $id: 'field-2' })
@@ -499,7 +501,7 @@ describe('/api/event-settings - Default Fields Creation Permissions', () => {
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       // Find the Notes field creation call
-      const notesCall = (mockDatabases.createDocument as any).mock.calls.find(
+      const notesCall = (mockTablesDB.createRow as any).mock.calls.find(
         (call: any) => call[3]?.fieldName === 'Notes'
       );
 
@@ -516,13 +518,13 @@ describe('/api/event-settings - Default Fields Creation Permissions', () => {
         ...mockEventSettingsData,
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce(mockEventSettings)
         .mockResolvedValueOnce({ $id: 'field-1' })
         .mockResolvedValueOnce({ $id: 'field-2' })
@@ -530,8 +532,8 @@ describe('/api/event-settings - Default Fields Creation Permissions', () => {
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      const customFieldCalls = (mockDatabases.createDocument as any).mock.calls.filter(
-        (call: any) => call[1] === process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID
+      const customFieldCalls = (mockTablesDB.createRow as any).mock.calls.filter(
+        (call: any) => call[1] === process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID
       );
 
       expect(customFieldCalls[0][3]).toMatchObject({ required: false });
@@ -544,13 +546,13 @@ describe('/api/event-settings - Default Fields Creation Permissions', () => {
         ...mockEventSettingsData,
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce(mockEventSettings)
         .mockResolvedValueOnce({ $id: 'field-1' })
         .mockResolvedValueOnce({ $id: 'field-2' })
@@ -558,8 +560,8 @@ describe('/api/event-settings - Default Fields Creation Permissions', () => {
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      const customFieldCalls = (mockDatabases.createDocument as any).mock.calls.filter(
-        (call: any) => call[1] === process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID
+      const customFieldCalls = (mockTablesDB.createRow as any).mock.calls.filter(
+        (call: any) => call[1] === process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID
       );
 
       // Credential Type should be order 1
@@ -574,13 +576,13 @@ describe('/api/event-settings - Default Fields Creation Permissions', () => {
         ...mockEventSettingsData,
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
-      mockDatabases.createDocument
+      mockTablesDB.createRow
         .mockResolvedValueOnce(mockEventSettings)
         .mockResolvedValueOnce({ $id: 'field-1' })
         .mockResolvedValueOnce({ $id: 'field-2' })
@@ -588,8 +590,8 @@ describe('/api/event-settings - Default Fields Creation Permissions', () => {
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      const customFieldCalls = (mockDatabases.createDocument as any).mock.calls.filter(
-        (call: any) => call[1] === process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID
+      const customFieldCalls = (mockTablesDB.createRow as any).mock.calls.filter(
+        (call: any) => call[1] === process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID
       );
 
       expect(customFieldCalls[0][3]).toMatchObject({ version: 0 });

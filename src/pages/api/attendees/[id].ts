@@ -103,13 +103,13 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
   try {
     // User and userProfile are already attached by middleware
     const { user, userProfile } = req;
-    const { databases } = createSessionClient(req);
+    const { tablesDB } = createSessionClient(req);
 
     const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-    const attendeesCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID!;
-    const logsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!;
-    const customFieldsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID!;
-    const accessControlCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ACCESS_CONTROL_COLLECTION_ID!;
+    const attendeesTableId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID!;
+    const logsTableId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!;
+    const customFieldsTableId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID!;
+    const accessControlTableId = process.env.NEXT_PUBLIC_APPWRITE_ACCESS_CONTROL_TABLE_ID!;
 
     switch (req.method) {
       case 'GET':
@@ -122,7 +122,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         }
 
         // Get attendee
-        const attendee = await databases.getDocument(dbId, attendeesCollectionId, id);
+        const attendee = await tablesDB.getRow({
+          databaseId: dbId,
+          tableId: attendeesTableId,
+          rowId: id
+        });
 
         // …rest of your logic handling a successfully fetched attendee…
 
@@ -151,16 +155,16 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           validUntil: null as string | null
         };
         
-        if (accessControlCollectionId) {
+        if (accessControlTableId) {
           try {
-            const accessControlResult = await databases.listDocuments(
-              dbId,
-              accessControlCollectionId,
-              [Query.equal('attendeeId', id), Query.limit(1)]
-            );
+            const accessControlResult = await tablesDB.listRows({
+              databaseId: dbId,
+              tableId: accessControlTableId,
+              queries: [Query.equal('attendeeId', id), Query.limit(1)]
+            });
             
-            if (accessControlResult.documents.length > 0) {
-              const ac = accessControlResult.documents[0];
+            if (accessControlResult.rows.length > 0) {
+              const ac = accessControlResult.rows[0];
               accessControl = {
                 accessEnabled: ac.accessEnabled ?? true,
                 validFrom: ac.validFrom || null,
@@ -229,7 +233,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           let oldPhotoUrl: string | null = null;
           if (await shouldLog('attendeeUpdate')) {
             try {
-              const preUpdateDoc = await databases.getDocument(dbId, attendeesCollectionId, id);
+              const preUpdateDoc = await tablesDB.getRow({
+                databaseId: dbId,
+                tableId: attendeesTableId,
+                rowId: id
+              });
               oldPhotoUrl = (preUpdateDoc.photoUrl as string) || null;
             } catch (fetchError) {
               console.error('[Attendee Update] Failed to fetch pre-update document for logging:', fetchError);
@@ -237,9 +245,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           }
           
           const result = await updatePhotoFields(
-            databases,
+            tablesDB,
             dbId,
-            attendeesCollectionId,
+            attendeesTableId,
             id,
             { photoUrl }
           );
@@ -266,9 +274,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
               const hasPhoto = photoUrl && photoUrl !== '';
               const changeDetails = [`Photo: ${hadPhoto ? 'has photo' : 'no photo'} → ${hasPhoto ? 'has photo' : 'no photo'}`];
 
-              await databases.createDocument(
+              await tablesDB.createRow(
                 dbId,
-                logsCollectionId,
+                logsTableId,
                 ID.unique(),
                 {
                   userId: user.$id,
@@ -302,7 +310,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         // Check if attendee exists and get current values BEFORE making changes
         let existingAttendee;
         try {
-          existingAttendee = await databases.getDocument(dbId, attendeesCollectionId, id);
+          existingAttendee = await tablesDB.getRow({
+            databaseId: dbId,
+            tableId: attendeesTableId,
+            rowId: id
+          });
         } catch (error: any) {
           console.error('Error fetching attendee:', error);
           return res.status(404).json({ error: 'Attendee not found', details: error.message });
@@ -360,16 +372,16 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           const pageSize = 100;
 
           while (true) {
-            const customFieldsDocs = await databases.listDocuments(
-              dbId,
-              customFieldsCollectionId,
-              [Query.limit(pageSize), Query.offset(offset)]
-            );
+            const customFieldsDocs = await tablesDB.listRows({
+              databaseId: dbId,
+              tableId: customFieldsTableId,
+              queries: [Query.limit(pageSize), Query.offset(offset)]
+            });
 
-            allCustomFields.push(...customFieldsDocs.documents);
+            allCustomFields.push(...customFieldsDocs.rows);
 
             // If we got fewer than pageSize results, we've reached the end
-            if (customFieldsDocs.documents.length < pageSize) {
+            if (customFieldsDocs.rows.length < pageSize) {
               break;
             }
 
@@ -389,14 +401,14 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
         // Check if barcode is unique (excluding current attendee)
         if (barcodeNumber && barcodeNumber !== existingAttendee.barcodeNumber) {
-          const duplicateBarcodeDocs = await databases.listDocuments(
-            dbId,
-            attendeesCollectionId,
-            [Query.equal('barcodeNumber', barcodeNumber)]
-          );
+          const duplicateBarcodeDocs = await tablesDB.listRows({
+            databaseId: dbId,
+            tableId: attendeesTableId,
+            queries: [Query.equal('barcodeNumber', barcodeNumber)]
+          });
 
-          if (duplicateBarcodeDocs.documents.length > 0) {
-            const duplicateAttendee = duplicateBarcodeDocs.documents[0];
+          if (duplicateBarcodeDocs.rows.length > 0) {
+            const duplicateAttendee = duplicateBarcodeDocs.rows[0];
             return res.status(400).json({ 
               error: 'Barcode number already exists',
               existingAttendee: {
@@ -612,24 +624,24 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
               const validationPageSize = 100;
 
               while (true) {
-                const customFieldsDocs = await databases.listDocuments(
-                  dbId,
-                  customFieldsCollectionId,
-                  [Query.limit(validationPageSize), Query.offset(validationOffset)]
-                );
+                const customFieldsDocs = await tablesDB.listRows({
+                  databaseId: dbId,
+                  tableId: customFieldsTableId,
+                  queries: [Query.limit(validationPageSize), Query.offset(validationOffset)]
+                });
 
-                allCustomFieldsForValidation.push(...customFieldsDocs.documents);
+                allCustomFieldsForValidation.push(...customFieldsDocs.rows);
 
-                if (customFieldsDocs.documents.length < validationPageSize) {
+                if (customFieldsDocs.rows.length < validationPageSize) {
                   break;
                 }
 
                 validationOffset += validationPageSize;
               }
 
-              const customFieldsDocs = { documents: allCustomFieldsForValidation };
+              const customFieldsDocs = { rows: allCustomFieldsForValidation };
 
-              const existingCustomFieldIds = customFieldsDocs.documents.map(cf => cf.$id);
+              const existingCustomFieldIds = customFieldsDocs.rows.map(cf => cf.$id);
               const invalidCustomFieldIds = customFieldIds.filter(id => !existingCustomFieldIds.includes(id));
 
               if (invalidCustomFieldIds.length > 0) {
@@ -661,15 +673,15 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
         // Fetch existing Access Control data for change detection
         let existingAccessControl: any = null;
-        if (accessControlCollectionId && accessControlUpdateNeeded) {
+        if (accessControlTableId && accessControlUpdateNeeded) {
           try {
-            const accessControlResult = await databases.listDocuments(
-              dbId,
-              accessControlCollectionId,
-              [Query.equal('attendeeId', id), Query.limit(1)]
-            );
-            if (accessControlResult.documents.length > 0) {
-              existingAccessControl = accessControlResult.documents[0];
+            const accessControlResult = await tablesDB.listRows({
+              databaseId: dbId,
+              tableId: accessControlTableId,
+              queries: [Query.equal('attendeeId', id), Query.limit(1)]
+            });
+            if (accessControlResult.rows.length > 0) {
+              existingAccessControl = accessControlResult.rows[0];
             }
           } catch (error) {
             console.warn('[Attendee Update] Failed to fetch existing access control for change detection:', error);
@@ -739,25 +751,25 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           const mappingPageSize = 100;
 
           while (true) {
-            const customFieldsDocs = await databases.listDocuments(
+            const customFieldsDocs = await tablesDB.listRows(
               dbId,
-              customFieldsCollectionId,
+              customFieldsTableId,
               [Query.limit(mappingPageSize), Query.offset(mappingOffset)]
             );
 
-            allCustomFieldsForMapping.push(...customFieldsDocs.documents);
+            allCustomFieldsForMapping.push(...customFieldsDocs.rows);
 
-            if (customFieldsDocs.documents.length < mappingPageSize) {
+            if (customFieldsDocs.rows.length < mappingPageSize) {
               break;
             }
 
             mappingOffset += mappingPageSize;
           }
 
-          const allCustomFieldsDocs = { documents: allCustomFieldsForMapping };
+          const allCustomFieldsDocs = { rows: allCustomFieldsForMapping };
 
           const customFieldMap = new Map(
-            allCustomFieldsDocs.documents.map(cf => [cf.$id, { name: cf.fieldName, type: cf.fieldType }])
+            allCustomFieldsDocs.rows.map(cf => [cf.$id, { name: cf.fieldName, type: cf.fieldType }])
           );
 
           // Helper function to format values based on field type
@@ -846,21 +858,21 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             {
               action: 'update',
               databaseId: dbId,
-              tableId: attendeesCollectionId,
+              tableId: attendeesTableId,
               rowId: id,
               data: updateData
             }
           ];
 
           // Add access control update if needed (reuse previously-fetched existingAccessControl)
-          if (accessControlUpdateNeeded && accessControlCollectionId) {
+          if (accessControlUpdateNeeded && accessControlTableId) {
             try {
               if (existingAccessControl) {
                 // Update existing access control record
                 operations.push({
                   action: 'update',
                   databaseId: dbId,
-                  tableId: accessControlCollectionId,
+                  tableId: accessControlTableId,
                   rowId: existingAccessControl.$id,
                   data: accessControlData
                 });
@@ -869,7 +881,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
                 operations.push({
                   action: 'create',
                   databaseId: dbId,
-                  tableId: accessControlCollectionId,
+                  tableId: accessControlTableId,
                   rowId: ID.unique(),
                   data: {
                     attendeeId: id,
@@ -889,7 +901,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             operations.push({
               action: 'create',
               databaseId: dbId,
-              tableId: logsCollectionId,
+              tableId: logsTableId,
               rowId: ID.unique(),
               data: {
                 userId: user.$id,
@@ -913,7 +925,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           await executeTransactionWithRetry(tablesDB, operations);
 
           // Fetch the updated attendee to return to client
-          finalAttendee = await databases.getDocument(dbId, attendeesCollectionId, id);
+          finalAttendee = await tablesDB.getRow({
+            databaseId: dbId,
+            tableId: attendeesTableId,
+            rowId: id
+          });
 
           console.log('[Attendee Update] Transaction completed successfully');
         } catch (error: any) {
@@ -945,7 +961,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         // Check if attendee exists and get details BEFORE deletion
         let attendeeToDelete;
         try {
-          attendeeToDelete = await databases.getDocument(dbId, attendeesCollectionId, id);
+          attendeeToDelete = await tablesDB.getRow({
+            databaseId: dbId,
+            tableId: attendeesTableId,
+            rowId: id
+          });
         } catch (error: any) {
           console.error('Error fetching attendee:', error);
           return res.status(404).json({ error: 'Attendee not found', details: error.message });
@@ -967,7 +987,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             {
               action: 'delete',
               databaseId: dbId,
-              tableId: attendeesCollectionId,
+              tableId: attendeesTableId,
               rowId: id
             }
           ];
@@ -978,7 +998,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             deleteOperations.push({
               action: 'create',
               databaseId: dbId,
-              tableId: logsCollectionId,
+              tableId: logsTableId,
               rowId: ID.unique(),
               data: {
                 userId: user.$id,

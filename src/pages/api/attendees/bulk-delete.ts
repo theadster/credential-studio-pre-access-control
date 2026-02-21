@@ -15,10 +15,10 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     const { user, userProfile } = req;
 
     // Use session client for validation
-    const { databases: sessionDatabases } = createSessionClient(req);
+    const { tablesDB: sessionTablesDB } = createSessionClient(req);
 
     // Use admin client for bulk deletions with transactions
-    const { databases: adminDatabases, tablesDB } = createAdminClient();
+    const { tablesDB } = createAdminClient();
 
     const { attendeeIds } = req.body;
 
@@ -27,8 +27,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     }
 
     const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-    const attendeesCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID!;
-    const logsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!;
+    const attendeesTableId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID!;
+    const logsTableId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!;
 
     // Check permissions
     const permissions = userProfile.role ? userProfile.role.permissions : {};
@@ -44,7 +44,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
     try {
       for (const id of attendeeIds) {
-        const attendee = await sessionDatabases.getDocument(dbId, attendeesCollectionId, id);
+        const attendee = await sessionTablesDB.getRow({
+          databaseId: dbId,
+          tableId: attendeesTableId,
+          rowId: id
+        });
         attendeesToDelete.push({
           id: attendee.$id,
           firstName: attendee.firstName,
@@ -90,18 +94,17 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     console.log(`[Bulk Delete] Executing bulk delete with transactions`);
     const result = await bulkDeleteWithFallback(
       tablesDB,
-      adminDatabases,
       {
         databaseId: dbId,
-        tableId: attendeesCollectionId,
+        tableId: attendeesTableId,
         rowIds: attendeeIds,
         auditLog: shouldLogDelete ? {
-          tableId: logsCollectionId,
+          tableId: logsTableId,
           userId: user.$id,
           action: 'bulk_delete',
           details: auditLogDetails
         } : {
-          tableId: logsCollectionId,
+          tableId: logsTableId,
           userId: user.$id,
           action: 'bulk_delete',
           details: JSON.stringify({

@@ -19,7 +19,7 @@
  *   1 - One or more tests failed
  */
 
-import { Client, Databases, Query, ID } from 'node-appwrite';
+import { Client, TablesDB, Query, ID } from 'node-appwrite';
 import * as dotenv from 'dotenv';
 
 // Load environment variables
@@ -47,10 +47,10 @@ async function runTests() {
   const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
   const apiKey = process.env.APPWRITE_API_KEY;
   const databaseId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
-  const logsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID;
-  const usersCollectionId = process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID;
+  const logsTableId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID;
+  const usersTableId = process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID;
 
-  if (!endpoint || !projectId || !apiKey || !databaseId || !logsCollectionId || !usersCollectionId) {
+  if (!endpoint || !projectId || !apiKey || !databaseId || !logsTableId || !usersTableId) {
     console.error('❌ Missing required environment variables');
     process.exit(1);
   }
@@ -61,7 +61,7 @@ async function runTests() {
     .setProject(projectId)
     .setKey(apiKey);
 
-  const databases = new Databases(client);
+  const tablesDB = new TablesDB(client);
 
   console.log('🧪 Starting Logs Timestamp Fix Tests\n');
   console.log('=' .repeat(60));
@@ -69,18 +69,18 @@ async function runTests() {
   // Get a test user ID
   let testUserId: string;
   try {
-    const usersResponse = await databases.listDocuments(
+    const usersResponse = await tablesDB.listRows(
       databaseId,
-      usersCollectionId,
+      usersTableId,
       [Query.limit(1)]
     );
 
-    if (usersResponse.documents.length === 0) {
+    if (usersResponse.rows.length === 0) {
       console.error('❌ No users found in database. Please create a test user first.');
       process.exit(1);
     }
 
-    testUserId = usersResponse.documents[0].userId;
+    testUserId = usersResponse.rows[0].userId;
     console.log(`✓ Found test user: ${testUserId}\n`);
   } catch (error) {
     console.error('❌ Failed to fetch test user:', error);
@@ -94,9 +94,9 @@ async function runTests() {
     console.log('Test 1: Creating test logs without timestamp field...');
     try {
       for (let i = 0; i < 3; i++) {
-        const log = await databases.createDocument(
+        const log = await tablesDB.createRow(
           databaseId,
-          logsCollectionId,
+          logsTableId,
           ID.unique(),
           {
             userId: testUserId,
@@ -128,30 +128,30 @@ async function runTests() {
     // Test 2: Verify logs display correctly using $createdAt ordering (Requirement 4.1)
     console.log('Test 2: Verify logs display correctly using $createdAt ordering...');
     try {
-      const response = await databases.listDocuments(
+      const response = await tablesDB.listRows(
         databaseId,
-        logsCollectionId,
+        logsTableId,
         [
           Query.orderDesc('$createdAt'),
           Query.limit(10)
         ]
       );
 
-      if (response.documents.length === 0) {
+      if (response.rows.length === 0) {
         throw new Error('No logs returned');
       }
 
       // Verify chronological order
-      for (let i = 0; i < response.documents.length - 1; i++) {
-        const current = new Date(response.documents[i].$createdAt);
-        const next = new Date(response.documents[i + 1].$createdAt);
+      for (let i = 0; i < response.rows.length - 1; i++) {
+        const current = new Date(response.rows[i].$createdAt);
+        const next = new Date(response.rows[i + 1].$createdAt);
         if (current.getTime() < next.getTime()) {
           throw new Error('Logs not in correct chronological order');
         }
       }
 
       // Verify our test logs are included
-      const testLogInResults = response.documents.some(doc => 
+      const testLogInResults = response.rows.some(doc => 
         testLogIds.includes(doc.$id)
       );
       if (!testLogInResults) {
@@ -161,10 +161,10 @@ async function runTests() {
       results.tests.push({
         name: 'Logs display correctly using $createdAt ordering (Req 4.1)',
         status: 'PASS',
-        message: `Retrieved ${response.documents.length} logs in correct order`
+        message: `Retrieved ${response.rows.length} logs in correct order`
       });
       results.passed++;
-      console.log(`✓ Logs display correctly (${response.documents.length} logs)\n`);
+      console.log(`✓ Logs display correctly (${response.rows.length} logs)\n`);
     } catch (error: any) {
       results.tests.push({
         name: 'Logs display correctly using $createdAt ordering (Req 4.1)',
@@ -180,9 +180,9 @@ async function runTests() {
     try {
       let logsWithoutTimestamp = 0;
       for (const logId of testLogIds) {
-        const log = await databases.getDocument(
+        const log = await tablesDB.getRow(
           databaseId,
-          logsCollectionId,
+          logsTableId,
           logId
         );
         
@@ -217,16 +217,16 @@ async function runTests() {
     try {
       let updated = 0;
       for (const logId of testLogIds) {
-        const log = await databases.getDocument(
+        const log = await tablesDB.getRow(
           databaseId,
-          logsCollectionId,
+          logsTableId,
           logId
         );
 
         if (!log.timestamp) {
-          await databases.updateDocument(
+          await tablesDB.updateRow(
             databaseId,
-            logsCollectionId,
+            logsTableId,
             logId,
             {
               timestamp: log.$createdAt
@@ -238,9 +238,9 @@ async function runTests() {
 
       // Verify all test logs now have timestamp
       for (const logId of testLogIds) {
-        const log = await databases.getDocument(
+        const log = await tablesDB.getRow(
           databaseId,
-          logsCollectionId,
+          logsTableId,
           logId
         );
         
@@ -272,30 +272,30 @@ async function runTests() {
     // Test 5: Verify logs display correctly after migration (Requirement 4.2)
     console.log('Test 5: Verify logs display correctly after migration...');
     try {
-      const response = await databases.listDocuments(
+      const response = await tablesDB.listRows(
         databaseId,
-        logsCollectionId,
+        logsTableId,
         [
           Query.orderDesc('$createdAt'),
           Query.limit(10)
         ]
       );
 
-      if (response.documents.length === 0) {
+      if (response.rows.length === 0) {
         throw new Error('No logs returned after migration');
       }
 
       // Verify chronological order
-      for (let i = 0; i < response.documents.length - 1; i++) {
-        const current = new Date(response.documents[i].$createdAt);
-        const next = new Date(response.documents[i + 1].$createdAt);
+      for (let i = 0; i < response.rows.length - 1; i++) {
+        const current = new Date(response.rows[i].$createdAt);
+        const next = new Date(response.rows[i + 1].$createdAt);
         if (current.getTime() < next.getTime()) {
           throw new Error('Logs not in correct chronological order after migration');
         }
       }
 
       // Verify our test logs are still included
-      const testLogInResults = response.documents.some(doc => 
+      const testLogInResults = response.rows.some(doc => 
         testLogIds.includes(doc.$id)
       );
       if (!testLogInResults) {
@@ -305,7 +305,7 @@ async function runTests() {
       results.tests.push({
         name: 'Logs display correctly after migration (Req 4.2)',
         status: 'PASS',
-        message: `Retrieved ${response.documents.length} logs in correct order`
+        message: `Retrieved ${response.rows.length} logs in correct order`
       });
       results.passed++;
       console.log(`✓ Logs display correctly after migration\n`);
@@ -322,9 +322,9 @@ async function runTests() {
     // Test 6: Test pagination (Requirement 4.3)
     console.log('Test 6: Test pagination with migrated logs...');
     try {
-      const page1 = await databases.listDocuments(
+      const page1 = await tablesDB.listRows(
         databaseId,
-        logsCollectionId,
+        logsTableId,
         [
           Query.orderDesc('$createdAt'),
           Query.limit(2),
@@ -332,9 +332,9 @@ async function runTests() {
         ]
       );
 
-      const page2 = await databases.listDocuments(
+      const page2 = await tablesDB.listRows(
         databaseId,
-        logsCollectionId,
+        logsTableId,
         [
           Query.orderDesc('$createdAt'),
           Query.limit(2),
@@ -343,8 +343,8 @@ async function runTests() {
       );
 
       // Verify no overlap
-      const page1Ids = page1.documents.map(doc => doc.$id);
-      const page2Ids = page2.documents.map(doc => doc.$id);
+      const page1Ids = page1.rows.map(doc => doc.$id);
+      const page2Ids = page2.rows.map(doc => doc.$id);
       const overlap = page1Ids.filter(id => page2Ids.includes(id));
       
       if (overlap.length > 0) {
@@ -352,9 +352,9 @@ async function runTests() {
       }
 
       // Verify chronological order across pages
-      if (page1.documents.length > 0 && page2.documents.length > 0) {
-        const lastPage1 = new Date(page1.documents[page1.documents.length - 1].$createdAt);
-        const firstPage2 = new Date(page2.documents[0].$createdAt);
+      if (page1.rows.length > 0 && page2.rows.length > 0) {
+        const lastPage1 = new Date(page1.rows[page1.rows.length - 1].$createdAt);
+        const firstPage2 = new Date(page2.rows[0].$createdAt);
         if (lastPage1.getTime() < firstPage2.getTime()) {
           throw new Error('Pages not in correct chronological order');
         }
@@ -363,7 +363,7 @@ async function runTests() {
       results.tests.push({
         name: 'Pagination works correctly (Req 4.3)',
         status: 'PASS',
-        message: `Page 1: ${page1.documents.length} logs, Page 2: ${page2.documents.length} logs`
+        message: `Page 1: ${page1.rows.length} logs, Page 2: ${page2.rows.length} logs`
       });
       results.passed++;
       console.log(`✓ Pagination works correctly\n`);
@@ -380,9 +380,9 @@ async function runTests() {
     // Test 7: Test filtering (Requirement 4.3)
     console.log('Test 7: Test filtering with migrated logs...');
     try {
-      const filteredResponse = await databases.listDocuments(
+      const filteredResponse = await tablesDB.listRows(
         databaseId,
-        logsCollectionId,
+        logsTableId,
         [
           Query.equal('action', 'TEST_TIMESTAMP_FIX_0'),
           Query.orderDesc('$createdAt'),
@@ -390,12 +390,12 @@ async function runTests() {
         ]
       );
 
-      if (filteredResponse.documents.length === 0) {
+      if (filteredResponse.rows.length === 0) {
         throw new Error('No logs returned with filter');
       }
 
       // Verify all results match filter
-      for (const doc of filteredResponse.documents) {
+      for (const doc of filteredResponse.rows) {
         if (doc.action !== 'TEST_TIMESTAMP_FIX_0') {
           throw new Error(`Document ${doc.$id} doesn't match filter`);
         }
@@ -404,7 +404,7 @@ async function runTests() {
       results.tests.push({
         name: 'Filtering works correctly (Req 4.3)',
         status: 'PASS',
-        message: `Found ${filteredResponse.documents.length} logs matching filter`
+        message: `Found ${filteredResponse.rows.length} logs matching filter`
       });
       results.passed++;
       console.log(`✓ Filtering works correctly\n`);
@@ -421,9 +421,9 @@ async function runTests() {
     // Test 8: Create new log and verify integration (Requirement 4.4)
     console.log('Test 8: Create new log and verify integration...');
     try {
-      const newLog = await databases.createDocument(
+      const newLog = await tablesDB.createRow(
         databaseId,
-        logsCollectionId,
+        logsTableId,
         ID.unique(),
         {
           userId: testUserId,
@@ -435,9 +435,9 @@ async function runTests() {
       testLogIds.push(newLog.$id);
 
       // Query all logs
-      const response = await databases.listDocuments(
+      const response = await tablesDB.listRows(
         databaseId,
-        logsCollectionId,
+        logsTableId,
         [
           Query.orderDesc('$createdAt'),
           Query.limit(20)
@@ -445,7 +445,7 @@ async function runTests() {
       );
 
       // Verify new log appears in results
-      const newLogInResults = response.documents.find(doc => doc.$id === newLog.$id);
+      const newLogInResults = response.rows.find(doc => doc.$id === newLog.$id);
       if (!newLogInResults) {
         throw new Error('New log not found in results');
       }
@@ -455,9 +455,9 @@ async function runTests() {
       }
 
       // Verify chronological order is maintained
-      for (let i = 0; i < response.documents.length - 1; i++) {
-        const current = new Date(response.documents[i].$createdAt);
-        const next = new Date(response.documents[i + 1].$createdAt);
+      for (let i = 0; i < response.rows.length - 1; i++) {
+        const current = new Date(response.rows[i].$createdAt);
+        const next = new Date(response.rows[i + 1].$createdAt);
         if (current.getTime() < next.getTime()) {
           throw new Error('Logs not in correct chronological order with new log');
         }
@@ -485,7 +485,7 @@ async function runTests() {
     console.log('Cleaning up test logs...');
     for (const logId of testLogIds) {
       try {
-        await databases.deleteDocument(databaseId, logsCollectionId, logId);
+        await tablesDB.deleteRow(databaseId, logsTableId, logId);
       } catch (error) {
         console.error(`Failed to delete test log ${logId}`);
       }

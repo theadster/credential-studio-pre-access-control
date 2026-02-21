@@ -12,7 +12,7 @@
  * @module fieldUpdate
  */
 
-import { Databases } from 'node-appwrite';
+import { TablesDB } from 'node-appwrite';
 import {
   updateWithLock,
   LockResult,
@@ -237,9 +237,9 @@ export function excludeGroups(
  * This function ensures that credential generation does not overwrite
  * photo, profile, or other fields that may have been modified concurrently.
  * 
- * @param databases - Appwrite Databases instance
+ * @param tablesDB - Appwrite TablesDB instance
  * @param databaseId - Database ID
- * @param collectionId - Collection ID (attendees)
+ * @param tableId - Table ID (attendees)
  * @param attendeeId - Attendee document ID
  * @param data - Credential field data to update
  * @param options - Optional configuration
@@ -248,9 +248,9 @@ export function excludeGroups(
  * @example
  * ```typescript
  * const result = await updateCredentialFields(
- *   databases,
+ *   tablesDB,
  *   dbId,
- *   attendeesCollectionId,
+ *   attendeesTableId,
  *   'attendee-123',
  *   {
  *     credentialUrl: 'https://example.com/credential.pdf',
@@ -264,9 +264,9 @@ export function excludeGroups(
  * ```
  */
 export async function updateCredentialFields<T extends Record<string, unknown>>(
-  databases: Databases,
+  tablesDB: TablesDB,
   databaseId: string,
-  collectionId: string,
+  tableId: string,
   attendeeId: string,
   data: CredentialFieldData,
   options?: Pick<FieldUpdateOptions, 'lockConfig'>
@@ -274,9 +274,9 @@ export async function updateCredentialFields<T extends Record<string, unknown>>(
   const now = new Date().toISOString();
   
   return updateWithLock<T>(
-    databases,
+    tablesDB,
     databaseId,
-    collectionId,
+    tableId,
     attendeeId,
     (current) => {
       // Get current credential count, defaulting to 0
@@ -304,9 +304,9 @@ export async function updateCredentialFields<T extends Record<string, unknown>>(
  * This function ensures that photo uploads do not overwrite
  * credential, profile, or other fields that may have been modified concurrently.
  * 
- * @param databases - Appwrite Databases instance
+ * @param tablesDB - Appwrite TablesDB instance
  * @param databaseId - Database ID
- * @param collectionId - Collection ID (attendees)
+ * @param tableId - Table ID (attendees)
  * @param attendeeId - Attendee document ID
  * @param data - Photo field data to update
  * @param options - Optional configuration
@@ -315,9 +315,9 @@ export async function updateCredentialFields<T extends Record<string, unknown>>(
  * @example
  * ```typescript
  * const result = await updatePhotoFields(
- *   databases,
+ *   tablesDB,
  *   dbId,
- *   attendeesCollectionId,
+ *   attendeesTableId,
  *   'attendee-123',
  *   {
  *     photoUrl: 'https://example.com/photo.jpg',
@@ -330,9 +330,9 @@ export async function updateCredentialFields<T extends Record<string, unknown>>(
  * ```
  */
 export async function updatePhotoFields<T extends Record<string, unknown>>(
-  databases: Databases,
+  tablesDB: TablesDB,
   databaseId: string,
-  collectionId: string,
+  tableId: string,
   attendeeId: string,
   data: PhotoFieldData,
   options?: Pick<FieldUpdateOptions, 'lockConfig'>
@@ -340,9 +340,9 @@ export async function updatePhotoFields<T extends Record<string, unknown>>(
   const now = new Date().toISOString();
   
   return updateWithLock<T>(
-    databases,
+    tablesDB,
     databaseId,
-    collectionId,
+    tableId,
     attendeeId,
     (current) => {
       // Determine if this is an add, remove, or replace operation
@@ -393,9 +393,9 @@ export async function updatePhotoFields<T extends Record<string, unknown>>(
  * This function allows updating arbitrary fields while using optimistic locking.
  * It can be configured to only update specific fields or preserve others.
  * 
- * @param databases - Appwrite Databases instance
+ * @param tablesDB - Appwrite TablesDB instance
  * @param databaseId - Database ID
- * @param collectionId - Collection ID
+ * @param tableId - Table ID
  * @param documentId - Document ID
  * @param data - Fields to update
  * @param options - Update options
@@ -405,9 +405,9 @@ export async function updatePhotoFields<T extends Record<string, unknown>>(
  * ```typescript
  * // Update only specific fields
  * const result = await updateFields(
- *   databases,
+ *   tablesDB,
  *   dbId,
- *   collectionId,
+ *   tableId,
  *   'doc-123',
  *   { firstName: 'John', lastName: 'Doe' },
  *   { fields: ['firstName', 'lastName'] }
@@ -415,9 +415,9 @@ export async function updatePhotoFields<T extends Record<string, unknown>>(
  * 
  * // Update with field group filtering
  * const result = await updateFields(
- *   databases,
+ *   tablesDB,
  *   dbId,
- *   collectionId,
+ *   tableId,
  *   'doc-123',
  *   updateData,
  *   { fields: [...FIELD_GROUPS.profile] }
@@ -425,9 +425,9 @@ export async function updatePhotoFields<T extends Record<string, unknown>>(
  * ```
  */
 export async function updateFields<T extends Record<string, unknown>>(
-  databases: Databases,
+  tablesDB: TablesDB,
   databaseId: string,
-  collectionId: string,
+  tableId: string,
   documentId: string,
   data: Record<string, unknown>,
   options?: FieldUpdateOptions
@@ -438,9 +438,9 @@ export async function updateFields<T extends Record<string, unknown>>(
   };
 
   return updateWithLock<T>(
-    databases,
+    tablesDB,
     databaseId,
-    collectionId,
+    tableId,
     documentId,
     (current) => {
       // Filter incoming data to only specified fields if provided
@@ -469,9 +469,9 @@ export async function updateFields<T extends Record<string, unknown>>(
  * This is a convenience function that filters the update data
  * to only include fields from the specified group.
  * 
- * @param databases - Appwrite Databases instance
+ * @param tablesDB - Appwrite TablesDB instance
  * @param databaseId - Database ID
- * @param collectionId - Collection ID
+ * @param tableId - Table ID
  * @param documentId - Document ID
  * @param groupName - Name of the field group
  * @param data - Fields to update (will be filtered to group)
@@ -481,9 +481,9 @@ export async function updateFields<T extends Record<string, unknown>>(
  * @example
  * ```typescript
  * const result = await updateFieldGroup(
- *   databases,
+ *   tablesDB,
  *   dbId,
- *   collectionId,
+ *   tableId,
  *   'doc-123',
  *   'profile',
  *   { firstName: 'John', lastName: 'Doe', photoUrl: 'ignored' }
@@ -492,9 +492,9 @@ export async function updateFields<T extends Record<string, unknown>>(
  * ```
  */
 export async function updateFieldGroup<T extends Record<string, unknown>>(
-  databases: Databases,
+  tablesDB: TablesDB,
   databaseId: string,
-  collectionId: string,
+  tableId: string,
   documentId: string,
   groupName: FieldGroupName,
   data: Record<string, unknown>,
@@ -504,9 +504,9 @@ export async function updateFieldGroup<T extends Record<string, unknown>>(
   const filteredData = filterToGroups(data, [groupName]);
 
   return updateFields<T>(
-    databases,
+    tablesDB,
     databaseId,
-    collectionId,
+    tableId,
     documentId,
     filteredData,
     {

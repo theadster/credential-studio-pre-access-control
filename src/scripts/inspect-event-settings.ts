@@ -1,15 +1,13 @@
 /**
- * Inspect Event Settings Collection
- * 
- * This script shows what attributes currently exist in the Event Settings collection.
- * 
+ * Inspect Event Settings Table
+ *
+ * This script shows what columns currently exist in the Event Settings table.
+ *
  * Usage: npx tsx src/scripts/inspect-event-settings.ts
  */
 
-import { Client, Databases } from 'node-appwrite';
+import { Client, TablesDB } from 'node-appwrite';
 import * as dotenv from 'dotenv';
-
-
 
 // Load environment variables
 dotenv.config({ path: '.env.local' });
@@ -20,7 +18,7 @@ const requiredVars = [
   'NEXT_PUBLIC_APPWRITE_PROJECT_ID',
   'APPWRITE_API_KEY',
   'NEXT_PUBLIC_APPWRITE_DATABASE_ID',
-  'NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID',
+  'NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID',
 ];
 
 const missingVars = requiredVars.filter(varName => !process.env[varName]);
@@ -35,49 +33,51 @@ const appwriteClient = new Client()
   .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!)
   .setKey(process.env.APPWRITE_API_KEY!);
 
-const appwriteDatabases = new Databases(appwriteClient);
+const appwriteTablesDB = new TablesDB(appwriteClient);
 
-// Collection IDs
+// Table IDs
 const DATABASE_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-const EVENT_SETTINGS_COLLECTION_ID = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID!;
+const EVENT_SETTINGS_TABLE_ID = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID!;
 
-async function inspectCollection() {
+async function inspectTable() {
   try {
-    console.log('🔍 Inspecting Event Settings Collection...\n');
-    
-    const collection = await appwriteDatabases.getCollection(DATABASE_ID, EVENT_SETTINGS_COLLECTION_ID);
-    
-    console.log('Collection Name:', collection.name);
-    console.log('Collection ID:', collection.$id);
-    console.log('Total Attributes:', collection.attributes.length);
+    console.log('🔍 Inspecting Event Settings Table...\n');
+
+    const table = await appwriteTablesDB.getTable({ databaseId: DATABASE_ID, tableId: EVENT_SETTINGS_TABLE_ID });
+
+    console.log('Table Name:', table.name);
+    console.log('Table ID:', table.$id);
+
+    const columns = (table as any).columns ?? [];
+    console.log('Total Columns:', columns.length);
     console.log('\n========================================');
-    console.log('EXISTING ATTRIBUTES:');
+    console.log('EXISTING COLUMNS:');
     console.log('========================================\n');
-    
-    collection.attributes.forEach((attr: any, index: number) => {
-      console.log(`${index + 1}. ${attr.key}`);
-      console.log(`   Type: ${attr.type}`);
-      console.log(`   Required: ${attr.required}`);
-      if (attr.size) console.log(`   Size: ${attr.size}`);
-      if (attr.default !== undefined) console.log(`   Default: ${attr.default}`);
+
+    columns.forEach((col: any, index: number) => {
+      console.log(`${index + 1}. ${col.key}`);
+      console.log(`   Type: ${col.type}`);
+      console.log(`   Required: ${col.required}`);
+      if (col.size) console.log(`   Size: ${col.size}`);
+      if (col.default !== undefined) console.log(`   Default: ${col.default}`);
       console.log('');
     });
-    
+
     console.log('========================================\n');
-    
-    // Check for documents
-    const docs = await appwriteDatabases.listDocuments(DATABASE_ID, EVENT_SETTINGS_COLLECTION_ID);
-    console.log(`Documents in collection: ${docs.documents.length}\n`);
-    
-    if (docs.documents.length > 0) {
-      console.log('Sample document structure:');
-      console.log(JSON.stringify(docs.documents[0], null, 2));
+
+    // Check for rows
+    const rows = await appwriteTablesDB.listRows({ databaseId: DATABASE_ID, tableId: EVENT_SETTINGS_TABLE_ID });
+    console.log(`Rows in table: ${rows.rows.length}\n`);
+
+    if (rows.rows.length > 0) {
+      console.log('Sample row structure:');
+      console.log(JSON.stringify(rows.rows[0], null, 2));
     }
-    
+
   } catch (error: any) {
     console.error('❌ Error:', error.message);
     throw error;
   }
 }
 
-inspectCollection();
+inspectTable();

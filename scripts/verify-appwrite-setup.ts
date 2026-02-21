@@ -1,11 +1,11 @@
 #!/usr/bin/env tsx
 /**
  * Appwrite Setup Verification Script
- * 
- * This script verifies that all collections and attributes are properly configured.
+ *
+ * This script verifies that all tables and columns are properly configured.
  */
 
-import { Client, Databases } from 'node-appwrite';
+import { Client, TablesDB } from 'node-appwrite';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
@@ -17,9 +17,16 @@ const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
 const apiKey = process.env.APPWRITE_API_KEY;
 
 const missingVars: string[] = [];
+const invalidVars: string[] = [];
+
 if (!endpoint) missingVars.push('NEXT_PUBLIC_APPWRITE_ENDPOINT');
+else if (!/^https?:\/\/.+/.test(endpoint)) invalidVars.push('NEXT_PUBLIC_APPWRITE_ENDPOINT (invalid URL format)');
+
 if (!projectId) missingVars.push('NEXT_PUBLIC_APPWRITE_PROJECT_ID');
+else if (projectId.length === 0) invalidVars.push('NEXT_PUBLIC_APPWRITE_PROJECT_ID (empty value)');
+
 if (!apiKey) missingVars.push('APPWRITE_API_KEY');
+else if (apiKey.length === 0) invalidVars.push('APPWRITE_API_KEY (empty value)');
 
 if (missingVars.length > 0) {
   console.error('❌ Missing required environment variables:');
@@ -28,13 +35,18 @@ if (missingVars.length > 0) {
   process.exit(1);
 }
 
-// TypeScript now knows these are defined after the validation check
+if (invalidVars.length > 0) {
+  console.error('❌ Invalid environment variable values:');
+  invalidVars.forEach(varName => console.error(`   - ${varName}`));
+  process.exit(1);
+}
+
 const client = new Client()
   .setEndpoint(endpoint as string)
   .setProject(projectId as string)
   .setKey(apiKey as string);
 
-const databases = new Databases(client);
+const tablesDB = new TablesDB(client);
 
 const DATABASE_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'credentialstudio';
 
@@ -44,42 +56,45 @@ async function verifySetup() {
   try {
     // Verify database exists
     console.log('✓ Checking database...');
-    const database = await databases.get(DATABASE_ID);
+    const database = await tablesDB.getDatabase({ databaseId: DATABASE_ID });
     console.log(`  Database: ${database.name} (${database.$id})`);
 
-    // List all collections
-    console.log('\n✓ Checking collections...');
-    const collections = await databases.listCollections(DATABASE_ID);
+    // List all tables
+    console.log('\n✓ Checking tables...');
+    const tables = await tablesDB.listTables({ databaseId: DATABASE_ID });
 
-    console.log(`  Found ${collections.total} collections:\n`);
+    console.log(`  Found ${tables.total} tables:\n`);
 
-    for (const collection of collections.collections) {
-      console.log(`  📁 ${collection.name} (${collection.$id})`);
-      console.log(`     Attributes: ${collection.attributes.length}`);
-      console.log(`     Indexes: ${collection.indexes.length}`);
+    for (const table of tables.tables) {
+      console.log(`  📁 ${table.name} (${table.$id})`);
+      console.log(`     Columns: ${(table as any).columns?.length ?? 0}`);
+      console.log(`     Indexes: ${(table as any).indexes?.length ?? 0}`);
 
-      // List attributes
-      if (collection.attributes.length > 0) {
-        console.log('     Attributes:');
-        for (const attr of collection.attributes) {
-          const required = attr.required ? '(required)' : '(optional)';
-          console.log(`       - ${attr.key}: ${attr.type} ${required}`);
+      // List columns
+      const columns = (table as any).columns ?? [];
+      if (columns.length > 0) {
+        console.log('     Columns:');
+        for (const col of columns) {
+          const required = col.required ? '(required)' : '(optional)';
+          console.log(`       - ${col.key}: ${col.type} ${required}`);
         }
       }
 
       // List indexes
-      if (collection.indexes.length > 0) {
+      const indexes = (table as any).indexes ?? [];
+      if (indexes.length > 0) {
         console.log('     Indexes:');
-        for (const index of collection.indexes) {
-          console.log(`       - ${index.key}: ${index.type} on [${index.attributes.join(', ')}]`);
+        for (const index of indexes) {
+          const attributes = Array.isArray(index.attributes) ? index.attributes.join(', ') : 'unknown';
+          console.log(`       - ${index.key}: ${index.type} on [${attributes}]`);
         }
       }
 
       console.log('');
     }
 
-    // Verify all expected collections exist
-    const expectedCollections = [
+    // Verify all expected tables exist
+    const expectedTables = [
       'users',
       'roles',
       'attendees',
@@ -87,17 +102,17 @@ async function verifySetup() {
       'event_settings',
       'logs',
       'log_settings',
-      'invitations'
+      'invitations',
     ];
 
-    const foundCollectionIds = collections.collections.map(c => c.$id);
-    const missingCollections = expectedCollections.filter(id => !foundCollectionIds.includes(id));
+    const foundTableIds = tables.tables.map(t => t.$id);
+    const missingTables = expectedTables.filter(id => !foundTableIds.includes(id));
 
-    if (missingCollections.length > 0) {
-      console.log('⚠️  Missing collections:');
-      missingCollections.forEach(id => console.log(`   - ${id}`));
+    if (missingTables.length > 0) {
+      console.log('⚠️  Missing tables:');
+      missingTables.forEach(id => console.log(`   - ${id}`));
     } else {
-      console.log('✅ All expected collections are present!');
+      console.log('✅ All expected tables are present!');
     }
 
     console.log('\n✓ Verification complete!');

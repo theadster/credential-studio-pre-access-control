@@ -13,17 +13,17 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as fc from 'fast-check';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { mockAccount, mockDatabases, resetAllMocks } from '@/test/mocks/appwrite';
+import { mockAccount, mockTablesDB, mockAdminTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn(() => ({
     account: mockAccount,
-    databases: mockDatabases,
+    tablesDB: mockTablesDB,
   })),
   createAdminClient: vi.fn(() => ({
     account: mockAccount,
-    databases: mockDatabases,
+    tablesDB: mockAdminTablesDB,
   })),
 }));
 
@@ -36,6 +36,7 @@ vi.mock('@/lib/permissions', () => ({
     return permissions?.[resource]?.[action] === true;
   }),
 }));
+
 
 // Import the user profile cache to clear it between tests
 import { userProfileCache } from '@/lib/userProfileCache';
@@ -220,11 +221,11 @@ describe('Property 9: Permission Enforcement', () => {
 
           // Setup mocks
           mockAccount.get.mockResolvedValue({ $id: userId, email: 'test@example.com' });
-          mockDatabases.listDocuments.mockResolvedValueOnce({
-            documents: [{ $id: 'profile-1', userId, roleId: role.$id }],
+          mockTablesDB.listRows.mockResolvedValueOnce({
+            rows: [{ $id: 'profile-1', userId, roleId: role.$id }],
             total: 1,
           });
-          mockDatabases.getDocument.mockResolvedValueOnce(role);
+          mockTablesDB.getRow.mockResolvedValueOnce(role);
 
           await listHandler(mockReq, res);
 
@@ -254,11 +255,11 @@ describe('Property 9: Permission Enforcement', () => {
 
             // Setup mocks
             mockAccount.get.mockResolvedValue({ $id: userId, email: 'test@example.com' });
-            mockDatabases.listDocuments.mockResolvedValueOnce({
-              documents: [{ $id: 'profile-1', userId, roleId: role.$id }],
+            mockTablesDB.listRows.mockResolvedValueOnce({
+              rows: [{ $id: 'profile-1', userId, roleId: role.$id }],
               total: 1,
             });
-            mockDatabases.getDocument.mockResolvedValueOnce(role);
+            mockTablesDB.getRow.mockResolvedValueOnce(role);
 
             await singleHandler(mockReq, res);
 
@@ -310,11 +311,11 @@ describe('Property 9: Permission Enforcement', () => {
 
             // Setup mocks
             mockAccount.get.mockResolvedValue({ $id: userId, email: 'test@example.com' });
-            mockDatabases.listDocuments.mockResolvedValueOnce({
-              documents: [{ $id: 'profile-1', userId, roleId: role.$id }],
+            mockTablesDB.listRows.mockResolvedValueOnce({
+              rows: [{ $id: 'profile-1', userId, roleId: role.$id }],
               total: 1,
             });
-            mockDatabases.getDocument.mockResolvedValueOnce(role);
+            mockTablesDB.getRow.mockResolvedValueOnce(role);
 
             await listHandler(mockReq, res);
 
@@ -325,8 +326,8 @@ describe('Property 9: Permission Enforcement', () => {
               })
             );
 
-            // Verify createDocument was NOT called
-            expect(mockDatabases.createDocument).not.toHaveBeenCalled();
+            // Verify createRow was NOT called
+            expect(mockTablesDB.createRow).not.toHaveBeenCalled();
           }
         ),
         { numRuns: 50 }
@@ -352,11 +353,11 @@ describe('Property 9: Permission Enforcement', () => {
 
             // Setup mocks
             mockAccount.get.mockResolvedValue({ $id: userId, email: 'test@example.com' });
-            mockDatabases.listDocuments.mockResolvedValueOnce({
-              documents: [{ $id: 'profile-1', userId, roleId: role.$id }],
+            mockTablesDB.listRows.mockResolvedValueOnce({
+              rows: [{ $id: 'profile-1', userId, roleId: role.$id }],
               total: 1,
             });
-            mockDatabases.getDocument.mockResolvedValueOnce(role);
+            mockTablesDB.getRow.mockResolvedValueOnce(role);
 
             await singleHandler(mockReq, res);
 
@@ -367,8 +368,8 @@ describe('Property 9: Permission Enforcement', () => {
               })
             );
 
-            // Verify updateDocument was NOT called
-            expect(mockDatabases.updateDocument).not.toHaveBeenCalled();
+            // Verify updateRow was NOT called
+            expect(mockTablesDB.updateRow).not.toHaveBeenCalled();
           }
         ),
         { numRuns: 50 }
@@ -392,11 +393,11 @@ describe('Property 9: Permission Enforcement', () => {
 
             // Setup mocks
             mockAccount.get.mockResolvedValue({ $id: userId, email: 'test@example.com' });
-            mockDatabases.listDocuments.mockResolvedValueOnce({
-              documents: [{ $id: 'profile-1', userId, roleId: role.$id }],
+            mockTablesDB.listRows.mockResolvedValueOnce({
+              rows: [{ $id: 'profile-1', userId, roleId: role.$id }],
               total: 1,
             });
-            mockDatabases.getDocument.mockResolvedValueOnce(role);
+            mockTablesDB.getRow.mockResolvedValueOnce(role);
 
             await singleHandler(mockReq, res);
 
@@ -407,8 +408,8 @@ describe('Property 9: Permission Enforcement', () => {
               })
             );
 
-            // Verify deleteDocument was NOT called
-            expect(mockDatabases.deleteDocument).not.toHaveBeenCalled();
+            // Verify deleteRow was NOT called
+            expect(mockTablesDB.deleteRow).not.toHaveBeenCalled();
           }
         ),
         { numRuns: 50 }
@@ -425,11 +426,11 @@ describe('Property 9: Permission Enforcement', () => {
 
           // Setup mocks - user profile with no roleId
           mockAccount.get.mockResolvedValue({ $id: userId, email: 'test@example.com' });
-          mockDatabases.listDocuments.mockResolvedValueOnce({
-            documents: [{ $id: 'profile-1', userId, roleId: null }],
+          mockTablesDB.listRows.mockResolvedValueOnce({
+            rows: [{ $id: 'profile-1', userId, roleId: null }],
             total: 1,
           });
-          // getDocument for role will not be called since roleId is null
+          // getRow for role will not be called since roleId is null
 
           await listHandler(mockReq, res);
 
@@ -487,35 +488,35 @@ describe('Property 10: User-Scoped Report Listing', () => {
               updatedAt: new Date().toISOString(),
             }));
 
-            // Setup mocks - the middleware calls listDocuments for user profile
+            // Setup mocks - the middleware calls listRows for user profile
             mockAccount.get.mockResolvedValue({ $id: userId, email: 'test@example.com' });
-            mockDatabases.listDocuments
+            mockTablesDB.listRows
               .mockResolvedValueOnce({
                 // User profile lookup (middleware)
-                documents: [{ $id: 'profile-1', userId, roleId: role.$id }],
+                rows: [{ $id: 'profile-1', userId, roleId: role.$id }],
                 total: 1,
               })
               .mockResolvedValueOnce({
                 // Reports list
-                documents: userReports,
+                rows: userReports,
                 total: userReports.length,
               });
-            mockDatabases.getDocument.mockResolvedValueOnce(role);
+            mockTablesDB.getRow.mockResolvedValueOnce(role);
 
             await listHandler(mockReq, res);
 
             expect(statusMock).toHaveBeenCalledWith(200);
 
             // Verify the query included userId filter
-            const listDocumentsCalls = mockDatabases.listDocuments.mock.calls;
-            expect(listDocumentsCalls.length).toBeGreaterThanOrEqual(2);
+            const listRowsCalls = mockTablesDB.listRows.mock.calls;
+            expect(listRowsCalls.length).toBeGreaterThanOrEqual(2);
             
             // Find the reports collection query (verify it's actually the reports collection)
-            const reportsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_REPORTS_COLLECTION_ID;
-            expect(reportsCollectionId).toBeDefined();
+            const reportsTableId = process.env.NEXT_PUBLIC_APPWRITE_REPORTS_TABLE_ID;
+            expect(reportsTableId).toBeDefined();
             
-            const reportsQuery = listDocumentsCalls.find((call: any[]) => 
-              call[1] === reportsCollectionId
+            const reportsQuery = listRowsCalls.find((call: any[]) => 
+              call[1] === reportsTableId
             );
             expect(reportsQuery).toBeDefined();
             
@@ -559,25 +560,25 @@ describe('Property 10: User-Scoped Report Listing', () => {
 
             // Setup mocks - return empty list (user has no reports)
             mockAccount.get.mockResolvedValue({ $id: currentUserId, email: 'test@example.com' });
-            mockDatabases.listDocuments
+            mockTablesDB.listRows
               .mockResolvedValueOnce({
-                documents: [{ $id: 'profile-1', userId: currentUserId, roleId: role.$id }],
+                rows: [{ $id: 'profile-1', userId: currentUserId, roleId: role.$id }],
                 total: 1,
               })
               .mockResolvedValueOnce({
-                documents: [], // No reports for this user
+                rows: [], // No reports for this user
                 total: 0,
               });
-            mockDatabases.getDocument.mockResolvedValueOnce(role);
+            mockTablesDB.getRow.mockResolvedValueOnce(role);
 
             await listHandler(mockReq, res);
 
             expect(statusMock).toHaveBeenCalledWith(200);
 
             // Verify the query filtered by current user's ID, not other user's ID
-            const listDocumentsCalls = mockDatabases.listDocuments.mock.calls;
-            expect(listDocumentsCalls.length).toBeGreaterThanOrEqual(2);
-            const reportsQuery = listDocumentsCalls[1];
+            const listRowsCalls = mockTablesDB.listRows.mock.calls;
+            expect(listRowsCalls.length).toBeGreaterThanOrEqual(2);
+            const reportsQuery = listRowsCalls[1];
             // Check that the query contains current user's ID filter
             const queryStrings = reportsQuery[2].map((q: string) => 
               typeof q === 'string' ? q : JSON.stringify(q)
@@ -629,29 +630,29 @@ describe('Property 10: User-Scoped Report Listing', () => {
 
             // Setup mocks
             mockAccount.get.mockResolvedValue({ $id: adminUserId, email: 'admin@example.com' });
-            mockDatabases.listDocuments
+            mockTablesDB.listRows
               .mockResolvedValueOnce({
-                documents: [{ $id: 'profile-1', userId: adminUserId, roleId: adminRole.$id }],
+                rows: [{ $id: 'profile-1', userId: adminUserId, roleId: adminRole.$id }],
                 total: 1,
               })
               .mockResolvedValueOnce({
-                documents: allReports,
+                rows: allReports,
                 total: allReports.length,
               });
-            mockDatabases.getDocument.mockResolvedValueOnce(adminRole);
+            mockTablesDB.getRow.mockResolvedValueOnce(adminRole);
 
             await listHandler(mockReq, res);
 
             expect(statusMock).toHaveBeenCalledWith(200);
 
             // Verify the query did NOT include userId filter
-            const listDocumentsCalls = mockDatabases.listDocuments.mock.calls;
-            expect(listDocumentsCalls.length).toBeGreaterThanOrEqual(2);
+            const listRowsCalls = mockTablesDB.listRows.mock.calls;
+            expect(listRowsCalls.length).toBeGreaterThanOrEqual(2);
             // Find the reports collection call by matching the collection ID
-            const reportsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_REPORTS_COLLECTION_ID;
-            expect(reportsCollectionId).toBeDefined();
-            const reportsQuery = listDocumentsCalls.find(
-              (call) => call[1] === reportsCollectionId
+            const reportsTableId = process.env.NEXT_PUBLIC_APPWRITE_REPORTS_TABLE_ID;
+            expect(reportsTableId).toBeDefined();
+            const reportsQuery = listRowsCalls.find(
+              (call) => call[1] === reportsTableId
             );
             expect(reportsQuery).toBeDefined();
             // Admin query should only have orderDesc, not userId filter
@@ -717,20 +718,20 @@ describe('Property 10: User-Scoped Report Listing', () => {
 
           // Setup mocks
           mockAccount.get.mockResolvedValue({ $id: adminUserId, email: 'admin@example.com' });
-          mockDatabases.listDocuments
+          mockTablesDB.listRows
             .mockResolvedValueOnce({
-              documents: [{ $id: 'profile-1', userId: adminUserId, roleId: adminRole.$id }],
+              rows: [{ $id: 'profile-1', userId: adminUserId, roleId: adminRole.$id }],
               total: 1,
             })
             .mockResolvedValueOnce({
               // Event settings for validation
-              documents: [],
+              rows: [],
               total: 0,
             });
-          mockDatabases.getDocument
+          mockTablesDB.getRow
             .mockResolvedValueOnce(adminRole)
             .mockResolvedValueOnce(otherUserReport);
-          mockDatabases.updateDocument.mockResolvedValueOnce(otherUserReport);
+          mockTablesDB.updateRow.mockResolvedValueOnce(otherUserReport);
 
           await singleHandler(mockReq, res);
 
@@ -777,11 +778,11 @@ describe('Property 10: User-Scoped Report Listing', () => {
 
             // Setup mocks
             mockAccount.get.mockResolvedValue({ $id: currentUserId, email: 'test@example.com' });
-            mockDatabases.listDocuments.mockResolvedValueOnce({
-              documents: [{ $id: 'profile-1', userId: currentUserId, roleId: role.$id }],
+            mockTablesDB.listRows.mockResolvedValueOnce({
+              rows: [{ $id: 'profile-1', userId: currentUserId, roleId: role.$id }],
               total: 1,
             });
-            mockDatabases.getDocument
+            mockTablesDB.getRow
               .mockResolvedValueOnce(role)
               .mockResolvedValueOnce(otherUserReport);
 

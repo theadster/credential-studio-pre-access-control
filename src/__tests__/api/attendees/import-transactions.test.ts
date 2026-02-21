@@ -15,28 +15,20 @@
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import handler from '../import';
-import { mockAccount, mockDatabases, resetAllMocks } from '@/test/mocks/appwrite';
+import handler from '@/pages/api/attendees/import';
+import { mockAccount, mockTablesDB, mockAdminTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-
-// Mock TablesDB
-const mockTablesDB = {
-  createTransaction: vi.fn(),
-  createOperations: vi.fn(),
-  updateTransaction: vi.fn(),
-};
 
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn((req: NextApiRequest) => ({
     account: mockAccount,
-    databases: mockDatabases,
+    tablesDB: mockTablesDB,
   })),
   createAdminClient: vi.fn(() => ({
-    databases: mockDatabases,
-    tablesDB: mockTablesDB,
+    tablesDB: mockAdminTablesDB,
   })),
 }));
 
@@ -198,24 +190,25 @@ describe('/api/attendees/import - Transaction Integration Tests', () => {
     mockAccount.get.mockResolvedValue(mockAuthUser);
     
     // Mock user profile lookup
-    mockDatabases.listDocuments.mockImplementation((dbId, collectionId, queries) => {
-      if (collectionId === process.env.NEXT_PUBLIC_APPWRITE_USER_PROFILES_COLLECTION_ID) {
-        return Promise.resolve({ documents: [mockUserProfile], total: 1 });
+    mockTablesDB.listRows.mockImplementation((dbId, tableId, queries) => {
+      if (tableId === process.env.NEXT_PUBLIC_APPWRITE_USER_PROFILES_TABLE_ID) {
+        return Promise.resolve({ rows: [mockUserProfile], total: 1 });
       }
-      if (collectionId === process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID) {
-        return Promise.resolve({ documents: [mockEventSettings], total: 1 });
+      if (tableId === process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID) {
+        return Promise.resolve({ rows: [mockEventSettings], total: 1 });
       }
-      if (collectionId === process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID) {
-        return Promise.resolve({ documents: [], total: 0 });
+      if (tableId === process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID) {
+        return Promise.resolve({ rows: [], total: 0 });
       }
-      if (collectionId === process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID) {
-        return Promise.resolve({ documents: [], total: 0 });
+      if (tableId === process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID) {
+        return Promise.resolve({ rows: [], total: 0 });
       }
-      return Promise.resolve({ documents: [], total: 0 });
+      return Promise.resolve({ rows: [], total: 0 });
     });
     
-    mockDatabases.getDocument.mockResolvedValue(mockAdminRole);
-    mockDatabases.createDocument.mockResolvedValue({
+    mockTablesDB.getRow.mockResolvedValue(mockAdminRole);
+    mockAdminTablesDB.getRow.mockResolvedValue(mockAdminRole);
+    mockTablesDB.createRow.mockResolvedValue({
       $id: 'new-log-123',
       userId: mockAuthUser.$id,
       action: 'import',
@@ -281,10 +274,10 @@ describe('/api/attendees/import - Transaction Integration Tests', () => {
       // Verify bulkImportWithFallback was called
       expect(bulkImportWithFallback).toHaveBeenCalledWith(
         mockTablesDB,
-        mockDatabases,
+        mockTablesDB,
         expect.objectContaining({
           databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-          tableId: process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID,
+          tableId: process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID,
           items: expect.arrayContaining([
             expect.objectContaining({
               data: expect.objectContaining({
@@ -295,7 +288,7 @@ describe('/api/attendees/import - Transaction Integration Tests', () => {
             })
           ]),
           auditLog: expect.objectContaining({
-            tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+            tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
             userId: mockAuthUser.$id,
             action: 'import',
           })
@@ -481,9 +474,9 @@ describe('/api/attendees/import - Transaction Integration Tests', () => {
       expect(statusMock).toHaveBeenCalledWith(500);
       
       // Verify no documents were created (atomic rollback)
-      expect(mockDatabases.createDocument).not.toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).not.toHaveBeenCalledWith(
         expect.anything(),
-        process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID,
         expect.anything(),
         expect.anything()
       );
@@ -520,7 +513,7 @@ describe('/api/attendees/import - Transaction Integration Tests', () => {
       expect(callArgs[2]).toBeDefined();
       expect(callArgs[2].auditLog).toEqual(
         expect.objectContaining({
-          tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+          tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
           userId: mockAuthUser.$id,
           action: 'import',
           details: expect.objectContaining({
@@ -558,9 +551,9 @@ describe('/api/attendees/import - Transaction Integration Tests', () => {
       expect(statusMock).toHaveBeenCalledWith(500);
       
       // The audit log should not be created outside the transaction
-      const createDocCalls = mockDatabases.createDocument.mock.calls;
+      const createDocCalls = mockTablesDB.createRow.mock.calls;
       const auditLogCalls = createDocCalls.filter(
-        call => call[1] === process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID
+        call => call[1] === process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID
       );
       expect(auditLogCalls).toHaveLength(0);
     });
@@ -830,18 +823,18 @@ describe('/api/attendees/import - Transaction Integration Tests', () => {
       (formidable as any).mockReturnValue({ parse: mockParse });
 
       // Mock missing event settings - need to reset the mock first
-      mockDatabases.listDocuments.mockReset();
-      mockDatabases.listDocuments.mockImplementation((dbId, collectionId) => {
-        if (collectionId === process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID) {
-          return Promise.resolve({ documents: [], total: 0 }); // No settings
+      mockTablesDB.listRows.mockReset();
+      mockTablesDB.listRows.mockImplementation((dbId, tableId) => {
+        if (tableId === process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID) {
+          return Promise.resolve({ rows: [], total: 0 }); // No settings
         }
-        if (collectionId === process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID) {
-          return Promise.resolve({ documents: [], total: 0 });
+        if (tableId === process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID) {
+          return Promise.resolve({ rows: [], total: 0 });
         }
-        if (collectionId === process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID) {
-          return Promise.resolve({ documents: [], total: 0 });
+        if (tableId === process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID) {
+          return Promise.resolve({ rows: [], total: 0 });
         }
-        return Promise.resolve({ documents: [], total: 0 });
+        return Promise.resolve({ rows: [], total: 0 });
       });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);

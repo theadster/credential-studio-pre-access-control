@@ -11,7 +11,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     // Create session client
-    const { account, databases } = createSessionClient(req);
+    const { account, tablesDB } = createSessionClient(req);
 
     // Verify authentication
     const user = await account.get();
@@ -72,15 +72,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     while (hasMore) {
       const batchQueries = [...queries, Query.limit(batchSize), Query.offset(offset)];
-      const logsResponse = await databases.listDocuments(
+      const logsResponse = await tablesDB.listRows(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+        process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
         batchQueries
       );
 
-      allLogs = allLogs.concat(logsResponse.documents);
+      allLogs = allLogs.concat(logsResponse.rows);
 
-      if (logsResponse.documents.length < batchSize) {
+      if (logsResponse.rows.length < batchSize) {
         hasMore = false;
       } else {
         offset += batchSize;
@@ -96,13 +96,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // Fetch user if userId exists
         if (log.userId) {
           try {
-            const userDocs = await databases.listDocuments(
+            const userDocs = await tablesDB.listRows(
               process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-              process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+              process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID!,
               [Query.equal('userId', log.userId)]
             );
-            if (userDocs.documents.length > 0) {
-              const user = userDocs.documents[0];
+            if (userDocs.rows.length > 0) {
+              const user = userDocs.rows[0];
               userDoc = {
                 id: user.userId,
                 email: user.email,
@@ -117,9 +117,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // Fetch attendee if attendeeId exists
         if (log.attendeeId) {
           try {
-            attendeeDoc = await databases.getDocument(
+            attendeeDoc = await tablesDB.getRow(
               process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-              process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID!,
+              process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID!,
               log.attendeeId
             );
             attendeeDoc = {
@@ -170,9 +170,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Log the export activity
     // Log the export action if enabled
     if (await shouldLog('logsExport')) {
-      await databases.createDocument(
+      await tablesDB.createRow(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+        process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
         ID.unique(),
         {
           userId: user.$id,

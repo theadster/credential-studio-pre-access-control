@@ -95,7 +95,7 @@ interface BulkEditConfig {
  * 
  * @example
  * ```typescript
- * const result = await bulkEditWithFallback(tablesDB, databases, {
+ * const result = await bulkEditWithFallback(tablesDB, {
  *   databaseId: 'db123',
  *   tableId: 'attendees',
  *   updates: [
@@ -113,7 +113,6 @@ interface BulkEditConfig {
  */
 export async function bulkEditWithFallback(
   tablesDB: TablesDB,
-  databases: any,
   config: BulkEditConfig
 ): Promise<{
   updatedCount: number;
@@ -131,8 +130,11 @@ export async function bulkEditWithFallback(
 
     const existingDocs = await Promise.all(
       config.updates.map(update =>
-        databases.getDocument(config.databaseId, config.tableId, update.rowId)
-          .catch(() => null) // Handle missing documents gracefully
+        tablesDB.getRow({
+          databaseId: config.databaseId,
+          tableId: config.tableId,
+          rowId: update.rowId,
+        }).catch(() => null) // Handle missing rows gracefully
       )
     );
 
@@ -149,7 +151,7 @@ export async function bulkEditWithFallback(
       }
 
       // Remove Appwrite metadata fields that shouldn't be in the upsert
-      const { $permissions, $createdAt, $updatedAt, $collectionId, $databaseId, $sequence, ...docData } = existingDoc as any;
+      const { $permissions, $createdAt, $updatedAt, $tableId, $databaseId, $sequence, ...docData } = existingDoc as any;
 
       return {
         ...docData,  // Existing data with all required fields
@@ -162,29 +164,28 @@ export async function bulkEditWithFallback(
 
     // Use TablesDB's atomic upsertRows operation
     // This is atomic by default - all updates succeed or all fail
-    // Note: Uses positional parameters, not named object parameters
-    const result = await tablesDB.upsertRows(
-      config.databaseId,
-      config.tableId,
-      rows
-    );
+    await tablesDB.upsertRows({
+      databaseId: config.databaseId,
+      tableId: config.tableId,
+      rows,
+    });
 
 
 
     // Create audit log separately (not part of the atomic operation)
     try {
-      const documentId = ID.unique();
+      const rowId = ID.unique();
       const data = {
         userId: config.auditLog.userId,
         action: config.auditLog.action,
         details: JSON.stringify(config.auditLog.details)
       };
-      await databases.createDocument(
-        config.databaseId,
-        config.auditLog.tableId,
-        documentId,
-        data
-      );
+      await tablesDB.createRow({
+        databaseId: config.databaseId,
+        tableId: config.auditLog.tableId,
+        rowId,
+        data,
+      });
     } catch (logError: any) {
       // Audit log creation failed, but operation succeeded - don't fail
     }
@@ -233,7 +234,7 @@ export async function bulkEditWithFallback(
           }
           
           const result = await updateFields(
-            databases,
+            tablesDB,
             config.databaseId,
             config.tableId,
             update.rowId,
@@ -258,12 +259,12 @@ export async function bulkEditWithFallback(
           }
         } else {
           // Standard update without optimistic locking
-          await databases.updateDocument(
-            config.databaseId,
-            config.tableId,
-            update.rowId,
-            update.data
-          );
+          await tablesDB.updateRow({
+            databaseId: config.databaseId,
+            tableId: config.tableId,
+            rowId: update.rowId,
+            data: update.data,
+          });
           updatedCount++;
         }
 
@@ -280,7 +281,7 @@ export async function bulkEditWithFallback(
 
     // Create audit log for fallback
     try {
-      const documentId = ID.unique();
+      const rowId = ID.unique();
       const data = {
         userId: config.auditLog.userId,
         action: config.auditLog.action,
@@ -292,12 +293,12 @@ export async function bulkEditWithFallback(
           usedFieldSpecificUpdates: config.useFieldSpecificUpdates || false,
         })
       };
-      await databases.createDocument(
-        config.databaseId,
-        config.auditLog.tableId,
-        documentId,
-        data
-      );
+      await tablesDB.createRow({
+        databaseId: config.databaseId,
+        tableId: config.auditLog.tableId,
+        rowId,
+        data,
+      });
     } catch (logError: any) {
       // Audit log creation failed
     }
@@ -318,13 +319,11 @@ export async function bulkEditWithFallback(
  * Bulk delete using TablesDB's atomic deleteRows operation
  * 
  * @param tablesDB - TablesDB client instance
- * @param databases - Databases client for audit log
  * @param config - Delete configuration
  * @returns Result with deleted count and transaction usage flag
  */
 export async function bulkDeleteWithFallback(
   tablesDB: TablesDB,
-  databases: any,
   config: {
     databaseId: string;
     tableId: string;
@@ -346,29 +345,28 @@ export async function bulkDeleteWithFallback(
   try {
     // Use TablesDB's atomic deleteRows operation
     // Delete by query matching the IDs
-    // Note: Uses positional parameters, not named object parameters
-    await tablesDB.deleteRows(
-      config.databaseId,
-      config.tableId,
-      [Query.equal('$id', config.rowIds)]
-    );
+    await tablesDB.deleteRows({
+      databaseId: config.databaseId,
+      tableId: config.tableId,
+      queries: [Query.equal('$id', config.rowIds)],
+    });
 
 
 
     // Create audit log
     try {
-      const documentId = ID.unique();
+      const rowId = ID.unique();
       const data = {
         userId: config.auditLog.userId,
         action: config.auditLog.action,
         details: JSON.stringify(config.auditLog.details)
       };
-      await databases.createDocument(
-        config.databaseId,
-        config.auditLog.tableId,
-        documentId,
-        data
-      );
+      await tablesDB.createRow({
+        databaseId: config.databaseId,
+        tableId: config.auditLog.tableId,
+        rowId,
+        data,
+      });
     } catch (logError: any) {
       // Audit log creation failed, but operation succeeded - don't fail
     }
@@ -386,11 +384,11 @@ export async function bulkDeleteWithFallback(
 
     for (const rowId of config.rowIds) {
       try {
-        await databases.deleteDocument(
-          config.databaseId,
-          config.tableId,
-          rowId
-        );
+        await tablesDB.deleteRow({
+          databaseId: config.databaseId,
+          tableId: config.tableId,
+          rowId,
+        });
         deletedCount++;
         await new Promise(resolve => setTimeout(resolve, 50));
       } catch (deleteError: any) {
@@ -400,7 +398,7 @@ export async function bulkDeleteWithFallback(
 
     // Create audit log
     try {
-      const documentId = ID.unique();
+      const auditRowId = ID.unique();
       const data = {
         userId: config.auditLog.userId,
         action: config.auditLog.action,
@@ -409,12 +407,12 @@ export async function bulkDeleteWithFallback(
           usedFallback: true
         })
       };
-      await databases.createDocument(
-        config.databaseId,
-        config.auditLog.tableId,
-        documentId,
-        data
-      );
+      await tablesDB.createRow({
+        databaseId: config.databaseId,
+        tableId: config.auditLog.tableId,
+        rowId: auditRowId,
+        data,
+      });
     } catch (logError: any) {
       // Audit log creation failed
     }
@@ -431,13 +429,11 @@ export async function bulkDeleteWithFallback(
  * Bulk import using TablesDB's atomic createRows operation
  * 
  * @param tablesDB - TablesDB client instance
- * @param databases - Databases client for audit log
  * @param config - Import configuration
  * @returns Result with created count and transaction usage flag
  */
 export async function bulkImportWithFallback(
   tablesDB: TablesDB,
-  databases: any,
   config: {
     databaseId: string;
     tableId: string;
@@ -464,29 +460,28 @@ export async function bulkImportWithFallback(
     }));
 
     // Use TablesDB's atomic createRows operation
-    // Note: Uses positional parameters, not named object parameters
-    await tablesDB.createRows(
-      config.databaseId,
-      config.tableId,
-      rows
-    );
+    await tablesDB.createRows({
+      databaseId: config.databaseId,
+      tableId: config.tableId,
+      rows,
+    });
 
 
 
     // Create audit log
     try {
-      const documentId = ID.unique();
+      const rowId = ID.unique();
       const data = {
         userId: config.auditLog.userId,
         action: config.auditLog.action,
         details: JSON.stringify(config.auditLog.details)
       };
-      await databases.createDocument(
-        config.databaseId,
-        config.auditLog.tableId,
-        documentId,
-        data
-      );
+      await tablesDB.createRow({
+        databaseId: config.databaseId,
+        tableId: config.auditLog.tableId,
+        rowId,
+        data,
+      });
     } catch (logError: any) {
       // Audit log creation failed, but operation succeeded - don't fail
     }
@@ -504,13 +499,13 @@ export async function bulkImportWithFallback(
 
     for (const item of config.items) {
       try {
-        const documentId = ID.unique();
-        await databases.createDocument(
-          config.databaseId,
-          config.tableId,
-          documentId,
-          item.data
-        );
+        const rowId = ID.unique();
+        await tablesDB.createRow({
+          databaseId: config.databaseId,
+          tableId: config.tableId,
+          rowId,
+          data: item.data,
+        });
         createdCount++;
         await new Promise(resolve => setTimeout(resolve, 50));
       } catch (createError: any) {
@@ -520,7 +515,7 @@ export async function bulkImportWithFallback(
 
     // Create audit log
     try {
-      const documentId = ID.unique();
+      const auditRowId = ID.unique();
       const data = {
         userId: config.auditLog.userId,
         action: config.auditLog.action,
@@ -529,12 +524,12 @@ export async function bulkImportWithFallback(
           usedFallback: true
         })
       };
-      await databases.createDocument(
-        config.databaseId,
-        config.auditLog.tableId,
-        documentId,
-        data
-      );
+      await tablesDB.createRow({
+        databaseId: config.databaseId,
+        tableId: config.auditLog.tableId,
+        rowId: auditRowId,
+        data,
+      });
     } catch (logError: any) {
       // Audit log creation failed
     }

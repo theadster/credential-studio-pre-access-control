@@ -9,26 +9,27 @@
 
 import { describe, it, expect, beforeEach, vi, beforeAll } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { mockAccount, mockDatabases, resetAllMocks } from '@/test/mocks/appwrite';
+import { mockAccount, mockTablesDB, mockAdminTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 
 // Set environment variables before importing handler
 beforeAll(() => {
   process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID = 'test-db';
-  process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID = 'custom_fields';
-  process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID = 'users';
-  process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID = 'roles';
+  process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID = 'custom_fields';
+  process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID = 'users';
+  process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID = 'roles';
 });
 
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn(() => ({
     account: mockAccount,
-    databases: mockDatabases,
+    tablesDB: mockTablesDB,
   })),
   createAdminClient: vi.fn(() => ({
-    databases: mockDatabases,
+    tablesDB: mockAdminTablesDB,
   })),
 }));
+
 
 // Import handler after mocks are set up
 import handler from '@/pages/api/mobile/custom-fields';
@@ -120,7 +121,8 @@ describe('/api/mobile/custom-fields - Mobile Custom Fields API', () => {
   // Helper to set up auth mocks
   const setupAuthMocks = () => {
     mockAccount.get.mockResolvedValue(mockAuthUser);
-    mockDatabases.getDocument.mockResolvedValue(mockScannerRole);
+    mockTablesDB.getRow.mockResolvedValue(mockScannerRole);
+    mockAdminTablesDB.getRow.mockResolvedValue(mockScannerRole);
   };
 
   beforeEach(() => {
@@ -147,10 +149,10 @@ describe('/api/mobile/custom-fields - Mobile Custom Fields API', () => {
   describe('GET /api/mobile/custom-fields', () => {
     it('should return all non-deleted custom fields', async () => {
       // Mock: 1) user profile lookup, 2) custom fields list
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
         .mockResolvedValueOnce({ 
-          documents: mockCustomFields.filter(f => !f.deletedAt), 
+          rows: mockCustomFields.filter(f => !f.deletedAt), 
           total: 3 
         });
 
@@ -191,9 +193,9 @@ describe('/api/mobile/custom-fields - Mobile Custom Fields API', () => {
 
     it('should parse field options from JSON string', async () => {
       // Mock: 1) user profile lookup, 2) custom fields list
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [mockCustomFields[0]], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [mockCustomFields[0]], total: 1 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -204,9 +206,9 @@ describe('/api/mobile/custom-fields - Mobile Custom Fields API', () => {
 
     it('should handle null field options', async () => {
       // Mock: 1) user profile lookup, 2) custom fields list
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [mockCustomFields[1]], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [mockCustomFields[1]], total: 1 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -217,10 +219,10 @@ describe('/api/mobile/custom-fields - Mobile Custom Fields API', () => {
 
     it('should return fields ordered by order attribute', async () => {
       // Mock: 1) user profile lookup, 2) custom fields list (already ordered)
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
         .mockResolvedValueOnce({ 
-          documents: mockCustomFields.filter(f => !f.deletedAt), 
+          rows: mockCustomFields.filter(f => !f.deletedAt), 
           total: 3 
         });
 
@@ -237,10 +239,10 @@ describe('/api/mobile/custom-fields - Mobile Custom Fields API', () => {
 
     it('should not include deleted fields', async () => {
       // Mock: 1) user profile lookup, 2) custom fields list (no deleted)
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
         .mockResolvedValueOnce({ 
-          documents: mockCustomFields.filter(f => !f.deletedAt), 
+          rows: mockCustomFields.filter(f => !f.deletedAt), 
           total: 3 
         });
 
@@ -256,9 +258,9 @@ describe('/api/mobile/custom-fields - Mobile Custom Fields API', () => {
 
     it('should return empty array when no custom fields exist', async () => {
       // Mock: 1) user profile lookup, 2) empty custom fields list
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -281,9 +283,10 @@ describe('/api/mobile/custom-fields - Mobile Custom Fields API', () => {
         permissions: JSON.stringify({}),
       };
 
-      mockDatabases.getDocument.mockResolvedValue(noPermRole);
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValue(noPermRole);
+      mockAdminTablesDB.getRow.mockResolvedValue(noPermRole);
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -304,8 +307,8 @@ describe('/api/mobile/custom-fields - Mobile Custom Fields API', () => {
       mockReq.method = 'POST';
 
       // Mock user profile lookup
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 

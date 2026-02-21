@@ -1,14 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import handler from '../bulk-delete';
-import { mockAccount, mockDatabases, resetAllMocks } from '@/test/mocks/appwrite';
-
-// Mock TablesDB
-const mockTablesDB = {
-  createTransaction: vi.fn(),
-  createOperations: vi.fn(),
-  updateTransaction: vi.fn(),
-};
+import handler from '@/pages/api/attendees/bulk-delete';
+import { mockAccount, mockTablesDB, mockAdminTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 
 // Mock bulk operations
 const mockBulkDeleteWithFallback = vi.fn();
@@ -17,11 +10,10 @@ const mockBulkDeleteWithFallback = vi.fn();
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn((req: NextApiRequest) => ({
     account: mockAccount,
-    databases: mockDatabases,
+    tablesDB: mockTablesDB,
   })),
   createAdminClient: vi.fn(() => ({
-    databases: mockDatabases,
-    tablesDB: mockTablesDB,
+    tablesDB: mockAdminTablesDB,
   })),
 }));
 
@@ -29,6 +21,7 @@ vi.mock('@/lib/appwrite', () => ({
 vi.mock('@/lib/bulkOperations', () => ({
   bulkDeleteWithFallback: (...args: any[]) => mockBulkDeleteWithFallback(...args),
 }));
+
 
 describe('/api/attendees/bulk-delete - Bulk Delete API', () => {
   let mockReq: Partial<NextApiRequest>;
@@ -85,12 +78,13 @@ describe('/api/attendees/bulk-delete - Bulk Delete API', () => {
 
     // Default mock implementations
     mockAccount.get.mockResolvedValue(mockAuthUser);
-    mockDatabases.listDocuments.mockResolvedValue({
-      documents: [mockUserProfile],
+    mockTablesDB.listRows.mockResolvedValue({
+      rows: [mockUserProfile],
       total: 1,
     });
-    mockDatabases.getDocument.mockResolvedValue(mockAdminRole);
-    mockDatabases.createDocument.mockResolvedValue({
+    mockTablesDB.getRow.mockResolvedValue(mockAdminRole);
+    mockAdminTablesDB.getRow.mockResolvedValue(mockAdminRole);
+    mockTablesDB.createRow.mockResolvedValue({
       $id: 'new-log-123',
       userId: mockAuthUser.$id,
       action: 'delete',
@@ -133,8 +127,8 @@ describe('/api/attendees/bulk-delete - Bulk Delete API', () => {
     });
 
     it('should return 404 if user profile is not found', async () => {
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [],
         total: 0,
       });
 
@@ -151,8 +145,8 @@ describe('/api/attendees/bulk-delete - Bulk Delete API', () => {
     it('should return 403 if user has no role', async () => {
       const userWithoutRole = { ...mockUserProfile, roleId: null };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [userWithoutRole],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [userWithoutRole],
         total: 1,
       });
 
@@ -175,11 +169,11 @@ describe('/api/attendees/bulk-delete - Bulk Delete API', () => {
       };
 
       // Reset the mock to clear default behavior
-      mockDatabases.listDocuments.mockReset();
-      mockDatabases.getDocument.mockReset();
+      mockTablesDB.listRows.mockReset();
+      mockTablesDB.getRow.mockReset();
       
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [userWithRole], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(noPermRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [userWithRole], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(noPermRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -194,8 +188,8 @@ describe('/api/attendees/bulk-delete - Bulk Delete API', () => {
     it('should return 400 if attendeeIds is missing', async () => {
       mockReq.body = {};
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -206,8 +200,8 @@ describe('/api/attendees/bulk-delete - Bulk Delete API', () => {
     it('should return 400 if attendeeIds is not an array', async () => {
       mockReq.body = { attendeeIds: 'not-an-array' };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -218,8 +212,8 @@ describe('/api/attendees/bulk-delete - Bulk Delete API', () => {
     it('should return 400 if attendeeIds is empty array', async () => {
       mockReq.body = { attendeeIds: [] };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -236,11 +230,11 @@ describe('/api/attendees/bulk-delete - Bulk Delete API', () => {
         { $id: 'attendee-3', firstName: 'Bob', lastName: 'Johnson', barcodeNumber: '11111' },
       ];
 
-      mockDatabases.listDocuments.mockReset();
-      mockDatabases.getDocument.mockReset();
+      mockTablesDB.listRows.mockReset();
+      mockTablesDB.getRow.mockReset();
       
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole) // Get role
         .mockResolvedValueOnce(mockAttendees[0]) // Validate attendee 1
         .mockResolvedValueOnce(mockAttendees[1]) // Validate attendee 2
@@ -271,8 +265,8 @@ describe('/api/attendees/bulk-delete - Bulk Delete API', () => {
         { $id: 'attendee-1', firstName: 'John', lastName: 'Doe', barcodeNumber: '12345' },
       ];
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockAttendees[0])
         .mockRejectedValueOnce(new Error('Attendee not found')); // Second attendee fails validation
@@ -287,16 +281,16 @@ describe('/api/attendees/bulk-delete - Bulk Delete API', () => {
         })
       );
       // No deletions should have been attempted
-      expect(mockDatabases.deleteDocument).not.toHaveBeenCalled();
+      expect(mockTablesDB.deleteRow).not.toHaveBeenCalled();
     });
 
     it('should abort operation if validation fails for any attendee', async () => {
-      mockDatabases.listDocuments.mockReset();
-      mockDatabases.getDocument.mockReset();
-      mockDatabases.createDocument.mockReset();
+      mockTablesDB.listRows.mockReset();
+      mockTablesDB.getRow.mockReset();
+      mockTablesDB.createRow.mockReset();
       
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole) // Get role
         .mockResolvedValueOnce({ $id: 'attendee-1', firstName: 'John', lastName: 'Doe', barcodeNumber: '12345' })
         .mockRejectedValueOnce(new Error('Not found')); // attendee-2 not found - validation fails
@@ -304,7 +298,7 @@ describe('/api/attendees/bulk-delete - Bulk Delete API', () => {
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
       // No deletions should be attempted since validation failed
-      expect(mockDatabases.deleteDocument).not.toHaveBeenCalled();
+      expect(mockTablesDB.deleteRow).not.toHaveBeenCalled();
       expect(statusMock).toHaveBeenCalledWith(400);
       expect(jsonMock).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -320,11 +314,11 @@ describe('/api/attendees/bulk-delete - Bulk Delete API', () => {
         { $id: 'attendee-2', firstName: 'Jane', lastName: 'Smith', barcodeNumber: '67890' },
       ];
 
-      mockDatabases.listDocuments.mockReset();
-      mockDatabases.getDocument.mockReset();
+      mockTablesDB.listRows.mockReset();
+      mockTablesDB.getRow.mockReset();
       
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole) // Get role
         .mockResolvedValueOnce(mockAttendees[0]) // Validate attendee 1
         .mockResolvedValueOnce(mockAttendees[1]); // Validate attendee 2
@@ -342,13 +336,13 @@ describe('/api/attendees/bulk-delete - Bulk Delete API', () => {
       // Verify bulkDeleteWithFallback was called with audit log config
       expect(mockBulkDeleteWithFallback).toHaveBeenCalledWith(
         mockTablesDB,
-        mockDatabases,
+        mockTablesDB,
         expect.objectContaining({
           databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-          tableId: process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID,
+          tableId: process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID,
           rowIds: ['attendee-1', 'attendee-2'],
           auditLog: expect.objectContaining({
-            tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+            tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
             userId: mockAuthUser.$id,
             action: 'bulk_delete',
           }),
@@ -363,11 +357,11 @@ describe('/api/attendees/bulk-delete - Bulk Delete API', () => {
         { $id: 'attendee-3', firstName: 'Bob', lastName: 'Johnson', barcodeNumber: '11111' },
       ];
 
-      mockDatabases.listDocuments.mockReset();
-      mockDatabases.getDocument.mockReset();
+      mockTablesDB.listRows.mockReset();
+      mockTablesDB.getRow.mockReset();
       
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole) // Get role
         .mockResolvedValueOnce(mockAttendees[0]) // Validate attendee 1
         .mockResolvedValueOnce(mockAttendees[1]) // Validate attendee 2
@@ -380,8 +374,8 @@ describe('/api/attendees/bulk-delete - Bulk Delete API', () => {
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      // All attendees should be validated (3 getDocument calls for attendees + 1 for role)
-      expect(mockDatabases.getDocument).toHaveBeenCalledTimes(4);
+      // All attendees should be validated (3 getRow calls for attendees + 1 for role)
+      expect(mockTablesDB.getRow).toHaveBeenCalledTimes(4);
       // Then bulk delete should be called
       expect(mockBulkDeleteWithFallback).toHaveBeenCalledTimes(1);
       expect(statusMock).toHaveBeenCalledWith(200);
@@ -395,11 +389,11 @@ describe('/api/attendees/bulk-delete - Bulk Delete API', () => {
         { $id: 'attendee-2', firstName: 'Jane', lastName: 'Smith', barcodeNumber: '67890' },
       ];
 
-      mockDatabases.listDocuments.mockReset();
-      mockDatabases.getDocument.mockReset();
+      mockTablesDB.listRows.mockReset();
+      mockTablesDB.getRow.mockReset();
       
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockAttendees[0])
         .mockResolvedValueOnce(mockAttendees[1]);
@@ -433,11 +427,11 @@ describe('/api/attendees/bulk-delete - Bulk Delete API', () => {
         { $id: 'attendee-1', firstName: 'John', lastName: 'Doe', barcodeNumber: '12345' },
       ];
 
-      mockDatabases.listDocuments.mockReset();
-      mockDatabases.getDocument.mockReset();
+      mockTablesDB.listRows.mockReset();
+      mockTablesDB.getRow.mockReset();
       
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockAttendees[0]);
 
@@ -467,11 +461,11 @@ describe('/api/attendees/bulk-delete - Bulk Delete API', () => {
         { $id: 'attendee-3', firstName: 'Bob', lastName: 'Johnson', barcodeNumber: '11111' },
       ];
 
-      mockDatabases.listDocuments.mockReset();
-      mockDatabases.getDocument.mockReset();
+      mockTablesDB.listRows.mockReset();
+      mockTablesDB.getRow.mockReset();
       
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockAttendees[0])
         .mockResolvedValueOnce(mockAttendees[1])
@@ -501,11 +495,11 @@ describe('/api/attendees/bulk-delete - Bulk Delete API', () => {
         { $id: 'attendee-1', firstName: 'John', lastName: 'Doe', barcodeNumber: '12345' },
       ];
 
-      mockDatabases.listDocuments.mockReset();
-      mockDatabases.getDocument.mockReset();
+      mockTablesDB.listRows.mockReset();
+      mockTablesDB.getRow.mockReset();
       
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockAttendees[0]);
 
@@ -541,10 +535,10 @@ describe('/api/attendees/bulk-delete - Bulk Delete API', () => {
       (error as any).code = 404;
       
       mockAccount.get.mockReset();
-      mockDatabases.listDocuments.mockReset();
+      mockTablesDB.listRows.mockReset();
       
       mockAccount.get.mockResolvedValue(mockAuthUser);
-      mockDatabases.listDocuments.mockRejectedValue(error);
+      mockTablesDB.listRows.mockRejectedValue(error);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -557,11 +551,11 @@ describe('/api/attendees/bulk-delete - Bulk Delete API', () => {
         { $id: 'attendee-1', firstName: 'John', lastName: 'Doe', barcodeNumber: '12345' },
       ];
 
-      mockDatabases.listDocuments.mockReset();
-      mockDatabases.getDocument.mockReset();
+      mockTablesDB.listRows.mockReset();
+      mockTablesDB.getRow.mockReset();
       
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole).mockResolvedValueOnce(mockAttendees[0]);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole).mockResolvedValueOnce(mockAttendees[0]);
 
       // Then make bulk delete fail with a generic error
       mockBulkDeleteWithFallback.mockRejectedValue(new Error('Database error'));

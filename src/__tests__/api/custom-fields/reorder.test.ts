@@ -1,23 +1,20 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import handler from '../reorder';
-import { mockAccount, mockDatabases, resetAllMocks } from '@/test/mocks/appwrite';
+import handler from '@/pages/api/custom-fields/reorder';
+import { mockAccount, mockTablesDB, mockAdminTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 
 // Mock TablesDB for transaction support
-const mockTablesDB = {
-  createTransaction: vi.fn(),
-  createOperations: vi.fn(),
-  updateTransaction: vi.fn(),
-};
-
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn((req: NextApiRequest) => ({
     account: mockAccount,
-    databases: mockDatabases,
     tablesDB: mockTablesDB,
   })),
+  createAdminClient: vi.fn(() => ({
+    tablesDB: mockAdminTablesDB,
+})),
 }));
+
 
 describe('/api/custom-fields/reorder - Custom Fields Reorder API', () => {
   let mockReq: Partial<NextApiRequest>;
@@ -77,11 +74,12 @@ describe('/api/custom-fields/reorder - Custom Fields Reorder API', () => {
 
     // Default mock implementations
     mockAccount.get.mockResolvedValue(mockAuthUser);
-    mockDatabases.listDocuments.mockResolvedValue({
-      documents: [mockUserProfile],
+    mockTablesDB.listRows.mockResolvedValue({
+      rows: [mockUserProfile],
       total: 1,
     });
-    mockDatabases.getDocument.mockResolvedValue(mockAdminRole);
+    mockTablesDB.getRow.mockResolvedValue(mockAdminRole);
+    mockAdminTablesDB.getRow.mockResolvedValue(mockAdminRole);
     
     // Mock transaction flow
     mockTablesDB.createTransaction.mockResolvedValue({ $id: 'tx-123' });
@@ -111,10 +109,10 @@ describe('/api/custom-fields/reorder - Custom Fields Reorder API', () => {
   describe('PUT /api/custom-fields/reorder - Transaction-Based', () => {
     it('should reorder custom fields atomically using transactions', async () => {
       // Mock role first for permission check
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       
       // Mock field existence checks
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce({ $id: 'field-1', order: 5 })
         .mockResolvedValueOnce({ $id: 'field-2', order: 6 })
         .mockResolvedValueOnce({ $id: 'field-3', order: 7 });
@@ -136,7 +134,7 @@ describe('/api/custom-fields/reorder - Custom Fields Reorder API', () => {
       // Verify update operations
       expect(operations[0]).toMatchObject({
         action: 'update',
-        tableId: process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID,
+        tableId: process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID,
         rowId: 'field-1',
         data: { order: 1 }
       });
@@ -154,7 +152,7 @@ describe('/api/custom-fields/reorder - Custom Fields Reorder API', () => {
       // Verify audit log operation
       expect(operations[3]).toMatchObject({
         action: 'create',
-        tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+        tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
         data: expect.objectContaining({
           userId: mockAuthUser.$id,
           action: 'update'
@@ -177,12 +175,12 @@ describe('/api/custom-fields/reorder - Custom Fields Reorder API', () => {
         }),
       };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [mockUserProfile],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [mockUserProfile],
         total: 1,
       });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(noPermRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(noPermRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -193,8 +191,8 @@ describe('/api/custom-fields/reorder - Custom Fields Reorder API', () => {
     });
 
     it('should return 404 if user profile not found', async () => {
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [],
         total: 0,
       });
 
@@ -214,7 +212,7 @@ describe('/api/custom-fields/reorder - Custom Fields Reorder API', () => {
       mockReq.body = {};
 
       // Need to mock role for permission check
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -228,7 +226,7 @@ describe('/api/custom-fields/reorder - Custom Fields Reorder API', () => {
       };
 
       // Need to mock role for permission check
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -281,10 +279,10 @@ describe('/api/custom-fields/reorder - Custom Fields Reorder API', () => {
 
     it('should return 404 if a field does not exist', async () => {
       // Mock role first for permission check
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       
       // Then mock field existence checks - first two exist, third doesn't
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce({ $id: 'field-1', order: 5 })
         .mockResolvedValueOnce({ $id: 'field-2', order: 6 })
         .mockRejectedValueOnce({ code: 404, message: 'Document not found' });
@@ -303,10 +301,10 @@ describe('/api/custom-fields/reorder - Custom Fields Reorder API', () => {
 
     it('should rollback transaction on failure', async () => {
       // Mock role first
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       
       // Mock field existence checks
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce({ $id: 'field-1', order: 5 })
         .mockResolvedValueOnce({ $id: 'field-2', order: 6 })
         .mockResolvedValueOnce({ $id: 'field-3', order: 7 });
@@ -327,10 +325,10 @@ describe('/api/custom-fields/reorder - Custom Fields Reorder API', () => {
 
     it('should retry on conflict errors', async () => {
       // Mock role first
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       
       // Mock field existence checks
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce({ $id: 'field-1', order: 5 })
         .mockResolvedValueOnce({ $id: 'field-2', order: 6 })
         .mockResolvedValueOnce({ $id: 'field-3', order: 7 });
@@ -356,10 +354,10 @@ describe('/api/custom-fields/reorder - Custom Fields Reorder API', () => {
 
     it('should include audit log in transaction', async () => {
       // Mock role first
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       
       // Mock field existence checks
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce({ $id: 'field-1', order: 5 })
         .mockResolvedValueOnce({ $id: 'field-2', order: 6 })
         .mockResolvedValueOnce({ $id: 'field-3', order: 7 });
@@ -371,7 +369,7 @@ describe('/api/custom-fields/reorder - Custom Fields Reorder API', () => {
 
       expect(auditLogOp).toMatchObject({
         action: 'create',
-        tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+        tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
       });
 
       const logDetails = JSON.parse(auditLogOp.data.details);
@@ -392,10 +390,10 @@ describe('/api/custom-fields/reorder - Custom Fields Reorder API', () => {
       };
 
       // Mock role first
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       
       // Mock field existence check
-      mockDatabases.getDocument.mockResolvedValueOnce({ $id: 'field-1', order: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce({ $id: 'field-1', order: 1 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -427,11 +425,11 @@ describe('/api/custom-fields/reorder - Custom Fields Reorder API', () => {
       };
 
       // Mock role first
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       
       // Mock all field existence checks
       for (let i = 0; i < 20; i++) {
-        mockDatabases.getDocument.mockResolvedValueOnce({
+        mockTablesDB.getRow.mockResolvedValueOnce({
           $id: `field-${i + 1}`,
           order: i + 10,
         });
@@ -485,7 +483,7 @@ describe('/api/custom-fields/reorder - Custom Fields Reorder API', () => {
 
   describe('Error Handling', () => {
     it('should handle database errors gracefully', async () => {
-      mockDatabases.listDocuments.mockRejectedValueOnce(new Error('Database error'));
+      mockTablesDB.listRows.mockRejectedValueOnce(new Error('Database error'));
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -502,7 +500,7 @@ describe('/api/custom-fields/reorder - Custom Fields Reorder API', () => {
     it('should handle Appwrite 401 errors', async () => {
       const unauthorizedError = new Error('Unauthorized');
       (unauthorizedError as any).code = 401;
-      mockDatabases.listDocuments.mockRejectedValueOnce(unauthorizedError);
+      mockTablesDB.listRows.mockRejectedValueOnce(unauthorizedError);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -519,7 +517,7 @@ describe('/api/custom-fields/reorder - Custom Fields Reorder API', () => {
     it('should handle Appwrite 404 errors', async () => {
       const notFoundError = new Error('Not found');
       (notFoundError as any).code = 404;
-      mockDatabases.listDocuments.mockRejectedValueOnce(notFoundError);
+      mockTablesDB.listRows.mockRejectedValueOnce(notFoundError);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -534,10 +532,10 @@ describe('/api/custom-fields/reorder - Custom Fields Reorder API', () => {
 
     it('should rollback entire transaction if any operation fails', async () => {
       // Mock role first
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
       
       // Mock field existence checks
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce({ $id: 'field-1', order: 5 })
         .mockResolvedValueOnce({ $id: 'field-2', order: 6 })
         .mockResolvedValueOnce({ $id: 'field-3', order: 7 });

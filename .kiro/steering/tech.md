@@ -6,10 +6,10 @@
 - **Node.js >=20.x** (specified in engines)
 
 ## Backend Services
-- **Appwrite** as backend platform (Auth, Database, Realtime, Storage)
-- **Appwrite Database** for all data storage with real-time capabilities
+- **Appwrite** as backend platform (Auth, TablesDB, Realtime, Storage)
+- **Appwrite TablesDB** for all data storage with real-time capabilities
 - **Appwrite Auth** for authentication and user management
-- Database schema managed through Appwrite collections and attributes
+- Database schema managed through Appwrite tables and columns
 
 ## Styling & UI
 - **Tailwind CSS 3.4.18** for styling
@@ -19,7 +19,7 @@
 - **Lucide React** for icons
 
 ## Key Libraries
-- **Appwrite SDK** for authentication, database, and real-time operations
+- **Appwrite SDK** for authentication, TablesDB, and real-time operations
 - **React Hook Form** with **Zod** validation
 - **Cloudinary** for image management
 - **date-fns** for date manipulation
@@ -45,7 +45,7 @@ npm run lint         # Run ESLint
 
 ### Appwrite Setup
 ```bash
-npm run setup:appwrite  # Create Appwrite collections and configure database
+npm run setup:appwrite  # Create Appwrite tables and configure database
 node scripts/setup-appwrite.ts  # Run setup script directly
 node scripts/verify-appwrite-setup.ts  # Verify Appwrite configuration
 ```

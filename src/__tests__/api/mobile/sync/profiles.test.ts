@@ -9,26 +9,27 @@
 
 import { describe, it, expect, beforeEach, vi, beforeAll } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { mockAccount, mockDatabases, resetAllMocks } from '@/test/mocks/appwrite';
+import { mockAccount, mockTablesDB, mockAdminTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 
 // Set environment variables before importing handler
 beforeAll(() => {
   process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID = 'test-db';
-  process.env.NEXT_PUBLIC_APPWRITE_APPROVAL_PROFILES_COLLECTION_ID = 'approval_profiles';
-  process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID = 'users';
-  process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID = 'roles';
+  process.env.NEXT_PUBLIC_APPWRITE_APPROVAL_PROFILES_TABLE_ID = 'approval_profiles';
+  process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID = 'users';
+  process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID = 'roles';
 });
 
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn(() => ({
     account: mockAccount,
-    databases: mockDatabases,
+    tablesDB: mockTablesDB,
   })),
   createAdminClient: vi.fn(() => ({
-    databases: mockDatabases,
+    tablesDB: mockAdminTablesDB,
   })),
 }));
+
 
 // Import handler after mocks are set up
 import handler from '@/pages/api/mobile/sync/profiles';
@@ -112,7 +113,8 @@ describe('/api/mobile/sync/profiles - Mobile Sync Profiles API', () => {
   // Helper to set up auth mocks
   const setupAuthMocks = () => {
     mockAccount.get.mockResolvedValue(mockAuthUser);
-    mockDatabases.getDocument.mockResolvedValue(mockScannerRole);
+    mockTablesDB.getRow.mockResolvedValue(mockScannerRole);
+    mockAdminTablesDB.getRow.mockResolvedValue(mockScannerRole);
   };
 
   beforeEach(() => {
@@ -139,9 +141,9 @@ describe('/api/mobile/sync/profiles - Mobile Sync Profiles API', () => {
   describe('Full Sync (no versions parameter)', () => {
     it('should return all non-deleted profiles', async () => {
       // Mock: 1) user profile lookup, 2) profiles list
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: mockProfiles.filter(p => !p.isDeleted), total: 2 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: mockProfiles.filter(p => !p.isDeleted), total: 2 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -169,9 +171,9 @@ describe('/api/mobile/sync/profiles - Mobile Sync Profiles API', () => {
 
     it('should parse rules from JSON string', async () => {
       // Mock: 1) user profile lookup, 2) profiles list
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [mockProfiles[0]], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [mockProfiles[0]], total: 1 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -193,9 +195,9 @@ describe('/api/mobile/sync/profiles - Mobile Sync Profiles API', () => {
       mockReq.query = { versions: JSON.stringify({ 'prof-1': 2, 'prof-2': 2 }) };
 
       // Mock: 1) user profile lookup, 2) profiles list
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: mockProfiles.filter(p => !p.isDeleted), total: 2 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: mockProfiles.filter(p => !p.isDeleted), total: 2 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -215,9 +217,9 @@ describe('/api/mobile/sync/profiles - Mobile Sync Profiles API', () => {
       mockReq.query = { versions: JSON.stringify({ 'prof-1': 3 }) };
 
       // Mock: 1) user profile lookup, 2) profiles list
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: mockProfiles.filter(p => !p.isDeleted), total: 2 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: mockProfiles.filter(p => !p.isDeleted), total: 2 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -234,9 +236,9 @@ describe('/api/mobile/sync/profiles - Mobile Sync Profiles API', () => {
       mockReq.query = { versions: JSON.stringify({ 'prof-1': 3, 'prof-2': 2 }) };
 
       // Mock: 1) user profile lookup, 2) profiles list
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: mockProfiles.filter(p => !p.isDeleted), total: 2 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: mockProfiles.filter(p => !p.isDeleted), total: 2 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -250,9 +252,9 @@ describe('/api/mobile/sync/profiles - Mobile Sync Profiles API', () => {
       mockReq.query = { versions: JSON.stringify({ 'prof-1': 5, 'prof-2': 5 }) };
 
       // Mock: 1) user profile lookup, 2) profiles list
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: mockProfiles.filter(p => !p.isDeleted), total: 2 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: mockProfiles.filter(p => !p.isDeleted), total: 2 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -267,8 +269,8 @@ describe('/api/mobile/sync/profiles - Mobile Sync Profiles API', () => {
       mockReq.query = { versions: 'invalid-json' };
 
       // Mock user profile lookup
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -287,8 +289,8 @@ describe('/api/mobile/sync/profiles - Mobile Sync Profiles API', () => {
       mockReq.query = { versions: JSON.stringify(['array', 'not', 'object']) };
 
       // Mock user profile lookup
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -307,8 +309,8 @@ describe('/api/mobile/sync/profiles - Mobile Sync Profiles API', () => {
       mockReq.query = { versions: 'null' };
 
       // Mock user profile lookup
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -327,8 +329,8 @@ describe('/api/mobile/sync/profiles - Mobile Sync Profiles API', () => {
       mockReq.query = { versions: JSON.stringify({ 'prof-1': 'not-a-number' }) };
 
       // Mock user profile lookup
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -347,8 +349,8 @@ describe('/api/mobile/sync/profiles - Mobile Sync Profiles API', () => {
       mockReq.query = { versions: JSON.stringify({ 'prof-1': -1 }) };
 
       // Mock user profile lookup
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -371,9 +373,10 @@ describe('/api/mobile/sync/profiles - Mobile Sync Profiles API', () => {
         permissions: JSON.stringify({}),
       };
 
-      mockDatabases.getDocument.mockResolvedValue(noPermRole);
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValue(noPermRole);
+    mockAdminTablesDB.getRow.mockResolvedValue(noPermRole);
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -394,8 +397,8 @@ describe('/api/mobile/sync/profiles - Mobile Sync Profiles API', () => {
       mockReq.method = 'POST';
 
       // Mock user profile lookup
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 

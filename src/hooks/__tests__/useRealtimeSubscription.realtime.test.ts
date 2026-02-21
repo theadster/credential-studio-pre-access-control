@@ -34,7 +34,7 @@ describe('useRealtimeSubscription - Real-time Functionality', () => {
 
   describe('Subscription Setup', () => {
     it('should subscribe to channels on mount', async () => {
-      const channels = ['databases.db1.collections.col1.documents'];
+      const channels = ['databases.db1.tables.col1.rows'];
       const callback = vi.fn();
 
       renderHook(() =>
@@ -50,7 +50,7 @@ describe('useRealtimeSubscription - Real-time Functionality', () => {
     });
 
     it('should not subscribe when enabled is false', async () => {
-      const channels = ['databases.db1.collections.col1.documents'];
+      const channels = ['databases.db1.tables.col1.rows'];
       const callback = vi.fn();
 
       renderHook(() =>
@@ -89,8 +89,8 @@ describe('useRealtimeSubscription - Real-time Functionality', () => {
 
     it('should subscribe to multiple channels', async () => {
       const channels = [
-        'databases.db1.collections.col1.documents',
-        'databases.db1.collections.col2.documents',
+        'databases.db1.tables.col1.rows',
+        'databases.db1.tables.col2.rows',
       ];
       const callback = vi.fn();
 
@@ -109,11 +109,11 @@ describe('useRealtimeSubscription - Real-time Functionality', () => {
 
   describe('Real-time Event Handling', () => {
     it('should call callback when document is created', async () => {
-      const channels = ['databases.db1.collections.attendees.documents'];
+      const channels = ['databases.db1.tables.attendees.rows'];
       const callback = vi.fn();
       
       const mockEvent: Partial<RealtimeResponseEvent<any>> = {
-        events: ['databases.db1.collections.attendees.documents.123.create'],
+        events: ['databases.db1.tables.attendees.rows.123.create'],
         payload: {
           $id: '123',
           firstName: 'John',
@@ -142,11 +142,11 @@ describe('useRealtimeSubscription - Real-time Functionality', () => {
     });
 
     it('should call callback when document is updated', async () => {
-      const channels = ['databases.db1.collections.attendees.documents'];
+      const channels = ['databases.db1.tables.attendees.rows'];
       const callback = vi.fn();
       
       const mockEvent: Partial<RealtimeResponseEvent<any>> = {
-        events: ['databases.db1.collections.attendees.documents.123.update'],
+        events: ['databases.db1.tables.attendees.rows.123.update'],
         payload: {
           $id: '123',
           firstName: 'Jane',
@@ -174,11 +174,11 @@ describe('useRealtimeSubscription - Real-time Functionality', () => {
     });
 
     it('should call callback when document is deleted', async () => {
-      const channels = ['databases.db1.collections.attendees.documents'];
+      const channels = ['databases.db1.tables.attendees.rows'];
       const callback = vi.fn();
       
       const mockEvent: Partial<RealtimeResponseEvent<any>> = {
-        events: ['databases.db1.collections.attendees.documents.123.delete'],
+        events: ['databases.db1.tables.attendees.rows.123.delete'],
         payload: {
           $id: '123',
         },
@@ -204,7 +204,7 @@ describe('useRealtimeSubscription - Real-time Functionality', () => {
     });
 
     it('should handle multiple events in sequence', async () => {
-      const channels = ['databases.db1.collections.logs.documents'];
+      const channels = ['databases.db1.tables.logs.rows'];
       const callback = vi.fn();
 
       renderHook(() =>
@@ -222,12 +222,12 @@ describe('useRealtimeSubscription - Real-time Functionality', () => {
 
       // Simulate multiple events
       const event1: Partial<RealtimeResponseEvent<any>> = {
-        events: ['databases.db1.collections.logs.documents.1.create'],
+        events: ['databases.db1.tables.logs.rows.1.create'],
         payload: { $id: '1', action: 'login' },
       };
       
       const event2: Partial<RealtimeResponseEvent<any>> = {
-        events: ['databases.db1.collections.logs.documents.2.create'],
+        events: ['databases.db1.tables.logs.rows.2.create'],
         payload: { $id: '2', action: 'logout' },
       };
 
@@ -244,7 +244,7 @@ describe('useRealtimeSubscription - Real-time Functionality', () => {
 
   describe('Subscription Cleanup', () => {
     it('should unsubscribe on unmount', async () => {
-      const channels = ['databases.db1.collections.col1.documents'];
+      const channels = ['databases.db1.tables.col1.rows'];
       const callback = vi.fn();
 
       const { unmount } = renderHook(() =>
@@ -266,7 +266,7 @@ describe('useRealtimeSubscription - Real-time Functionality', () => {
     });
 
     it('should not call callback after unmount', async () => {
-      const channels = ['databases.db1.collections.col1.documents'];
+      const channels = ['databases.db1.tables.col1.rows'];
       const callback = vi.fn();
 
       const { unmount } = renderHook(() =>
@@ -286,7 +286,7 @@ describe('useRealtimeSubscription - Real-time Functionality', () => {
 
       // Try to trigger callback after unmount
       const mockEvent: Partial<RealtimeResponseEvent<any>> = {
-        events: ['databases.db1.collections.col1.documents.123.create'],
+        events: ['databases.db1.tables.col1.rows.123.create'],
         payload: { $id: '123' },
       };
       
@@ -298,8 +298,8 @@ describe('useRealtimeSubscription - Real-time Functionality', () => {
 
     it('should resubscribe when channels change', async () => {
       const callback = vi.fn();
-      const initialChannels = ['databases.db1.collections.col1.documents'];
-      const newChannels = ['databases.db1.collections.col2.documents'];
+      const initialChannels = ['databases.db1.tables.col1.rows'];
+      const newChannels = ['databases.db1.tables.col2.rows'];
 
       const { rerender } = renderHook(
         ({ channels }) =>
@@ -326,7 +326,7 @@ describe('useRealtimeSubscription - Real-time Functionality', () => {
 
   describe('Error Handling', () => {
     it('should call onError when subscription fails', async () => {
-      const channels = ['databases.db1.collections.col1.documents'];
+      const channels = ['databases.db1.tables.col1.rows'];
       const callback = vi.fn();
       const onError = vi.fn();
       
@@ -349,7 +349,7 @@ describe('useRealtimeSubscription - Real-time Functionality', () => {
     });
 
     it('should call onError when callback throws error', async () => {
-      const channels = ['databases.db1.collections.col1.documents'];
+      const channels = ['databases.db1.tables.col1.rows'];
       const callbackError = new Error('Callback error');
       const callback = vi.fn(() => {
         throw callbackError;
@@ -370,7 +370,7 @@ describe('useRealtimeSubscription - Real-time Functionality', () => {
 
       const subscribedCallback = mockSubscribe.mock.calls[0][1];
       const mockEvent: Partial<RealtimeResponseEvent<any>> = {
-        events: ['databases.db1.collections.col1.documents.123.create'],
+        events: ['databases.db1.tables.col1.rows.123.create'],
         payload: { $id: '123' },
       };
 
@@ -382,7 +382,7 @@ describe('useRealtimeSubscription - Real-time Functionality', () => {
     });
 
     it('should log error to console when onError is not provided', async () => {
-      const channels = ['databases.db1.collections.col1.documents'];
+      const channels = ['databases.db1.tables.col1.rows'];
       const subscriptionError = new Error('Subscription failed');
       const callback = vi.fn();
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -413,54 +413,54 @@ describe('useRealtimeSubscription - Real-time Functionality', () => {
     describe('buildChannels', () => {
       it('should build collection channel', () => {
         const channel = buildChannels.collection('db1', 'attendees');
-        expect(channel).toEqual(['databases.db1.collections.attendees.documents']);
+        expect(channel).toEqual(['databases.db1.tables.attendees.rows']);
       });
 
       it('should build document channel', () => {
         const channel = buildChannels.document('db1', 'attendees', '123');
-        expect(channel).toEqual(['databases.db1.collections.attendees.documents.123']);
+        expect(channel).toEqual(['databases.db1.tables.attendees.rows.123']);
       });
 
       it('should build multiple collection channels', () => {
         const channels = buildChannels.collections('db1', ['attendees', 'logs']);
         expect(channels).toEqual([
-          'databases.db1.collections.attendees.documents',
-          'databases.db1.collections.logs.documents',
+          'databases.db1.tables.attendees.rows',
+          'databases.db1.tables.logs.rows',
         ]);
       });
 
       it('should build multiple document channels', () => {
         const channels = buildChannels.documents('db1', 'attendees', ['123', '456']);
         expect(channels).toEqual([
-          'databases.db1.collections.attendees.documents.123',
-          'databases.db1.collections.attendees.documents.456',
+          'databases.db1.tables.attendees.rows.123',
+          'databases.db1.tables.attendees.rows.456',
         ]);
       });
     });
 
     describe('isEvent', () => {
       it('should detect create events', () => {
-        const events = ['databases.db1.collections.attendees.documents.123.create'];
+        const events = ['databases.db1.tables.attendees.rows.123.create'];
         expect(isEvent.create(events)).toBe(true);
       });
 
       it('should detect update events', () => {
-        const events = ['databases.db1.collections.attendees.documents.123.update'];
+        const events = ['databases.db1.tables.attendees.rows.123.update'];
         expect(isEvent.update(events)).toBe(true);
       });
 
       it('should detect delete events', () => {
-        const events = ['databases.db1.collections.attendees.documents.123.delete'];
+        const events = ['databases.db1.tables.attendees.rows.123.delete'];
         expect(isEvent.delete(events)).toBe(true);
       });
 
       it('should detect custom event patterns', () => {
-        const events = ['databases.db1.collections.attendees.documents.123.create'];
+        const events = ['databases.db1.tables.attendees.rows.123.create'];
         expect(isEvent.any(events, ['.create', '.update'])).toBe(true);
       });
 
       it('should return false for non-matching events', () => {
-        const events = ['databases.db1.collections.attendees.documents.123.create'];
+        const events = ['databases.db1.tables.attendees.rows.123.create'];
         expect(isEvent.update(events)).toBe(false);
         expect(isEvent.delete(events)).toBe(false);
       });
@@ -469,7 +469,7 @@ describe('useRealtimeSubscription - Real-time Functionality', () => {
 
   describe('Connection Error Handling', () => {
     it('should handle connection errors gracefully', async () => {
-      const channels = ['databases.db1.collections.col1.documents'];
+      const channels = ['databases.db1.tables.col1.rows'];
       const callback = vi.fn();
       const onError = vi.fn();
       
@@ -492,7 +492,7 @@ describe('useRealtimeSubscription - Real-time Functionality', () => {
     });
 
     it('should allow re-enabling subscription after error', async () => {
-      const channels = ['databases.db1.collections.col1.documents'];
+      const channels = ['databases.db1.tables.col1.rows'];
       const callback = vi.fn();
       const onError = vi.fn();
       

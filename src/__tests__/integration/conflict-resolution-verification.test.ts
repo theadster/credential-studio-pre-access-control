@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { Databases } from 'node-appwrite';
+import { TablesDB } from 'node-appwrite';
 import {
   ConflictType,
   OperationType,
@@ -24,11 +24,11 @@ import {
   updateWithLock,
   DEFAULT_LOCK_CONFIG,
 } from '../../lib/optimisticLock';
-import { mockDatabases, resetAllMocks } from '../../test/mocks/appwrite';
+import { mockTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 
 describe('Conflict Resolution Verification', () => {
   const testDatabaseId = 'test-database';
-  const testCollectionId = 'attendees';
+  const testTableId = 'attendees';
   const testDocumentId = 'attendee-123';
 
   beforeEach(() => {
@@ -86,8 +86,8 @@ describe('Conflict Resolution Verification', () => {
         version: 5,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(mockDocument);
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue(mockDocument);
+      mockTablesDB.updateRow.mockResolvedValue({
         ...mockDocument,
         photoUrl: 'https://example.com/new-photo.jpg',
         version: 6,
@@ -101,9 +101,9 @@ describe('Conflict Resolution Verification', () => {
       };
 
       const result = await resolve(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId,
         strategy,
         { photoUrl: 'https://example.com/new-photo.jpg' }
@@ -159,7 +159,7 @@ describe('Conflict Resolution Verification', () => {
 
       let attemptCount = 0;
 
-      mockDatabases.getDocument.mockImplementation(() => {
+      mockTablesDB.getRow.mockImplementation(() => {
         return Promise.resolve({
           ...mockDocument,
           version: attemptCount + 1, // Version increases with each attempt
@@ -167,7 +167,7 @@ describe('Conflict Resolution Verification', () => {
       });
 
       // First two attempts fail with conflict, third succeeds
-      mockDatabases.updateDocument.mockImplementation(() => {
+      mockTablesDB.updateRow.mockImplementation(() => {
         attemptCount++;
         if (attemptCount < 3) {
           return Promise.reject({ code: 409, message: 'Document conflict' });
@@ -180,9 +180,9 @@ describe('Conflict Resolution Verification', () => {
       });
 
       const resultPromise = updateWithLock(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId,
         () => ({ firstName: 'Jane' }),
         { maxRetries: 3, baseDelayMs: 50, maxDelayMs: 200 }
@@ -208,16 +208,16 @@ describe('Conflict Resolution Verification', () => {
       const retryTimestamps: number[] = [];
       let startTime = Date.now();
 
-      mockDatabases.getDocument.mockResolvedValue(mockDocument);
-      mockDatabases.updateDocument.mockImplementation(() => {
+      mockTablesDB.getRow.mockResolvedValue(mockDocument);
+      mockTablesDB.updateRow.mockImplementation(() => {
         retryTimestamps.push(Date.now() - startTime);
         return Promise.reject({ code: 409, message: 'Document conflict' });
       });
 
       const resultPromise = updateWithLock(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId,
         () => ({ firstName: 'Jane' }),
         { maxRetries: 3, baseDelayMs: 100, maxDelayMs: 2000 }
@@ -231,7 +231,7 @@ describe('Conflict Resolution Verification', () => {
       await resultPromise;
 
       // Verify exponential backoff pattern
-      expect(mockDatabases.updateDocument).toHaveBeenCalledTimes(4); // Initial + 3 retries
+      expect(mockTablesDB.updateRow).toHaveBeenCalledTimes(4); // Initial + 3 retries
     });
 
     it('should respect max delay limit', async () => {
@@ -240,13 +240,13 @@ describe('Conflict Resolution Verification', () => {
         version: 1,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(mockDocument);
-      mockDatabases.updateDocument.mockRejectedValue({ code: 409, message: 'Document conflict' });
+      mockTablesDB.getRow.mockResolvedValue(mockDocument);
+      mockTablesDB.updateRow.mockRejectedValue({ code: 409, message: 'Document conflict' });
 
       const resultPromise = updateWithLock(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId,
         () => ({ firstName: 'Jane' }),
         { maxRetries: 5, baseDelayMs: 1000, maxDelayMs: 2000 }
@@ -274,13 +274,13 @@ describe('Conflict Resolution Verification', () => {
         version: 1,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(mockDocument);
-      mockDatabases.updateDocument.mockRejectedValue({ code: 409, message: 'Document conflict' });
+      mockTablesDB.getRow.mockResolvedValue(mockDocument);
+      mockTablesDB.updateRow.mockRejectedValue({ code: 409, message: 'Document conflict' });
 
       const resultPromise = updateWithLock(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId,
         () => ({ firstName: 'Jane' }),
         { maxRetries: 2, baseDelayMs: 50, maxDelayMs: 200 }
@@ -306,14 +306,14 @@ describe('Conflict Resolution Verification', () => {
         version: 1,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(mockDocument);
-      mockDatabases.updateDocument.mockRejectedValue({ code: 409, message: 'Document conflict' });
+      mockTablesDB.getRow.mockResolvedValue(mockDocument);
+      mockTablesDB.updateRow.mockRejectedValue({ code: 409, message: 'Document conflict' });
 
       const maxRetries = 3;
       const resultPromise = updateWithLock(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId,
         () => ({ firstName: 'Jane' }),
         { maxRetries, baseDelayMs: 25, maxDelayMs: 100 }
@@ -336,13 +336,13 @@ describe('Conflict Resolution Verification', () => {
         version: 1,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(mockDocument);
-      mockDatabases.updateDocument.mockRejectedValue({ code: 409, message: 'Document conflict' });
+      mockTablesDB.getRow.mockResolvedValue(mockDocument);
+      mockTablesDB.updateRow.mockRejectedValue({ code: 409, message: 'Document conflict' });
 
       const resultPromise = updateWithLock(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId,
         () => ({ firstName: 'Jane' }),
         { maxRetries: 1, baseDelayMs: 25, maxDelayMs: 100 }
@@ -399,8 +399,8 @@ describe('Conflict Resolution Verification', () => {
         version: 5,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(mockDocument);
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue(mockDocument);
+      mockTablesDB.updateRow.mockResolvedValue({
         ...mockDocument,
         photoUrl: 'https://example.com/newer-photo.jpg',
         version: 6,
@@ -414,9 +414,9 @@ describe('Conflict Resolution Verification', () => {
       };
 
       const result = await resolve(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId,
         strategy,
         { photoUrl: 'https://example.com/newer-photo.jpg' }
@@ -470,9 +470,9 @@ describe('Conflict Resolution Verification', () => {
       };
 
       const result = await resolve(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId,
         strategy,
         { photoUrl: 'https://example.com/photo.jpg' }

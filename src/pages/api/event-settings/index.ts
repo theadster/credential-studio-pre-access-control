@@ -43,14 +43,14 @@ interface CustomFieldInput {
 }
 
 /**
- * Type-safe helper to extract documents from a fulfilled PromiseSettledResult
- * Returns the documents array if the promise is fulfilled and has documents, otherwise null
+ * Type-safe helper to extract rows from a fulfilled PromiseSettledResult
+ * Returns the rows array if the promise is fulfilled and has rows, otherwise null
  */
-function getDocuments<T>(
-  result: PromiseSettledResult<{ documents: T[] }>
+function getRows<T>(
+  result: PromiseSettledResult<{ rows: T[] }>
 ): T[] | null {
-  if (isFulfilled(result) && result.value.documents.length > 0) {
-    return result.value.documents;
+  if (isFulfilled(result) && result.value.rows.length > 0) {
+    return result.value.rows;
   }
   return null;
 }
@@ -146,35 +146,35 @@ function parseEventDate(eventDate: string | undefined): string {
  * - Errors are logged but not thrown to prevent event creation failure
  * - If default fields fail to create, the event settings will still be created successfully
  * 
- * @param databases - Appwrite databases instance from session or admin client
+ * @param tablesDB - Appwrite TablesDB instance from session or admin client
  * @param dbId - Database ID from environment variables
- * @param customFieldsCollectionId - Custom fields collection ID from environment variables
- * @param eventSettingsId - The ID of the newly created event settings document
+ * @param customFieldsTableId - Custom fields table ID from environment variables
+ * @param eventSettingsId - The ID of the newly created event settings row
  * @returns Promise<void> - Resolves when fields are created or error is logged
  * 
  * @example
  * ```typescript
  * await createDefaultCustomFields(
- *   databases,
+ *   tablesDB,
  *   process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
- *   process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID!,
+ *   process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID!,
  *   newEventSettings.$id
  * );
  * ```
  */
 async function createDefaultCustomFields(
-  databases: any,
+  tablesDB: any,
   dbId: string,
-  customFieldsCollectionId: string,
+  customFieldsTableId: string,
   eventSettingsId: string
 ): Promise<void> {
   try {
     // Create Credential Type field (select type with empty options)
     // This field allows event organizers to categorize attendees (e.g., VIP, Staff, Press)
     // Options are initially empty and must be configured through the Event Settings UI
-    await databases.createDocument(
+    await tablesDB.createRow(
       dbId,
-      customFieldsCollectionId,
+      customFieldsTableId,
       ID.unique(),
       {
         eventSettingsId,
@@ -193,9 +193,9 @@ async function createDefaultCustomFields(
     // Create Notes field (textarea type)
     // This field provides a free-form text area for capturing additional attendee information
     // Useful for special requirements, dietary restrictions, accessibility needs, etc.
-    await databases.createDocument(
+    await tablesDB.createRow(
       dbId,
-      customFieldsCollectionId,
+      customFieldsTableId,
       ID.unique(),
       {
         eventSettingsId,
@@ -227,9 +227,9 @@ async function createDefaultCustomFields(
  * @returns Object containing needsIntegrationUpdate flag, updated updateData, deletedFieldIds, and deletedFields
  */
 async function handleCustomFieldDeletions(
-  databases: any,
+  tablesDB: any,
   dbId: string,
-  customFieldsCollectionId: string,
+  customFieldsTableId: string,
   currentCustomFields: any[],
   incomingFields: any[],
   updateData: any,
@@ -253,7 +253,11 @@ async function handleCustomFieldDeletions(
 
   // Delete fields one by one (Appwrite doesn't support batch deletes)
   for (const fieldId of deletedFieldIds) {
-    await databases.deleteDocument(dbId, customFieldsCollectionId, fieldId);
+    await tablesDB.deleteRow({
+      databaseId: dbId,
+      tableId: customFieldsTableId,
+      rowId: fieldId
+    });
   }
 
   // Clean up integration templates if fields were deleted
@@ -318,9 +322,9 @@ async function handleCustomFieldDeletions(
  * Updates existing fields with new values, serializing fieldOptions and generating internalFieldName
  */
 async function handleCustomFieldModifications(
-  databases: any,
+  tablesDB: any,
   dbId: string,
-  customFieldsCollectionId: string,
+  customFieldsTableId: string,
   modifiedFields: any[]
 ): Promise<void> {
   for (const modifiedField of modifiedFields) {
@@ -330,27 +334,32 @@ async function handleCustomFieldModifications(
         : JSON.stringify(modifiedField.fieldOptions)
       : null;
 
-    await databases.updateDocument(dbId, customFieldsCollectionId, modifiedField.id, {
-      fieldName: modifiedField.fieldName,
-      internalFieldName: modifiedField.internalFieldName || generateInternalFieldName(modifiedField.fieldName),
-      fieldType: modifiedField.fieldType,
-      fieldOptions: fieldOptionsStr,
-      required: modifiedField.required || false,
-      order: modifiedField.order,
-      showOnMainPage: modifiedField.showOnMainPage !== undefined ? modifiedField.showOnMainPage : true,
-      printable: modifiedField.printable !== undefined ? modifiedField.printable : false,
+    await tablesDB.updateRow({
+      databaseId: dbId,
+      tableId: customFieldsTableId,
+      rowId: modifiedField.id,
+      data: {
+        fieldName: modifiedField.fieldName,
+        internalFieldName: modifiedField.internalFieldName || generateInternalFieldName(modifiedField.fieldName),
+        fieldType: modifiedField.fieldType,
+        fieldOptions: fieldOptionsStr,
+        required: modifiedField.required || false,
+        order: modifiedField.order,
+        showOnMainPage: modifiedField.showOnMainPage !== undefined ? modifiedField.showOnMainPage : true,
+        printable: modifiedField.printable !== undefined ? modifiedField.printable : false,
+      }
     });
   }
 }
 
 /**
  * Handle custom field additions
- * Creates new custom field documents with proper serialization and defaults
+ * Creates new custom field rows with proper serialization and defaults
  */
 async function handleCustomFieldAdditions(
-  databases: any,
+  tablesDB: any,
   dbId: string,
-  customFieldsCollectionId: string,
+  customFieldsTableId: string,
   newFields: any[],
   currentSettings: any,
   totalFieldsCount: number
@@ -362,16 +371,21 @@ async function handleCustomFieldAdditions(
         : JSON.stringify(field.fieldOptions)
       : null;
 
-    await databases.createDocument(dbId, customFieldsCollectionId, ID.unique(), {
-      eventSettingsId: currentSettings.$id,
-      fieldName: field.fieldName,
-      internalFieldName: field.internalFieldName || generateInternalFieldName(field.fieldName),
-      fieldType: field.fieldType,
-      fieldOptions: fieldOptionsStr,
-      required: field.required || false,
-      order: field.order || totalFieldsCount,
-      showOnMainPage: field.showOnMainPage !== undefined ? field.showOnMainPage : true,
-      printable: field.printable !== undefined ? field.printable : false,
+    await tablesDB.createRow({
+      databaseId: dbId,
+      tableId: customFieldsTableId,
+      rowId: ID.unique(),
+      data: {
+        eventSettingsId: currentSettings.$id,
+        fieldName: field.fieldName,
+        internalFieldName: field.internalFieldName || generateInternalFieldName(field.fieldName),
+        fieldType: field.fieldType,
+        fieldOptions: fieldOptionsStr,
+        required: field.required || false,
+        order: field.order || totalFieldsCount,
+        showOnMainPage: field.showOnMainPage !== undefined ? field.showOnMainPage : true,
+        printable: field.printable !== undefined ? field.printable : false,
+      }
     });
   }
 }
@@ -383,26 +397,23 @@ async function handleCustomFieldAdditions(
 async function handleEventSettingsUpdateWithTransactions(
   req: AuthenticatedRequest,
   res: NextApiResponse,
-  databases: any,
+  tablesDB: any,
   dbId: string,
-  customFieldsCollectionId: string,
-  eventSettingsCollectionId: string,
-  logsCollectionId: string,
+  customFieldsTableId: string,
+  eventSettingsTableId: string,
+  logsTableId: string,
   currentSettings: any,
   updateData: any,
   customFields: any[] | undefined,
   authUser: any,
   perfTracker: PerformanceTracker
 ): Promise<any> {
-  // Get TablesDB client
-  const { tablesDB } = createSessionClient(req);
-
   // Fetch current custom fields
   const currentCustomFieldsResult = await perfTracker.trackQuery(
     'fetchCurrentCustomFields',
-    () => databases.listDocuments(
+    () => tablesDB.listRows(
       dbId,
-      customFieldsCollectionId,
+      customFieldsTableId,
       [
         Query.equal('eventSettingsId', currentSettings.$id),
         Query.orderAsc('order'),
@@ -411,7 +422,7 @@ async function handleEventSettingsUpdateWithTransactions(
     )
   ) as any;
 
-  const currentCustomFields = currentCustomFieldsResult.documents;
+  const currentCustomFields = currentCustomFieldsResult.rows;
 
   // Build transaction operations
   const {
@@ -421,11 +432,11 @@ async function handleEventSettingsUpdateWithTransactions(
     needsIntegrationUpdate,
     updatedUpdateData
   } = await buildEventSettingsTransactionOperations(
-    databases,
+    tablesDB,
     dbId,
-    customFieldsCollectionId,
-    eventSettingsCollectionId,
-    logsCollectionId,
+    customFieldsTableId,
+    eventSettingsTableId,
+    logsTableId,
     currentSettings,
     currentCustomFields,
     updateData,
@@ -451,7 +462,7 @@ async function handleEventSettingsUpdateWithTransactions(
   if (Object.keys(integrationFields.cloudinary).length > 0) {
     integrationUpdates.push(
       updateCloudinaryIntegration(
-        databases,
+        tablesDB,
         currentSettings.$id,
         integrationFields.cloudinary
       ).catch(error => {
@@ -472,7 +483,7 @@ async function handleEventSettingsUpdateWithTransactions(
     console.log('[Event Settings] Updating Switchboard integration with:', integrationFields.switchboard);
     integrationUpdates.push(
       updateSwitchboardIntegration(
-        databases,
+        tablesDB,
         currentSettings.$id,
         integrationFields.switchboard
       ).catch(error => {
@@ -492,7 +503,7 @@ async function handleEventSettingsUpdateWithTransactions(
   if (Object.keys(integrationFields.oneSimpleApi).length > 0) {
     integrationUpdates.push(
       updateOneSimpleApiIntegration(
-        databases,
+        tablesDB,
         currentSettings.$id,
         integrationFields.oneSimpleApi
       ).catch(error => {
@@ -540,15 +551,15 @@ async function handleEventSettingsUpdateWithTransactions(
   eventSettingsCache.invalidate('event-settings');
 
   // Fetch updated data
-  const updatedEventSettings = await databases.getDocument(
+  const updatedEventSettings = await tablesDB.getRow(
     dbId,
-    eventSettingsCollectionId,
+    eventSettingsTableId,
     currentSettings.$id
   );
 
-  const updatedCustomFieldsResult = await databases.listDocuments(
+  const updatedCustomFieldsResult = await tablesDB.listRows(
     dbId,
-    customFieldsCollectionId,
+    customFieldsTableId,
     [
       Query.equal('eventSettingsId', currentSettings.$id),
       Query.orderAsc('order'),
@@ -557,38 +568,38 @@ async function handleEventSettingsUpdateWithTransactions(
   );
 
   // Fetch updated integration data
-  const switchboardCollectionId = process.env.NEXT_PUBLIC_APPWRITE_SWITCHBOARD_COLLECTION_ID!;
-  const cloudinaryCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CLOUDINARY_COLLECTION_ID!;
-  const oneSimpleApiCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ONESIMPLEAPI_COLLECTION_ID!;
+  const switchboardTableId = process.env.NEXT_PUBLIC_APPWRITE_SWITCHBOARD_TABLE_ID!;
+  const cloudinaryTableId = process.env.NEXT_PUBLIC_APPWRITE_CLOUDINARY_TABLE_ID!;
+  const oneSimpleApiTableId = process.env.NEXT_PUBLIC_APPWRITE_ONESIMPLEAPI_TABLE_ID!;
 
   const [
     updatedSwitchboardResult,
     updatedCloudinaryResult,
     updatedOneSimpleApiResult
   ] = await Promise.allSettled([
-    databases.listDocuments(
+    tablesDB.listRows(
       dbId,
-      switchboardCollectionId,
+      switchboardTableId,
       [Query.equal('eventSettingsId', currentSettings.$id), Query.limit(1)]
     ),
-    databases.listDocuments(
+    tablesDB.listRows(
       dbId,
-      cloudinaryCollectionId,
+      cloudinaryTableId,
       [Query.equal('eventSettingsId', currentSettings.$id), Query.limit(1)]
     ),
-    databases.listDocuments(
+    tablesDB.listRows(
       dbId,
-      oneSimpleApiCollectionId,
+      oneSimpleApiTableId,
       [Query.equal('eventSettingsId', currentSettings.$id), Query.limit(1)]
     )
   ]);
 
-  const updatedSwitchboardData = getDocuments(updatedSwitchboardResult)?.[0] ?? null;
-  const updatedCloudinaryData = getDocuments(updatedCloudinaryResult)?.[0] ?? null;
-  const updatedOneSimpleApiData = getDocuments(updatedOneSimpleApiResult)?.[0] ?? null;
+  const updatedSwitchboardData = getRows(updatedSwitchboardResult)?.[0] ?? null;
+  const updatedCloudinaryData = getRows(updatedCloudinaryResult)?.[0] ?? null;
+  const updatedOneSimpleApiData = getRows(updatedOneSimpleApiResult)?.[0] ?? null;
 
   // Parse custom fields
-  const parsedUpdatedCustomFields = updatedCustomFieldsResult.documents.map((field: any) => ({
+  const parsedUpdatedCustomFields = updatedCustomFieldsResult.rows.map((field: any) => ({
     id: field.$id,
     fieldName: field.fieldName,
     internalFieldName: field.internalFieldName,
@@ -653,11 +664,11 @@ async function handleEventSettingsUpdateWithTransactions(
  * Creates operations for core settings, custom fields, integrations, and audit log
  */
 async function buildEventSettingsTransactionOperations(
-  databases: any,
+  tablesDB: any,
   dbId: string,
-  customFieldsCollectionId: string,
-  eventSettingsCollectionId: string,
-  logsCollectionId: string,
+  customFieldsTableId: string,
+  eventSettingsTableId: string,
+  logsTableId: string,
   currentSettings: any,
   currentCustomFields: any[],
   updateData: any,
@@ -691,7 +702,7 @@ async function buildEventSettingsTransactionOperations(
         operations.push({
           action: 'delete',
           databaseId: dbId,
-          tableId: customFieldsCollectionId,
+          tableId: customFieldsTableId,
           rowId: fieldId
         });
       }
@@ -768,7 +779,7 @@ async function buildEventSettingsTransactionOperations(
       operations.push({
         action: 'update',
         databaseId: dbId,
-        tableId: customFieldsCollectionId,
+        tableId: customFieldsTableId,
         rowId: modifiedField.id,
         data: {
           fieldName: modifiedField.fieldName,
@@ -795,7 +806,7 @@ async function buildEventSettingsTransactionOperations(
       operations.push({
         action: 'create',
         databaseId: dbId,
-        tableId: customFieldsCollectionId,
+        tableId: customFieldsTableId,
         rowId: ID.unique(),
         data: {
           eventSettingsId: currentSettings.$id,
@@ -826,7 +837,7 @@ async function buildEventSettingsTransactionOperations(
       operations.push({
         action: 'update',
         databaseId: dbId,
-        tableId: customFieldsCollectionId,
+        tableId: customFieldsTableId,
         rowId: field.id,
         data: { order: field.order }
       });
@@ -844,16 +855,16 @@ async function buildEventSettingsTransactionOperations(
   operations.push({
     action: 'update',
     databaseId: dbId,
-    tableId: eventSettingsCollectionId,
+    tableId: eventSettingsTableId,
     rowId: currentSettings.$id,
     data: updatePayload
   });
 
   // 6. Add audit log operation (only if there are actual changes)
   // Fetch current integration data to get accurate comparison (in parallel)
-  const switchboardCollectionId = process.env.NEXT_PUBLIC_APPWRITE_SWITCHBOARD_COLLECTION_ID!;
-  const cloudinaryCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CLOUDINARY_COLLECTION_ID!;
-  const oneSimpleApiCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ONESIMPLEAPI_COLLECTION_ID!;
+  const switchboardTableId = process.env.NEXT_PUBLIC_APPWRITE_SWITCHBOARD_TABLE_ID!;
+  const cloudinaryTableId = process.env.NEXT_PUBLIC_APPWRITE_CLOUDINARY_TABLE_ID!;
+  const oneSimpleApiTableId = process.env.NEXT_PUBLIC_APPWRITE_ONESIMPLEAPI_TABLE_ID!;
 
   let currentSwitchboardData = null;
   let currentCloudinaryData = null;
@@ -861,40 +872,40 @@ async function buildEventSettingsTransactionOperations(
 
   // Fetch all integrations in parallel using Promise.allSettled
   const [switchboardResult, cloudinaryResult, oneSimpleApiResult] = await Promise.allSettled([
-    databases.listDocuments(
+    tablesDB.listRows(
       dbId,
-      switchboardCollectionId,
+      switchboardTableId,
       [Query.equal('eventSettingsId', currentSettings.$id), Query.limit(1)]
     ),
-    databases.listDocuments(
+    tablesDB.listRows(
       dbId,
-      cloudinaryCollectionId,
+      cloudinaryTableId,
       [Query.equal('eventSettingsId', currentSettings.$id), Query.limit(1)]
     ),
-    databases.listDocuments(
+    tablesDB.listRows(
       dbId,
-      oneSimpleApiCollectionId,
+      oneSimpleApiTableId,
       [Query.equal('eventSettingsId', currentSettings.$id), Query.limit(1)]
     )
   ]);
 
   // Extract Switchboard data
-  if (switchboardResult.status === 'fulfilled' && switchboardResult.value.documents.length > 0) {
-    currentSwitchboardData = switchboardResult.value.documents[0];
+  if (switchboardResult.status === 'fulfilled' && switchboardResult.value.rows.length > 0) {
+    currentSwitchboardData = switchboardResult.value.rows[0];
   } else if (switchboardResult.status === 'rejected') {
     console.error('[Event Settings] Failed to fetch Switchboard data for comparison:', switchboardResult.reason);
   }
 
   // Extract Cloudinary data
-  if (cloudinaryResult.status === 'fulfilled' && cloudinaryResult.value.documents.length > 0) {
-    currentCloudinaryData = cloudinaryResult.value.documents[0];
+  if (cloudinaryResult.status === 'fulfilled' && cloudinaryResult.value.rows.length > 0) {
+    currentCloudinaryData = cloudinaryResult.value.rows[0];
   } else if (cloudinaryResult.status === 'rejected') {
     console.error('[Event Settings] Failed to fetch Cloudinary data for comparison:', cloudinaryResult.reason);
   }
 
   // Extract OneSimpleAPI data
-  if (oneSimpleApiResult.status === 'fulfilled' && oneSimpleApiResult.value.documents.length > 0) {
-    currentOneSimpleApiData = oneSimpleApiResult.value.documents[0];
+  if (oneSimpleApiResult.status === 'fulfilled' && oneSimpleApiResult.value.rows.length > 0) {
+    currentOneSimpleApiData = oneSimpleApiResult.value.rows[0];
   } else if (oneSimpleApiResult.status === 'rejected') {
     console.error('[Event Settings] Failed to fetch OneSimpleAPI data for comparison:', oneSimpleApiResult.reason);
   }
@@ -918,7 +929,7 @@ async function buildEventSettingsTransactionOperations(
     operations.push({
       action: 'create',
       databaseId: dbId,
-      tableId: logsCollectionId,
+      tableId: logsTableId,
       rowId: ID.unique(),
       data: {
         userId,
@@ -1215,17 +1226,17 @@ function getCoreEventSettingsFields(updateData: any) {
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-    const usersCollectionId = process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!;
-    const rolesCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!;
-    const customFieldsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID!;
-    const eventSettingsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID!;
-    const logsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!;
+    const usersTableId = process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID!;
+    const rolesTableId = process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!;
+    const customFieldsTableId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID!;
+    const eventSettingsTableId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID!;
+    const logsTableId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!;
 
     switch (req.method) {
       case 'GET':
         // For GET requests, allow unauthenticated access to fetch basic event settings
         // This is needed for the login page to display the sign-in banner
-        const { databases: adminDatabases } = createAdminClient();
+        const { tablesDB: adminTablesDB } = createAdminClient();
 
         // Initialize performance tracker
         const perfTracker = new PerformanceTracker();
@@ -1271,18 +1282,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               try {
                 // Create a mock request with the JWT for the session client
                 const mockReq = { cookies: { 'appwrite-session': jwt } } as any;
-                const { account, databases: sessionDatabases } = createSessionClient(mockReq);
+                const { account, tablesDB: sessionTablesDB } = createSessionClient(mockReq);
                 const user = await account.get();
 
-                const userDocs = await sessionDatabases.listDocuments(dbId, usersCollectionId, [
+                const userDocs = await sessionTablesDB.listRows(dbId, usersTableId, [
                   Query.equal('userId', user.$id)
                 ]);
 
-                if (userDocs.documents.length > 0 && await shouldLog('systemViewEventSettings')) {
+                if (userDocs.rows.length > 0 && await shouldLog('systemViewEventSettings')) {
                   // Check for recent duplicate logs (within last 5 seconds)
-                  const recentLogs = await sessionDatabases.listDocuments(
+                  const recentLogs = await sessionTablesDB.listRows(
                     dbId,
-                    logsCollectionId,
+                    logsTableId,
                     [
                       Query.equal('userId', user.$id),
                       Query.equal('action', 'view'),
@@ -1292,7 +1303,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                   );
 
                   // Check if there's already a recent event settings view log
-                  const hasDuplicate = recentLogs.documents.some(log => {
+                  const hasDuplicate = recentLogs.rows.some(log => {
                     try {
                       const details = JSON.parse(log.details);
                       return details.target === 'Event Settings';
@@ -1302,9 +1313,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                   });
 
                   if (!hasDuplicate) {
-                    await sessionDatabases.createDocument(
+                    await sessionTablesDB.createRow(
                       dbId,
-                      logsCollectionId,
+                      logsTableId,
                       ID.unique(),
                       {
                         userId: user.$id,
@@ -1336,23 +1347,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         const eventSettingsResult = await perfTracker.trackQuery(
           'eventSettings',
-          () => adminDatabases.listDocuments(
+          () => adminTablesDB.listRows(
             dbId,
-            eventSettingsCollectionId,
+            eventSettingsTableId,
             [Query.limit(1)]
           )
         );
 
-        if (eventSettingsResult.documents.length === 0) {
+        if (eventSettingsResult.rows.length === 0) {
           return res.status(404).json({ error: 'Event settings not found' });
         }
 
-        const eventSettings = eventSettingsResult.documents[0];
+        const eventSettings = eventSettingsResult.rows[0];
 
         // Fetch custom fields and all integrations in parallel using Promise.allSettled
-        const switchboardCollectionId = process.env.NEXT_PUBLIC_APPWRITE_SWITCHBOARD_COLLECTION_ID!;
-        const cloudinaryCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CLOUDINARY_COLLECTION_ID!;
-        const oneSimpleApiCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ONESIMPLEAPI_COLLECTION_ID!;
+        const switchboardTableId = process.env.NEXT_PUBLIC_APPWRITE_SWITCHBOARD_TABLE_ID!;
+        const cloudinaryTableId = process.env.NEXT_PUBLIC_APPWRITE_CLOUDINARY_TABLE_ID!;
+        const oneSimpleApiTableId = process.env.NEXT_PUBLIC_APPWRITE_ONESIMPLEAPI_TABLE_ID!;
 
         const [
           customFieldsResult,
@@ -1362,28 +1373,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         ] = await perfTracker.trackQuery(
           'parallelIntegrations',
           () => Promise.allSettled([
-            adminDatabases.listDocuments(
+            adminTablesDB.listRows(
               dbId,
-              customFieldsCollectionId,
+              customFieldsTableId,
               [
                 Query.equal('eventSettingsId', eventSettings.$id),
                 Query.orderAsc('order'),
                 Query.limit(100)
               ]
             ),
-            adminDatabases.listDocuments(
+            adminTablesDB.listRows(
               dbId,
-              switchboardCollectionId,
+              switchboardTableId,
               [Query.equal('eventSettingsId', eventSettings.$id), Query.limit(1)]
             ),
-            adminDatabases.listDocuments(
+            adminTablesDB.listRows(
               dbId,
-              cloudinaryCollectionId,
+              cloudinaryTableId,
               [Query.equal('eventSettingsId', eventSettings.$id), Query.limit(1)]
             ),
-            adminDatabases.listDocuments(
+            adminTablesDB.listRows(
               dbId,
-              oneSimpleApiCollectionId,
+              oneSimpleApiTableId,
               [Query.equal('eventSettingsId', eventSettings.$id), Query.limit(1)]
             )
           ])
@@ -1392,7 +1403,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // Extract custom fields or use empty array if failed
         let fetchedCustomFields: any[] = [];
         if (isFulfilled(customFieldsResult)) {
-          fetchedCustomFields = customFieldsResult.value.documents;
+          fetchedCustomFields = customFieldsResult.value.rows;
         } else if (isRejected(customFieldsResult)) {
           console.error('Failed to fetch custom fields:', {
             error: customFieldsResult.reason,
@@ -1407,8 +1418,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const integrationFailures: Array<{ name: string; error: any }> = [];
 
         let switchboardData = null;
-        if (isFulfilled(switchboardResult) && switchboardResult.value.documents.length > 0) {
-          switchboardData = switchboardResult.value.documents[0];
+        if (isFulfilled(switchboardResult) && switchboardResult.value.rows.length > 0) {
+          switchboardData = switchboardResult.value.rows[0];
         } else if (isRejected(switchboardResult)) {
           const error = switchboardResult.reason;
           integrationFailures.push({ name: 'Switchboard', error });
@@ -1418,13 +1429,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             message: error instanceof Error ? error.message : 'Unknown error',
             stack: error instanceof Error ? error.stack : undefined,
             eventSettingsId: eventSettings.$id,
-            collectionId: switchboardCollectionId
+            tableId: switchboardTableId
           });
         }
 
         let cloudinaryData = null;
-        if (isFulfilled(cloudinaryResult) && cloudinaryResult.value.documents.length > 0) {
-          cloudinaryData = cloudinaryResult.value.documents[0];
+        if (isFulfilled(cloudinaryResult) && cloudinaryResult.value.rows.length > 0) {
+          cloudinaryData = cloudinaryResult.value.rows[0];
         } else if (isRejected(cloudinaryResult)) {
           const error = cloudinaryResult.reason;
           integrationFailures.push({ name: 'Cloudinary', error });
@@ -1434,13 +1445,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             message: error instanceof Error ? error.message : 'Unknown error',
             stack: error instanceof Error ? error.stack : undefined,
             eventSettingsId: eventSettings.$id,
-            collectionId: cloudinaryCollectionId
+            tableId: cloudinaryTableId
           });
         }
 
         let oneSimpleApiData = null;
-        if (isFulfilled(oneSimpleApiResult) && oneSimpleApiResult.value.documents.length > 0) {
-          oneSimpleApiData = oneSimpleApiResult.value.documents[0];
+        if (isFulfilled(oneSimpleApiResult) && oneSimpleApiResult.value.rows.length > 0) {
+          oneSimpleApiData = oneSimpleApiResult.value.rows[0];
         } else if (isRejected(oneSimpleApiResult)) {
           const error = oneSimpleApiResult.reason;
           integrationFailures.push({ name: 'OneSimpleAPI', error });
@@ -1450,7 +1461,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             message: error instanceof Error ? error.message : 'Unknown error',
             stack: error instanceof Error ? error.stack : undefined,
             eventSettingsId: eventSettings.$id,
-            collectionId: oneSimpleApiCollectionId
+            tableId: oneSimpleApiTableId
           });
         }
 
@@ -1554,19 +1565,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             try {
               // Create a mock request with the JWT for the session client
               const mockReq = { cookies: { 'appwrite-session': jwt } } as any;
-              const { account, databases: sessionDatabases } = createSessionClient(mockReq);
+              const { account, tablesDB: sessionTablesDB } = createSessionClient(mockReq);
               const user = await account.get();
 
               // Get user profile
-              const userDocs = await sessionDatabases.listDocuments(dbId, usersCollectionId, [
+              const userDocs = await sessionTablesDB.listRows(dbId, usersTableId, [
                 Query.equal('userId', user.$id)
               ]);
 
-              if (userDocs.documents.length > 0 && await shouldLog('systemViewEventSettings')) {
+              if (userDocs.rows.length > 0 && await shouldLog('systemViewEventSettings')) {
                 // Check for recent duplicate logs (within last 5 seconds)
-                const recentLogs = await sessionDatabases.listDocuments(
+                const recentLogs = await sessionTablesDB.listRows(
                   dbId,
-                  logsCollectionId,
+                  logsTableId,
                   [
                     Query.equal('userId', user.$id),
                     Query.equal('action', 'view'),
@@ -1576,7 +1587,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 );
 
                 // Check if there's already a recent event settings view log
-                const hasDuplicate = recentLogs.documents.some(log => {
+                const hasDuplicate = recentLogs.rows.some(log => {
                   try {
                     const details = JSON.parse(log.details);
                     return details.target === 'Event Settings';
@@ -1586,9 +1597,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 });
 
                 if (!hasDuplicate) {
-                  await sessionDatabases.createDocument(
+                  await sessionTablesDB.createRow(
                     dbId,
-                    logsCollectionId,
+                    logsTableId,
                     ID.unique(),
                     {
                       userId: user.$id,
@@ -1641,13 +1652,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   // User is already authenticated by middleware
   const { user: authUser } = req;
-  const { databases } = createSessionClient(req);
+  const { tablesDB } = createSessionClient(req);
 
   const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-  const usersCollectionId = process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!;
-  const customFieldsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID!;
-  const eventSettingsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID!;
-  const logsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!;
+  const usersTableId = process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID!;
+  const customFieldsTableId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID!;
+  const eventSettingsTableId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID!;
+  const logsTableId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!;
 
   if (req.method === 'POST') {
     // Initialize performance tracker for POST request
@@ -1710,14 +1721,14 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
     // Check if event settings already exist
     const existingSettingsResult = await postPerfTracker.trackQuery(
       'checkExistingSettings',
-      () => databases.listDocuments(
+      () => tablesDB.listRows(
         dbId,
-        eventSettingsCollectionId,
+        eventSettingsTableId,
         [Query.limit(1)]
       )
     );
 
-    if (existingSettingsResult.documents.length > 0) {
+    if (existingSettingsResult.rows.length > 0) {
       return res.status(400).json({ error: 'Event settings already exist. Use PUT to update.' });
     }
 
@@ -1726,9 +1737,9 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
 
     const newEventSettings = await postPerfTracker.trackQuery(
       'createEventSettings',
-      () => databases.createDocument(
+      () => tablesDB.createRow(
         dbId,
-        eventSettingsCollectionId,
+        eventSettingsTableId,
         ID.unique(),
         {
           eventName,
@@ -1767,18 +1778,18 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
     // Create default custom fields (Credential Type and Notes)
     // This is done after event settings creation but errors won't fail the request
     await createDefaultCustomFields(
-      databases,
+      tablesDB,
       dbId,
-      customFieldsCollectionId,
+      customFieldsTableId,
       newEventSettings.$id
     );
 
     // Fetch custom fields (should now include the default fields)
     const customFieldsResult = await postPerfTracker.trackQuery(
       'fetchCustomFields',
-      () => databases.listDocuments(
+      () => tablesDB.listRows(
         dbId,
-        customFieldsCollectionId,
+        customFieldsTableId,
         [
           Query.equal('eventSettingsId', newEventSettings.$id),
           Query.orderAsc('order'),
@@ -1789,18 +1800,18 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
 
     const newEventSettingsWithFields = {
       ...newEventSettings,
-      customFields: customFieldsResult.documents
+      customFields: customFieldsResult.rows
     };
 
     // Log the create action - only if user exists in our database
-    const userDocs = await databases.listDocuments(dbId, usersCollectionId, [
+    const userDocs = await tablesDB.listRows(dbId, usersTableId, [
       Query.equal('userId', authUser.$id)
     ]);
 
-    if (userDocs.documents.length > 0) {
-      await databases.createDocument(
+    if (userDocs.rows.length > 0) {
+      await tablesDB.createRow(
         dbId,
-        logsCollectionId,
+        logsTableId,
         ID.unique(),
         {
           userId: authUser.$id,
@@ -1874,29 +1885,29 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
   // Get existing settings
   const currentSettingsResult = await putPerfTracker.trackQuery(
     'fetchCurrentSettings',
-    () => databases.listDocuments(
+    () => tablesDB.listRows(
       dbId,
-      eventSettingsCollectionId,
+      eventSettingsTableId,
       [Query.limit(1)]
     )
   );
 
-  if (currentSettingsResult.documents.length === 0) {
+  if (currentSettingsResult.rows.length === 0) {
     return res.status(404).json({ error: 'Event settings not found. Create them first.' });
   }
 
-  const currentSettings = currentSettingsResult.documents[0];
+  const currentSettings = currentSettingsResult.rows[0];
 
   // Use transaction-based update
   try {
     return await handleEventSettingsUpdateWithTransactions(
       req,
       res,
-      databases,
+      tablesDB,
       dbId,
-      customFieldsCollectionId,
-      eventSettingsCollectionId,
-      logsCollectionId,
+      customFieldsTableId,
+      eventSettingsTableId,
+      logsTableId,
       currentSettings,
       updateData,
       customFields,
@@ -1910,9 +1921,9 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
   }
   const currentCustomFieldsResult = await putPerfTracker.trackQuery(
     'fetchCurrentCustomFields',
-    () => databases.listDocuments(
+    () => tablesDB.listRows(
       dbId,
-      customFieldsCollectionId,
+      customFieldsTableId,
       [
         Query.equal('eventSettingsId', currentSettings.$id),
         Query.orderAsc('order'),
@@ -1921,7 +1932,7 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
     )
   );
 
-  const currentCustomFields = currentCustomFieldsResult.documents;
+  const currentCustomFields = currentCustomFieldsResult.rows;
 
   // Handle date properly to avoid timezone issues
   const updateParsedEventDate = eventSettingsData.eventDate ? parseEventDate(eventSettingsData.eventDate) : undefined;
@@ -1946,9 +1957,9 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
 
     // Handle deletions and clean up integration templates
     const deletionResult = await handleCustomFieldDeletions(
-      databases,
+      tablesDB,
       dbId,
-      customFieldsCollectionId,
+      customFieldsTableId,
       currentCustomFields,
       customFields,
       updateData,
@@ -1964,17 +1975,17 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
     if (deletionResult.deletedFieldIds.length > 0 || modifiedFields.length > 0) {
       // Handle modifications - update existing fields without deleting them
       await handleCustomFieldModifications(
-        databases,
+        tablesDB,
         dbId,
-        customFieldsCollectionId,
+        customFieldsTableId,
         modifiedFields
       );
 
       // Handle new fields
       await handleCustomFieldAdditions(
-        databases,
+        tablesDB,
         dbId,
-        customFieldsCollectionId,
+        customFieldsTableId,
         newFields,
         currentSettings,
         customFields.length
@@ -1992,9 +2003,9 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
       });
 
       for (const field of unchangedFields) {
-        await databases.updateDocument(
+        await tablesDB.updateRow(
           dbId,
-          customFieldsCollectionId,
+          customFieldsTableId,
           field.id,
           { order: field.order }
         );
@@ -2003,9 +2014,9 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
       // Only additions and/or reordering - handle incrementally
       // Update order for existing fields
       for (const field of existingFields) {
-        await databases.updateDocument(
+        await tablesDB.updateRow(
           dbId,
-          customFieldsCollectionId,
+          customFieldsTableId,
           field.id,
           { order: field.order }
         );
@@ -2013,9 +2024,9 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
 
       // Create new fields
       await handleCustomFieldAdditions(
-        databases,
+        tablesDB,
         dbId,
-        customFieldsCollectionId,
+        customFieldsTableId,
         newFields,
         currentSettings,
         customFields.length
@@ -2038,9 +2049,9 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
   // Always update the EventSettings record with core fields
   const updatedEventSettings = await putPerfTracker.trackQuery(
     'updateEventSettings',
-    () => databases.updateDocument(
+    () => tablesDB.updateRow(
       dbId,
-      eventSettingsCollectionId,
+      eventSettingsTableId,
       currentSettings.$id,
       updatePayload
     )
@@ -2054,7 +2065,7 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
   if (Object.keys(integrationFields.cloudinary).length > 0) {
     integrationUpdates.push(
       updateCloudinaryIntegration(
-        databases,
+        tablesDB,
         updatedEventSettings.$id,
         integrationFields.cloudinary
       ).catch(error => {
@@ -2084,7 +2095,7 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
   if (Object.keys(integrationFields.switchboard).length > 0) {
     integrationUpdates.push(
       updateSwitchboardIntegration(
-        databases,
+        tablesDB,
         updatedEventSettings.$id,
         integrationFields.switchboard
       ).catch(error => {
@@ -2114,7 +2125,7 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
   if (Object.keys(integrationFields.oneSimpleApi).length > 0) {
     integrationUpdates.push(
       updateOneSimpleApiIntegration(
-        databases,
+        tablesDB,
         updatedEventSettings.$id,
         integrationFields.oneSimpleApi
       ).catch(error => {
@@ -2201,9 +2212,9 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
   eventSettingsCache.invalidate('event-settings');
 
   // Fetch updated custom fields
-  const updatedCustomFieldsResult = await databases.listDocuments(
+  const updatedCustomFieldsResult = await tablesDB.listRows(
     dbId,
-    customFieldsCollectionId,
+    customFieldsTableId,
     [
       Query.equal('eventSettingsId', updatedEventSettings.$id),
       Query.orderAsc('order'),
@@ -2212,24 +2223,24 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
   );
 
   // Fetch updated integration data from separate collections
-  const putSwitchboardCollectionId = process.env.NEXT_PUBLIC_APPWRITE_SWITCHBOARD_COLLECTION_ID!;
-  const putCloudinaryCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CLOUDINARY_COLLECTION_ID!;
-  const putOneSimpleApiCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ONESIMPLEAPI_COLLECTION_ID!;
+  const putSwitchboardTableId = process.env.NEXT_PUBLIC_APPWRITE_SWITCHBOARD_TABLE_ID!;
+  const putCloudinaryTableId = process.env.NEXT_PUBLIC_APPWRITE_CLOUDINARY_TABLE_ID!;
+  const putOneSimpleApiTableId = process.env.NEXT_PUBLIC_APPWRITE_ONESIMPLEAPI_TABLE_ID!;
 
   const integrationResults = await Promise.allSettled([
-    databases.listDocuments(
+    tablesDB.listRows(
       dbId,
-      putSwitchboardCollectionId,
+      putSwitchboardTableId,
       [Query.equal('eventSettingsId', updatedEventSettings.$id), Query.limit(1)]
     ),
-    databases.listDocuments(
+    tablesDB.listRows(
       dbId,
-      putCloudinaryCollectionId,
+      putCloudinaryTableId,
       [Query.equal('eventSettingsId', updatedEventSettings.$id), Query.limit(1)]
     ),
-    databases.listDocuments(
+    tablesDB.listRows(
       dbId,
-      putOneSimpleApiCollectionId,
+      putOneSimpleApiTableId,
       [Query.equal('eventSettingsId', updatedEventSettings.$id), Query.limit(1)]
     )
   ]);
@@ -2238,9 +2249,9 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
   let updatedSwitchboardData = null;
   const switchboardResult = integrationResults[0];
   if (isFulfilled(switchboardResult)) {
-    const documents = (switchboardResult as any).value.documents;
-    if (documents.length > 0) {
-      updatedSwitchboardData = documents[0];
+    const rows = (switchboardResult as any).value.rows;
+    if (rows.length > 0) {
+      updatedSwitchboardData = rows[0];
     }
   } else if (isRejected(switchboardResult)) {
     console.warn('Failed to fetch updated switchboard integration:', (switchboardResult as any).reason);
@@ -2249,9 +2260,9 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
   let updatedCloudinaryData = null;
   const cloudinaryResult = integrationResults[1];
   if (isFulfilled(cloudinaryResult)) {
-    const documents = (cloudinaryResult as any).value.documents;
-    if (documents.length > 0) {
-      updatedCloudinaryData = documents[0];
+    const rows = (cloudinaryResult as any).value.rows;
+    if (rows.length > 0) {
+      updatedCloudinaryData = rows[0];
     }
   } else if (isRejected(cloudinaryResult)) {
     console.warn('Failed to fetch updated cloudinary integration:', (cloudinaryResult as any).reason);
@@ -2260,16 +2271,16 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
   let updatedOneSimpleApiData = null;
   const oneSimpleApiResult = integrationResults[2];
   if (isFulfilled(oneSimpleApiResult)) {
-    const documents = (oneSimpleApiResult as any).value.documents;
-    if (documents.length > 0) {
-      updatedOneSimpleApiData = documents[0];
+    const rows = (oneSimpleApiResult as any).value.rows;
+    if (rows.length > 0) {
+      updatedOneSimpleApiData = rows[0];
     }
   } else if (isRejected(oneSimpleApiResult)) {
     console.warn('Failed to fetch updated onesimpleapi integration:', (oneSimpleApiResult as any).reason);
   }
 
   // Parse custom fields - convert fieldOptions from JSON string to object
-  const parsedUpdatedCustomFields = updatedCustomFieldsResult.documents.map((field: any) => ({
+  const parsedUpdatedCustomFields = updatedCustomFieldsResult.rows.map((field: any) => ({
     id: field.$id,
     fieldName: field.fieldName,
     internalFieldName: field.internalFieldName,
@@ -2303,20 +2314,20 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
   };
 
   // Log the update action - only if user exists in our database
-  const userDocs = await databases.listDocuments(dbId, usersCollectionId, [
+  const userDocs = await tablesDB.listRows(dbId, usersTableId, [
     Query.equal('userId', authUser.$id)
   ]);
 
-  if (userDocs.documents.length > 0) {
+  if (userDocs.rows.length > 0) {
     // Detect changes for logging
     const changedFields = detectChanges(updateData, currentSettings);
 
     // Log the update action if enabled
     if (await shouldLog('eventSettingsUpdate')) {
       const { createSettingsLogDetails } = await import('@/lib/logFormatting');
-      await databases.createDocument(
+      await tablesDB.createRow(
         dbId,
-        logsCollectionId,
+        logsTableId,
         ID.unique(),
         {
           userId: authUser.$id,

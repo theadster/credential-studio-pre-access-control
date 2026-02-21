@@ -1,0 +1,279 @@
+# Implementation Plan: Appwrite TablesDB Migration
+
+## Overview
+
+Migrate credential.studio from the legacy Appwrite `Databases` API to the new `TablesDB` API. The migration follows a bottom-up approach: environment variables → client factory → library modules → API routes → tests → scripts → docs.
+
+## Tasks
+
+- [x] 1. Rename environment variables from COLLECTION_ID to TABLE_ID
+  - [x] 1.1 Update `.env.local` to rename all `*_COLLECTION_ID` variables to `*_TABLE_ID`
+    - Rename all 14 `COLLECTION_ID` variables to `TABLE_ID` equivalents
+    - Update any comments referencing "collection" to "table"
+    - _Requirements: 4.1_
+  - [x] 1.2 Update `.env.example` with the same renamed variables
+    - Mirror all changes from `.env.local`
+    - _Requirements: 4.2_
+  - [x] 1.3 Update `sites/credential.studio/.env.local` with the same renamed variables
+    - Mirror all changes from `.env.local`
+    - _Requirements: 4.3_
+  - [x] 1.4 Update all `process.env.NEXT_PUBLIC_APPWRITE_*_COLLECTION_ID` references in source code to use `*_TABLE_ID`
+    - Search and replace across all `.ts` and `.tsx` files in `src/`, `scripts/`
+    - Update local variable names from `*CollectionId` to `*TableId` where they store these env values
+    - _Requirements: 4.4, 5.1_
+
+- [x] 2. Migrate client factory (`src/lib/appwrite.ts`)
+  - [x] 2.1 Update `createBrowserClient` to use `TablesDB` instead of `Databases`
+    - Import `TablesDB` from `appwrite` instead of `Databases`
+    - Return `tablesDB: new TablesDB(client)` instead of `databases: new Databases(client)`
+    - _Requirements: 1.3_
+  - [x] 2.2 Update `createSessionClient` to remove `databases` property
+    - Remove `AdminDatabases` import from `node-appwrite`
+    - Remove `databases: new AdminDatabases(client)` from return object (keep existing `tablesDB`)
+    - _Requirements: 1.1_
+  - [x] 2.3 Update `createAdminClient` to remove `databases` property
+    - Remove `databases: new AdminDatabases(client)` from return object (keep existing `tablesDB`)
+    - _Requirements: 1.2_
+  - [x] 2.4 Update legacy default exports at bottom of file
+    - Replace `export const databases = defaultClient.databases` with `export const tablesDB = defaultClient.tablesDB`
+    - _Requirements: 1.4, 1.5_
+
+- [x] 3. Migrate library modules
+  - [x] 3.1 Migrate `src/lib/appwrite-integrations.ts`
+    - Replace `import { Databases, Query } from 'node-appwrite'` with `import { TablesDB, Query } from 'node-appwrite'`
+    - Update all function parameters from `Databases` type to `TablesDB`
+    - Replace `listDocuments` → `listRows`, `getDocument` → `getRow`, `createDocument` → `createRow`, `updateDocument` → `updateRow`
+    - Update `.documents` accesses to `.rows`
+    - Rename `collectionId` variables to `tableId`
+    - _Requirements: 3.1, 3.2, 3.3, 3.4, 5.2, 5.3_
+  - [x] 3.2 Migrate `src/lib/optimisticLock.ts`
+    - Replace `Databases` import and type with `TablesDB`
+    - Replace `getDocument` → `getRow`, `updateDocument` → `updateRow`
+    - _Requirements: 3.1, 3.2, 3.3_
+  - [x] 3.3 Migrate `src/lib/fieldUpdate.ts`
+    - Replace `Databases` import and type with `TablesDB`
+    - Replace document methods with row methods
+    - _Requirements: 3.1, 3.2, 3.3_
+  - [x] 3.4 Migrate `src/lib/conflictResolver.ts`
+    - Replace `Databases` import and type with `TablesDB`
+    - Replace document methods with row methods
+    - _Requirements: 3.1, 3.2, 3.3_
+  - [x] 3.5 Migrate `src/lib/conflictLogging.ts`
+    - Replace `Databases` import and type with `TablesDB`
+    - Replace `createDocument` → `createRow`
+    - _Requirements: 3.1, 3.2, 3.3_
+  - [x] 3.6 Migrate `src/lib/getRoleUserCount.ts`
+    - Replace `Databases` import and type with `TablesDB`
+    - Replace `listDocuments` → `listRows`, update `.documents` → `.rows`
+    - _Requirements: 3.1, 3.2, 3.3, 5.2_
+  - [x] 3.7 Migrate `src/lib/apiMiddleware.ts`
+    - Update destructuring from `{ databases }` to `{ tablesDB }`
+    - Replace `listDocuments` → `listRows`, `getDocument` → `getRow`
+    - Update `.documents` accesses to `.rows`
+    - _Requirements: 2.6, 3.3, 5.2_
+  - [x] 3.8 Migrate `src/lib/logSettings.ts`
+    - Replace `listDocuments` → `listRows`, update `.documents` → `.rows`
+    - Update variable names from `collectionId` to `tableId`
+    - _Requirements: 3.3, 3.4, 5.2_
+  - [x] 3.9 Update `src/lib/bulkOperations.ts` to remove remaining `databases` parameter usage
+    - The module already uses `TablesDB` for bulk ops but still accepts `databases: any` for audit logging
+    - Replace audit log `databases.createDocument` calls with `tablesDB.createRow`
+    - Remove `databases` parameter, use only `tablesDB`
+    - Update `$collectionId` destructuring to `$tableId` in metadata stripping
+    - _Requirements: 3.3, 5.5, 5.6_
+  - [x] 3.10 Update `src/types/approvalProfile.ts` and any other type definitions
+    - Replace `$collectionId: string` with `$tableId: string` in the `ApprovalProfile` interface
+    - Search for any other type definitions that reference `$collectionId`
+    - _Requirements: 5.5_
+
+- [x] 4. Checkpoint - Verify library modules compile
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 5. Migrate API routes - Core CRUD routes
+  - [x] 5.1 Migrate `src/pages/api/attendees/index.ts` and `src/pages/api/attendees/[id].ts`
+    - Replace `{ databases }` destructuring with `{ tablesDB }`
+    - Replace all document methods with row methods
+    - Update `.documents` → `.rows` on list responses
+    - Rename `collectionId` variables to `tableId`
+    - Update comments referencing old terminology
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 5.1, 5.2, 5.3, 5.4_
+  - [x] 5.2 Migrate `src/pages/api/attendees/bulk-edit.ts`, `bulk-delete.ts`, `bulk-clear-credentials.ts`
+    - Update destructuring and any remaining `databases` usage
+    - These may already use `tablesDB` for bulk ops but may still use `databases` for other calls
+    - _Requirements: 2.1, 2.6_
+  - [x] 5.3 Migrate `src/pages/api/attendees/import.ts`, `export.ts`, `check-barcode.ts`
+    - Replace all document methods with row methods
+    - Update response property accesses
+    - _Requirements: 2.1, 2.2, 2.5, 2.6_
+  - [x] 5.4 Migrate `src/pages/api/attendees/[id]/generate-credential.ts`, `clear-credential.ts`, `print.ts`
+    - Replace all document methods with row methods
+    - _Requirements: 2.1, 2.3, 2.5, 2.6_
+
+- [x] 6. Migrate API routes - User management
+  - [x] 6.1 Migrate `src/pages/api/users/index.ts`
+    - Replace all document methods with row methods
+    - Update `.documents` → `.rows` on list responses
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 5.2_
+  - [x] 6.2 Migrate `src/pages/api/users/link.ts`, `available.ts`, `search.ts`
+    - Replace all document methods with row methods
+    - _Requirements: 2.1, 2.5, 2.6_
+  - [x] 6.3 Migrate `src/pages/api/users/send-password-reset.ts`, `verify-email.ts`
+    - Replace `createDocument` → `createRow`
+    - _Requirements: 2.2, 2.6_
+  - [x] 6.4 Migrate `src/pages/api/auth/signup.ts`
+    - Replace all document methods with row methods
+    - _Requirements: 2.1, 2.2, 2.6_
+
+- [x] 7. Migrate API routes - Settings, logs, and other routes
+  - [x] 7.1 Migrate `src/pages/api/event-settings/index.ts`
+    - Replace all document methods with row methods
+    - _Requirements: 2.1, 2.2, 2.3, 2.5, 2.6_
+  - [x] 7.2 Migrate `src/pages/api/custom-fields/index.ts`, `[id].ts`, `reorder.ts`
+    - Replace all document methods with row methods
+    - Update object-style parameter calls from `{ collectionId }` to `{ tableId }`
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6_
+  - [x] 7.3 Migrate `src/pages/api/logs/index.ts`, `delete.ts`, `export.ts`
+    - Replace all document methods with row methods
+    - _Requirements: 2.1, 2.4, 2.6_
+  - [x] 7.4 Migrate `src/pages/api/log-settings/index.ts`
+    - Replace all document methods with row methods
+    - _Requirements: 2.1, 2.3, 2.6_
+  - [x] 7.5 Migrate `src/pages/api/roles/index.ts`, `[id].ts`, `initialize.ts`, `fix-logs-permission.ts`
+    - Replace all document methods with row methods
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6_
+  - [x] 7.6 Migrate `src/pages/api/reports/index.ts`, `[id].ts`
+    - Replace all document methods with row methods
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6_
+  - [x] 7.7 Migrate `src/pages/api/access-control/[attendeeId].ts`
+    - Replace all document methods with row methods
+    - _Requirements: 2.1, 2.2, 2.3, 2.6_
+  - [x] 7.8 Migrate `src/pages/api/approval-profiles/index.ts`, `[id].ts`
+    - Replace all document methods with row methods
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6_
+  - [x] 7.9 Migrate `src/pages/api/scan-logs/index.ts`, `delete.ts`, `export.ts`
+    - Replace all document methods with row methods
+    - _Requirements: 2.1, 2.4, 2.6_
+  - [x] 7.10 Migrate remaining API routes: `monitoring/transactions.ts`, `integrations/status.ts`, `switchboard/test.ts`, `mobile/*.ts`, `operators/*.ts`, `profile/index.ts`
+    - Replace all document methods with row methods in each file
+    - _Requirements: 2.1, 2.5, 2.6_
+
+- [x] 8. Migrate client-side components
+  - [x] 8.1 Migrate `src/contexts/AuthContext.tsx`
+    - Update `{ databases }` destructuring from `createBrowserClient()` to `{ tablesDB }`
+    - Replace `databases.listDocuments(...)` → `tablesDB.listRows(...)` and `databases.createDocument(...)` → `tablesDB.createRow(...)`
+    - Update `.documents` accesses to `.rows`
+    - _Requirements: 2.7, 5.2_
+  - [x] 8.2 Migrate `src/pages/auth/callback.tsx`
+    - Update `{ databases }` destructuring from `createBrowserClient()` to `{ tablesDB }`
+    - Replace `databases.listDocuments(...)` → `tablesDB.listRows(...)` and `databases.createDocument(...)` → `tablesDB.createRow(...)`
+    - Update `.documents` accesses to `.rows`
+    - _Requirements: 2.7, 5.2_
+  - [x] 8.3 Update `$collectionId` references in source code
+    - Update `src/pages/api/custom-fields/reorder.ts` — change `$collectionId` destructuring to `$tableId`
+    - Update `scripts/test-all-transactions.ts` — change `$collectionId` destructuring to `$tableId`
+    - Update `scripts/update-event-settings-id.ts` — change `$collectionId` destructuring to `$tableId`
+    - _Requirements: 5.5, 5.6_
+
+- [x] 9. Checkpoint - Verify client-side and API routes compile
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 10. Update test infrastructure
+  - [x] 10.1 Update `src/test/mocks/appwrite.ts`
+    - Replace `mockDatabases` with expanded `mockTablesDB` containing row CRUD methods (`listRows`, `getRow`, `createRow`, `updateRow`, `deleteRow`), bulk methods, transaction methods, and table management methods
+    - Update `resetAllMocks` to clear `mockTablesDB` instead of `mockDatabases`
+    - Update `vi.mock('appwrite')` to export `TablesDB` constructor pointing to `mockTablesDB`
+    - Remove `Databases` from the mock
+    - _Requirements: 6.1, 6.5_
+  - [x] 10.2 Update test files in `src/__tests__/api/` to use new mocks
+    - Replace all `mockDatabases` imports with `mockTablesDB`
+    - Replace `mockDatabases.listDocuments` → `mockTablesDB.listRows`, etc.
+    - Update mock return values from `{ documents: [...] }` to `{ rows: [...] }`
+    - Update assertions referencing `.documents` to `.rows`
+    - _Requirements: 6.2, 6.3, 6.4_
+  - [x] 10.3 Update test files in `src/__tests__/lib/` to use new mocks
+    - Same pattern as 10.2 for library test files
+    - _Requirements: 6.2, 6.3, 6.4_
+  - [x] 10.4 Update test files in `src/__tests__/e2e/` to use new mocks
+    - Same pattern as 10.2 for e2e test files
+    - _Requirements: 6.2, 6.3, 6.4_
+  - [x] 10.5 Update test files in `src/__tests__/properties/` to use new mocks
+    - Same pattern as 10.2 for property test files
+    - _Requirements: 6.2, 6.3, 6.4_
+
+  - [x] 10.6 Update `$collectionId` in test mock data to `$tableId`
+    - Update `src/lib/__tests__/bulkOperations.unit.test.ts` mock data
+    - Update `src/__tests__/api/mobile/sync/attendees.test.ts` mock data
+    - Search for any other test files with `$collectionId` in mock objects
+    - _Requirements: 5.5, 6.4_
+
+- [x] 11. Checkpoint - Run full test suite
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 12. Update setup and migration scripts
+  - [x] 12.1 Migrate `scripts/setup-appwrite.ts`
+    - Replace `createCollection` → `createTable`
+    - Replace `createStringAttribute` → `createStringColumn`, `createBooleanAttribute` → `createBooleanColumn`, etc.
+    - Convert positional parameters to object-style parameters for all TablesDB method calls
+    - Consider using inline `columns` and `indexes` arrays in `createTable` calls to simplify the script
+    - Rename functions from `create*Collection` to `create*Table`
+    - Update `printEnvironmentVariables` to output `TABLE_ID` names
+    - Update comments referencing old terminology
+    - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6_
+  - [x] 12.2 Migrate `scripts/verify-appwrite-setup.ts` and other active scripts
+    - Replace `Databases` imports with `TablesDB`
+    - Replace document methods with row methods
+    - Update terminology in comments and output
+    - _Requirements: 7.1, 7.3_
+  - [x] 12.3 Migrate `src/scripts/inspect-event-settings.ts` and `src/scripts/clear-event-settings.ts`
+    - Replace `Databases` imports with `TablesDB`
+    - Replace document methods with row methods
+    - _Requirements: 7.1, 7.3_
+
+- [x] 13. Update steering files and documentation
+  - [x] 13.1 Update `.kiro/steering/tech.md`
+    - Replace references to "Appwrite Database" with "Appwrite TablesDB"
+    - Update setup commands to reference new terminology
+    - Update any references to collections/documents with tables/rows
+    - _Requirements: 8.3_
+  - [x] 13.2 Update `.kiro/steering/product.md`
+    - Replace "Appwrite Database" references with "Appwrite TablesDB"
+    - Update technology stack description
+    - _Requirements: 8.2_
+  - [x] 13.3 Update `.kiro/steering/documentation-organization.md` if it references collection terminology
+    - Update any Appwrite-specific terminology
+    - _Requirements: 8.1_
+  - [x] 13.4 Update relevant documentation in `docs/` directory
+    - Search for and update references to old Appwrite terminology in active docs
+    - _Requirements: 8.4_
+
+- [x] 14. Write migration verification property tests
+  - [x] 14.1 Write property test: Client factories return tablesDB
+    - **Property 1: Client factories return tablesDB, not databases**
+    - **Validates: Requirements 1.1, 1.2, 1.3**
+  - [x] 14.2 Write property test: No COLLECTION_ID in env files
+    - **Property 2: No COLLECTION_ID variables in environment files**
+    - **Validates: Requirements 4.1**
+  - [x] 14.3 Write property test: Env file TABLE_ID consistency
+    - **Property 3: Environment file TABLE_ID consistency**
+    - **Validates: Requirements 4.2, 4.3**
+  - [x] 14.4 Write property test: No COLLECTION_ID references in source
+    - **Property 4: No COLLECTION_ID references in source code**
+    - **Validates: Requirements 4.4**
+  - [x] 14.5 Write property test: No Databases class usage
+    - **Property 5: No Databases class usage for data operations**
+    - **Validates: Requirements 9.4**
+  - [x] 14.6 Write property test: No $collectionId references in source or types
+    - **Property 6: No $collectionId metadata field references in source code**
+    - **Validates: Requirements 5.5, 5.6**
+
+- [x] 15. Final checkpoint - Full verification
+  - Ensure all tests pass, ask the user if questions arise.
+
+## Notes
+
+- Tasks marked with `*` are optional and can be skipped for faster MVP
+- Each task references specific requirements for traceability
+- Checkpoints ensure incremental validation
+- Property tests validate migration completeness across the codebase
+- Archived scripts in `scripts/archive/` are excluded from migration scope
+- The `src/contexts/AuthContext.tsx` and client-side components that use `createBrowserClient` will also need updating when the browser client changes in task 2.1

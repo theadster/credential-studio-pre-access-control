@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextApiRequest, NextApiResponse } from 'next';
-import handler from '../send-password-reset';
+import handler from '@/pages/api/users/send-password-reset';
 import { createAdminClient, createSessionClient } from '@/lib/appwrite';
 import { hasPermission } from '@/lib/permissions';
 import rateLimiter from '@/lib/rateLimiter';
@@ -112,8 +112,8 @@ describe('/api/users/send-password-reset', () => {
       })
     };
 
-    const mockDatabases = {
-      createDocument: vi.fn().mockResolvedValue({
+    const mockTablesDB = {
+      createRow: vi.fn().mockResolvedValue({
         $id: 'log-123',
         userId: mockUser.$id,
         action: 'password_reset_email_sent',
@@ -123,11 +123,11 @@ describe('/api/users/send-password-reset', () => {
 
     vi.mocked(createAdminClient).mockReturnValue({
       users: mockUsers,
-      databases: mockDatabases
+      tablesDB: mockTablesDB
     } as any);
 
     vi.mocked(createSessionClient).mockReturnValue({
-      databases: mockDatabases
+      tablesDB: mockTablesDB
     } as any);
   });
 
@@ -313,10 +313,10 @@ describe('/api/users/send-password-reset', () => {
 
       await handler(req as any, res as NextApiResponse);
 
-      const mockDatabases = vi.mocked(createSessionClient(req as any)).databases;
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      const mockTablesDB = vi.mocked(createSessionClient(req as any)).tablesDB;
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
         expect.any(String),
         expect.objectContaining({
           userId: mockUser.$id,
@@ -329,8 +329,8 @@ describe('/api/users/send-password-reset', () => {
     it('should not fail request if logging fails', async () => {
       req.body = { authUserId: 'auth-user-456' };
 
-      const mockDatabases = vi.mocked(createSessionClient(req as any)).databases;
-      vi.mocked(mockDatabases.createDocument).mockRejectedValue(
+      const mockTablesDB = vi.mocked(createSessionClient(req as any)).tablesDB;
+      vi.mocked(mockTablesDB.createRow).mockRejectedValue(
         new Error('Database error')
       );
 

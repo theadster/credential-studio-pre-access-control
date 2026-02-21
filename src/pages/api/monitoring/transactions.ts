@@ -38,7 +38,7 @@ export default async function handler(
 
   try {
     // Verify user is authenticated
-    const { account, databases } = createSessionClient(req);
+    const { account, tablesDB } = createSessionClient(req);
     
     let user;
     try {
@@ -48,25 +48,25 @@ export default async function handler(
     }
 
     // Get user profile with role
-    const userDocs = await databases.listDocuments(
+    const userDocs = await tablesDB.listRows(
       process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-      process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
+      process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID!,
       [Query.equal('userId', user.$id)]
     );
 
-    if (userDocs.documents.length === 0) {
+    if (userDocs.rows.length === 0) {
       return res.status(404).json({ error: 'User profile not found' });
     }
 
-    const userProfile = userDocs.documents[0];
+    const userProfile = userDocs.rows[0];
 
     // Get role if exists
     let role = null;
     if (userProfile.roleId) {
       try {
-        role = await databases.getDocument(
+        role = await tablesDB.getRow(
           process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+          process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
           userProfile.roleId
         );
       } catch (error) {

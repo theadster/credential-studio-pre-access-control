@@ -1,14 +1,17 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import handler from '../delete';
-import { mockAccount, mockDatabases, resetAllMocks } from '@/test/mocks/appwrite';
+import handler from '@/pages/api/logs/delete';
+import { mockAccount, mockTablesDB, mockAdminTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn((req: NextApiRequest) => ({
     account: mockAccount,
-    databases: mockDatabases,
+    tablesDB: mockTablesDB,
   })),
+  createAdminClient: vi.fn(() => ({
+    tablesDB: mockAdminTablesDB,
+})),
 }));
 
 // Mock permissions
@@ -18,6 +21,7 @@ vi.mock('@/lib/permissions', () => ({
     return role.permissions?.[resource]?.[action] === true;
   }),
 }));
+
 
 describe('/api/logs/delete - Bulk Delete Logs API', () => {
   let mockReq: Partial<NextApiRequest>;
@@ -80,11 +84,12 @@ describe('/api/logs/delete - Bulk Delete Logs API', () => {
 
     // Default mock implementations
     mockAccount.get.mockResolvedValue(mockAuthUser);
-    mockDatabases.listDocuments.mockResolvedValue({
-      documents: [mockUserProfile],
+    mockTablesDB.listRows.mockResolvedValue({
+      rows: [mockUserProfile],
       total: 1,
     });
-    mockDatabases.getDocument.mockResolvedValue(mockAdminRole);
+    mockTablesDB.getRow.mockResolvedValue(mockAdminRole);
+    mockAdminTablesDB.getRow.mockResolvedValue(mockAdminRole);
   });
 
   describe('Authentication and Authorization', () => {
@@ -104,8 +109,8 @@ describe('/api/logs/delete - Bulk Delete Logs API', () => {
     });
 
     it('should return 404 if user profile is not found', async () => {
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [],
         total: 0,
       });
 
@@ -122,8 +127,8 @@ describe('/api/logs/delete - Bulk Delete Logs API', () => {
     });
 
     it('should return 403 if user does not have delete permission', async () => {
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 });
-      mockDatabases.getDocument.mockResolvedValueOnce(mockViewerRole);
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 });
+      mockTablesDB.getRow.mockResolvedValueOnce(mockViewerRole);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -145,29 +150,29 @@ describe('/api/logs/delete - Bulk Delete Logs API', () => {
         beforeDate: '2024-01-03T00:00:00.000Z',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // User profile
-        .mockResolvedValueOnce({ documents: mockLogs, total: 2 }); // Logs to delete
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 }) // User profile
+        .mockResolvedValueOnce({ rows: mockLogs, total: 2 }); // Logs to delete
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
-      mockDatabases.deleteDocument
+      mockTablesDB.deleteRow
         .mockResolvedValueOnce({})
         .mockResolvedValueOnce({});
 
-      mockDatabases.createDocument.mockResolvedValueOnce({ $id: 'log-delete-entry' });
+      mockTablesDB.createRow.mockResolvedValueOnce({ $id: 'log-delete-entry' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.deleteDocument).toHaveBeenCalledTimes(2);
-      expect(mockDatabases.deleteDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.deleteRow).toHaveBeenCalledTimes(2);
+      expect(mockTablesDB.deleteRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
         'log-1'
       );
-      expect(mockDatabases.deleteDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.deleteRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
         'log-2'
       );
 
@@ -189,18 +194,18 @@ describe('/api/logs/delete - Bulk Delete Logs API', () => {
         action: 'create',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: mockLogs, total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: mockLogs, total: 1 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
-      mockDatabases.deleteDocument.mockResolvedValueOnce({});
-      mockDatabases.createDocument.mockResolvedValueOnce({ $id: 'log-delete-entry' });
+      mockTablesDB.deleteRow.mockResolvedValueOnce({});
+      mockTablesDB.createRow.mockResolvedValueOnce({ $id: 'log-delete-entry' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.deleteDocument).toHaveBeenCalledTimes(1);
+      expect(mockTablesDB.deleteRow).toHaveBeenCalledTimes(1);
       expect(statusMock).toHaveBeenCalledWith(200);
       expect(jsonMock).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -218,18 +223,18 @@ describe('/api/logs/delete - Bulk Delete Logs API', () => {
         userId: 'user-123',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: mockLogs, total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: mockLogs, total: 1 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
-      mockDatabases.deleteDocument.mockResolvedValueOnce({});
-      mockDatabases.createDocument.mockResolvedValueOnce({ $id: 'log-delete-entry' });
+      mockTablesDB.deleteRow.mockResolvedValueOnce({});
+      mockTablesDB.createRow.mockResolvedValueOnce({ $id: 'log-delete-entry' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.deleteDocument).toHaveBeenCalledTimes(1);
+      expect(mockTablesDB.deleteRow).toHaveBeenCalledTimes(1);
       expect(statusMock).toHaveBeenCalledWith(200);
     });
 
@@ -244,14 +249,14 @@ describe('/api/logs/delete - Bulk Delete Logs API', () => {
         userId: 'user-123',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: mockLogs, total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: mockLogs, total: 1 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
-      mockDatabases.deleteDocument.mockResolvedValueOnce({});
-      mockDatabases.createDocument.mockResolvedValueOnce({ $id: 'log-delete-entry' });
+      mockTablesDB.deleteRow.mockResolvedValueOnce({});
+      mockTablesDB.createRow.mockResolvedValueOnce({ $id: 'log-delete-entry' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -274,22 +279,22 @@ describe('/api/logs/delete - Bulk Delete Logs API', () => {
         beforeDate: '2024-01-04T00:00:00.000Z',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: mockLogs, total: 3 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: mockLogs, total: 3 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
-      mockDatabases.deleteDocument
+      mockTablesDB.deleteRow
         .mockResolvedValueOnce({}) // log-1 success
         .mockRejectedValueOnce(new Error('Delete failed')) // log-2 failure
         .mockResolvedValueOnce({}); // log-3 success
 
-      mockDatabases.createDocument.mockResolvedValueOnce({ $id: 'log-delete-entry' });
+      mockTablesDB.createRow.mockResolvedValueOnce({ $id: 'log-delete-entry' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.deleteDocument).toHaveBeenCalledTimes(3);
+      expect(mockTablesDB.deleteRow).toHaveBeenCalledTimes(3);
       expect(statusMock).toHaveBeenCalledWith(200);
       expect(jsonMock).toHaveBeenCalledWith({
         success: true,
@@ -322,23 +327,23 @@ describe('/api/logs/delete - Bulk Delete Logs API', () => {
         beforeDate: '2024-01-03T00:00:00.000Z',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: mockLogs1, total: 150 }) // First batch
-        .mockResolvedValueOnce({ documents: mockLogs2, total: 150 }); // Second batch
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: mockLogs1, total: 150 }) // First batch
+        .mockResolvedValueOnce({ rows: mockLogs2, total: 150 }); // Second batch
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
       // Mock successful deletion for all logs
       for (let i = 0; i < 150; i++) {
-        mockDatabases.deleteDocument.mockResolvedValueOnce({});
+        mockTablesDB.deleteRow.mockResolvedValueOnce({});
       }
 
-      mockDatabases.createDocument.mockResolvedValueOnce({ $id: 'log-delete-entry' });
+      mockTablesDB.createRow.mockResolvedValueOnce({ $id: 'log-delete-entry' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.deleteDocument).toHaveBeenCalledTimes(150);
+      expect(mockTablesDB.deleteRow).toHaveBeenCalledTimes(150);
       expect(statusMock).toHaveBeenCalledWith(200);
       expect(jsonMock).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -357,20 +362,20 @@ describe('/api/logs/delete - Bulk Delete Logs API', () => {
         action: 'create',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: mockLogs, total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: mockLogs, total: 1 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
-      mockDatabases.deleteDocument.mockResolvedValueOnce({});
-      mockDatabases.createDocument.mockResolvedValueOnce({ $id: 'log-delete-entry' });
+      mockTablesDB.deleteRow.mockResolvedValueOnce({});
+      mockTablesDB.createRow.mockResolvedValueOnce({ $id: 'log-delete-entry' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
         expect.any(String),
         expect.objectContaining({
           action: 'delete_logs',
@@ -386,17 +391,17 @@ describe('/api/logs/delete - Bulk Delete Logs API', () => {
         beforeDate: '2024-01-01T00:00:00.000Z',
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 })
-        .mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 })
+        .mockResolvedValueOnce({ rows: [], total: 0 });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAdminRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAdminRole);
 
-      mockDatabases.createDocument.mockResolvedValueOnce({ $id: 'log-delete-entry' });
+      mockTablesDB.createRow.mockResolvedValueOnce({ $id: 'log-delete-entry' });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.deleteDocument).not.toHaveBeenCalled();
+      expect(mockTablesDB.deleteRow).not.toHaveBeenCalled();
       expect(statusMock).toHaveBeenCalledWith(200);
       expect(jsonMock).toHaveBeenCalledWith({
         success: true,
@@ -430,7 +435,7 @@ describe('/api/logs/delete - Bulk Delete Logs API', () => {
     });
 
     it('should handle generic errors', async () => {
-      mockDatabases.listDocuments.mockRejectedValueOnce(new Error('Database error'));
+      mockTablesDB.listRows.mockRejectedValueOnce(new Error('Database error'));
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 

@@ -26,7 +26,7 @@ import { parseForStorage, AccessControlTimeMode } from '@/lib/accessControlDates
 
 export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-  const accessControlCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ACCESS_CONTROL_COLLECTION_ID!;
+  const accessControlTableId = process.env.NEXT_PUBLIC_APPWRITE_ACCESS_CONTROL_TABLE_ID!;
   const { attendeeId } = req.query;
 
   if (!attendeeId || typeof attendeeId !== 'string') {
@@ -34,7 +34,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
   }
 
   // Validate environment variables
-  if (!accessControlCollectionId) {
+  if (!accessControlTableId) {
     console.error('[Access Control API] Missing ACCESS_CONTROL collection ID');
     return res.status(500).json({ 
       error: 'Server configuration error',
@@ -44,7 +44,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
   try {
     const { userProfile } = req;
-    const { databases } = createSessionClient(req);
+    const { tablesDB } = createSessionClient(req);
 
     // Check permissions
     const permissions = userProfile.role ? userProfile.role.permissions : {};
@@ -58,13 +58,13 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         }
 
         // Find access control record for this attendee
-        const accessControlDocs = await databases.listDocuments(
+        const accessControlDocs = await tablesDB.listRows(
           dbId,
-          accessControlCollectionId,
+          accessControlTableId,
           [Query.equal('attendeeId', attendeeId)]
         );
 
-        if (accessControlDocs.documents.length === 0) {
+        if (accessControlDocs.rows.length === 0) {
           // Return default access control if none exists
           // Requirements 1.4, 1.5: Empty validFrom/validUntil means always valid
           // Requirement 2.2: Default accessEnabled is true
@@ -79,7 +79,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           });
         }
 
-        const accessControl = accessControlDocs.documents[0];
+        const accessControl = accessControlDocs.rows[0];
         return res.status(200).json({
           $id: accessControl.$id,
           attendeeId: accessControl.attendeeId,
@@ -114,14 +114,14 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
          * - date_only mode: validFrom = start of day (00:00:00), validUntil = end of day (23:59:59)
          * - date_time mode: exact timestamp is preserved
          */
-        const eventSettingsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID!;
+        const eventSettingsTableId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID!;
         let timeMode: AccessControlTimeMode = 'date_only';
         let eventTimezone = 'UTC';
         
         try {
-          const eventSettingsDocs = await databases.listDocuments(dbId, eventSettingsCollectionId, [Query.limit(1)]);
-          if (eventSettingsDocs.documents.length > 0) {
-            const settings = eventSettingsDocs.documents[0];
+          const eventSettingsDocs = await tablesDB.listRows(dbId, eventSettingsTableId, [Query.limit(1)]);
+          if (eventSettingsDocs.rows.length > 0) {
+            const settings = eventSettingsDocs.rows[0];
             timeMode = (settings.accessControlTimeMode as AccessControlTimeMode) || 'date_only';
             eventTimezone = settings.timeZone || 'UTC';
           }
@@ -143,9 +143,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         // Additional date range validation (Requirement 1.6)
         // This handles the case where only one date is being updated
         // We need to check against the existing record
-        const existingDocs = await databases.listDocuments(
+        const existingDocs = await tablesDB.listRows(
           dbId,
-          accessControlCollectionId,
+          accessControlTableId,
           [Query.equal('attendeeId', attendeeId)]
         );
 
@@ -153,8 +153,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         let existingValidUntil: string | null = null;
         let existingDocId: string | null = null;
 
-        if (existingDocs.documents.length > 0) {
-          const existing = existingDocs.documents[0];
+        if (existingDocs.rows.length > 0) {
+          const existing = existingDocs.rows[0];
           existingValidFrom = existing.validFrom || null;
           existingValidUntil = existing.validUntil || null;
           existingDocId = existing.$id;
@@ -189,17 +189,17 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         
         if (existingDocId) {
           // Update existing record
-          result = await databases.updateDocument(
+          result = await tablesDB.updateRow(
             dbId,
-            accessControlCollectionId,
+            accessControlTableId,
             existingDocId,
             updateData
           );
         } else {
           // Create new record
-          result = await databases.createDocument(
+          result = await tablesDB.createRow(
             dbId,
-            accessControlCollectionId,
+            accessControlTableId,
             ID.unique(),
             {
               attendeeId,
@@ -213,10 +213,10 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         // Log the access control update if enabled
         if (await shouldLog('accessControlUpdate')) {
           try {
-            const logsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!;
-            await databases.createDocument(
+            const logsTableId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!;
+            await tablesDB.createRow(
               dbId,
-              logsCollectionId,
+              logsTableId,
               ID.unique(),
               {
                 userId: req.user?.$id || 'unknown',
@@ -230,7 +230,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
                     validUntil: utcValidUntil !== undefined ? utcValidUntil : undefined,
                   },
                   previousValues: existingDocId ? {
-                    accessEnabled: existingDocs.documents[0]?.accessEnabled,
+                    accessEnabled: existingDocs.rows[0]?.accessEnabled,
                     validFrom: existingValidFrom,
                     validUntil: existingValidUntil,
                   } : null,

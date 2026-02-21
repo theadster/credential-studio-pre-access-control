@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { Account, Client, Databases, Query } from 'appwrite';
+import { Account, Client, TablesDB, Query } from 'appwrite';
 
 // Mock Appwrite
 vi.mock('appwrite', () => {
@@ -18,11 +18,11 @@ vi.mock('appwrite', () => {
     get: vi.fn(),
   };
 
-  const mockDatabases = {
-    getDocument: vi.fn(),
-    updateDocument: vi.fn(),
-    listDocuments: vi.fn(),
-    createDocument: vi.fn(),
+  const mockTablesDB = {
+    getRow: vi.fn(),
+    updateRow: vi.fn(),
+    listRows: vi.fn(),
+    createRow: vi.fn(),
   };
 
   const mockClient = {
@@ -35,7 +35,7 @@ vi.mock('appwrite', () => {
   return {
     Client: vi.fn(() => mockClient),
     Account: vi.fn(() => mockAccount),
-    Databases: vi.fn(() => mockDatabases),
+    TablesDB: vi.fn(() => mockTablesDB),
     Query: {
       equal: vi.fn((field, value) => `equal("${field}", "${value}")`),
       limit: vi.fn((value) => `limit(${value})`),
@@ -48,21 +48,21 @@ global.fetch = vi.fn();
 
 describe('E2E: Credential Generation Workflow', () => {
   let mockAccount: any;
-  let mockDatabases: any;
+  let mockTablesDB: any;
   let mockClient: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
     mockClient = new Client();
     mockAccount = new Account(mockClient);
-    mockDatabases = new Databases(mockClient);
+    mockTablesDB = new TablesDB(mockClient);
     
     // Reset all mock functions to clear queued mockResolvedValueOnce calls
     mockAccount.get.mockReset();
-    mockDatabases.createDocument.mockReset();
-    mockDatabases.listDocuments.mockReset();
-    mockDatabases.getDocument.mockReset();
-    mockDatabases.updateDocument.mockReset();
+    mockTablesDB.createRow.mockReset();
+    mockTablesDB.listRows.mockReset();
+    mockTablesDB.getRow.mockReset();
+    mockTablesDB.updateRow.mockReset();
   });
 
   afterEach(() => {
@@ -80,8 +80,8 @@ describe('E2E: Credential Generation Workflow', () => {
       mockAccount.get.mockResolvedValueOnce(mockUser);
 
       // Step 2: Verify permissions
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [
           {
             $id: 'profile-123',
             userId: 'user-123',
@@ -91,7 +91,7 @@ describe('E2E: Credential Generation Workflow', () => {
         total: 1,
       });
 
-      mockDatabases.getDocument.mockResolvedValueOnce({
+      mockTablesDB.getRow.mockResolvedValueOnce({
         $id: 'role-admin',
         permissions: JSON.stringify({
           attendees: { write: true },
@@ -113,11 +113,11 @@ describe('E2E: Credential Generation Workflow', () => {
         }),
       };
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAttendee);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAttendee);
 
       // Step 4: Get event settings for credential template
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [
           {
             $id: 'event-settings-123',
             eventName: 'Tech Conference 2024',
@@ -171,11 +171,11 @@ describe('E2E: Credential Generation Workflow', () => {
         credentialGeneratedAt: new Date().toISOString(),
       };
 
-      mockDatabases.updateDocument.mockResolvedValueOnce(updatedAttendee);
+      mockTablesDB.updateRow.mockResolvedValueOnce(updatedAttendee);
 
-      const result = await mockDatabases.updateDocument(
+      const result = await mockTablesDB.updateRow(
         'db-id',
-        'attendees-collection',
+        'attendees-table',
         mockAttendee.$id,
         {
           credentialUrl: credentialData.url,
@@ -187,7 +187,7 @@ describe('E2E: Credential Generation Workflow', () => {
       expect(result.credentialGeneratedAt).toBeTruthy();
 
       // Step 7: Create log entry
-      mockDatabases.createDocument.mockResolvedValueOnce({
+      mockTablesDB.createRow.mockResolvedValueOnce({
         $id: 'log-123',
         userId: mockUser.$id,
         attendeeId: mockAttendee.$id,
@@ -197,29 +197,34 @@ describe('E2E: Credential Generation Workflow', () => {
         }),
       });
 
-      await mockDatabases.createDocument('db-id', 'logs-collection', 'unique-id', {
-        userId: mockUser.$id,
-        attendeeId: mockAttendee.$id,
-        action: 'credential_generated',
+      await mockTablesDB.createRow({
+        databaseId: 'db-id',
+        tableId: 'logs-table',
+        rowId: 'unique-id',
+        data: {
+          userId: mockUser.$id,
+          attendeeId: mockAttendee.$id,
+          action: 'credential_generated',
+        },
       });
 
       // Verify all steps completed
-      expect(mockDatabases.updateDocument).toHaveBeenCalledTimes(1);
-      expect(mockDatabases.createDocument).toHaveBeenCalledTimes(1);
+      expect(mockTablesDB.updateRow).toHaveBeenCalledTimes(1);
+      expect(mockTablesDB.createRow).toHaveBeenCalledTimes(1);
       expect(global.fetch).toHaveBeenCalledTimes(1);
     });
 
     it('should handle Switchboard API errors', async () => {
       mockAccount.get.mockResolvedValueOnce({ $id: 'user-123' });
 
-      mockDatabases.getDocument.mockResolvedValueOnce({
+      mockTablesDB.getRow.mockResolvedValueOnce({
         $id: 'attendee-123',
         firstName: 'John',
         lastName: 'Doe',
       });
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [
           {
             $id: 'event-settings-123',
             switchboardTemplateId: 'template-123',
@@ -244,7 +249,7 @@ describe('E2E: Credential Generation Workflow', () => {
       expect(response.status).toBe(500);
 
       // Should not update attendee
-      expect(mockDatabases.updateDocument).not.toHaveBeenCalled();
+      expect(mockTablesDB.updateRow).not.toHaveBeenCalled();
     });
   });
 
@@ -260,8 +265,8 @@ describe('E2E: Credential Generation Workflow', () => {
         failed: [] as { id: string; error: string }[],
       };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [
           {
             $id: 'event-settings-123',
             switchboardTemplateId: 'template-123',
@@ -271,15 +276,15 @@ describe('E2E: Credential Generation Workflow', () => {
         total: 1,
       });
 
-      await mockDatabases.listDocuments(
+      await mockTablesDB.listRows(
         'db-id',
-        'event-settings-collection',
+        'event-settings-table',
         [Query.limit(1)]
       );
 
       for (const id of attendeeIds) {
         // Get attendee
-        mockDatabases.getDocument.mockResolvedValueOnce({
+        mockTablesDB.getRow.mockResolvedValueOnce({
           $id: id,
           firstName: 'Test',
           lastName: 'User',
@@ -287,9 +292,9 @@ describe('E2E: Credential Generation Workflow', () => {
           customFieldValues: '{}',
         });
 
-        await mockDatabases.getDocument(
+        await mockTablesDB.getRow(
           'db-id',
-          'attendees-collection',
+          'attendees-table',
           id
         );
 
@@ -307,28 +312,28 @@ describe('E2E: Credential Generation Workflow', () => {
         });
 
         // Update attendee
-        mockDatabases.updateDocument.mockResolvedValueOnce({
+        mockTablesDB.updateRow.mockResolvedValueOnce({
           $id: id,
           credentialUrl: `https://switchboard.canvas/credential-${id}.pdf`,
           credentialGeneratedAt: new Date().toISOString(),
         });
 
-        await mockDatabases.updateDocument(
+        await mockTablesDB.updateRow(
           'db-id',
-          'attendees-collection',
+          'attendees-table',
           id,
           { credentialUrl: `https://switchboard.canvas/credential-${id}.pdf` }
         );
 
         // Create log
-        mockDatabases.createDocument.mockResolvedValueOnce({
+        mockTablesDB.createRow.mockResolvedValueOnce({
           $id: `log-${id}`,
           action: 'credential_generated',
         });
 
-        await mockDatabases.createDocument(
+        await mockTablesDB.createRow(
           'db-id',
-          'logs-collection',
+          'logs-table',
           'unique-log-id',
           { action: 'credential_generated' }
         );
@@ -338,7 +343,7 @@ describe('E2E: Credential Generation Workflow', () => {
 
       expect(results.successful).toHaveLength(3);
       expect(results.failed).toHaveLength(0);
-      expect(mockDatabases.updateDocument).toHaveBeenCalledTimes(3);
+      expect(mockTablesDB.updateRow).toHaveBeenCalledTimes(3);
       expect(global.fetch).toHaveBeenCalledTimes(3);
     });
 
@@ -351,15 +356,15 @@ describe('E2E: Credential Generation Workflow', () => {
         failed: [] as { id: string; error: string }[],
       };
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [{ $id: 'event-settings-123', switchboardTemplateId: 'template-123' }],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [{ $id: 'event-settings-123', switchboardTemplateId: 'template-123' }],
         total: 1,
       });
 
       for (let i = 0; i < attendeeIds.length; i++) {
         const id = attendeeIds[i];
 
-        mockDatabases.getDocument.mockResolvedValueOnce({
+        mockTablesDB.getRow.mockResolvedValueOnce({
           $id: id,
           firstName: 'Test',
           lastName: 'User',
@@ -380,12 +385,12 @@ describe('E2E: Credential Generation Workflow', () => {
             json: async () => ({ url: `https://switchboard.canvas/credential-${id}.pdf` }),
           });
 
-          mockDatabases.updateDocument.mockResolvedValueOnce({
+          mockTablesDB.updateRow.mockResolvedValueOnce({
             $id: id,
             credentialUrl: `https://switchboard.canvas/credential-${id}.pdf`,
           });
 
-          mockDatabases.createDocument.mockResolvedValueOnce({
+          mockTablesDB.createRow.mockResolvedValueOnce({
             $id: `log-${id}`,
           });
 
@@ -406,12 +411,12 @@ describe('E2E: Credential Generation Workflow', () => {
       
       mockAccount.get.mockResolvedValueOnce({ $id: 'user-clear-123' });
 
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [{ $id: 'profile-clear-123', roleId: 'role-clear-admin' }],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [{ $id: 'profile-clear-123', roleId: 'role-clear-admin' }],
         total: 1,
       });
 
-      mockDatabases.getDocument.mockResolvedValueOnce({
+      mockTablesDB.getRow.mockResolvedValueOnce({
         $id: 'role-clear-admin',
         permissions: JSON.stringify({ attendees: { write: true } }),
       });
@@ -424,36 +429,36 @@ describe('E2E: Credential Generation Workflow', () => {
         credentialGeneratedAt: new Date().toISOString(),
       };
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAttendee);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAttendee);
 
       // Execute verification steps
       await mockAccount.get();
-      await mockDatabases.listDocuments(
+      await mockTablesDB.listRows(
         'db-id',
-        'users-collection',
+        'users-table',
         [Query.equal('userId', 'user-clear-123')]
       );
-      await mockDatabases.getDocument(
+      await mockTablesDB.getRow(
         'db-id',
-        'roles-collection',
+        'roles-table',
         'role-clear-admin'
       );
-      await mockDatabases.getDocument(
+      await mockTablesDB.getRow(
         'db-id',
-        'attendees-collection',
+        'attendees-table',
         mockAttendee.$id
       );
 
       // Clear credential
-      mockDatabases.updateDocument.mockResolvedValueOnce({
+      mockTablesDB.updateRow.mockResolvedValueOnce({
         ...mockAttendee,
         credentialUrl: null,
         credentialGeneratedAt: null,
       });
 
-      const result = await mockDatabases.updateDocument(
+      const result = await mockTablesDB.updateRow(
         'db-id',
-        'attendees-collection',
+        'attendees-table',
         mockAttendee.$id,
         {
           credentialUrl: null,
@@ -466,17 +471,22 @@ describe('E2E: Credential Generation Workflow', () => {
       expect(result.credentialGeneratedAt).toBeNull();
 
       // Create log entry
-      mockDatabases.createDocument.mockResolvedValueOnce({
+      mockTablesDB.createRow.mockResolvedValueOnce({
         $id: 'log-clear',
         action: 'credential_cleared',
       });
 
-      await mockDatabases.createDocument('db-id', 'logs-collection', 'unique-id', {
-        action: 'credential_cleared',
+      await mockTablesDB.createRow({
+        databaseId: 'db-id',
+        tableId: 'logs-table',
+        rowId: 'unique-id',
+        data: {
+          action: 'credential_cleared',
+        },
       });
 
-      expect(mockDatabases.updateDocument).toHaveBeenCalledTimes(1);
-      expect(mockDatabases.createDocument).toHaveBeenCalledTimes(1);
+      expect(mockTablesDB.updateRow).toHaveBeenCalledTimes(1);
+      expect(mockTablesDB.createRow).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -502,11 +512,11 @@ describe('E2E: Credential Generation Workflow', () => {
         }),
       };
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAttendee);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAttendee);
 
-      const attendee = await mockDatabases.getDocument(
+      const attendee = await mockTablesDB.getRow(
         'db-id',
-        'attendees-collection',
+        'attendees-table',
         'attendee-print-123'
       );
 
@@ -534,11 +544,11 @@ describe('E2E: Credential Generation Workflow', () => {
         credentialGeneratedAt: null,
       };
 
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAttendee);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAttendee);
 
-      const attendee = await mockDatabases.getDocument(
+      const attendee = await mockTablesDB.getRow(
         'db-id',
-        'attendees-collection',
+        'attendees-table',
         'attendee-missing-123'
       );
 

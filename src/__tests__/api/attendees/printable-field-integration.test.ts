@@ -1,15 +1,17 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import attendeeHandler from '../[id]';
-import { mockAccount, mockDatabases, mockTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
+import attendeeHandler from '@/pages/api/attendees/[id]';
+import { mockAccount, mockAdminTablesDB, mockTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn(() => ({
     account: mockAccount,
-    databases: mockDatabases,
     tablesDB: mockTablesDB,
   })),
+  createAdminClient: vi.fn(() => ({
+    tablesDB: mockAdminTablesDB,
+})),
 }));
 
 // Mock the API middleware
@@ -80,7 +82,7 @@ describe('Printable Field Integration Tests', () => {
     };
 
     // Default mocks
-    mockDatabases.createDocument.mockResolvedValue({
+    mockTablesDB.createRow.mockResolvedValue({
       $id: 'log-123',
       userId: mockAuthUser.$id,
       action: 'update',
@@ -126,12 +128,12 @@ describe('Printable Field Integration Tests', () => {
       };
 
       // Mock database calls
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: customFields, total: 1 }) // Fetch custom fields config
-        .mockResolvedValueOnce({ documents: customFields, total: 1 }) // Validate custom field IDs
-        .mockResolvedValueOnce({ documents: customFields, total: 1 }); // Fetch for logging
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: customFields, total: 1 }) // Fetch custom fields config
+        .mockResolvedValueOnce({ rows: customFields, total: 1 }) // Validate custom field IDs
+        .mockResolvedValueOnce({ rows: customFields, total: 1 }); // Fetch for logging
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(existingAttendee) // Get existing attendee
         .mockResolvedValueOnce({ // Return updated attendee
           ...existingAttendee,
@@ -191,12 +193,12 @@ describe('Printable Field Integration Tests', () => {
       };
 
       // Mock database calls
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: customFields, total: 1 })
-        .mockResolvedValueOnce({ documents: customFields, total: 1 })
-        .mockResolvedValueOnce({ documents: customFields, total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: customFields, total: 1 })
+        .mockResolvedValueOnce({ rows: customFields, total: 1 })
+        .mockResolvedValueOnce({ rows: customFields, total: 1 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(existingAttendee)
         .mockResolvedValueOnce({
           ...existingAttendee,
@@ -260,12 +262,12 @@ describe('Printable Field Integration Tests', () => {
         ],
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: customFields, total: 1 })
-        .mockResolvedValueOnce({ documents: customFields, total: 1 })
-        .mockResolvedValueOnce({ documents: customFields, total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: customFields, total: 1 })
+        .mockResolvedValueOnce({ rows: customFields, total: 1 })
+        .mockResolvedValueOnce({ rows: customFields, total: 1 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(existingAttendee)
         .mockResolvedValueOnce({
           ...existingAttendee,

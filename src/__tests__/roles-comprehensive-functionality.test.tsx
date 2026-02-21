@@ -19,10 +19,13 @@ const mockDeleteDocument = vi.fn();
 
 vi.mock('@/lib/appwrite', () => ({
   databases: {
-    createDocument: (...args: any[]) => mockCreateDocument(...args),
-    updateDocument: (...args: any[]) => mockUpdateDocument(...args),
-    deleteDocument: (...args: any[]) => mockDeleteDocument(...args),
+    createRow: (...args: any[]) => mockCreateDocument(...args),
+    updateRow: (...args: any[]) => mockUpdateDocument(...args),
+    deleteRow: (...args: any[]) => mockDeleteDocument(...args),
   },
+  createAdminClient: vi.fn(() => ({
+    tablesDB: { listRows: vi.fn(), getRow: vi.fn(), createRow: vi.fn(), updateRow: vi.fn(), deleteRow: vi.fn() },
+  })),
 }));
 
 // Mock SweetAlert

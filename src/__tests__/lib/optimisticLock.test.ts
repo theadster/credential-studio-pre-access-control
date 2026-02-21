@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { Databases } from 'node-appwrite';
+import { TablesDB } from 'node-appwrite';
 import {
   readWithVersion,
   updateWithLock,
@@ -17,11 +17,11 @@ import {
   OptimisticLockConflictError,
   DEFAULT_LOCK_CONFIG,
 } from '../../lib/optimisticLock';
-import { mockDatabases, resetAllMocks } from '../../test/mocks/appwrite';
+import { mockTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 
 describe('OptimisticLockService', () => {
   const testDatabaseId = 'test-database';
-  const testCollectionId = 'test-collection';
+  const testTableId = 'test-table';
   const testDocumentId = 'test-document-123';
 
   beforeEach(() => {
@@ -125,22 +125,22 @@ describe('OptimisticLockService', () => {
         name: 'Test',
         version: 5,
       };
-      mockDatabases.getDocument.mockResolvedValue(mockDocument);
+      mockTablesDB.getRow.mockResolvedValue(mockDocument);
 
       const result = await readWithVersion(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId
       );
 
       expect(result.document).toEqual(mockDocument);
       expect(result.version).toBe(5);
-      expect(mockDatabases.getDocument).toHaveBeenCalledWith(
-        testDatabaseId,
-        testCollectionId,
-        testDocumentId
-      );
+      expect(mockTablesDB.getRow).toHaveBeenCalledWith({
+        databaseId: testDatabaseId,
+        tableId: testTableId,
+        rowId: testDocumentId
+      });
     });
 
     it('should default version to 0 when missing', async () => {
@@ -149,12 +149,12 @@ describe('OptimisticLockService', () => {
         name: 'Test',
         // No version field
       };
-      mockDatabases.getDocument.mockResolvedValue(mockDocument);
+      mockTablesDB.getRow.mockResolvedValue(mockDocument);
 
       const result = await readWithVersion(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId
       );
 
@@ -162,13 +162,13 @@ describe('OptimisticLockService', () => {
     });
 
     it('should throw error when document not found', async () => {
-      mockDatabases.getDocument.mockRejectedValue(new Error('Document not found'));
+      mockTablesDB.getRow.mockRejectedValue(new Error('Document not found'));
 
       await expect(
         readWithVersion(
-          mockDatabases as unknown as Databases,
+          mockTablesDB as unknown as TablesDB,
           testDatabaseId,
-          testCollectionId,
+          testTableId,
           testDocumentId
         )
       ).rejects.toThrow('Document not found');
@@ -188,13 +188,13 @@ describe('OptimisticLockService', () => {
         version: 4,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(mockDocument);
-      mockDatabases.updateDocument.mockResolvedValue(mockUpdated);
+      mockTablesDB.getRow.mockResolvedValue(mockDocument);
+      mockTablesDB.updateRow.mockResolvedValue(mockUpdated);
 
       const result = await updateWithLock(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId,
         (current) => ({ name: 'Updated' })
       );
@@ -203,9 +203,9 @@ describe('OptimisticLockService', () => {
       expect(result.version).toBe(4);
       expect(result.retriesUsed).toBe(0);
       expect(result.conflictDetected).toBe(false);
-      expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.updateRow).toHaveBeenCalledWith(
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId,
         expect.objectContaining({ name: 'Updated', version: 4 })
       );
@@ -213,7 +213,7 @@ describe('OptimisticLockService', () => {
 
     it('should detect conflict with stale version', async () => {
       // First read returns version 3
-      mockDatabases.getDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue({
         $id: testDocumentId,
         name: 'Original',
         version: 3,
@@ -221,12 +221,12 @@ describe('OptimisticLockService', () => {
 
       // Update fails with conflict
       const conflictError = { code: 409, message: 'Document conflict' };
-      mockDatabases.updateDocument.mockRejectedValue(conflictError);
+      mockTablesDB.updateRow.mockRejectedValue(conflictError);
 
       const resultPromise = updateWithLock(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId,
         () => ({ name: 'Updated' }),
         { maxRetries: 0 } // No retries for this test
@@ -246,19 +246,19 @@ describe('OptimisticLockService', () => {
         version: 3,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(mockDocument);
+      mockTablesDB.getRow.mockResolvedValue(mockDocument);
 
       // First two attempts fail with conflict, third succeeds
       const conflictError = { code: 409, message: 'Document conflict' };
-      mockDatabases.updateDocument
+      mockTablesDB.updateRow
         .mockRejectedValueOnce(conflictError)
         .mockRejectedValueOnce(conflictError)
         .mockResolvedValueOnce({ ...mockDocument, name: 'Updated', version: 4 });
 
       const resultPromise = updateWithLock(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId,
         () => ({ name: 'Updated' }),
         { maxRetries: 3, baseDelayMs: 100, maxDelayMs: 2000 }
@@ -273,7 +273,7 @@ describe('OptimisticLockService', () => {
       expect(result.success).toBe(true);
       expect(result.retriesUsed).toBe(2);
       expect(result.conflictDetected).toBe(true);
-      expect(mockDatabases.updateDocument).toHaveBeenCalledTimes(3);
+      expect(mockTablesDB.updateRow).toHaveBeenCalledTimes(3);
     });
 
     it('should fail after max retries exceeded', async () => {
@@ -283,16 +283,16 @@ describe('OptimisticLockService', () => {
         version: 3,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(mockDocument);
+      mockTablesDB.getRow.mockResolvedValue(mockDocument);
 
       // All attempts fail with conflict
       const conflictError = { code: 409, message: 'Document conflict' };
-      mockDatabases.updateDocument.mockRejectedValue(conflictError);
+      mockTablesDB.updateRow.mockRejectedValue(conflictError);
 
       const resultPromise = updateWithLock(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId,
         () => ({ name: 'Updated' }),
         { maxRetries: 2, baseDelayMs: 50, maxDelayMs: 200 }
@@ -312,34 +312,34 @@ describe('OptimisticLockService', () => {
     });
 
     it('should not retry on non-conflict errors', async () => {
-      mockDatabases.getDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue({
         $id: testDocumentId,
         version: 1,
       });
 
       const networkError = new Error('Network error');
-      mockDatabases.updateDocument.mockRejectedValue(networkError);
+      mockTablesDB.updateRow.mockRejectedValue(networkError);
 
       const result = await updateWithLock(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId,
         () => ({ name: 'Updated' })
       );
 
       expect(result.success).toBe(false);
       expect(result.error?.type).toBe('UPDATE_FAILED');
-      expect(mockDatabases.updateDocument).toHaveBeenCalledTimes(1);
+      expect(mockTablesDB.updateRow).toHaveBeenCalledTimes(1);
     });
 
     it('should handle document not found error', async () => {
-      mockDatabases.getDocument.mockRejectedValue(new Error('Document not found'));
+      mockTablesDB.getRow.mockRejectedValue(new Error('Document not found'));
 
       const result = await updateWithLock(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId,
         () => ({ name: 'Updated' })
       );
@@ -355,8 +355,8 @@ describe('OptimisticLockService', () => {
         version: 2,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(mockDocument);
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue(mockDocument);
+      mockTablesDB.updateRow.mockResolvedValue({
         ...mockDocument,
         count: 6,
         version: 3,
@@ -367,9 +367,9 @@ describe('OptimisticLockService', () => {
       }));
 
       await updateWithLock(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId,
         updateFn
       );
@@ -387,40 +387,40 @@ describe('OptimisticLockService', () => {
         version: 1,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(mockDocument);
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue(mockDocument);
+      mockTablesDB.updateRow.mockResolvedValue({
         ...mockDocument,
         name: 'Updated',
         version: 2,
       });
 
       const result = await partialUpdateWithLock(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId,
         { name: 'Updated' }
       );
 
       expect(result.success).toBe(true);
-      expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.updateRow).toHaveBeenCalledWith(
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId,
         expect.objectContaining({ name: 'Updated', version: 2 })
       );
     });
 
     it('should fail immediately on version mismatch when expectedVersion provided', async () => {
-      mockDatabases.getDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue({
         $id: testDocumentId,
         version: 5, // Current version is 5
       });
 
       const result = await partialUpdateWithLock(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId,
         { name: 'Updated' },
         3 // Expected version 3, but current is 5
@@ -432,7 +432,7 @@ describe('OptimisticLockService', () => {
       expect(result.error?.type).toBe('VERSION_MISMATCH');
       expect(result.error?.expectedVersion).toBe(3);
       expect(result.error?.actualVersion).toBe(5);
-      expect(mockDatabases.updateDocument).not.toHaveBeenCalled();
+      expect(mockTablesDB.updateRow).not.toHaveBeenCalled();
     });
 
     it('should proceed when expectedVersion matches', async () => {
@@ -441,17 +441,17 @@ describe('OptimisticLockService', () => {
         version: 3,
       };
 
-      mockDatabases.getDocument.mockResolvedValue(mockDocument);
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValue(mockDocument);
+      mockTablesDB.updateRow.mockResolvedValue({
         ...mockDocument,
         name: 'Updated',
         version: 4,
       });
 
       const result = await partialUpdateWithLock(
-        mockDatabases as unknown as Databases,
+        mockTablesDB as unknown as TablesDB,
         testDatabaseId,
-        testCollectionId,
+        testTableId,
         testDocumentId,
         { name: 'Updated' },
         3 // Expected version matches

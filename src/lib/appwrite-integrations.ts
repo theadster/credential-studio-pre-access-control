@@ -5,12 +5,12 @@
  * integration collections (Cloudinary, Switchboard, OneSimpleAPI)
  */
 
-import { Databases, Query } from 'node-appwrite';
+import { TablesDB, Query } from 'node-appwrite';
 
 const DATABASE_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-const CLOUDINARY_COLLECTION_ID = process.env.NEXT_PUBLIC_APPWRITE_CLOUDINARY_COLLECTION_ID!;
-const SWITCHBOARD_COLLECTION_ID = process.env.NEXT_PUBLIC_APPWRITE_SWITCHBOARD_COLLECTION_ID!;
-const ONESIMPLEAPI_COLLECTION_ID = process.env.NEXT_PUBLIC_APPWRITE_ONESIMPLEAPI_COLLECTION_ID!;
+const CLOUDINARY_TABLE_ID = process.env.NEXT_PUBLIC_APPWRITE_CLOUDINARY_TABLE_ID!;
+const SWITCHBOARD_TABLE_ID = process.env.NEXT_PUBLIC_APPWRITE_SWITCHBOARD_TABLE_ID!;
+const ONESIMPLEAPI_TABLE_ID = process.env.NEXT_PUBLIC_APPWRITE_ONESIMPLEAPI_TABLE_ID!;
 
 /**
  * Custom error class for integration version conflicts
@@ -100,17 +100,17 @@ export interface EventSettingsWithIntegrations {
  * Get Cloudinary integration for an event
  */
 export async function getCloudinaryIntegration(
-  databases: Databases,
+  tablesDB: TablesDB,
   eventSettingsId: string
 ): Promise<CloudinaryIntegration | null> {
   try {
-    const response = await databases.listDocuments(
+    const response = await tablesDB.listRows(
       DATABASE_ID,
-      CLOUDINARY_COLLECTION_ID,
+      CLOUDINARY_TABLE_ID,
       [Query.equal('eventSettingsId', eventSettingsId), Query.limit(1)]
     );
 
-    return response.documents.length > 0 ? (response.documents[0] as any) : null;
+    return response.rows.length > 0 ? (response.rows[0] as any) : null;
   } catch (error: any) {
     // Return null only for not-found errors (404 or collection doesn't exist)
     if (error.code === 404 || error.code === 'document_not_found' || error.code === 'collection_not_found') {
@@ -127,17 +127,17 @@ export async function getCloudinaryIntegration(
  * Get Switchboard integration for an event
  */
 export async function getSwitchboardIntegration(
-  databases: Databases,
+  tablesDB: TablesDB,
   eventSettingsId: string
 ): Promise<SwitchboardIntegration | null> {
   try {
-    const response = await databases.listDocuments(
+    const response = await tablesDB.listRows(
       DATABASE_ID,
-      SWITCHBOARD_COLLECTION_ID,
+      SWITCHBOARD_TABLE_ID,
       [Query.equal('eventSettingsId', eventSettingsId), Query.limit(1)]
     );
 
-    return response.documents.length > 0 ? (response.documents[0] as any) : null;
+    return response.rows.length > 0 ? (response.rows[0] as any) : null;
   } catch (error: any) {
     // Return null only for not-found errors (404 or collection doesn't exist)
     if (error.code === 404 || error.code === 'document_not_found' || error.code === 'collection_not_found') {
@@ -154,17 +154,17 @@ export async function getSwitchboardIntegration(
  * Get OneSimpleAPI integration for an event
  */
 export async function getOneSimpleApiIntegration(
-  databases: Databases,
+  tablesDB: TablesDB,
   eventSettingsId: string
 ): Promise<OneSimpleApiIntegration | null> {
   try {
-    const response = await databases.listDocuments(
+    const response = await tablesDB.listRows(
       DATABASE_ID,
-      ONESIMPLEAPI_COLLECTION_ID,
+      ONESIMPLEAPI_TABLE_ID,
       [Query.equal('eventSettingsId', eventSettingsId), Query.limit(1)]
     );
 
-    return response.documents.length > 0 ? (response.documents[0] as any) : null;
+    return response.rows.length > 0 ? (response.rows[0] as any) : null;
   } catch (error: any) {
     // Return null only for not-found errors (404 or collection doesn't exist)
     if (error.code === 404 || error.code === 'document_not_found' || error.code === 'collection_not_found') {
@@ -181,24 +181,24 @@ export async function getOneSimpleApiIntegration(
  * Get event settings with all integrations
  */
 export async function getEventSettingsWithIntegrations(
-  databases: Databases,
+  tablesDB: TablesDB,
   eventSettingsId: string
 ): Promise<EventSettingsWithIntegrations | null> {
   try {
-    const eventSettingsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID!;
+    const eventSettingsTableId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID!;
 
     // Fetch event settings
-    const eventSettings = await databases.getDocument(
+    const eventSettings = await tablesDB.getRow(
       DATABASE_ID,
-      eventSettingsCollectionId,
+      eventSettingsTableId,
       eventSettingsId
     );
 
     // Fetch all integrations in parallel
     const [cloudinary, switchboard, oneSimpleApi] = await Promise.all([
-      getCloudinaryIntegration(databases, eventSettingsId),
-      getSwitchboardIntegration(databases, eventSettingsId),
-      getOneSimpleApiIntegration(databases, eventSettingsId),
+      getCloudinaryIntegration(tablesDB, eventSettingsId),
+      getSwitchboardIntegration(tablesDB, eventSettingsId),
+      getOneSimpleApiIntegration(tablesDB, eventSettingsId),
     ]);
 
     return {
@@ -217,8 +217,8 @@ export async function getEventSettingsWithIntegrations(
  * Generic helper function for updating integrations with optimistic locking
  * Handles version checking, create/update logic, and retry on concurrent create conflicts
  * 
- * @param databases - Appwrite Databases instance
- * @param collectionId - The collection ID for the integration type
+ * @param tablesDB - Appwrite TablesDB instance
+ * @param tableId - The table ID for the integration type
  * @param integrationType - Human-readable integration type name (for error messages)
  * @param eventSettingsId - The event settings ID this integration belongs to
  * @param data - The data to create or update
@@ -228,8 +228,8 @@ export async function getEventSettingsWithIntegrations(
  * @throws IntegrationConflictError when version mismatch is detected
  */
 async function updateIntegrationWithLocking<T extends { $id: string; version: number }>(
-  databases: Databases,
-  collectionId: string,
+  tablesDB: TablesDB,
+  tableId: string,
   integrationType: string,
   eventSettingsId: string,
   data: any,
@@ -255,9 +255,9 @@ async function updateIntegrationWithLocking<T extends { $id: string; version: nu
       }
 
       // Update with incremented version
-      const updated = await databases.updateDocument(
+      const updated = await tablesDB.updateRow(
         DATABASE_ID,
-        collectionId,
+        tableId,
         existing.$id,
         {
           ...data,
@@ -268,9 +268,9 @@ async function updateIntegrationWithLocking<T extends { $id: string; version: nu
     } else {
       // Create new integration with version 1
       try {
-        const created = await databases.createDocument(
+        const created = await tablesDB.createRow(
           DATABASE_ID,
-          collectionId,
+          tableId,
           'unique()',
           {
             eventSettingsId,
@@ -297,9 +297,9 @@ async function updateIntegrationWithLocking<T extends { $id: string; version: nu
               }
 
               // Attempt update with latest version
-              const updated = await databases.updateDocument(
+              const updated = await tablesDB.updateRow(
                 DATABASE_ID,
-                collectionId,
+                tableId,
                 existing.$id,
                 {
                   ...data,
@@ -347,7 +347,7 @@ async function updateIntegrationWithLocking<T extends { $id: string; version: nu
 /**
  * Update Cloudinary integration with optimistic locking
  * 
- * @param databases - Appwrite Databases instance
+ * @param tablesDB - Appwrite TablesDB instance
  * @param eventSettingsId - The event settings ID this integration belongs to
  * @param data - The data to create or update
  * @param expectedVersion - Optional version for optimistic locking
@@ -355,26 +355,26 @@ async function updateIntegrationWithLocking<T extends { $id: string; version: nu
  * @throws IntegrationConflictError when version mismatch is detected
  */
 export async function updateCloudinaryIntegration(
-  databases: Databases,
+  tablesDB: TablesDB,
   eventSettingsId: string,
   data: Partial<Omit<CloudinaryIntegration, '$id' | 'eventSettingsId' | 'version'>>,
   expectedVersion?: number
 ): Promise<CloudinaryIntegration> {
   return updateIntegrationWithLocking<CloudinaryIntegration>(
-    databases,
-    CLOUDINARY_COLLECTION_ID,
+    tablesDB,
+    CLOUDINARY_TABLE_ID,
     'Cloudinary',
     eventSettingsId,
     data,
     expectedVersion,
-    () => getCloudinaryIntegration(databases, eventSettingsId)
+    () => getCloudinaryIntegration(tablesDB, eventSettingsId)
   );
 }
 
 /**
  * Update Switchboard integration with optimistic locking
  * 
- * @param databases - Appwrite Databases instance
+ * @param tablesDB - Appwrite TablesDB instance
  * @param eventSettingsId - The event settings ID this integration belongs to
  * @param data - The data to create or update
  * @param expectedVersion - Optional version for optimistic locking
@@ -383,7 +383,7 @@ export async function updateCloudinaryIntegration(
  * @throws Error when requestBody contains invalid JSON
  */
 export async function updateSwitchboardIntegration(
-  databases: Databases,
+  tablesDB: TablesDB,
   eventSettingsId: string,
   data: Partial<Omit<SwitchboardIntegration, '$id' | 'eventSettingsId' | 'version'>>,
   expectedVersion?: number
@@ -402,20 +402,20 @@ export async function updateSwitchboardIntegration(
   }
 
   return updateIntegrationWithLocking<SwitchboardIntegration>(
-    databases,
-    SWITCHBOARD_COLLECTION_ID,
+    tablesDB,
+    SWITCHBOARD_TABLE_ID,
     'Switchboard',
     eventSettingsId,
     data,
     expectedVersion,
-    () => getSwitchboardIntegration(databases, eventSettingsId)
+    () => getSwitchboardIntegration(tablesDB, eventSettingsId)
   );
 }
 
 /**
  * Update OneSimpleAPI integration with optimistic locking
  * 
- * @param databases - Appwrite Databases instance
+ * @param tablesDB - Appwrite TablesDB instance
  * @param eventSettingsId - The event settings ID this integration belongs to
  * @param data - The data to create or update
  * @param expectedVersion - Optional version for optimistic locking
@@ -423,19 +423,19 @@ export async function updateSwitchboardIntegration(
  * @throws IntegrationConflictError when version mismatch is detected
  */
 export async function updateOneSimpleApiIntegration(
-  databases: Databases,
+  tablesDB: TablesDB,
   eventSettingsId: string,
   data: Partial<Omit<OneSimpleApiIntegration, '$id' | 'eventSettingsId' | 'version'>>,
   expectedVersion?: number
 ): Promise<OneSimpleApiIntegration> {
   return updateIntegrationWithLocking<OneSimpleApiIntegration>(
-    databases,
-    ONESIMPLEAPI_COLLECTION_ID,
+    tablesDB,
+    ONESIMPLEAPI_TABLE_ID,
     'OneSimpleAPI',
     eventSettingsId,
     data,
     expectedVersion,
-    () => getOneSimpleApiIntegration(databases, eventSettingsId)
+    () => getOneSimpleApiIntegration(tablesDB, eventSettingsId)
   );
 }
 

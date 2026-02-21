@@ -1,15 +1,17 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import handler from '../[id]';
-import { mockAccount, mockDatabases, mockTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
+import handler from '@/pages/api/attendees/[id]';
+import { mockAccount, mockTablesDB, mockAdminTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn(() => ({
     account: mockAccount,
-    databases: mockDatabases,
     tablesDB: mockTablesDB,
   })),
+  createAdminClient: vi.fn(() => ({
+    tablesDB: mockAdminTablesDB,
+})),
 }));
 
 // Mock the API middleware to inject user and userProfile directly
@@ -176,7 +178,7 @@ describe('Printable Field Change Detection', () => {
   };
 
   /**
-   * Helper function to mock the listDocuments calls made by the API.
+   * Helper function to mock the listRows calls made by the API.
    * The API makes different calls depending on what's being updated:
    * 1. Fetch custom fields configuration (for printable status) - ALWAYS
    * 2. Check barcode uniqueness - ONLY if barcodeNumber is being changed
@@ -190,27 +192,27 @@ describe('Printable Field Change Detection', () => {
     const { hasCustomFieldValues = true, checksBarcodeUniqueness = false } = options;
 
     // First call: Fetch custom fields configuration
-    mockDatabases.listDocuments.mockResolvedValueOnce({
-      documents: customFields,
+    mockTablesDB.listRows.mockResolvedValueOnce({
+      rows: customFields,
       total: customFields.length
     });
 
     // Second call: Check barcode uniqueness (only if barcode is being changed)
     if (checksBarcodeUniqueness) {
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [], total: 0 });
     }
 
     // Third call: Validate custom field IDs (only if customFieldValues are provided)
     if (hasCustomFieldValues) {
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: customFields,
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: customFields,
         total: customFields.length
       });
     }
 
     // Fourth call: Fetch custom fields for logging
-    mockDatabases.listDocuments.mockResolvedValueOnce({
-      documents: customFields,
+    mockTablesDB.listRows.mockResolvedValueOnce({
+      rows: customFields,
       total: customFields.length
     });
   };
@@ -235,8 +237,8 @@ describe('Printable Field Change Detection', () => {
       setHeader: vi.fn(),
     };
 
-    // Default mock for createDocument (logging)
-    mockDatabases.createDocument.mockResolvedValue({
+    // Default mock for createRow (logging)
+    mockTablesDB.createRow.mockResolvedValue({
       $id: 'log-123',
       userId: mockAuthUser.$id,
       action: 'update',
@@ -279,21 +281,21 @@ describe('Printable Field Change Detection', () => {
         ],
       };
 
-      // Mock all three listDocuments calls
+      // Mock all three listRows calls
       mockListDocumentsCalls(mockCustomFields);
 
       // Mock: Get existing attendee
-      mockDatabases.getDocument.mockResolvedValueOnce(existingAttendee);
+      mockTablesDB.getRow.mockResolvedValueOnce(existingAttendee);
 
       // Mock: Update succeeds
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.updateRow.mockResolvedValue({
         ...existingAttendee,
         customFieldValues: JSON.stringify({ 'field-1': 'New Company' }),
         lastSignificantUpdate: '2024-01-06T00:00:00.000Z',
       });
 
       // Mock: Get updated attendee for response
-      mockDatabases.getDocument.mockResolvedValueOnce({
+      mockTablesDB.getRow.mockResolvedValueOnce({
         ...existingAttendee,
         customFieldValues: JSON.stringify({ 'field-1': 'New Company' }),
         lastSignificantUpdate: '2024-01-06T00:00:00.000Z',
@@ -330,13 +332,13 @@ describe('Printable Field Change Detection', () => {
         firstName: 'Jane', // Changed standard field
       };
 
-      mockDatabases.getDocument.mockResolvedValueOnce(existingAttendee);
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValueOnce(existingAttendee);
+      mockTablesDB.updateRow.mockResolvedValue({
         ...existingAttendee,
         firstName: 'Jane',
         lastSignificantUpdate: '2024-01-06T00:00:00.000Z',
       });
-      mockDatabases.getDocument.mockResolvedValueOnce({
+      mockTablesDB.getRow.mockResolvedValueOnce({
         ...existingAttendee,
         firstName: 'Jane',
         lastSignificantUpdate: '2024-01-06T00:00:00.000Z',
@@ -384,15 +386,15 @@ describe('Printable Field Change Detection', () => {
         ],
       };
 
-      // Mock all three listDocuments calls
+      // Mock all three listRows calls
       mockListDocumentsCalls(mockCustomFields);
-      mockDatabases.getDocument.mockResolvedValueOnce(existingAttendee);
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValueOnce(existingAttendee);
+      mockTablesDB.updateRow.mockResolvedValue({
         ...existingAttendee,
         customFieldValues: JSON.stringify({ 'field-1': 'New notes' }),
         // lastSignificantUpdate should remain unchanged
       });
-      mockDatabases.getDocument.mockResolvedValueOnce({
+      mockTablesDB.getRow.mockResolvedValueOnce({
         ...existingAttendee,
         customFieldValues: JSON.stringify({ 'field-1': 'New notes' }),
       });
@@ -430,15 +432,15 @@ describe('Printable Field Change Detection', () => {
         notes: 'New notes', // Notes field is explicitly non-significant
       };
 
-      // Mock listDocuments for custom fields configuration (no custom field values being updated)
+      // Mock listRows for custom fields configuration (no custom field values being updated)
       mockListDocumentsCalls([], { hasCustomFieldValues: false });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(existingAttendee);
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValueOnce(existingAttendee);
+      mockTablesDB.updateRow.mockResolvedValue({
         ...existingAttendee,
         notes: 'New notes',
       });
-      mockDatabases.getDocument.mockResolvedValueOnce({
+      mockTablesDB.getRow.mockResolvedValueOnce({
         ...existingAttendee,
         notes: 'New notes',
       });
@@ -497,10 +499,10 @@ describe('Printable Field Change Detection', () => {
         ],
       };
 
-      // Mock all three listDocuments calls
+      // Mock all three listRows calls
       mockListDocumentsCalls(mockCustomFields);
-      mockDatabases.getDocument.mockResolvedValueOnce(existingAttendee);
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValueOnce(existingAttendee);
+      mockTablesDB.updateRow.mockResolvedValue({
         ...existingAttendee,
         customFieldValues: JSON.stringify({
           'field-1': 'New Company',
@@ -508,7 +510,7 @@ describe('Printable Field Change Detection', () => {
         }),
         lastSignificantUpdate: '2024-01-06T00:00:00.000Z',
       });
-      mockDatabases.getDocument.mockResolvedValueOnce({
+      mockTablesDB.getRow.mockResolvedValueOnce({
         ...existingAttendee,
         customFieldValues: JSON.stringify({
           'field-1': 'New Company',
@@ -561,29 +563,29 @@ describe('Printable Field Change Detection', () => {
         ],
       };
 
-      // Mock listDocuments calls explicitly
+      // Mock listRows calls explicitly
       // 1. Fetch custom fields configuration (for printable detection)
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: mockCustomFields,
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: mockCustomFields,
         total: mockCustomFields.length
       });
       // 2. Validate custom field IDs (because customFieldValues is provided)
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: mockCustomFields,
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: mockCustomFields,
         total: mockCustomFields.length
       });
       // 3. Fetch custom fields for logging
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: mockCustomFields,
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: mockCustomFields,
         total: mockCustomFields.length
       });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(existingAttendee);
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValueOnce(existingAttendee);
+      mockTablesDB.updateRow.mockResolvedValue({
         ...existingAttendee,
         customFieldValues: JSON.stringify({ 'field-1': 'New value' }),
       });
-      mockDatabases.getDocument.mockResolvedValueOnce({
+      mockTablesDB.getRow.mockResolvedValueOnce({
         ...existingAttendee,
         customFieldValues: JSON.stringify({ 'field-1': 'New value' }),
       });
@@ -630,25 +632,25 @@ describe('Printable Field Change Detection', () => {
       };
 
       // Mock: First call fails (custom fields configuration fetch failure)
-      mockDatabases.listDocuments.mockRejectedValueOnce(new Error('Failed to fetch custom fields'));
+      mockTablesDB.listRows.mockRejectedValueOnce(new Error('Failed to fetch custom fields'));
       // Mock: Second call succeeds (validation - needs to return the field so validation passes)
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [{ $id: 'field-1', fieldName: 'Test Field', fieldType: 'text' }],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [{ $id: 'field-1', fieldName: 'Test Field', fieldType: 'text' }],
         total: 1
       });
       // Mock: Third call succeeds (logging)
-      mockDatabases.listDocuments.mockResolvedValueOnce({
-        documents: [{ $id: 'field-1', fieldName: 'Test Field', fieldType: 'text' }],
+      mockTablesDB.listRows.mockResolvedValueOnce({
+        rows: [{ $id: 'field-1', fieldName: 'Test Field', fieldType: 'text' }],
         total: 1
       });
 
-      mockDatabases.getDocument.mockResolvedValueOnce(existingAttendee);
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.getRow.mockResolvedValueOnce(existingAttendee);
+      mockTablesDB.updateRow.mockResolvedValue({
         ...existingAttendee,
         customFieldValues: JSON.stringify({ 'field-1': 'New value' }),
         lastSignificantUpdate: '2024-01-06T00:00:00.000Z',
       });
-      mockDatabases.getDocument.mockResolvedValueOnce({
+      mockTablesDB.getRow.mockResolvedValueOnce({
         ...existingAttendee,
         customFieldValues: JSON.stringify({ 'field-1': 'New value' }),
         lastSignificantUpdate: '2024-01-06T00:00:00.000Z',

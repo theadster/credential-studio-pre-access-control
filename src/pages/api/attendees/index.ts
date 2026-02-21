@@ -11,15 +11,15 @@ import { normalizeCustomFieldValues, stringifyCustomFieldValues } from '@/lib/cu
 export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   // User and userProfile are already attached by middleware
   const { user, userProfile } = req;
-  const { databases } = createSessionClient(req);
+  const { tablesDB } = createSessionClient(req);
 
     const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-    const usersCollectionId = process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!;
-    const attendeesCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID!;
-    const rolesCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!;
-    const logsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!;
-    const logSettingsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_LOG_SETTINGS_COLLECTION_ID!;
-    const accessControlCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ACCESS_CONTROL_COLLECTION_ID!;
+    const usersTableId = process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID!;
+    const attendeesTableId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID!;
+    const rolesTableId = process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!;
+    const logsTableId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!;
+    const logSettingsTableId = process.env.NEXT_PUBLIC_APPWRITE_LOG_SETTINGS_TABLE_ID!;
+    const accessControlTableId = process.env.NEXT_PUBLIC_APPWRITE_ACCESS_CONTROL_TABLE_ID;
 
     switch (req.method) {
       case 'GET':
@@ -325,15 +325,15 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         queries.push(Query.limit(5000));
 
         // Step 2: Fetch first batch of attendees with all filters and ordering applied
-        const firstBatch = await databases.listDocuments(
+        const firstBatch = await tablesDB.listRows(
           dbId,
-          attendeesCollectionId,
+          attendeesTableId,
           queries,
         );
 
         // Step 3: Initialize result with first batch
         // The 'total' field tells us the complete count across all potential batches
-        const allDocuments: any[] = [...firstBatch.documents];
+        const allRows: any[] = [...firstBatch.rows];
 
         // Step 4: Check if we need to fetch additional batches
         // If total > 5000, we have more attendees than fit in a single request
@@ -358,22 +358,22 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             queriesWithOffset.push(Query.limit(5000), Query.offset(offset));
             
             // Fetch this batch with same filters as first batch
-            const batch = await databases.listDocuments(
+            const batch = await tablesDB.listRows(
               dbId, 
-              attendeesCollectionId, 
+              attendeesTableId, 
               queriesWithOffset,
             );
             
-            // Append this batch's documents to our growing array
-            allDocuments.push(...batch.documents);
+            // Append this batch's rows to our growing array
+            allRows.push(...batch.rows);
           }
           
           // Log success for monitoring
-          console.log(`Successfully fetched all ${allDocuments.length} attendees in ${totalPages} batches`);
+          console.log(`Successfully fetched all ${allRows.length} attendees in ${totalPages} batches`);
         }
 
         const attendeesResult = { 
-          documents: allDocuments, 
+          rows: allRows, 
           total: firstBatch.total, 
         };
 
@@ -385,15 +385,15 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
          */
         let visibleFieldIds = new Set<string>();
         try {
-          const eventSettingsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID!;
-          const eventSettingsResult = await databases.listDocuments(
+          const eventSettingsTableId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID!;
+          const eventSettingsResult = await tablesDB.listRows(
             dbId,
-            eventSettingsCollectionId,
+            eventSettingsTableId,
             [Query.limit(1)],
           );
           
-          if (eventSettingsResult.documents.length > 0) {
-            const eventSettings = eventSettingsResult.documents[0];
+          if (eventSettingsResult.rows.length > 0) {
+            const eventSettings = eventSettingsResult.rows[0];
             if (eventSettings.customFields && Array.isArray(eventSettings.customFields)) {
               visibleFieldIds = new Set(
                 eventSettings.customFields
@@ -421,23 +421,23 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
          */
         const accessControlMap = new Map<string, { accessEnabled: boolean; validFrom: string | null; validUntil: string | null }>();
         
-        if (accessControlCollectionId && attendeesResult.documents.length > 0) {
+        if (accessControlTableId && attendeesResult.rows.length > 0) {
           try {
-            const attendeeIds = attendeesResult.documents.map((doc: any) => doc.$id);
+            const attendeeIds = attendeesResult.rows.map((doc: any) => doc.$id);
             
             // Fetch access control data in batches (Appwrite limit for 'in' queries is 100)
             // This prevents N+1 query problem and dramatically improves performance
             const chunkSize = 100;
             for (let i = 0; i < attendeeIds.length; i += chunkSize) {
               const chunk = attendeeIds.slice(i, i + chunkSize);
-              const accessControlResult = await databases.listDocuments(
+              const accessControlResult = await tablesDB.listRows(
                 dbId,
-                accessControlCollectionId,
+                accessControlTableId,
                 [Query.equal('attendeeId', chunk), Query.limit(chunkSize)],
               );
               
               // Map access control records by attendeeId
-              accessControlResult.documents.forEach((ac: any) => {
+              accessControlResult.rows.forEach((ac: any) => {
                 accessControlMap.set(ac.attendeeId, {
                   accessEnabled: ac.accessEnabled ?? true,
                   validFrom: ac.validFrom || null,
@@ -452,7 +452,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         }
 
         // Map attendees and filter custom field values based on visibility
-        let attendees = attendeesResult.documents.map((attendee: any) => {
+        let attendees = attendeesResult.rows.map((attendee: any) => {
           /**
            * CUSTOM FIELD VALUE FILTERING
            * 
@@ -601,14 +601,14 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         }
 
         // Check if barcode is unique
-        const existingAttendeeDocs = await databases.listDocuments(
+        const existingAttendeeDocs = await tablesDB.listRows(
           dbId,
-          attendeesCollectionId,
+          attendeesTableId,
           [Query.equal('barcodeNumber', barcodeNumber)],
         );
 
-        if (existingAttendeeDocs.documents.length > 0) {
-          const existingAttendee = existingAttendeeDocs.documents[0];
+        if (existingAttendeeDocs.rows.length > 0) {
+          const existingAttendee = existingAttendeeDocs.rows[0];
           return res.status(400).json({ 
             error: 'Barcode number already exists',
             existingAttendee: {
@@ -621,17 +621,17 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
         // Validate custom field IDs if provided
         if (customFieldValues && Array.isArray(customFieldValues) && customFieldValues.length > 0) {
-          const customFieldsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID!;
+          const customFieldsTableId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID!;
           const customFieldIds = customFieldValues.map((cfv: any) => cfv.customFieldId);
           
           // Fetch custom fields to validate IDs
-          const customFieldsDocs = await databases.listDocuments(
+          const customFieldsDocs = await tablesDB.listRows(
             dbId,
-            customFieldsCollectionId,
+            customFieldsTableId,
             [Query.limit(100)], // Assuming not more than 100 custom fields
           );
 
-          const existingCustomFieldIds = customFieldsDocs.documents.map(cf => cf.$id);
+          const existingCustomFieldIds = customFieldsDocs.rows.map(cf => cf.$id);
           const invalidCustomFieldIds = customFieldIds.filter(id => !existingCustomFieldIds.includes(id));
 
           if (invalidCustomFieldIds.length > 0) {
@@ -682,14 +682,14 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
               {
                 action: 'create',
                 databaseId: dbId,
-                tableId: attendeesCollectionId,
+                tableId: attendeesTableId,
                 rowId: attendeeId,
                 data: attendeeData,
               },
             ];
 
             // Add access control record if access control is enabled and fields are provided
-            if ((validFrom !== undefined || validUntil !== undefined || accessEnabled !== undefined) && accessControlCollectionId) {
+            if (accessControlTableId && (validFrom !== undefined || validUntil !== undefined || accessEnabled !== undefined)) {
               const accessControlData: any = {
                 attendeeId: attendeeId,
               };
@@ -710,7 +710,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
               operations.push({
                 action: 'create',
                 databaseId: dbId,
-                tableId: accessControlCollectionId,
+                tableId: accessControlTableId,
                 rowId: ID.unique(),
                 data: accessControlData,
               });
@@ -722,7 +722,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
               operations.push({
                 action: 'create',
                 databaseId: dbId,
-                tableId: logsCollectionId,
+                tableId: logsTableId,
                 rowId: ID.unique(),
                 data: {
                   userId: user.$id,
@@ -744,7 +744,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             await executeTransactionWithRetry(tablesDB, operations);
 
             // Fetch the created attendee to return to client
-            newAttendee = await databases.getDocument(dbId, attendeesCollectionId, attendeeId);
+            newAttendee = await tablesDB.getRow({
+              databaseId: dbId,
+              tableId: attendeesTableId,
+              rowId: attendeeId
+            });
             
             console.log('[Attendee Create] Transaction completed successfully');
           } catch (error: any) {

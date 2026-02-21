@@ -13,7 +13,7 @@ describe('useRealtimeSubscription', () => {
   describe('Basic Subscription', () => {
     it('should accept subscription options', () => {
       const callback = vi.fn();
-      const channels = ['databases.test-db.collections.test-collection.documents'];
+      const channels = ['databases.test-db.tables.test-table.rows'];
 
       const { result } = renderHook(() =>
         useRealtimeSubscription({
@@ -28,7 +28,7 @@ describe('useRealtimeSubscription', () => {
 
     it('should not throw when disabled', () => {
       const callback = vi.fn();
-      const channels = ['databases.test-db.collections.test-collection.documents'];
+      const channels = ['databases.test-db.tables.test-table.rows'];
 
       expect(() => {
         renderHook(() =>
@@ -61,7 +61,7 @@ describe('useRealtimeSubscription', () => {
 
     it('should default to enabled when not specified', () => {
       const callback = vi.fn();
-      const channels = ['databases.test-db.collections.test-collection.documents'];
+      const channels = ['databases.test-db.tables.test-table.rows'];
 
       expect(() => {
         renderHook(() =>
@@ -77,7 +77,7 @@ describe('useRealtimeSubscription', () => {
   describe('Callback Handling', () => {
     it('should accept callback function', () => {
       const callback = vi.fn();
-      const channels = ['databases.test-db.collections.test-collection.documents'];
+      const channels = ['databases.test-db.tables.test-table.rows'];
 
       renderHook(() =>
         useRealtimeSubscription({
@@ -92,7 +92,7 @@ describe('useRealtimeSubscription', () => {
     it('should accept optional error handler', () => {
       const callback = vi.fn();
       const onError = vi.fn();
-      const channels = ['databases.test-db.collections.test-collection.documents'];
+      const channels = ['databases.test-db.tables.test-table.rows'];
 
       renderHook(() =>
         useRealtimeSubscription({
@@ -109,7 +109,7 @@ describe('useRealtimeSubscription', () => {
   describe('Cleanup', () => {
     it('should unmount without errors', () => {
       const callback = vi.fn();
-      const channels = ['databases.test-db.collections.test-collection.documents'];
+      const channels = ['databases.test-db.tables.test-table.rows'];
 
       const { unmount } = renderHook(() =>
         useRealtimeSubscription({
@@ -132,14 +132,14 @@ describe('useRealtimeSubscription', () => {
           }),
         {
           initialProps: {
-            channels: ['databases.test-db.collections.collection1.documents'],
+            channels: ['databases.test-db.tables.table1.rows'],
           },
         }
       );
 
       expect(() => {
         rerender({
-          channels: ['databases.test-db.collections.collection2.documents'],
+          channels: ['databases.test-db.tables.table2.rows'],
         });
       }).not.toThrow();
     });
@@ -149,7 +149,7 @@ describe('useRealtimeSubscription', () => {
     it('should handle subscription with error handler', () => {
       const callback = vi.fn();
       const onError = vi.fn();
-      const channels = ['databases.test-db.collections.test-collection.documents'];
+      const channels = ['databases.test-db.tables.test-table.rows'];
 
       expect(() => {
         renderHook(() =>
@@ -164,7 +164,7 @@ describe('useRealtimeSubscription', () => {
 
     it('should handle subscription without error handler', () => {
       const callback = vi.fn();
-      const channels = ['databases.test-db.collections.test-collection.documents'];
+      const channels = ['databases.test-db.tables.test-table.rows'];
 
       expect(() => {
         renderHook(() =>
@@ -221,7 +221,7 @@ describe('useRealtimeSubscription', () => {
 
     it('should accept connectionHealth option', () => {
       const callback = vi.fn();
-      const channels = ['databases.test-db.collections.test-collection.documents'];
+      const channels = ['databases.test-db.tables.test-table.rows'];
       const connectionHealth = createMockConnectionHealth();
 
       expect(() => {
@@ -237,7 +237,7 @@ describe('useRealtimeSubscription', () => {
 
     it('should accept dataFreshness option', () => {
       const callback = vi.fn();
-      const channels = ['databases.test-db.collections.test-collection.documents'];
+      const channels = ['databases.test-db.tables.test-table.rows'];
       const dataFreshness = createMockDataFreshness();
 
       expect(() => {
@@ -253,7 +253,7 @@ describe('useRealtimeSubscription', () => {
 
     it('should accept autoReconnect option (default: true)', () => {
       const callback = vi.fn();
-      const channels = ['databases.test-db.collections.test-collection.documents'];
+      const channels = ['databases.test-db.tables.test-table.rows'];
 
       expect(() => {
         renderHook(() =>
@@ -268,7 +268,7 @@ describe('useRealtimeSubscription', () => {
 
     it('should accept autoReconnect option set to false', () => {
       const callback = vi.fn();
-      const channels = ['databases.test-db.collections.test-collection.documents'];
+      const channels = ['databases.test-db.tables.test-table.rows'];
 
       expect(() => {
         renderHook(() =>
@@ -283,7 +283,7 @@ describe('useRealtimeSubscription', () => {
 
     it('should accept refreshOnReconnect callback', () => {
       const callback = vi.fn();
-      const channels = ['databases.test-db.collections.test-collection.documents'];
+      const channels = ['databases.test-db.tables.test-table.rows'];
       const refreshOnReconnect = vi.fn(async () => {});
 
       expect(() => {
@@ -299,7 +299,7 @@ describe('useRealtimeSubscription', () => {
 
     it('should accept all health integration options together', () => {
       const callback = vi.fn();
-      const channels = ['databases.test-db.collections.test-collection.documents'];
+      const channels = ['databases.test-db.tables.test-table.rows'];
       const connectionHealth = createMockConnectionHealth();
       const dataFreshness = createMockDataFreshness();
       const refreshOnReconnect = vi.fn(async () => {});
@@ -320,7 +320,7 @@ describe('useRealtimeSubscription', () => {
 
     it('should unmount cleanly with health integration options', () => {
       const callback = vi.fn();
-      const channels = ['databases.test-db.collections.test-collection.documents'];
+      const channels = ['databases.test-db.tables.test-table.rows'];
       const connectionHealth = createMockConnectionHealth();
       const dataFreshness = createMockDataFreshness();
 
@@ -340,67 +340,67 @@ describe('useRealtimeSubscription', () => {
 
 describe('buildChannels', () => {
   it('should build channel for collection', () => {
-    const result = buildChannels.collection('db-1', 'collection-1');
-    expect(result).toEqual(['databases.db-1.collections.collection-1.documents']);
+    const result = buildChannels.collection('db-1', 'table-1');
+    expect(result).toEqual(['databases.db-1.tables.table-1.rows']);
   });
 
   it('should build channel for document', () => {
-    const result = buildChannels.document('db-1', 'collection-1', 'doc-1');
-    expect(result).toEqual(['databases.db-1.collections.collection-1.documents.doc-1']);
+    const result = buildChannels.document('db-1', 'table-1', 'doc-1');
+    expect(result).toEqual(['databases.db-1.tables.table-1.rows.doc-1']);
   });
 
   it('should build channels for multiple collections', () => {
-    const result = buildChannels.collections('db-1', ['collection-1', 'collection-2']);
+    const result = buildChannels.collections('db-1', ['table-1', 'table-2']);
     expect(result).toEqual([
-      'databases.db-1.collections.collection-1.documents',
-      'databases.db-1.collections.collection-2.documents',
+      'databases.db-1.tables.table-1.rows',
+      'databases.db-1.tables.table-2.rows',
     ]);
   });
 
   it('should build channels for multiple documents', () => {
-    const result = buildChannels.documents('db-1', 'collection-1', ['doc-1', 'doc-2']);
+    const result = buildChannels.documents('db-1', 'table-1', ['doc-1', 'doc-2']);
     expect(result).toEqual([
-      'databases.db-1.collections.collection-1.documents.doc-1',
-      'databases.db-1.collections.collection-1.documents.doc-2',
+      'databases.db-1.tables.table-1.rows.doc-1',
+      'databases.db-1.tables.table-1.rows.doc-2',
     ]);
   });
 });
 
 describe('isEvent', () => {
   it('should detect create events', () => {
-    const events = ['databases.*.collections.*.documents.*.create'];
+    const events = ['databases.*.tables.*.rows.*.create'];
     expect(isEvent.create(events)).toBe(true);
   });
 
   it('should detect update events', () => {
-    const events = ['databases.*.collections.*.documents.*.update'];
+    const events = ['databases.*.tables.*.rows.*.update'];
     expect(isEvent.update(events)).toBe(true);
   });
 
   it('should detect delete events', () => {
-    const events = ['databases.*.collections.*.documents.*.delete'];
+    const events = ['databases.*.tables.*.rows.*.delete'];
     expect(isEvent.delete(events)).toBe(true);
   });
 
   it('should return false when event type not present', () => {
-    const events = ['databases.*.collections.*.documents.*.create'];
+    const events = ['databases.*.tables.*.rows.*.create'];
     expect(isEvent.update(events)).toBe(false);
   });
 
   it('should detect any matching pattern', () => {
-    const events = ['databases.*.collections.*.documents.*.create'];
+    const events = ['databases.*.tables.*.rows.*.create'];
     expect(isEvent.any(events, ['.create', '.update'])).toBe(true);
   });
 
   it('should return false when no patterns match', () => {
-    const events = ['databases.*.collections.*.documents.*.create'];
+    const events = ['databases.*.tables.*.rows.*.create'];
     expect(isEvent.any(events, ['.update', '.delete'])).toBe(false);
   });
 
   it('should handle multiple events', () => {
     const events = [
-      'databases.*.collections.*.documents.*.create',
-      'databases.*.collections.*.documents.*.update',
+      'databases.*.tables.*.rows.*.create',
+      'databases.*.tables.*.rows.*.update',
     ];
     expect(isEvent.create(events)).toBe(true);
     expect(isEvent.update(events)).toBe(true);

@@ -26,7 +26,6 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
   }
 
   const { user, userProfile } = req;
-  const { databases: sessionDatabases } = createSessionClient(req);
 
   // Check permissions - need scan logs delete permission
   const permissions = userProfile.role ? userProfile.role.permissions : {};
@@ -42,7 +41,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
   }
 
   const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-  const scanLogsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_SCAN_LOGS_COLLECTION_ID!;
+  const scanLogsTableId = process.env.NEXT_PUBLIC_APPWRITE_SCAN_LOGS_TABLE_ID!;
 
   try {
     const { beforeDate, result, profileId, operatorId, deviceId } = req.body;
@@ -80,14 +79,14 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
     // Create admin client for bulk deletions (no rate limits)
     const adminClient = createAdminClient();
-    const adminDatabases = adminClient.databases;
+    const adminTablesDB = adminClient.tablesDB;
 
     // First, get a count of logs to be deleted
-    const countResponse = await adminDatabases.listDocuments(
-      dbId,
-      scanLogsCollectionId,
-      [...queries, Query.limit(1)]
-    );
+    const countResponse = await adminTablesDB.listRows({
+      databaseId: dbId,
+      tableId: scanLogsTableId,
+      queries: [...queries, Query.limit(1)]
+    });
     const totalToDelete = countResponse.total;
     
     console.log(`[Delete Scan Logs] Found ${totalToDelete} scan logs matching criteria`);
@@ -101,13 +100,13 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
     while (true) {
       const batchQueries = [...queries, Query.limit(batchSize)];
-      const logsResponse = await adminDatabases.listDocuments(
-        dbId,
-        scanLogsCollectionId,
-        batchQueries
-      );
+      const logsResponse = await adminTablesDB.listRows({
+        databaseId: dbId,
+        tableId: scanLogsTableId,
+        queries: batchQueries
+      });
 
-      const currentBatch = logsResponse.documents;
+      const currentBatch = logsResponse.rows;
 
       if (currentBatch.length === 0) {
         break;
@@ -124,7 +123,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
         for (let attempt = 0; attempt < maxRetries; attempt++) {
           try {
-            await adminDatabases.deleteDocument(dbId, scanLogsCollectionId, log.$id);
+            await adminTablesDB.deleteRow({
+              databaseId: dbId,
+              tableId: scanLogsTableId,
+              rowId: log.$id
+            });
             deletedCount++;
             deleted = true;
             break;
@@ -166,9 +169,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     // Log this deletion activity
     try {
       if (await shouldLog('logsDelete')) {
-        await adminDatabases.createDocument(
+        await adminTablesDB.createRow(
           dbId,
-          process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!,
+          process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
           ID.unique(),
           {
             action: 'delete_scan_logs',

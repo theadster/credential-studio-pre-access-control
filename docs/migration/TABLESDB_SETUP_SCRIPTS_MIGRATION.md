@@ -50,12 +50,12 @@ String columns use `createVarcharColumn` (max size 16381 chars). For larger text
 
 ## Running the Scripts
 
-**IMPORTANT:** All scripts require `.env.local` to be loaded before running. The scripts use `dotenv.config()` to load environment variables from `.env.local`.
+**IMPORTANT:** All scripts require `.env.local` to be loaded before running. The scripts use `dotenv.config()` to explicitly load environment variables from `.env.local`.
 
 ### Setup
 
 1. Create `.env.local` in the project root with required variables (see Environment Variables section below)
-2. Run the scripts using `npx tsx` which will automatically load `.env.local`
+2. Run the scripts using `npx tsx` - the scripts will load `.env.local` via `dotenv.config()`
 
 ```bash
 # Provision a new environment
@@ -71,7 +71,7 @@ npx tsx src/scripts/inspect-event-settings.ts
 npx tsx src/scripts/clear-event-settings.ts
 ```
 
-**Note:** If running in CI/CD, ensure `.env.local` is available or set environment variables directly in your CI system.
+**Note:** If running in CI/CD, ensure `.env.local` is available or set environment variables directly in your CI system. The scripts will not automatically load environment variables from the system - they must be explicitly loaded via `dotenv.config()` or set in the environment before the script runs.
 
 ## Environment Variables
 

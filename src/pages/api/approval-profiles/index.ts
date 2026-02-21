@@ -11,7 +11,7 @@ import { ID } from 'appwrite';
 import { shouldLog } from '@/lib/logSettings';
 
 const databaseId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-const collectionId = process.env.NEXT_PUBLIC_APPWRITE_APPROVAL_PROFILES_COLLECTION_ID!;
+const tableId = process.env.NEXT_PUBLIC_APPWRITE_APPROVAL_PROFILES_TABLE_ID!;
 
 /**
  * GET /api/approval-profiles - List all approval profiles
@@ -38,10 +38,10 @@ export default async function handler(
  */
 async function handleGet(req: NextApiRequest, res: NextApiResponse) {
   try {
-    const { databases } = createSessionClient(req);
-    const response = await databases.listDocuments<ApprovalProfile>(
+    const { tablesDB } = createSessionClient(req);
+    const response = await tablesDB.listRows(
       databaseId,
-      collectionId,
+      tableId,
       [
         Query.equal('isDeleted', false),
         Query.orderDesc('$createdAt'),
@@ -49,7 +49,7 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse) {
     );
 
     // Parse rules JSON strings to objects for consistent API response
-    const profilesWithParsedRules = response.documents.map(profile => {
+    const profilesWithParsedRules = response.rows.map((profile: any) => {
       let parsedRules = profile.rules;
       if (typeof profile.rules === 'string') {
         try {
@@ -84,7 +84,7 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse) {
  */
 async function handlePost(req: NextApiRequest, res: NextApiResponse) {
   try {
-    const { databases } = createSessionClient(req);
+    const { tablesDB } = createSessionClient(req);
     
     // Validate request body
     const validation = CreateApprovalProfileSchema.safeParse(req.body);
@@ -100,16 +100,16 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse) {
     const input: CreateApprovalProfileInput = validation.data;
 
     // Check for duplicate name
-    const existingProfiles = await databases.listDocuments<ApprovalProfile>(
+    const existingProfiles = await tablesDB.listRows(
       databaseId,
-      collectionId,
+      tableId,
       [
         Query.equal('name', input.name),
         Query.equal('isDeleted', false),
       ]
     );
 
-    if (existingProfiles.documents.length > 0) {
+    if (existingProfiles.rows.length > 0) {
       return res.status(409).json({
         success: false,
         error: 'A profile with this name already exists',
@@ -121,9 +121,9 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse) {
     const rulesJson = JSON.stringify(input.rules);
 
     // Create the profile
-    const profile = await databases.createDocument<ApprovalProfile>(
+    const profile = await tablesDB.createRow(
       databaseId,
-      collectionId,
+      tableId,
       ID.unique(),
       {
         name: input.name,
@@ -137,7 +137,7 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse) {
     // Log the profile creation if enabled
     if (await shouldLog('approvalProfileCreate')) {
       try {
-        const logsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!;
+        const logsTableId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!;
         // Try to get user ID from session if available
         let userId = 'unknown';
         try {
@@ -148,9 +148,9 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse) {
           // Session not available, use unknown
         }
         
-        await databases.createDocument(
+        await tablesDB.createRow(
           databaseId,
-          logsCollectionId,
+          logsTableId,
           ID.unique(),
           {
             userId,

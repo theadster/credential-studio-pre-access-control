@@ -25,13 +25,13 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
   try {
     // User and userProfile are already attached by middleware
     const { user, userProfile } = req;
-    const { databases } = createSessionClient(req);
+    const { tablesDB } = createSessionClient(req);
 
     const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-    const attendeesCollectionId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID!;
-    const logsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID!;
-    const customFieldsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID!;
-    const eventSettingsCollectionId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_COLLECTION_ID!;
+    const attendeesTableId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID!;
+    const logsTableId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!;
+    const customFieldsTableId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID!;
+    const eventSettingsTableId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID!;
 
     // Check permissions
     const permissions = userProfile.role ? userProfile.role.permissions : {};
@@ -58,7 +58,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     }
 
     // Get attendee
-    const attendee = await databases.getDocument(dbId, attendeesCollectionId, id);
+    const attendee = await tablesDB.getRow({
+      databaseId: dbId,
+      tableId: attendeesTableId,
+      rowId: id
+    });
 
     if (!attendee) {
       return res.status(404).json({ 
@@ -69,8 +73,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     }
 
     // Get event settings
-    const eventSettingsDocs = await databases.listDocuments(dbId, eventSettingsCollectionId);
-    const eventSettings = eventSettingsDocs.documents[0];
+    const eventSettingsDocs = await tablesDB.listRows(dbId, eventSettingsTableId);
+    const eventSettings = eventSettingsDocs.rows[0];
 
     if (!eventSettings) {
       return res.status(400).json({ 
@@ -82,7 +86,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     }
 
     // Get Switchboard integration from separate collection
-    const switchboardIntegration = await getSwitchboardIntegration(databases, eventSettings.$id);
+    const switchboardIntegration = await getSwitchboardIntegration(tablesDB, eventSettings.$id);
 
     if (!switchboardIntegration) {
       return res.status(400).json({ 
@@ -121,12 +125,12 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     }
 
     // Get custom fields
-    const customFieldsDocs = await databases.listDocuments(
+    const customFieldsDocs = await tablesDB.listRows(
       dbId,
-      customFieldsCollectionId,
+      customFieldsTableId,
       [Query.limit(100)]
     );
-    const customFields = customFieldsDocs.documents;
+    const customFields = customFieldsDocs.rows;
 
     // Build the request body with placeholders replaced
     const requestBody = switchboardIntegration.requestBody || '{}';
@@ -444,9 +448,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       let updatedAttendee: any;
       try {
         // First try with atomic operators
-        updatedAttendee = await databases.updateDocument(
+        updatedAttendee = await tablesDB.updateRow(
           dbId,
-          attendeesCollectionId,
+          attendeesTableId,
           id,
           {
             credentialUrl,
@@ -468,9 +472,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           // Use FieldUpdateService for safe concurrent updates
           // This ensures we only update credential fields and don't overwrite photo/profile changes
           const result = await updateCredentialFields(
-            databases,
+            tablesDB,
             dbId,
-            attendeesCollectionId,
+            attendeesTableId,
             id,
             { credentialUrl }
           );
@@ -501,9 +505,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       // Log the activity if enabled
       if (await shouldLog('credentialGenerate')) {
         try {
-          await databases.createDocument(
+          await tablesDB.createRow(
             dbId,
-            logsCollectionId,
+            logsTableId,
             ID.unique(),
             {
               action: 'generate_credential',

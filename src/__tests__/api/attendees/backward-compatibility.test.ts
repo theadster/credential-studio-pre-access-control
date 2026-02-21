@@ -1,15 +1,17 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import handler from '../[id]';
-import { mockAccount, mockDatabases, mockTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
+import handler from '@/pages/api/attendees/[id]';
+import { mockAccount, mockTablesDB, mockAdminTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn(() => ({
     account: mockAccount,
-    databases: mockDatabases,
     tablesDB: mockTablesDB,
   })),
+  createAdminClient: vi.fn(() => ({
+    tablesDB: mockAdminTablesDB,
+})),
 }));
 
 // Mock the API middleware
@@ -80,7 +82,7 @@ describe('Backward Compatibility Tests - Printable Field Feature', () => {
     };
 
     // Default mocks
-    mockDatabases.createDocument.mockResolvedValue({
+    mockTablesDB.createRow.mockResolvedValue({
       $id: 'log-123',
       userId: mockAuthUser.$id,
       action: 'update',
@@ -123,12 +125,12 @@ describe('Backward Compatibility Tests - Printable Field Feature', () => {
       };
 
       // Mock database calls
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: legacyCustomFields, total: 1 }) // Fetch custom fields config
-        .mockResolvedValueOnce({ documents: legacyCustomFields, total: 1 }) // Validate custom field IDs
-        .mockResolvedValueOnce({ documents: legacyCustomFields, total: 1 }); // Fetch for logging
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: legacyCustomFields, total: 1 }) // Fetch custom fields config
+        .mockResolvedValueOnce({ rows: legacyCustomFields, total: 1 }) // Validate custom field IDs
+        .mockResolvedValueOnce({ rows: legacyCustomFields, total: 1 }); // Fetch for logging
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(existingAttendee)
         .mockResolvedValueOnce({
           ...existingAttendee,
@@ -181,12 +183,12 @@ describe('Backward Compatibility Tests - Printable Field Feature', () => {
         ],
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: customFieldsWithUndefined, total: 1 })
-        .mockResolvedValueOnce({ documents: customFieldsWithUndefined, total: 1 })
-        .mockResolvedValueOnce({ documents: customFieldsWithUndefined, total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: customFieldsWithUndefined, total: 1 })
+        .mockResolvedValueOnce({ rows: customFieldsWithUndefined, total: 1 })
+        .mockResolvedValueOnce({ rows: customFieldsWithUndefined, total: 1 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(existingAttendee)
         .mockResolvedValueOnce({
           ...existingAttendee,
@@ -227,12 +229,12 @@ describe('Backward Compatibility Tests - Printable Field Feature', () => {
         ],
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: customFieldsWithNull, total: 1 })
-        .mockResolvedValueOnce({ documents: customFieldsWithNull, total: 1 })
-        .mockResolvedValueOnce({ documents: customFieldsWithNull, total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: customFieldsWithNull, total: 1 })
+        .mockResolvedValueOnce({ rows: customFieldsWithNull, total: 1 })
+        .mockResolvedValueOnce({ rows: customFieldsWithNull, total: 1 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(existingAttendee)
         .mockResolvedValueOnce({
           ...existingAttendee,
@@ -283,12 +285,12 @@ describe('Backward Compatibility Tests - Printable Field Feature', () => {
         ],
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: mixedCustomFields, total: 2 })
-        .mockResolvedValueOnce({ documents: mixedCustomFields, total: 2 })
-        .mockResolvedValueOnce({ documents: mixedCustomFields, total: 2 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: mixedCustomFields, total: 2 })
+        .mockResolvedValueOnce({ rows: mixedCustomFields, total: 2 })
+        .mockResolvedValueOnce({ rows: mixedCustomFields, total: 2 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(existingAttendee)
         .mockResolvedValueOnce({
           ...existingAttendee,
@@ -330,7 +332,7 @@ describe('Backward Compatibility Tests - Printable Field Feature', () => {
       mockReq.method = 'GET';
       mockReq.body = undefined;
 
-      mockDatabases.getDocument.mockResolvedValueOnce(existingAttendee);
+      mockTablesDB.getRow.mockResolvedValueOnce(existingAttendee);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -365,7 +367,7 @@ describe('Backward Compatibility Tests - Printable Field Feature', () => {
         firstName: 'Jane', // Changing significant field
       };
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(existingAttendee)
         .mockResolvedValueOnce({
           ...existingAttendee,
@@ -404,7 +406,7 @@ describe('Backward Compatibility Tests - Printable Field Feature', () => {
         firstName: 'Jane',
       };
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(legacyAttendee)
         .mockResolvedValueOnce({
           ...legacyAttendee,
@@ -441,7 +443,7 @@ describe('Backward Compatibility Tests - Printable Field Feature', () => {
         firstName: 'Jane',
       };
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(attendeeWithoutCredential)
         .mockResolvedValueOnce({
           ...attendeeWithoutCredential,
@@ -490,12 +492,12 @@ describe('Backward Compatibility Tests - Printable Field Feature', () => {
         ],
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: customFields, total: 1 })
-        .mockResolvedValueOnce({ documents: customFields, total: 1 })
-        .mockResolvedValueOnce({ documents: customFields, total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: customFields, total: 1 })
+        .mockResolvedValueOnce({ rows: customFields, total: 1 })
+        .mockResolvedValueOnce({ rows: customFields, total: 1 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(existingAttendee)
         .mockResolvedValueOnce({
           ...existingAttendee,
@@ -580,12 +582,12 @@ describe('Backward Compatibility Tests - Printable Field Feature', () => {
         ],
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: customFields, total: 1 })
-        .mockResolvedValueOnce({ documents: customFields, total: 1 })
-        .mockResolvedValueOnce({ documents: customFields, total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: customFields, total: 1 })
+        .mockResolvedValueOnce({ rows: customFields, total: 1 })
+        .mockResolvedValueOnce({ rows: customFields, total: 1 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(existingAttendee)
         .mockResolvedValueOnce({
           ...existingAttendee,
@@ -633,12 +635,12 @@ describe('Backward Compatibility Tests - Printable Field Feature', () => {
         customFieldValues: [], // Empty array
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: legacyFields, total: 1 })
-        .mockResolvedValueOnce({ documents: legacyFields, total: 1 })
-        .mockResolvedValueOnce({ documents: legacyFields, total: 1 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: legacyFields, total: 1 })
+        .mockResolvedValueOnce({ rows: legacyFields, total: 1 })
+        .mockResolvedValueOnce({ rows: legacyFields, total: 1 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(existingAttendee)
         .mockResolvedValueOnce(existingAttendee);
 
@@ -694,12 +696,12 @@ describe('Backward Compatibility Tests - Printable Field Feature', () => {
         ],
       };
 
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: partiallyMigratedFields, total: 3 })
-        .mockResolvedValueOnce({ documents: partiallyMigratedFields, total: 3 })
-        .mockResolvedValueOnce({ documents: partiallyMigratedFields, total: 3 });
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: partiallyMigratedFields, total: 3 })
+        .mockResolvedValueOnce({ rows: partiallyMigratedFields, total: 3 })
+        .mockResolvedValueOnce({ rows: partiallyMigratedFields, total: 3 });
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(existingAttendee)
         .mockResolvedValueOnce({
           ...existingAttendee,

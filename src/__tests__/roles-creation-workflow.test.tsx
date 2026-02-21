@@ -11,10 +11,16 @@ import RoleForm from '@/components/RoleForm';
 
 // Mock Appwrite
 vi.mock('@/lib/appwrite', () => ({
-  databases: {
-    createDocument: vi.fn(),
-    updateDocument: vi.fn(),
+  tablesDB: {
+    createRow: vi.fn(),
+    updateRow: vi.fn(),
+    listRows: vi.fn(),
+    getRow: vi.fn(),
+    deleteRow: vi.fn(),
   },
+  createAdminClient: vi.fn(() => ({
+    tablesDB: { listRows: vi.fn(), getRow: vi.fn(), createRow: vi.fn(), updateRow: vi.fn(), deleteRow: vi.fn() },
+  })),
 }));
 
 // Mock SweetAlert
@@ -39,24 +45,13 @@ describe('Role Creation Workflow', () => {
       const user = userEvent.setup();
       
       render(
-  // Replace the old success mock with the new save mock
- const mockOnSave = vi.fn().mockResolvedValue(undefined);
-
-  // … render or setup …
-
-  render(
         <RoleForm
           isOpen={true}
           onClose={mockOnCancel}
--         onSuccess={mockOnSuccess}
-         onSave={mockOnSave}
-         role={null}
+          onSuccess={mockOnSuccess}
+          editingRole={null}
         />
-  );
-
-  // … trigger the save …
-
- expect(mockOnSave).toHaveBeenCalled();
+      );
 
       // Fill in role name
       const nameInput = screen.getByLabelText(/role name/i);

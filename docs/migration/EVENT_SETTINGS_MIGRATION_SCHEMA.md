@@ -239,17 +239,32 @@ Two fields have different names in Appwrite:
 When reading Event Settings from Appwrite, parse the JSON fields:
 
 ```typescript
-const eventSettings = await tablesDB.getRow(
-  DATABASE_ID,
-  EVENT_SETTINGS_TABLE_ID,
-  rowId
-);
+const eventSettings = await tablesDB.getRow({
+  databaseId: DATABASE_ID,
+  tableId: EVENT_SETTINGS_TABLE_ID,
+  rowId: rowId
+});
 
-// Parse JSON fields
-const cloudinaryConfig = JSON.parse(eventSettings.cloudinaryConfig);
-const oneSimpleApiConfig = JSON.parse(eventSettings.oneSimpleApiConfig);
-const additionalSettings = JSON.parse(eventSettings.additionalSettings);
-const switchboardFieldMappings = JSON.parse(eventSettings.switchboardFieldMappings);
+if (!eventSettings) {
+  throw new Error(`Event settings not found for row: ${rowId}`);
+}
+
+// Parse JSON fields with null/empty checks
+const cloudinaryConfig = eventSettings.cloudinaryConfig 
+  ? JSON.parse(eventSettings.cloudinaryConfig) 
+  : {};
+
+const oneSimpleApiConfig = eventSettings.oneSimpleApiConfig 
+  ? JSON.parse(eventSettings.oneSimpleApiConfig) 
+  : {};
+
+const additionalSettings = eventSettings.additionalSettings 
+  ? JSON.parse(eventSettings.additionalSettings) 
+  : {};
+
+const switchboardFieldMappings = eventSettings.switchboardFieldMappings 
+  ? JSON.parse(eventSettings.switchboardFieldMappings) 
+  : {};
 ```
 
 ## Verification

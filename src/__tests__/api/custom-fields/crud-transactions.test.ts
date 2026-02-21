@@ -1,17 +1,19 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import createHandler from '../index';
-import updateHandler from '../[id]';
-import reorderHandler from '../reorder';
-import { mockAccount, mockDatabases, mockTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
+import createHandler from '@/pages/api/custom-fields/index';
+import updateHandler from '@/pages/api/custom-fields/[id]';
+import reorderHandler from '@/pages/api/custom-fields/reorder';
+import { mockAccount, mockAdminTablesDB, mockTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn((req: NextApiRequest) => ({
     account: mockAccount,
-    databases: mockDatabases,
     tablesDB: mockTablesDB,
   })),
+  createAdminClient: vi.fn(() => ({
+    tablesDB: mockAdminTablesDB,
+})),
 }));
 
 // Mock the string utility
@@ -47,6 +49,7 @@ vi.mock('@/lib/transactions', async () => {
     }),
   };
 });
+
 
 describe('/api/custom-fields - Transaction Integration Tests', () => {
   let mockReq: Partial<NextApiRequest>;
@@ -106,11 +109,12 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
 
     // Default mock implementations
     mockAccount.get.mockResolvedValue(mockAuthUser);
-    mockDatabases.listDocuments.mockResolvedValue({
-      documents: [mockUserProfile],
+    mockTablesDB.listRows.mockResolvedValue({
+      rows: [mockUserProfile],
       total: 1,
     });
-    mockDatabases.getDocument.mockResolvedValue(mockAdminRole);
+    mockTablesDB.getRow.mockResolvedValue(mockAdminRole);
+    mockAdminTablesDB.getRow.mockResolvedValue(mockAdminRole);
     
     // Mock TablesDB transaction methods
     mockTablesDB.createTransaction.mockResolvedValue({ $id: 'tx-123' });
@@ -133,7 +137,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
     it('should create custom field and audit log atomically in a single transaction', async () => {
       const { executeTransactionWithRetry } = await import('@/lib/transactions');
       
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockEventSettings);
 
@@ -151,7 +155,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
       // Verify custom field creation operation
       expect(operations[0]).toMatchObject({
         action: 'create',
-        tableId: process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID,
+        tableId: process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID,
         data: expect.objectContaining({
           fieldName: 'Job Title',
           fieldType: 'text',
@@ -162,7 +166,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
       // Verify audit log operation
       expect(operations[1]).toMatchObject({
         action: 'create',
-        tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+        tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
         data: expect.objectContaining({
           userId: mockAuthUser.$id,
           action: 'create',
@@ -175,7 +179,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
     it('should include audit log details in transaction operations', async () => {
       const { executeTransactionWithRetry } = await import('@/lib/transactions');
       
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockEventSettings);
 
@@ -185,7 +189,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
       const calls = (executeTransactionWithRetry as any).mock.calls;
       const operations = calls[0][1];
       const auditLogOp = operations.find((op: any) => 
-        op.tableId === process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID
+        op.tableId === process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID
       );
 
       expect(auditLogOp).toBeDefined();
@@ -206,7 +210,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
         new Error('Transaction failed')
       );
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockEventSettings);
 
@@ -224,7 +228,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
     it('should set version to 0 for new custom fields', async () => {
       const { executeTransactionWithRetry } = await import('@/lib/transactions');
       
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockEventSettings);
 
@@ -233,7 +237,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
       const calls = (executeTransactionWithRetry as any).mock.calls;
       const operations = calls[0][1];
       const createOp = operations.find((op: any) => 
-        op.tableId === process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID
+        op.tableId === process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID
       );
 
       expect(createOp.data.version).toBe(0);
@@ -273,7 +277,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
     it('should update custom field and audit log atomically in a single transaction', async () => {
       const { executeTransactionWithRetry } = await import('@/lib/transactions');
       
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockCustomField);
 
@@ -285,7 +289,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
         expect.arrayContaining([
           expect.objectContaining({
             action: 'update',
-            tableId: process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID,
+            tableId: process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID,
             rowId: 'field-123',
             data: expect.objectContaining({
               fieldName: 'Job Title Updated',
@@ -294,7 +298,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
           }),
           expect.objectContaining({
             action: 'create',
-            tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+            tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
             data: expect.objectContaining({
               userId: mockAuthUser.$id,
               action: 'update',
@@ -313,7 +317,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
     it('should increment version number for optimistic locking', async () => {
       const { executeTransactionWithRetry } = await import('@/lib/transactions');
       
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockCustomField);
 
@@ -323,7 +327,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
       const operations = calls[0][1];
       const updateOp = operations.find((op: any) => 
         op.action === 'update' && 
-        op.tableId === process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID
+        op.tableId === process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID
       );
 
       expect(updateOp.data.version).toBe(1); // 0 + 1
@@ -332,7 +336,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
     it('should track field changes in audit log', async () => {
       const { executeTransactionWithRetry } = await import('@/lib/transactions');
       
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockCustomField);
 
@@ -341,7 +345,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
       const calls = (executeTransactionWithRetry as any).mock.calls;
       const operations = calls[0][1];
       const auditLogOp = operations.find((op: any) => 
-        op.tableId === process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID
+        op.tableId === process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID
       );
 
       const details = JSON.parse(auditLogOp.data.details);
@@ -359,7 +363,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
     it('should return 409 if version mismatch detected', async () => {
       mockReq.body.version = 5; // Wrong version
       
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockCustomField); // version is 0
 
@@ -385,7 +389,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
         new Error('Audit log creation failed')
       );
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockCustomField);
 
@@ -401,7 +405,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
         deletedAt: '2024-01-15T00:00:00.000Z',
       };
       
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(deletedField);
 
@@ -442,7 +446,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
     it('should soft delete custom field and audit log atomically in a single transaction', async () => {
       const { executeTransactionWithRetry } = await import('@/lib/transactions');
       
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockCustomField);
 
@@ -454,7 +458,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
         expect.arrayContaining([
           expect.objectContaining({
             action: 'update',
-            tableId: process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID,
+            tableId: process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID,
             rowId: 'field-123',
             data: expect.objectContaining({
               deletedAt: expect.any(String),
@@ -463,7 +467,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
           }),
           expect.objectContaining({
             action: 'create',
-            tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+            tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
             data: expect.objectContaining({
               userId: mockAuthUser.$id,
               action: 'delete',
@@ -482,7 +486,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
     it('should set deletedAt timestamp in soft delete', async () => {
       const { executeTransactionWithRetry } = await import('@/lib/transactions');
       
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockCustomField);
 
@@ -492,7 +496,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
       const operations = calls[0][1];
       const updateOp = operations.find((op: any) => 
         op.action === 'update' && 
-        op.tableId === process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID
+        op.tableId === process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID
       );
 
       expect(updateOp.data.deletedAt).toBeDefined();
@@ -503,7 +507,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
     it('should include soft delete details in audit log', async () => {
       const { executeTransactionWithRetry } = await import('@/lib/transactions');
       
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockCustomField);
 
@@ -512,7 +516,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
       const calls = (executeTransactionWithRetry as any).mock.calls;
       const operations = calls[0][1];
       const auditLogOp = operations.find((op: any) => 
-        op.tableId === process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID
+        op.tableId === process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID
       );
 
       const details = JSON.parse(auditLogOp.data.details);
@@ -529,7 +533,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
         deletedAt: '2024-01-15T00:00:00.000Z',
       };
       
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(deletedField);
 
@@ -552,7 +556,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
         new Error('Audit log creation failed')
       );
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockCustomField);
 
@@ -565,7 +569,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
     it('should increment version on soft delete for consistency', async () => {
       const { executeTransactionWithRetry } = await import('@/lib/transactions');
       
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockCustomField);
 
@@ -575,7 +579,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
       const operations = calls[0][1];
       const updateOp = operations.find((op: any) => 
         op.action === 'update' && 
-        op.tableId === process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID
+        op.tableId === process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID
       );
 
       expect(updateOp.data.version).toBe(3); // 2 + 1
@@ -618,8 +622,8 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
     it('should reorder all fields and audit log atomically in a single transaction', async () => {
       const { executeTransactionWithRetry } = await import('@/lib/transactions');
       
-      // Mock getDocument for each field verification
-      mockDatabases.getDocument
+      // Mock getRow for each field verification
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockFields[0])
         .mockResolvedValueOnce(mockFields[1])
@@ -633,25 +637,25 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
         expect.arrayContaining([
           expect.objectContaining({
             action: 'update',
-            tableId: process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID,
+            tableId: process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID,
             rowId: 'field-1',
             data: { order: 3 },
           }),
           expect.objectContaining({
             action: 'update',
-            tableId: process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID,
+            tableId: process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID,
             rowId: 'field-2',
             data: { order: 1 },
           }),
           expect.objectContaining({
             action: 'update',
-            tableId: process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID,
+            tableId: process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID,
             rowId: 'field-3',
             data: { order: 2 },
           }),
           expect.objectContaining({
             action: 'create',
-            tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+            tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
             data: expect.objectContaining({
               userId: mockAuthUser.$id,
               action: 'update',
@@ -670,7 +674,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
     it('should include all field orders in audit log', async () => {
       const { executeTransactionWithRetry } = await import('@/lib/transactions');
       
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockFields[0])
         .mockResolvedValueOnce(mockFields[1])
@@ -681,7 +685,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
       const calls = (executeTransactionWithRetry as any).mock.calls;
       const operations = calls[0][1];
       const auditLogOp = operations.find((op: any) => 
-        op.tableId === process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID
+        op.tableId === process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID
       );
 
       const details = JSON.parse(auditLogOp.data.details);
@@ -702,7 +706,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
         new Error('Field update failed')
       );
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockFields[0])
         .mockResolvedValueOnce(mockFields[1])
@@ -720,7 +724,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
     });
 
     it('should return 404 if any field does not exist', async () => {
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockFields[0])
         .mockRejectedValueOnce(new Error('Not found')); // field-2 not found
@@ -778,7 +782,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
         ],
       };
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockFields[0]);
 
@@ -805,7 +809,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
         order: 1,
       };
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockEventSettings);
 
@@ -830,7 +834,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
         order: 1,
       };
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockEventSettings);
 
@@ -859,7 +863,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
         order: 1,
       };
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockEventSettings);
 
@@ -870,8 +874,8 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
       const operations = calls[0][1];
       
       expect(operations).toHaveLength(2);
-      expect(operations[0].tableId).toBe(process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_COLLECTION_ID);
-      expect(operations[1].tableId).toBe(process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID);
+      expect(operations[0].tableId).toBe(process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID);
+      expect(operations[1].tableId).toBe(process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID);
     });
 
     it('should ensure no partial updates - both field and log succeed or both fail', async () => {
@@ -894,7 +898,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
         version: 0,
       };
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce(mockField);
 
@@ -921,7 +925,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
         ],
       };
 
-      mockDatabases.getDocument
+      mockTablesDB.getRow
         .mockResolvedValueOnce(mockAdminRole)
         .mockResolvedValueOnce({ $id: 'field-1' })
         .mockResolvedValueOnce({ $id: 'field-2' })
@@ -955,7 +959,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
         fieldType: 'text',
       };
 
-      mockDatabases.getDocument.mockResolvedValueOnce(noPermRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(noPermRole);
 
       await createHandler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -981,7 +985,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
         version: 0,
       };
 
-      mockDatabases.getDocument.mockResolvedValueOnce(noPermRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(noPermRole);
 
       await updateHandler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -1002,7 +1006,7 @@ describe('/api/custom-fields - Transaction Integration Tests', () => {
       mockReq.method = 'DELETE';
       mockReq.query = { id: 'field-123' };
 
-      mockDatabases.getDocument.mockResolvedValueOnce(noPermRole);
+      mockTablesDB.getRow.mockResolvedValueOnce(noPermRole);
 
       await updateHandler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 

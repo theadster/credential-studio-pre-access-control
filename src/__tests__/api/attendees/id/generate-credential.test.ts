@@ -1,26 +1,17 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import type { NextApiRequest, NextApiResponse } from 'next';
 import handler from '@/pages/api/attendees/[id]/generate-credential';
-import { mockAccount, mockDatabases, resetAllMocks } from '@/test/mocks/appwrite';
+import { mockAccount, mockTablesDB, mockAdminTablesDB, resetAllMocks } from '@/test/mocks/appwrite';
 import { userProfileCache } from '@/lib/userProfileCache';
-
-// Create mock admin databases for createAdminClient
-const mockAdminDatabases = {
-  listDocuments: vi.fn(),
-  getDocument: vi.fn(),
-  createDocument: vi.fn(),
-  updateDocument: vi.fn(),
-  deleteDocument: vi.fn(),
-};
 
 // Mock the appwrite module
 vi.mock('@/lib/appwrite', () => ({
   createSessionClient: vi.fn((req: NextApiRequest) => ({
     account: mockAccount,
-    databases: mockDatabases,
+    tablesDB: mockTablesDB,
   })),
   createAdminClient: vi.fn(() => ({
-    databases: mockAdminDatabases,
+    tablesDB: mockAdminTablesDB,
   })),
 }));
 
@@ -34,6 +25,7 @@ vi.mock('@/lib/appwrite-integrations', () => ({
 vi.mock('@/lib/logSettings', () => ({
   shouldLog: vi.fn(() => Promise.resolve(true)),
 }));
+
 
 // Mock fetch
 global.fetch = vi.fn();
@@ -113,13 +105,6 @@ describe('/api/attendees/[id]/generate-credential - Generate Credential API', ()
     // Set required environment variables for tests
     process.env.SWITCHBOARD_API_KEY = 'test-switchboard-api-key';
     
-    // Also reset admin databases mock
-    mockAdminDatabases.listDocuments.mockReset();
-    mockAdminDatabases.getDocument.mockReset();
-    mockAdminDatabases.createDocument.mockReset();
-    mockAdminDatabases.updateDocument.mockReset();
-    mockAdminDatabases.deleteDocument.mockReset();
-    
     // Reset Switchboard integration mock
     mockGetSwitchboardIntegration.mockReset();
     
@@ -145,19 +130,19 @@ describe('/api/attendees/[id]/generate-credential - Generate Credential API', ()
 
     // Default mock implementations for authentication flow
     mockAccount.get.mockResolvedValue(mockAuthUser);
-    mockDatabases.listDocuments.mockResolvedValue({
-      documents: [mockUserProfile],
+    mockTablesDB.listRows.mockResolvedValue({
+      rows: [mockUserProfile],
       total: 1,
     });
-    mockDatabases.createDocument.mockResolvedValue({
+    mockTablesDB.createRow.mockResolvedValue({
       $id: 'new-log-123',
       userId: mockAuthUser.$id,
       action: 'generate_credential',
       details: '{}',
     });
 
-    // Mock admin databases to return the role when fetched
-    mockAdminDatabases.getDocument.mockResolvedValue(mockAdminRole);
+    // Mock admin tablesDB to return the role when fetched
+    mockAdminTablesDB.getRow.mockResolvedValue(mockAdminRole);
     
     // Default: Switchboard integration is enabled and configured
     mockGetSwitchboardIntegration.mockResolvedValue(mockSwitchboardIntegration);
@@ -197,7 +182,7 @@ describe('/api/attendees/[id]/generate-credential - Generate Credential API', ()
 
     it('should return 404 if user profile is not found', async () => {
       // Override the default mock to simulate no user profile found
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [], total: 0 });
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [], total: 0 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -212,7 +197,7 @@ describe('/api/attendees/[id]/generate-credential - Generate Credential API', ()
     it('should return 403 if user has no role', async () => {
       // User profile exists but has no roleId
       const userProfileNoRole = { ...mockUserProfile, roleId: null };
-      mockDatabases.listDocuments.mockResolvedValueOnce({ documents: [userProfileNoRole], total: 1 });
+      mockTablesDB.listRows.mockResolvedValueOnce({ rows: [userProfileNoRole], total: 1 });
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -233,7 +218,7 @@ describe('/api/attendees/[id]/generate-credential - Generate Credential API', ()
           all: false,
         }
       };
-      mockAdminDatabases.getDocument.mockResolvedValueOnce(roleNoPrint);
+      mockAdminTablesDB.getRow.mockResolvedValueOnce(roleNoPrint);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -278,7 +263,7 @@ describe('/api/attendees/[id]/generate-credential - Generate Credential API', ()
       (error as any).code = 404;
 
       // Mock the attendee lookup to fail
-      mockDatabases.getDocument.mockRejectedValueOnce(error);
+      mockTablesDB.getRow.mockRejectedValueOnce(error);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -287,11 +272,11 @@ describe('/api/attendees/[id]/generate-credential - Generate Credential API', ()
 
     it('should return 400 if event settings not configured', async () => {
       // Mock attendee found
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAttendee);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAttendee);
       // Mock no event settings
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // User profile (middleware)
-        .mockResolvedValueOnce({ documents: [], total: 0 }); // No event settings
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 }) // User profile (middleware)
+        .mockResolvedValueOnce({ rows: [], total: 0 }); // No event settings
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -305,11 +290,11 @@ describe('/api/attendees/[id]/generate-credential - Generate Credential API', ()
 
     it('should return 400 if Switchboard is not enabled', async () => {
       // Mock attendee found
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAttendee);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAttendee);
       // Mock event settings found
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // User profile (middleware)
-        .mockResolvedValueOnce({ documents: [mockEventSettings], total: 1 }); // Event settings
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 }) // User profile (middleware)
+        .mockResolvedValueOnce({ rows: [mockEventSettings], total: 1 }); // Event settings
 
       // Mock getSwitchboardIntegration to return disabled integration
       mockGetSwitchboardIntegration.mockResolvedValueOnce({ ...mockSwitchboardIntegration, enabled: false });
@@ -326,11 +311,11 @@ describe('/api/attendees/[id]/generate-credential - Generate Credential API', ()
 
     it('should return 400 if Switchboard API endpoint is missing', async () => {
       // Mock attendee found
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAttendee);
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAttendee);
       // Mock event settings found
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // User profile (middleware)
-        .mockResolvedValueOnce({ documents: [mockEventSettings], total: 1 }); // Event settings
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 }) // User profile (middleware)
+        .mockResolvedValueOnce({ rows: [mockEventSettings], total: 1 }); // Event settings
 
       // Mock getSwitchboardIntegration to return integration with no endpoint
       mockGetSwitchboardIntegration.mockResolvedValueOnce({ ...mockSwitchboardIntegration, apiEndpoint: null });
@@ -354,16 +339,16 @@ describe('/api/attendees/[id]/generate-credential - Generate Credential API', ()
       userProfileCache.clear();
       
       // Reset mocks to ensure clean state
-      mockDatabases.getDocument.mockReset();
-      mockDatabases.listDocuments.mockReset();
-      mockDatabases.updateDocument.mockReset();
-      mockDatabases.createDocument.mockReset();
+      mockTablesDB.getRow.mockReset();
+      mockTablesDB.listRows.mockReset();
+      mockTablesDB.updateRow.mockReset();
+      mockTablesDB.createRow.mockReset();
       (global.fetch as any).mockReset();
       mockGetSwitchboardIntegration.mockReset();
       
       // Re-apply default authentication mocks
       mockAccount.get.mockResolvedValue(mockAuthUser);
-      mockAdminDatabases.getDocument.mockResolvedValue(mockAdminRole);
+      mockAdminTablesDB.getRow.mockResolvedValue(mockAdminRole);
       mockGetSwitchboardIntegration.mockResolvedValue(mockSwitchboardIntegration);
     };
 
@@ -372,31 +357,31 @@ describe('/api/attendees/[id]/generate-credential - Generate Credential API', ()
       const credentialUrl = 'https://example.com/credential.pdf';
 
       // Mock attendee found
-      mockDatabases.getDocument.mockResolvedValue(mockAttendee);
+      mockTablesDB.getRow.mockResolvedValue(mockAttendee);
       
-      // Use mockImplementation to handle different listDocuments calls
-      let listDocumentsCallCount = 0;
-      mockDatabases.listDocuments.mockImplementation(() => {
-        listDocumentsCallCount++;
-        if (listDocumentsCallCount === 1) {
+      // Use mockImplementation to handle different listRows calls
+      let listRowsCallCount = 0;
+      mockTablesDB.listRows.mockImplementation(() => {
+        listRowsCallCount++;
+        if (listRowsCallCount === 1) {
           // User profile (middleware)
-          return Promise.resolve({ documents: [mockUserProfile], total: 1 });
-        } else if (listDocumentsCallCount === 2) {
+          return Promise.resolve({ rows: [mockUserProfile], total: 1 });
+        } else if (listRowsCallCount === 2) {
           // Event settings
-          return Promise.resolve({ documents: [mockEventSettings], total: 1 });
+          return Promise.resolve({ rows: [mockEventSettings], total: 1 });
         } else {
           // Custom fields
-          return Promise.resolve({ documents: [], total: 0 });
+          return Promise.resolve({ rows: [], total: 0 });
         }
       });
 
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.updateRow.mockResolvedValue({
         ...mockAttendee,
         credentialUrl,
         credentialGeneratedAt: new Date().toISOString(),
       });
 
-      mockDatabases.createDocument.mockResolvedValue({
+      mockTablesDB.createRow.mockResolvedValue({
         $id: 'log-123',
         action: 'generate_credential',
       });
@@ -418,9 +403,9 @@ describe('/api/attendees/[id]/generate-credential - Generate Credential API', ()
         })
       );
 
-      expect(mockDatabases.updateDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.updateRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID,
         'attendee-123',
         expect.objectContaining({
           credentialUrl,
@@ -441,27 +426,27 @@ describe('/api/attendees/[id]/generate-credential - Generate Credential API', ()
       const credentialUrl = 'https://example.com/credential.pdf';
 
       // Mock attendee found
-      mockDatabases.getDocument.mockResolvedValue(mockAttendee);
+      mockTablesDB.getRow.mockResolvedValue(mockAttendee);
       
-      // Use mockImplementation to handle different listDocuments calls
-      let listDocumentsCallCount = 0;
-      mockDatabases.listDocuments.mockImplementation(() => {
-        listDocumentsCallCount++;
-        if (listDocumentsCallCount === 1) {
-          return Promise.resolve({ documents: [mockUserProfile], total: 1 });
-        } else if (listDocumentsCallCount === 2) {
-          return Promise.resolve({ documents: [mockEventSettings], total: 1 });
+      // Use mockImplementation to handle different listRows calls
+      let listRowsCallCount = 0;
+      mockTablesDB.listRows.mockImplementation(() => {
+        listRowsCallCount++;
+        if (listRowsCallCount === 1) {
+          return Promise.resolve({ rows: [mockUserProfile], total: 1 });
+        } else if (listRowsCallCount === 2) {
+          return Promise.resolve({ rows: [mockEventSettings], total: 1 });
         } else {
-          return Promise.resolve({ documents: [], total: 0 });
+          return Promise.resolve({ rows: [], total: 0 });
         }
       });
 
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.updateRow.mockResolvedValue({
         ...mockAttendee,
         credentialUrl,
       });
 
-      mockDatabases.createDocument.mockResolvedValue({
+      mockTablesDB.createRow.mockResolvedValue({
         $id: 'log-123',
         action: 'generate_credential',
       });
@@ -485,18 +470,18 @@ describe('/api/attendees/[id]/generate-credential - Generate Credential API', ()
       setupCredentialGenerationMocks();
       
       // Mock attendee found
-      mockDatabases.getDocument.mockResolvedValue(mockAttendee);
+      mockTablesDB.getRow.mockResolvedValue(mockAttendee);
       
-      // Use mockImplementation to handle different listDocuments calls
-      let listDocumentsCallCount = 0;
-      mockDatabases.listDocuments.mockImplementation(() => {
-        listDocumentsCallCount++;
-        if (listDocumentsCallCount === 1) {
-          return Promise.resolve({ documents: [mockUserProfile], total: 1 });
-        } else if (listDocumentsCallCount === 2) {
-          return Promise.resolve({ documents: [mockEventSettings], total: 1 });
+      // Use mockImplementation to handle different listRows calls
+      let listRowsCallCount = 0;
+      mockTablesDB.listRows.mockImplementation(() => {
+        listRowsCallCount++;
+        if (listRowsCallCount === 1) {
+          return Promise.resolve({ rows: [mockUserProfile], total: 1 });
+        } else if (listRowsCallCount === 2) {
+          return Promise.resolve({ rows: [mockEventSettings], total: 1 });
         } else {
-          return Promise.resolve({ documents: [], total: 0 });
+          return Promise.resolve({ rows: [], total: 0 });
         }
       });
 
@@ -521,18 +506,18 @@ describe('/api/attendees/[id]/generate-credential - Generate Credential API', ()
       setupCredentialGenerationMocks();
       
       // Mock attendee found
-      mockDatabases.getDocument.mockResolvedValue(mockAttendee);
+      mockTablesDB.getRow.mockResolvedValue(mockAttendee);
       
-      // Use mockImplementation to handle different listDocuments calls
-      let listDocumentsCallCount = 0;
-      mockDatabases.listDocuments.mockImplementation(() => {
-        listDocumentsCallCount++;
-        if (listDocumentsCallCount === 1) {
-          return Promise.resolve({ documents: [mockUserProfile], total: 1 });
-        } else if (listDocumentsCallCount === 2) {
-          return Promise.resolve({ documents: [mockEventSettings], total: 1 });
+      // Use mockImplementation to handle different listRows calls
+      let listRowsCallCount = 0;
+      mockTablesDB.listRows.mockImplementation(() => {
+        listRowsCallCount++;
+        if (listRowsCallCount === 1) {
+          return Promise.resolve({ rows: [mockUserProfile], total: 1 });
+        } else if (listRowsCallCount === 2) {
+          return Promise.resolve({ rows: [mockEventSettings], total: 1 });
         } else {
-          return Promise.resolve({ documents: [], total: 0 });
+          return Promise.resolve({ rows: [], total: 0 });
         }
       });
 
@@ -552,18 +537,18 @@ describe('/api/attendees/[id]/generate-credential - Generate Credential API', ()
       setupCredentialGenerationMocks();
       
       // Mock attendee found
-      mockDatabases.getDocument.mockResolvedValue(mockAttendee);
+      mockTablesDB.getRow.mockResolvedValue(mockAttendee);
       
-      // Use mockImplementation to handle different listDocuments calls
-      let listDocumentsCallCount = 0;
-      mockDatabases.listDocuments.mockImplementation(() => {
-        listDocumentsCallCount++;
-        if (listDocumentsCallCount === 1) {
-          return Promise.resolve({ documents: [mockUserProfile], total: 1 });
-        } else if (listDocumentsCallCount === 2) {
-          return Promise.resolve({ documents: [mockEventSettings], total: 1 });
+      // Use mockImplementation to handle different listRows calls
+      let listRowsCallCount = 0;
+      mockTablesDB.listRows.mockImplementation(() => {
+        listRowsCallCount++;
+        if (listRowsCallCount === 1) {
+          return Promise.resolve({ rows: [mockUserProfile], total: 1 });
+        } else if (listRowsCallCount === 2) {
+          return Promise.resolve({ rows: [mockEventSettings], total: 1 });
         } else {
-          return Promise.resolve({ documents: [], total: 0 });
+          return Promise.resolve({ rows: [], total: 0 });
         }
       });
 
@@ -587,27 +572,27 @@ describe('/api/attendees/[id]/generate-credential - Generate Credential API', ()
       const credentialUrl = 'https://example.com/credential.pdf';
 
       // Mock attendee found
-      mockDatabases.getDocument.mockResolvedValue(mockAttendee);
+      mockTablesDB.getRow.mockResolvedValue(mockAttendee);
       
-      // Use mockImplementation to handle different listDocuments calls
-      let listDocumentsCallCount = 0;
-      mockDatabases.listDocuments.mockImplementation(() => {
-        listDocumentsCallCount++;
-        if (listDocumentsCallCount === 1) {
-          return Promise.resolve({ documents: [mockUserProfile], total: 1 });
-        } else if (listDocumentsCallCount === 2) {
-          return Promise.resolve({ documents: [mockEventSettings], total: 1 });
+      // Use mockImplementation to handle different listRows calls
+      let listRowsCallCount = 0;
+      mockTablesDB.listRows.mockImplementation(() => {
+        listRowsCallCount++;
+        if (listRowsCallCount === 1) {
+          return Promise.resolve({ rows: [mockUserProfile], total: 1 });
+        } else if (listRowsCallCount === 2) {
+          return Promise.resolve({ rows: [mockEventSettings], total: 1 });
         } else {
-          return Promise.resolve({ documents: [], total: 0 });
+          return Promise.resolve({ rows: [], total: 0 });
         }
       });
 
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.updateRow.mockResolvedValue({
         ...mockAttendee,
         credentialUrl,
       });
 
-      mockDatabases.createDocument.mockResolvedValue({
+      mockTablesDB.createRow.mockResolvedValue({
         $id: 'log-123',
         action: 'generate_credential',
       });
@@ -632,27 +617,27 @@ describe('/api/attendees/[id]/generate-credential - Generate Credential API', ()
       const credentialUrl = 'https://example.com/credential.pdf';
 
       // Mock attendee found
-      mockDatabases.getDocument.mockResolvedValue(mockAttendee);
+      mockTablesDB.getRow.mockResolvedValue(mockAttendee);
       
-      // Use mockImplementation to handle different listDocuments calls
-      let listDocumentsCallCount = 0;
-      mockDatabases.listDocuments.mockImplementation(() => {
-        listDocumentsCallCount++;
-        if (listDocumentsCallCount === 1) {
-          return Promise.resolve({ documents: [mockUserProfile], total: 1 });
-        } else if (listDocumentsCallCount === 2) {
-          return Promise.resolve({ documents: [mockEventSettings], total: 1 });
+      // Use mockImplementation to handle different listRows calls
+      let listRowsCallCount = 0;
+      mockTablesDB.listRows.mockImplementation(() => {
+        listRowsCallCount++;
+        if (listRowsCallCount === 1) {
+          return Promise.resolve({ rows: [mockUserProfile], total: 1 });
+        } else if (listRowsCallCount === 2) {
+          return Promise.resolve({ rows: [mockEventSettings], total: 1 });
         } else {
-          return Promise.resolve({ documents: [], total: 0 });
+          return Promise.resolve({ rows: [], total: 0 });
         }
       });
 
-      mockDatabases.updateDocument.mockResolvedValue({
+      mockTablesDB.updateRow.mockResolvedValue({
         ...mockAttendee,
         credentialUrl,
       });
 
-      mockDatabases.createDocument.mockResolvedValue({
+      mockTablesDB.createRow.mockResolvedValue({
         $id: 'log-123',
         action: 'generate_credential',
       });
@@ -664,9 +649,9 @@ describe('/api/attendees/[id]/generate-credential - Generate Credential API', ()
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
-      expect(mockDatabases.createDocument).toHaveBeenCalledWith(
+      expect(mockTablesDB.createRow).toHaveBeenCalledWith(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        process.env.NEXT_PUBLIC_APPWRITE_LOGS_COLLECTION_ID,
+        process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID,
         expect.any(String),
         expect.objectContaining({
           action: 'generate_credential',
@@ -692,7 +677,7 @@ describe('/api/attendees/[id]/generate-credential - Generate Credential API', ()
     it('should handle Appwrite 404 errors', async () => {
       const error = new Error('Not found');
       (error as any).code = 404;
-      mockDatabases.getDocument.mockRejectedValue(error);
+      mockTablesDB.getRow.mockRejectedValue(error);
 
       await handler(mockReq as NextApiRequest, mockRes as NextApiResponse);
 
@@ -701,12 +686,12 @@ describe('/api/attendees/[id]/generate-credential - Generate Credential API', ()
 
     it('should handle generic errors', async () => {
       // Mock attendee found
-      mockDatabases.getDocument.mockResolvedValueOnce(mockAttendee);
-      // Mock listDocuments calls in order
-      mockDatabases.listDocuments
-        .mockResolvedValueOnce({ documents: [mockUserProfile], total: 1 }) // User profile (middleware)
-        .mockResolvedValueOnce({ documents: [mockEventSettings], total: 1 }) // Event settings
-        .mockResolvedValueOnce({ documents: [], total: 0 }); // Custom fields
+      mockTablesDB.getRow.mockResolvedValueOnce(mockAttendee);
+      // Mock listRows calls in order
+      mockTablesDB.listRows
+        .mockResolvedValueOnce({ rows: [mockUserProfile], total: 1 }) // User profile (middleware)
+        .mockResolvedValueOnce({ rows: [mockEventSettings], total: 1 }) // Event settings
+        .mockResolvedValueOnce({ rows: [], total: 0 }); // Custom fields
 
       // Mock getSwitchboardIntegration to throw a generic error
       mockGetSwitchboardIntegration.mockRejectedValueOnce(new Error('Database error'));

@@ -18,15 +18,15 @@ export default async function handler(
     }
 
     // Create session client with user's authentication
-    const { databases } = createSessionClient(req);
+    const { tablesDB } = createSessionClient(req);
 
     const databaseId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
-    const collectionId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_COLLECTION_ID!;
+    const tableId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID!;
 
     // Check if barcode exists in database
-    const response = await databases.listDocuments(
+    const response = await tablesDB.listRows(
       databaseId,
-      collectionId,
+      tableId,
       [
         Query.equal('barcodeNumber', barcode),
         Query.limit(1)
@@ -34,7 +34,7 @@ export default async function handler(
     );
 
     return res.status(200).json({
-      exists: response.documents.length > 0
+      exists: response.rows.length > 0
     });
   } catch (error) {
     console.error('Error checking barcode uniqueness:', error);

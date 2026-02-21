@@ -10,8 +10,8 @@ import { userProfileCache, CachedUserProfile } from '@/lib/userProfileCache';
  */
 function validateEnvironmentVariables(): {
   databaseId: string;
-  usersCollectionId: string;
-  rolesCollectionId: string;
+  usersTableId: string;
+  rolesTableId: string;
 } {
   const missingVars: string[] = [];
   
@@ -19,12 +19,12 @@ function validateEnvironmentVariables(): {
     missingVars.push('NEXT_PUBLIC_APPWRITE_DATABASE_ID');
   }
   
-  if (!process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID) {
-    missingVars.push('NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID');
+  if (!process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID) {
+    missingVars.push('NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID');
   }
   
-  if (!process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID) {
-    missingVars.push('NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID');
+  if (!process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID) {
+    missingVars.push('NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID');
   }
   
   if (missingVars.length > 0) {
@@ -37,8 +37,8 @@ function validateEnvironmentVariables(): {
   // Safe to use non-null assertions here since we've validated above
   return {
     databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-    usersCollectionId: process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID!,
-    rolesCollectionId: process.env.NEXT_PUBLIC_APPWRITE_ROLES_COLLECTION_ID!,
+    usersTableId: process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID!,
+    rolesTableId: process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
   };
 }
 
@@ -132,7 +132,7 @@ export function withAuth(handler: AuthenticatedApiHandler): NextApiHandler {
       }
       
       // Create session client with JWT from cookie
-      const { account, databases } = createSessionClient(req);
+      const { account, tablesDB } = createSessionClient(req);
       
       // Verify authentication by fetching user
       let user: Models.User<Models.Preferences>;
@@ -170,13 +170,13 @@ export function withAuth(handler: AuthenticatedApiHandler): NextApiHandler {
       
       if (!userProfile) {
         // Fetch user profile from database
-        const userDocs = await databases.listDocuments(
+        const userDocs = await tablesDB.listRows(
           envVars.databaseId,
-          envVars.usersCollectionId,
+          envVars.usersTableId,
           [Query.equal('userId', user.$id)]
         );
         
-        if (userDocs.documents.length === 0) {
+        if (userDocs.rows.length === 0) {
           console.error('[API Middleware] ✗ User profile not found', {
             timestamp: new Date().toISOString(),
             userId: user.$id,
@@ -192,17 +192,17 @@ export function withAuth(handler: AuthenticatedApiHandler): NextApiHandler {
           });
         }
         
-        const userProfileDoc = userDocs.documents[0];
+        const userProfileDoc = userDocs.rows[0];
         
         // Fetch role information if user has a role assigned
         let role = null;
         if (userProfileDoc.roleId) {
           try {
             // Use admin client to fetch role (user may not have permission to read roles yet)
-            const { databases: adminDatabases } = createAdminClient();
-            const roleDoc = await adminDatabases.getDocument(
+            const { tablesDB: adminTablesDB } = createAdminClient();
+            const roleDoc = await adminTablesDB.getRow(
               envVars.databaseId,
-              envVars.rolesCollectionId,
+              envVars.rolesTableId,
               userProfileDoc.roleId
             );
             
