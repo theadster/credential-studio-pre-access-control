@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "name": "Enforce TablesDB API Compliance",
+  "description": "Before writing any file, checks that the code uses the new Appwrite TablesDB named-parameter API and never reverts to the old Databases API (collectionId, documentId, databases.createDocument, etc.)",
+  "version": "1",
+  "when": {
+    "type": "preToolUse",
+    "toolTypes": [
+      "write"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "BEFORE writing this file, you MUST verify the following TablesDB API compliance rules. This is ZERO TOLERANCE — no exceptions.\n\nCHECK FOR FORBIDDEN PATTERNS in the code you are about to write:\n1. `databases.createDocument` → FORBIDDEN. Use `tablesDB.createRow({ databaseId, tableId, rowId, data })`\n2. `databases.updateDocument` → FORBIDDEN. Use `tablesDB.updateRow({ databaseId, tableId, rowId, data })`\n3. `databases.deleteDocument` → FORBIDDEN. Use `tablesDB.deleteRow({ databaseId, tableId, rowId })`\n4. `databases.getDocument` → FORBIDDEN. Use `tablesDB.getRow({ databaseId, tableId, rowId })`\n5. `databases.listDocuments` → FORBIDDEN. Use `tablesDB.listRows({ databaseId, tableId, queries })`\n6. `collectionId` as a parameter → FORBIDDEN. Use `tableId`\n7. `documentId` as a parameter → FORBIDDEN. Use `rowId`\n8. Positional parameters on tablesDB methods → FORBIDDEN. Always use named object parameters.\n\nIF the file you are about to write contains any of these forbidden patterns, you MUST fix them before writing. Do NOT write the file with forbidden patterns present.\n\nIF the file already exists and contains forbidden patterns that you did not introduce, you MUST migrate those patterns to the correct TablesDB API as part of your change.\n\nOnly proceed with the write once you have confirmed the code is compliant."
+  }
+}
