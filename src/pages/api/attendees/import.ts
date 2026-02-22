@@ -82,7 +82,7 @@ const handler = async (req: AuthenticatedRequest, res: NextApiResponse) => {
 
     // Security: Validate file path is within temp directory to prevent path traversal attacks
     const path = require('path');
-    const uploadDir = form.uploadDir || '/tmp';
+    const uploadDir = (form as any).uploadDir || require('os').tmpdir();
     const resolvedFilePath = path.resolve(file.filepath);
     const resolvedUploadDir = path.resolve(uploadDir);
 

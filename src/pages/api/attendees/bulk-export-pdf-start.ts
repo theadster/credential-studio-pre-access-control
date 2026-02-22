@@ -27,10 +27,10 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     if (requestedDatabaseId && requestedDatabaseId !== dbId) {
       return res.status(403).json({ error: 'Forbidden: databaseId does not match this site' });
     }
-    const attendeesTableId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID;
-    const eventSettingsTableId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID;
-    const pdfJobsTableId = process.env.NEXT_PUBLIC_APPWRITE_PDF_JOBS_TABLE_ID;
-    const functionId = process.env.NEXT_PUBLIC_APPWRITE_PDF_WORKER_FUNCTION_ID;
+    const attendeesTableId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID!;
+    const eventSettingsTableId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID!;
+    const pdfJobsTableId = process.env.NEXT_PUBLIC_APPWRITE_PDF_JOBS_TABLE_ID!;
+    const functionId = process.env.NEXT_PUBLIC_APPWRITE_PDF_WORKER_FUNCTION_ID!;
 
     // Validate required environment variables
     const requiredEnvVars: Record<string, string | undefined> = {
