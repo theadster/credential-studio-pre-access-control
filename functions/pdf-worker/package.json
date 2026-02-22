@@ -1,0 +1,17 @@
+{
+  "name": "pdf-worker",
+  "version": "1.0.0",
+  "description": "Appwrite Function for async PDF generation",
+  "main": "dist/src/main.js",
+  "scripts": {
+    "prebuild": "mkdir -p src/lib && cp ../../src/lib/pdfTemplateBuilder.ts src/lib/pdfTemplateBuilder.ts",
+    "build": "tsc",
+    "start": "node dist/src/main.js"
+  },
+  "dependencies": {
+    "node-appwrite": "^22.1.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
