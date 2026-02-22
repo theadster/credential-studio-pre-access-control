@@ -172,11 +172,11 @@ async function createDefaultCustomFields(
     // Create Credential Type field (select type with empty options)
     // This field allows event organizers to categorize attendees (e.g., VIP, Staff, Press)
     // Options are initially empty and must be configured through the Event Settings UI
-    await tablesDB.createRow(
-      dbId,
-      customFieldsTableId,
-      ID.unique(),
-      {
+    await tablesDB.createRow({
+      databaseId: dbId,
+      tableId: customFieldsTableId,
+      rowId: ID.unique(),
+      data: {
         eventSettingsId,
         fieldName: 'Credential Type',
         internalFieldName: 'credential_type',
@@ -188,16 +188,16 @@ async function createDefaultCustomFields(
         printable: false, // Default to non-printable
         version: 0
       }
-    );
+    });
 
     // Create Notes field (textarea type)
     // This field provides a free-form text area for capturing additional attendee information
     // Useful for special requirements, dietary restrictions, accessibility needs, etc.
-    await tablesDB.createRow(
-      dbId,
-      customFieldsTableId,
-      ID.unique(),
-      {
+    await tablesDB.createRow({
+      databaseId: dbId,
+      tableId: customFieldsTableId,
+      rowId: ID.unique(),
+      data: {
         eventSettingsId,
         fieldName: 'Notes',
         internalFieldName: 'notes',
@@ -209,7 +209,7 @@ async function createDefaultCustomFields(
         printable: false, // Default to non-printable
         version: 0
       }
-    );
+    });
   } catch (error) {
     // Log error but don't throw - default fields creation should not fail event settings creation
     // This ensures that even if default fields fail, the event can still be created
@@ -269,7 +269,7 @@ async function handleCustomFieldDeletions(
     updateData.switchboardFieldMappings ||
     (currentSettings.switchboardFieldMappings
       ? typeof currentSettings.switchboardFieldMappings === 'string'
-        ? JSON.parse(currentSettings.switchboardFieldMappings as string)
+        ? (() => { try { return JSON.parse(currentSettings.switchboardFieldMappings as string); } catch { return []; } })()
         : currentSettings.switchboardFieldMappings
       : []);
 
@@ -411,15 +411,15 @@ async function handleEventSettingsUpdateWithTransactions(
   // Fetch current custom fields
   const currentCustomFieldsResult = await perfTracker.trackQuery(
     'fetchCurrentCustomFields',
-    () => tablesDB.listRows(
-      dbId,
-      customFieldsTableId,
-      [
+    () => tablesDB.listRows({
+      databaseId: dbId,
+      tableId: customFieldsTableId,
+      queries: [
         Query.equal('eventSettingsId', currentSettings.$id),
         Query.orderAsc('order'),
         Query.limit(100)
       ]
-    )
+    })
   ) as any;
 
   const currentCustomFields = currentCustomFieldsResult.rows;
@@ -551,21 +551,21 @@ async function handleEventSettingsUpdateWithTransactions(
   eventSettingsCache.invalidate('event-settings');
 
   // Fetch updated data
-  const updatedEventSettings = await tablesDB.getRow(
-    dbId,
-    eventSettingsTableId,
-    currentSettings.$id
-  );
+  const updatedEventSettings = await tablesDB.getRow({
+    databaseId: dbId,
+    tableId: eventSettingsTableId,
+    rowId: currentSettings.$id
+  });
 
-  const updatedCustomFieldsResult = await tablesDB.listRows(
-    dbId,
-    customFieldsTableId,
-    [
+  const updatedCustomFieldsResult = await tablesDB.listRows({
+    databaseId: dbId,
+    tableId: customFieldsTableId,
+    queries: [
       Query.equal('eventSettingsId', currentSettings.$id),
       Query.orderAsc('order'),
       Query.limit(100)
     ]
-  );
+  });
 
   // Fetch updated integration data
   const switchboardTableId = process.env.NEXT_PUBLIC_APPWRITE_SWITCHBOARD_TABLE_ID!;
@@ -577,21 +577,21 @@ async function handleEventSettingsUpdateWithTransactions(
     updatedCloudinaryResult,
     updatedOneSimpleApiResult
   ] = await Promise.allSettled([
-    tablesDB.listRows(
-      dbId,
-      switchboardTableId,
-      [Query.equal('eventSettingsId', currentSettings.$id), Query.limit(1)]
-    ),
-    tablesDB.listRows(
-      dbId,
-      cloudinaryTableId,
-      [Query.equal('eventSettingsId', currentSettings.$id), Query.limit(1)]
-    ),
-    tablesDB.listRows(
-      dbId,
-      oneSimpleApiTableId,
-      [Query.equal('eventSettingsId', currentSettings.$id), Query.limit(1)]
-    )
+    tablesDB.listRows({
+      databaseId: dbId,
+      tableId: switchboardTableId,
+      queries: [Query.equal('eventSettingsId', currentSettings.$id), Query.limit(1)]
+    }),
+    tablesDB.listRows({
+      databaseId: dbId,
+      tableId: cloudinaryTableId,
+      queries: [Query.equal('eventSettingsId', currentSettings.$id), Query.limit(1)]
+    }),
+    tablesDB.listRows({
+      databaseId: dbId,
+      tableId: oneSimpleApiTableId,
+      queries: [Query.equal('eventSettingsId', currentSettings.$id), Query.limit(1)]
+    })
   ]);
 
   const updatedSwitchboardData = getRows(updatedSwitchboardResult)?.[0] ?? null;
@@ -610,7 +610,9 @@ async function handleEventSettingsUpdateWithTransactions(
     printable: field.printable,
     fieldOptions: (() => {
       if (!field.fieldOptions) return null;
-      if (typeof field.fieldOptions === 'string') return JSON.parse(field.fieldOptions);
+      if (typeof field.fieldOptions === 'string') {
+        try { return JSON.parse(field.fieldOptions); } catch { return null; }
+      }
       return field.fieldOptions;
     })()
   }));
@@ -715,7 +717,7 @@ async function buildEventSettingsTransactionOperations(
         updateData.switchboardFieldMappings ||
         (currentSettings.switchboardFieldMappings
           ? typeof currentSettings.switchboardFieldMappings === 'string'
-            ? JSON.parse(currentSettings.switchboardFieldMappings as string)
+            ? (() => { try { return JSON.parse(currentSettings.switchboardFieldMappings as string); } catch { return []; } })()
             : currentSettings.switchboardFieldMappings
           : []);
 
@@ -872,21 +874,21 @@ async function buildEventSettingsTransactionOperations(
 
   // Fetch all integrations in parallel using Promise.allSettled
   const [switchboardResult, cloudinaryResult, oneSimpleApiResult] = await Promise.allSettled([
-    tablesDB.listRows(
-      dbId,
-      switchboardTableId,
-      [Query.equal('eventSettingsId', currentSettings.$id), Query.limit(1)]
-    ),
-    tablesDB.listRows(
-      dbId,
-      cloudinaryTableId,
-      [Query.equal('eventSettingsId', currentSettings.$id), Query.limit(1)]
-    ),
-    tablesDB.listRows(
-      dbId,
-      oneSimpleApiTableId,
-      [Query.equal('eventSettingsId', currentSettings.$id), Query.limit(1)]
-    )
+    tablesDB.listRows({
+      databaseId: dbId,
+      tableId: switchboardTableId,
+      queries: [Query.equal('eventSettingsId', currentSettings.$id), Query.limit(1)]
+    }),
+    tablesDB.listRows({
+      databaseId: dbId,
+      tableId: cloudinaryTableId,
+      queries: [Query.equal('eventSettingsId', currentSettings.$id), Query.limit(1)]
+    }),
+    tablesDB.listRows({
+      databaseId: dbId,
+      tableId: oneSimpleApiTableId,
+      queries: [Query.equal('eventSettingsId', currentSettings.$id), Query.limit(1)]
+    })
   ]);
 
   // Extract Switchboard data
@@ -1285,22 +1287,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 const { account, tablesDB: sessionTablesDB } = createSessionClient(mockReq);
                 const user = await account.get();
 
-                const userDocs = await sessionTablesDB.listRows(dbId, usersTableId, [
+                const userDocs = await sessionTablesDB.listRows({ databaseId: dbId, tableId: usersTableId, queries: [
                   Query.equal('userId', user.$id)
-                ]);
+                ] });
 
                 if (userDocs.rows.length > 0 && await shouldLog('systemViewEventSettings')) {
                   // Check for recent duplicate logs (within last 5 seconds)
-                  const recentLogs = await sessionTablesDB.listRows(
-                    dbId,
-                    logsTableId,
-                    [
+                  const recentLogs = await sessionTablesDB.listRows({ databaseId: dbId, tableId: logsTableId, queries: [
                       Query.equal('userId', user.$id),
                       Query.equal('action', 'view'),
                       Query.greaterThan('$createdAt', new Date(Date.now() - 5000).toISOString()),
                       Query.limit(5)
-                    ]
-                  );
+                    ] });
 
                   // Check if there's already a recent event settings view log
                   const hasDuplicate = recentLogs.rows.some(log => {
@@ -1313,11 +1311,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                   });
 
                   if (!hasDuplicate) {
-                    await sessionTablesDB.createRow(
-                      dbId,
-                      logsTableId,
-                      ID.unique(),
-                      {
+                    await sessionTablesDB.createRow({
+                      databaseId: dbId,
+                      tableId: logsTableId,
+                      rowId: ID.unique(),
+                      data: {
                         userId: user.$id,
                         action: 'view',
                         details: JSON.stringify({
@@ -1326,7 +1324,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                           description: 'Viewed event configuration'
                         })
                       }
-                    );
+                    });
                   }
                 }
               } catch (error: unknown) {
@@ -1347,11 +1345,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         const eventSettingsResult = await perfTracker.trackQuery(
           'eventSettings',
-          () => adminTablesDB.listRows(
-            dbId,
-            eventSettingsTableId,
-            [Query.limit(1)]
-          )
+          () => adminTablesDB.listRows({
+            databaseId: dbId,
+            tableId: eventSettingsTableId,
+            queries: [Query.limit(1)]
+          })
         );
 
         if (eventSettingsResult.rows.length === 0) {
@@ -1373,30 +1371,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         ] = await perfTracker.trackQuery(
           'parallelIntegrations',
           () => Promise.allSettled([
-            adminTablesDB.listRows(
-              dbId,
-              customFieldsTableId,
-              [
+            adminTablesDB.listRows({
+              databaseId: dbId,
+              tableId: customFieldsTableId,
+              queries: [
                 Query.equal('eventSettingsId', eventSettings.$id),
                 Query.orderAsc('order'),
                 Query.limit(100)
               ]
-            ),
-            adminTablesDB.listRows(
-              dbId,
-              switchboardTableId,
-              [Query.equal('eventSettingsId', eventSettings.$id), Query.limit(1)]
-            ),
-            adminTablesDB.listRows(
-              dbId,
-              cloudinaryTableId,
-              [Query.equal('eventSettingsId', eventSettings.$id), Query.limit(1)]
-            ),
-            adminTablesDB.listRows(
-              dbId,
-              oneSimpleApiTableId,
-              [Query.equal('eventSettingsId', eventSettings.$id), Query.limit(1)]
-            )
+            }),
+            adminTablesDB.listRows({
+              databaseId: dbId,
+              tableId: switchboardTableId,
+              queries: [Query.equal('eventSettingsId', eventSettings.$id), Query.limit(1)]
+            }),
+            adminTablesDB.listRows({
+              databaseId: dbId,
+              tableId: cloudinaryTableId,
+              queries: [Query.equal('eventSettingsId', eventSettings.$id), Query.limit(1)]
+            }),
+            adminTablesDB.listRows({
+              databaseId: dbId,
+              tableId: oneSimpleApiTableId,
+              queries: [Query.equal('eventSettingsId', eventSettings.$id), Query.limit(1)]
+            })
           ])
         );
 
@@ -1500,7 +1498,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           printable: field.printable !== undefined ? field.printable : false,
           fieldOptions: (() => {
             if (!field.fieldOptions) return null;
-            if (typeof field.fieldOptions === 'string') return JSON.parse(field.fieldOptions);
+            if (typeof field.fieldOptions === 'string') {
+              try { return JSON.parse(field.fieldOptions); } catch { return null; }
+            }
             return field.fieldOptions;
           })()
         }));
@@ -1555,7 +1555,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // Fire-and-forget async logging after response is sent
         // This doesn't block the response and failures won't affect the user
         // Capture JWT before async operation since req context may be lost
-        const jwt = req.cookies?.['appwrite-session'];
+        // Support both cookie (web) and Authorization Bearer header (mobile)
+        const sessionCookieName = process.env.APPWRITE_SESSION_COOKIE_NAME || 'appwrite-session';
+        const cookieJwt = req.cookies?.[sessionCookieName];
+        const authHeader = req.headers.authorization;
+        const headerValue = Array.isArray(authHeader) ? authHeader[0] : authHeader;
+        const bearerJwt = headerValue?.toLowerCase().startsWith('bearer ') ? headerValue.substring(7) : undefined;
+        const jwt = cookieJwt || bearerJwt;
         setImmediate(() => {
           (async () => {
             if (!jwt) {
@@ -1563,28 +1569,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               return;
             }
             try {
-              // Create a mock request with the JWT for the session client
-              const mockReq = { cookies: { 'appwrite-session': jwt } } as any;
+              // Create a mock request with the captured credentials for the session client
+              const mockReq = {
+                cookies: { [sessionCookieName]: cookieJwt || '' },
+                headers: bearerJwt && !cookieJwt ? { authorization: `Bearer ${bearerJwt}` } : {}
+              } as any;
               const { account, tablesDB: sessionTablesDB } = createSessionClient(mockReq);
               const user = await account.get();
 
               // Get user profile
-              const userDocs = await sessionTablesDB.listRows(dbId, usersTableId, [
+              const userDocs = await sessionTablesDB.listRows({ databaseId: dbId, tableId: usersTableId, queries: [
                 Query.equal('userId', user.$id)
-              ]);
+              ] });
 
               if (userDocs.rows.length > 0 && await shouldLog('systemViewEventSettings')) {
                 // Check for recent duplicate logs (within last 5 seconds)
-                const recentLogs = await sessionTablesDB.listRows(
-                  dbId,
-                  logsTableId,
-                  [
+                const recentLogs = await sessionTablesDB.listRows({
+                  databaseId: dbId,
+                  tableId: logsTableId,
+                  queries: [
                     Query.equal('userId', user.$id),
                     Query.equal('action', 'view'),
                     Query.greaterThan('$createdAt', new Date(Date.now() - 5000).toISOString()),
                     Query.limit(5)
                   ]
-                );
+                });
 
                 // Check if there's already a recent event settings view log
                 const hasDuplicate = recentLogs.rows.some(log => {
@@ -1597,11 +1606,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 });
 
                 if (!hasDuplicate) {
-                  await sessionTablesDB.createRow(
-                    dbId,
-                    logsTableId,
-                    ID.unique(),
-                    {
+                  await sessionTablesDB.createRow({
+                    databaseId: dbId,
+                    tableId: logsTableId,
+                    rowId: ID.unique(),
+                    data: {
                       userId: user.$id,
                       action: 'view',
                       details: JSON.stringify({
@@ -1610,7 +1619,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                         description: 'Viewed event configuration'
                       })
                     }
-                  );
+                  });
                 }
               }
             } catch (error: unknown) {
@@ -1721,11 +1730,11 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
     // Check if event settings already exist
     const existingSettingsResult = await postPerfTracker.trackQuery(
       'checkExistingSettings',
-      () => tablesDB.listRows(
-        dbId,
-        eventSettingsTableId,
-        [Query.limit(1)]
-      )
+      () => tablesDB.listRows({
+        databaseId: dbId,
+        tableId: eventSettingsTableId,
+        queries: [Query.limit(1)]
+      })
     );
 
     if (existingSettingsResult.rows.length > 0) {
@@ -1737,11 +1746,11 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
 
     const newEventSettings = await postPerfTracker.trackQuery(
       'createEventSettings',
-      () => tablesDB.createRow(
-        dbId,
-        eventSettingsTableId,
-        ID.unique(),
-        {
+      () => tablesDB.createRow({
+        databaseId: dbId,
+        tableId: eventSettingsTableId,
+        rowId: ID.unique(),
+        data: {
           eventName,
           eventDate: createParsedEventDate,
           eventTime: eventTime || null,
@@ -1762,40 +1771,37 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
             validFromUseToday: false
           },
           cloudinaryCloudName: cloudinaryCloudName || null,
-          // DEPRECATED: Credentials no longer stored (legacy schema only)
-          cloudinaryApiKey: cloudinaryApiKey || null,
-          cloudinaryApiSecret: cloudinaryApiSecret || null,
           cloudinaryUploadPreset: cloudinaryUploadPreset || null,
-          // DEPRECATED: API key no longer stored (legacy schema only)
-          switchboardApiKey: switchboardApiKey || null,
           switchboardTemplateId: switchboardTemplateId || null,
           bannerImageUrl: bannerImageUrl || null,
           signInBannerUrl: signInBannerUrl || null
         }
-      )
+      })
     );
 
     // Create default custom fields (Credential Type and Notes)
-    // This is done after event settings creation but errors won't fail the request
+    // Errors are intentionally swallowed - default fields failure should not fail event creation
     await createDefaultCustomFields(
       tablesDB,
       dbId,
       customFieldsTableId,
       newEventSettings.$id
-    );
+    ).catch((err: unknown) => {
+      console.error('createDefaultCustomFields failed silently:', err instanceof Error ? err.message : String(err));
+    });
 
     // Fetch custom fields (should now include the default fields)
     const customFieldsResult = await postPerfTracker.trackQuery(
       'fetchCustomFields',
-      () => tablesDB.listRows(
-        dbId,
-        customFieldsTableId,
-        [
+      () => tablesDB.listRows({
+        databaseId: dbId,
+        tableId: customFieldsTableId,
+        queries: [
           Query.equal('eventSettingsId', newEventSettings.$id),
           Query.orderAsc('order'),
           Query.limit(100)
         ]
-      )
+      })
     );
 
     const newEventSettingsWithFields = {
@@ -1804,16 +1810,16 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
     };
 
     // Log the create action - only if user exists in our database
-    const userDocs = await tablesDB.listRows(dbId, usersTableId, [
+    const userDocs = await tablesDB.listRows({ databaseId: dbId, tableId: usersTableId, queries: [
       Query.equal('userId', authUser.$id)
-    ]);
+    ] });
 
     if (userDocs.rows.length > 0) {
-      await tablesDB.createRow(
-        dbId,
-        logsTableId,
-        ID.unique(),
-        {
+      await tablesDB.createRow({
+        databaseId: dbId,
+        tableId: logsTableId,
+        rowId: ID.unique(),
+        data: {
           userId: authUser.$id,
           action: 'create',
           details: JSON.stringify({
@@ -1822,7 +1828,7 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
             eventDate: newEventSettings.eventDate
           })
         }
-      );
+      });
     }
 
     // Invalidate cache after creating event settings
@@ -1885,11 +1891,11 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
   // Get existing settings
   const currentSettingsResult = await putPerfTracker.trackQuery(
     'fetchCurrentSettings',
-    () => tablesDB.listRows(
-      dbId,
-      eventSettingsTableId,
-      [Query.limit(1)]
-    )
+    () => tablesDB.listRows({
+      databaseId: dbId,
+      tableId: eventSettingsTableId,
+      queries: [Query.limit(1)]
+    })
   );
 
   if (currentSettingsResult.rows.length === 0) {
@@ -1921,15 +1927,15 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
   }
   const currentCustomFieldsResult = await putPerfTracker.trackQuery(
     'fetchCurrentCustomFields',
-    () => tablesDB.listRows(
-      dbId,
-      customFieldsTableId,
-      [
+    () => tablesDB.listRows({
+      databaseId: dbId,
+      tableId: customFieldsTableId,
+      queries: [
         Query.equal('eventSettingsId', currentSettings.$id),
         Query.orderAsc('order'),
         Query.limit(100)
       ]
-    )
+    })
   );
 
   const currentCustomFields = currentCustomFieldsResult.rows;
@@ -2003,23 +2009,23 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
       });
 
       for (const field of unchangedFields) {
-        await tablesDB.updateRow(
-          dbId,
-          customFieldsTableId,
-          field.id,
-          { order: field.order }
-        );
+        await tablesDB.updateRow({
+          databaseId: dbId,
+          tableId: customFieldsTableId,
+          rowId: field.id,
+          data: { order: field.order }
+        });
       }
     } else {
       // Only additions and/or reordering - handle incrementally
       // Update order for existing fields
       for (const field of existingFields) {
-        await tablesDB.updateRow(
-          dbId,
-          customFieldsTableId,
-          field.id,
-          { order: field.order }
-        );
+        await tablesDB.updateRow({
+          databaseId: dbId,
+          tableId: customFieldsTableId,
+          rowId: field.id,
+          data: { order: field.order }
+        });
       }
 
       // Create new fields
@@ -2049,12 +2055,12 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
   // Always update the EventSettings record with core fields
   const updatedEventSettings = await putPerfTracker.trackQuery(
     'updateEventSettings',
-    () => tablesDB.updateRow(
-      dbId,
-      eventSettingsTableId,
-      currentSettings.$id,
-      updatePayload
-    )
+    () => tablesDB.updateRow({
+      databaseId: dbId,
+      tableId: eventSettingsTableId,
+      rowId: currentSettings.$id,
+      data: updatePayload
+    })
   );
 
   // Update integrations in parallel using Promise.all
@@ -2212,15 +2218,15 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
   eventSettingsCache.invalidate('event-settings');
 
   // Fetch updated custom fields
-  const updatedCustomFieldsResult = await tablesDB.listRows(
-    dbId,
-    customFieldsTableId,
-    [
+  const updatedCustomFieldsResult = await tablesDB.listRows({
+    databaseId: dbId,
+    tableId: customFieldsTableId,
+    queries: [
       Query.equal('eventSettingsId', updatedEventSettings.$id),
       Query.orderAsc('order'),
       Query.limit(100)
     ]
-  );
+  });
 
   // Fetch updated integration data from separate collections
   const putSwitchboardTableId = process.env.NEXT_PUBLIC_APPWRITE_SWITCHBOARD_TABLE_ID!;
@@ -2228,21 +2234,21 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
   const putOneSimpleApiTableId = process.env.NEXT_PUBLIC_APPWRITE_ONESIMPLEAPI_TABLE_ID!;
 
   const integrationResults = await Promise.allSettled([
-    tablesDB.listRows(
-      dbId,
-      putSwitchboardTableId,
-      [Query.equal('eventSettingsId', updatedEventSettings.$id), Query.limit(1)]
-    ),
-    tablesDB.listRows(
-      dbId,
-      putCloudinaryTableId,
-      [Query.equal('eventSettingsId', updatedEventSettings.$id), Query.limit(1)]
-    ),
-    tablesDB.listRows(
-      dbId,
-      putOneSimpleApiTableId,
-      [Query.equal('eventSettingsId', updatedEventSettings.$id), Query.limit(1)]
-    )
+    tablesDB.listRows({
+      databaseId: dbId,
+      tableId: putSwitchboardTableId,
+      queries: [Query.equal('eventSettingsId', updatedEventSettings.$id), Query.limit(1)]
+    }),
+    tablesDB.listRows({
+      databaseId: dbId,
+      tableId: putCloudinaryTableId,
+      queries: [Query.equal('eventSettingsId', updatedEventSettings.$id), Query.limit(1)]
+    }),
+    tablesDB.listRows({
+      databaseId: dbId,
+      tableId: putOneSimpleApiTableId,
+      queries: [Query.equal('eventSettingsId', updatedEventSettings.$id), Query.limit(1)]
+    })
   ]);
 
   // Extract integration data using type guards
@@ -2291,7 +2297,9 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
     printable: field.printable,
     fieldOptions: (() => {
       if (!field.fieldOptions) return null;
-      if (typeof field.fieldOptions === 'string') return JSON.parse(field.fieldOptions);
+      if (typeof field.fieldOptions === 'string') {
+        try { return JSON.parse(field.fieldOptions); } catch { return null; }
+      }
       return field.fieldOptions;
     })()
   }));
@@ -2314,9 +2322,9 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
   };
 
   // Log the update action - only if user exists in our database
-  const userDocs = await tablesDB.listRows(dbId, usersTableId, [
+  const userDocs = await tablesDB.listRows({ databaseId: dbId, tableId: usersTableId, queries: [
     Query.equal('userId', authUser.$id)
-  ]);
+  ] });
 
   if (userDocs.rows.length > 0) {
     // Detect changes for logging
@@ -2325,11 +2333,11 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
     // Log the update action if enabled
     if (await shouldLog('eventSettingsUpdate')) {
       const { createSettingsLogDetails } = await import('@/lib/logFormatting');
-      await tablesDB.createRow(
-        dbId,
-        logsTableId,
-        ID.unique(),
-        {
+      await tablesDB.createRow({
+        databaseId: dbId,
+        tableId: logsTableId,
+        rowId: ID.unique(),
+        data: {
           userId: authUser.$id,
           action: 'update',
           details: JSON.stringify(createSettingsLogDetails('update', 'event', {
@@ -2337,7 +2345,7 @@ const handleAuthenticatedEventSettings = withAuth(async (req: AuthenticatedReque
             changes: changedFields
           }))
         }
-      );
+      });
     }
   }
 

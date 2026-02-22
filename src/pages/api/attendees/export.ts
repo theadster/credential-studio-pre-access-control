@@ -130,11 +130,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         Query.offset(offset)
       ];
 
-      const attendeesResult = await tablesDB.listRows(
-        dbId,
-        attendeesTableId,
-        paginatedQueries
-      );
+      const attendeesResult = await tablesDB.listRows({
+        databaseId: dbId,
+        tableId: attendeesTableId,
+        queries: paginatedQueries,
+      });
 
       attendees = attendees.concat(attendeesResult.rows);
       offset += limit;
@@ -189,7 +189,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     }
 
     // Get event settings and custom fields
-    const eventSettingsDocs = await tablesDB.listRows(dbId, eventSettingsTableId);
+    const eventSettingsDocs = await tablesDB.listRows({ databaseId: dbId, tableId: eventSettingsTableId });
     const eventSettings = eventSettingsDocs.rows[0];
 
     /**
@@ -214,11 +214,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         for (let i = 0; i < attendeeIds.length; i += chunkSize) {
           const chunk = attendeeIds.slice(i, i + chunkSize);
           try {
-            const accessControlResult = await tablesDB.listRows(
-              dbId,
-              accessControlTableId,
-              [Query.equal('attendeeId', chunk), Query.limit(chunkSize)]
-            );
+            const accessControlResult = await tablesDB.listRows({
+              databaseId: dbId,
+              tableId: accessControlTableId,
+              queries: [Query.equal('attendeeId', chunk), Query.limit(chunkSize)],
+            });
             
             // Map access control records by attendeeId
             accessControlResult.rows.forEach((ac: any) => {
@@ -254,11 +254,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       };
     });
 
-    const customFieldsDocs = await tablesDB.listRows(
-      dbId,
-      customFieldsTableId,
-      [Query.limit(100)]
-    );
+    const customFieldsDocs = await tablesDB.listRows({
+      databaseId: dbId,
+      tableId: customFieldsTableId,
+      queries: [Query.limit(100)],
+    });
     const customFieldsData = customFieldsDocs.rows;
 
     // Helper function to format dates based on user preferences
@@ -538,21 +538,21 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     // Log the export activity if enabled
     if (await shouldLog('attendeeExport')) {
       const { createExportLogDetails } = await import('@/lib/logFormatting');
-      await tablesDB.createRow(
-        dbId,
-        logsTableId,
-        ID.unique(),
-        {
+      await tablesDB.createRow({
+        databaseId: dbId,
+        tableId: logsTableId,
+        rowId: ID.unique(),
+        data: {
           action: 'export',
           userId: user.$id,
           details: JSON.stringify(createExportLogDetails('attendees', 'csv', attendees.length, {
             filename,
             scope,
             fields: fields.length,
-            hasFilters: scope === 'filtered' && !!filters
-          }))
-        }
-      );
+            hasFilters: scope === 'filtered' && Boolean(filters),
+          })),
+        },
+      });
     }
 
     // Set response headers for CSV download

@@ -170,11 +170,11 @@ export function withAuth(handler: AuthenticatedApiHandler): NextApiHandler {
       
       if (!userProfile) {
         // Fetch user profile from database
-        const userDocs = await tablesDB.listRows(
-          envVars.databaseId,
-          envVars.usersTableId,
-          [Query.equal('userId', user.$id)]
-        );
+        const userDocs = await tablesDB.listRows({
+          databaseId: envVars.databaseId,
+          tableId: envVars.usersTableId,
+          queries: [Query.equal('userId', user.$id)],
+        });
         
         if (userDocs.rows.length === 0) {
           console.error('[API Middleware] ✗ User profile not found', {
@@ -200,11 +200,11 @@ export function withAuth(handler: AuthenticatedApiHandler): NextApiHandler {
           try {
             // Use admin client to fetch role (user may not have permission to read roles yet)
             const { tablesDB: adminTablesDB } = createAdminClient();
-            const roleDoc = await adminTablesDB.getRow(
-              envVars.databaseId,
-              envVars.rolesTableId,
-              userProfileDoc.roleId
-            );
+            const roleDoc = await adminTablesDB.getRow({
+              databaseId: envVars.databaseId,
+              tableId: envVars.rolesTableId,
+              rowId: userProfileDoc.roleId,
+            });
             
             // Parse permissions if stored as string
             let permissions = roleDoc.permissions;

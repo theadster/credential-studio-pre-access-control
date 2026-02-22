@@ -107,7 +107,7 @@ const handler = async (req: AuthenticatedRequest, res: NextApiResponse) => {
         .on('end', async () => {
         try {
           // Fetch event settings for barcode configuration using session client
-          const eventSettingsDocs = await sessionTablesDB.listRows(dbId, eventSettingsTableId);
+          const eventSettingsDocs = await sessionTablesDB.listRows({ databaseId: dbId, tableId: eventSettingsTableId });
           const eventSettings = eventSettingsDocs.rows[0];
 
           if (!eventSettings || !eventSettings.barcodeType || !eventSettings.barcodeLength) {
@@ -123,11 +123,11 @@ const handler = async (req: AuthenticatedRequest, res: NextApiResponse) => {
           }
 
           // Fetch custom fields to map internal names to IDs and get field options using session client
-          const customFieldsDocs = await sessionTablesDB.listRows(
-            dbId,
-            customFieldsTableId,
-            [Query.limit(100)]
-          );
+          const customFieldsDocs = await sessionTablesDB.listRows({
+            databaseId: dbId,
+            tableId: customFieldsTableId,
+            queries: [Query.limit(100)]
+          });
           const customFields = customFieldsDocs.rows;
 
           const customFieldMap = new Map(customFields.map(cf => [cf.internalFieldName, cf.$id]));
@@ -163,14 +163,14 @@ const handler = async (req: AuthenticatedRequest, res: NextApiResponse) => {
 
           while (hasMore) {
             try {
-              const page = await tablesDB.listRows(
-                dbId,
-                attendeesTableId,
-                [Query.limit(pageSize), Query.offset(offset), Query.select(['barcodeNumber'])]
-              );
+              const page = await tablesDB.listRows({
+                databaseId: dbId,
+                tableId: attendeesTableId,
+                queries: [Query.limit(pageSize), Query.offset(offset), Query.select(['barcodeNumber'])]
+              });
 
               page.rows.forEach(doc => {
-                if (doc.barcodeNumber) {
+                if (doc.barcodeNumber != null) {
                   existingBarcodes.add(doc.barcodeNumber);
                 }
               });

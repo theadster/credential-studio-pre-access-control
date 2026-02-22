@@ -1,7 +1,7 @@
 import { NextApiResponse } from 'next';
 import { createSessionClient } from '@/lib/appwrite';
-import { Query, ID, Models } from 'appwrite';
-import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
+import { ID, Models, Query } from 'appwrite';
+import { AuthenticatedRequest, withAuth } from '@/lib/apiMiddleware';
 import { getSwitchboardIntegration } from '@/lib/appwrite-integrations';
 import { shouldLog } from '@/lib/logSettings';
 import { createIncrement, dateOperators } from '@/lib/operators';
@@ -10,7 +10,7 @@ import {
   ConcurrencyErrorCode, 
   createConcurrencyErrorResponse, 
   getHttpStatusForError,
-  mapLockErrorToCode 
+  mapLockErrorToCode, 
 } from '@/lib/concurrencyErrors';
 import { OperationType } from '@/lib/conflictResolver';
 
@@ -43,7 +43,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         details: 'You need attendee print permissions to generate credentials',
         requiredPermission: 'attendees.print',
         userRole: userProfile.role?.name || 'No role assigned',
-        errorType: 'PermissionError'
+        errorType: 'PermissionError',
       });
     }
 
@@ -53,7 +53,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       return res.status(400).json({ 
         error: 'Invalid attendee ID',
         details: 'Attendee ID must be a valid string',
-        errorType: 'ValidationError'
+        errorType: 'ValidationError',
       });
     }
 
@@ -61,19 +61,19 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     const attendee = await tablesDB.getRow({
       databaseId: dbId,
       tableId: attendeesTableId,
-      rowId: id
+      rowId: id,
     });
 
     if (!attendee) {
       return res.status(404).json({ 
         error: 'Attendee not found',
         details: `No attendee found with ID: ${id}`,
-        errorType: 'NotFoundError'
+        errorType: 'NotFoundError',
       });
     }
 
     // Get event settings
-    const eventSettingsDocs = await tablesDB.listRows(dbId, eventSettingsTableId);
+    const eventSettingsDocs = await tablesDB.listRows({ databaseId: dbId, tableId: eventSettingsTableId });
     const eventSettings = eventSettingsDocs.rows[0];
 
     if (!eventSettings) {
@@ -81,7 +81,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         error: 'Event settings not configured',
         details: 'Please configure event settings first in the Event Settings tab',
         hint: 'Go to Event Settings to set up your event configuration',
-        errorType: 'ConfigurationError'
+        errorType: 'ConfigurationError',
       });
     }
 
@@ -93,7 +93,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         error: 'Switchboard Canvas integration not found',
         details: 'No Switchboard Canvas integration configured for this event',
         hint: 'Go to Event Settings > Integrations to configure Switchboard Canvas',
-        errorType: 'ConfigurationError'
+        errorType: 'ConfigurationError',
       });
     }
 
@@ -103,7 +103,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         error: 'Switchboard Canvas integration is not enabled',
         details: 'The Switchboard Canvas integration exists but is currently disabled',
         hint: 'Go to Event Settings > Integrations and enable Switchboard Canvas',
-        errorType: 'ConfigurationError'
+        errorType: 'ConfigurationError',
       });
     }
 
@@ -120,16 +120,16 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         details: `Missing configuration: ${missingItems.join(', ')}`,
         missingConfiguration: missingItems,
         hint: 'Check environment variables and integration settings',
-        errorType: 'ConfigurationError'
+        errorType: 'ConfigurationError',
       });
     }
 
     // Get custom fields
-    const customFieldsDocs = await tablesDB.listRows(
-      dbId,
-      customFieldsTableId,
-      [Query.limit(100)]
-    );
+    const customFieldsDocs = await tablesDB.listRows({
+      databaseId: dbId,
+      tableId: customFieldsTableId,
+      queries: [Query.limit(100)],
+    });
     const customFields = customFieldsDocs.rows;
 
     // Build the request body with placeholders replaced
@@ -171,7 +171,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         '{{eventDate}}': eventSettings.eventDate ? new Date(eventSettings.eventDate).toISOString().split('T')[0] : '',
         '{{eventTime}}': eventSettings.eventTime || '',
         '{{eventLocation}}': eventSettings.eventLocation || '',
-        '{{template_id}}': switchboardIntegration.templateId || ''
+        '{{template_id}}': switchboardIntegration.templateId || '',
       };
 
       // Parse field mappings from JSON string
@@ -283,7 +283,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       if (unreplacedPlaceholders) {
         // Create a set of numeric placeholder keys (without the {{}} wrapper)
         const numericPlaceholderKeys = new Set(
-          Object.keys(numericPlaceholders).map(key => key.slice(2, -2))
+          Object.keys(numericPlaceholders).map(key => key.slice(2, -2)),
         );
         
         // Log warning with detailed information for troubleshooting
@@ -324,7 +324,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         if (errorMessage.includes('position')) {
           const match = errorMessage.match(/position (\d+)/);
           if (match) {
-            const position = parseInt(match[1]);
+            const position = parseInt(match[1], 10);
             const start = Math.max(0, position - 50);
             const end = Math.min(bodyString.length, position + 50);
             const snippet = bodyString.slice(start, end);
@@ -338,7 +338,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           processedTemplate: bodyString,
           originalTemplate: requestBody,
           placeholders: Object.keys(placeholders),
-          numericPlaceholders: Object.keys(numericPlaceholders)
+          numericPlaceholders: Object.keys(numericPlaceholders),
         });
       }
 
@@ -361,7 +361,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         switchboardResponse = await fetch(switchboardIntegration.apiEndpoint, {
           method: 'POST',
           headers,
-          body: JSON.stringify(finalRequestBody)
+          body: JSON.stringify(finalRequestBody),
         });
 
       } catch (fetchError) {
@@ -370,7 +370,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           error: 'Failed to connect to Switchboard Canvas API',
           details: `Network error: ${errorMessage}`,
           endpoint: switchboardIntegration.apiEndpoint,
-          errorType: 'NetworkError'
+          errorType: 'NetworkError',
         });
       }
 
@@ -393,7 +393,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           statusText: switchboardResponse.statusText,
           responseBody: responseBody,
           endpoint: switchboardIntegration.apiEndpoint,
-          errorType: 'APIError'
+          errorType: 'APIError',
         });
       }
 
@@ -409,7 +409,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           details: `Failed to parse JSON response: ${errorMessage}`,
           responseBody: responseText.substring(0, 500) + (responseText.length > 500 ? '...' : ''),
           endpoint: switchboardIntegration.apiEndpoint,
-          errorType: 'ResponseFormatError'
+          errorType: 'ResponseFormatError',
         });
       }
       
@@ -439,7 +439,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           responseFields: Object.keys(switchboardResult),
           expectedFields: ['url', 'imageUrl', 'downloadUrl', 'credentialUrl', 'result.url', 'data.url', 'response.url', 'sizes[].url'],
           response: switchboardResult,
-          errorType: 'ResponseProcessingError'
+          errorType: 'ResponseProcessingError',
         });
       }
 
@@ -448,17 +448,17 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       let updatedAttendee: any;
       try {
         // First try with atomic operators
-        updatedAttendee = await tablesDB.updateRow(
-          dbId,
-          attendeesTableId,
-          id,
-          {
+        updatedAttendee = await tablesDB.updateRow({
+          databaseId: dbId,
+          tableId: attendeesTableId,
+          rowId: id,
+          data: {
             credentialUrl,
             credentialGeneratedAt: dateOperators.setNow(),
             credentialCount: createIncrement(1),
-            lastCredentialGenerated: dateOperators.setNow()
-          }
-        );
+            lastCredentialGenerated: dateOperators.setNow(),
+          },
+        });
       } catch (operatorError) {
         // Only fall back for operator-specific errors
         // Check if error is operator-related (e.g., unsupported operator)
@@ -476,7 +476,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             dbId,
             attendeesTableId,
             id,
-            { credentialUrl }
+            { credentialUrl },
           );
           
           if (!result.success) {
@@ -505,11 +505,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       // Log the activity if enabled
       if (await shouldLog('credentialGenerate')) {
         try {
-          await tablesDB.createRow(
-            dbId,
-            logsTableId,
-            ID.unique(),
-            {
+          await tablesDB.createRow({
+            databaseId: dbId,
+            tableId: logsTableId,
+            rowId: ID.unique(),
+            data: {
               action: 'generate_credential',
               userId: user.$id,
               attendeeId: attendee.$id,
@@ -518,10 +518,10 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
                 firstName: attendee.firstName,
                 lastName: attendee.lastName,
                 barcodeNumber: attendee.barcodeNumber,
-                credentialUrl
-              })
-            }
-          );
+                credentialUrl,
+              }),
+            },
+          });
         } catch (logError) {
           console.error('Failed to write credential audit log:', logError);
         }
@@ -532,7 +532,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         credentialUrl,
         generatedAt: updatedAttendee.credentialGeneratedAt,
         updatedAt: updatedAttendee.$updatedAt, // Include Appwrite's actual update timestamp
-        attendee: updatedAttendee
+        attendee: updatedAttendee,
       });
 
     } catch (parseError) {
@@ -541,7 +541,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       return res.status(400).json({ 
         error: 'Invalid request body template in Switchboard Canvas settings',
         details: `Template processing error: ${errorMessage}`,
-        errorType: 'TemplateProcessingError'
+        errorType: 'TemplateProcessingError',
       });
     }
 
@@ -553,20 +553,20 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       return res.status(401).json({ 
         error: 'Unauthorized',
         details: 'Authentication failed or session expired',
-        errorType: 'AuthenticationError'
+        errorType: 'AuthenticationError',
       });
     } else if (error.code === 404) {
       return res.status(404).json({ 
         error: 'Resource not found',
         details: 'The requested resource could not be found',
-        errorType: 'NotFoundError'
+        errorType: 'NotFoundError',
       });
     }
     
     // Generic error with additional context in development
     const errorResponse: any = { 
       error: 'Internal server error',
-      errorType: 'InternalError'
+      errorType: 'InternalError',
     };
     
     // Add error details in development mode

@@ -58,11 +58,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         }
 
         // Find access control record for this attendee
-        const accessControlDocs = await tablesDB.listRows(
-          dbId,
-          accessControlTableId,
-          [Query.equal('attendeeId', attendeeId)]
-        );
+        const accessControlDocs = await tablesDB.listRows({
+          databaseId: dbId,
+          tableId: accessControlTableId,
+          queries: [Query.equal('attendeeId', attendeeId)],
+        });
 
         if (accessControlDocs.rows.length === 0) {
           // Return default access control if none exists
@@ -119,7 +119,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         let eventTimezone = 'UTC';
         
         try {
-          const eventSettingsDocs = await tablesDB.listRows(dbId, eventSettingsTableId, [Query.limit(1)]);
+          const eventSettingsDocs = await tablesDB.listRows({ databaseId: dbId, tableId: eventSettingsTableId, queries: [Query.limit(1)] });
           if (eventSettingsDocs.rows.length > 0) {
             const settings = eventSettingsDocs.rows[0];
             timeMode = (settings.accessControlTimeMode as AccessControlTimeMode) || 'date_only';
@@ -143,11 +143,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         // Additional date range validation (Requirement 1.6)
         // This handles the case where only one date is being updated
         // We need to check against the existing record
-        const existingDocs = await tablesDB.listRows(
-          dbId,
-          accessControlTableId,
-          [Query.equal('attendeeId', attendeeId)]
-        );
+        const existingDocs = await tablesDB.listRows({
+          databaseId: dbId,
+          tableId: accessControlTableId,
+          queries: [Query.equal('attendeeId', attendeeId)],
+        });
 
         let existingValidFrom: string | null = null;
         let existingValidUntil: string | null = null;
@@ -189,36 +189,36 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         
         if (existingDocId) {
           // Update existing record
-          result = await tablesDB.updateRow(
-            dbId,
-            accessControlTableId,
-            existingDocId,
-            updateData
-          );
+          result = await tablesDB.updateRow({
+            databaseId: dbId,
+            tableId: accessControlTableId,
+            rowId: existingDocId,
+            data: updateData,
+          });
         } else {
           // Create new record
-          result = await tablesDB.createRow(
-            dbId,
-            accessControlTableId,
-            ID.unique(),
-            {
+          result = await tablesDB.createRow({
+            databaseId: dbId,
+            tableId: accessControlTableId,
+            rowId: ID.unique(),
+            data: {
               attendeeId,
               accessEnabled: accessEnabled ?? true,
               validFrom: utcValidFrom ?? null,
               validUntil: utcValidUntil ?? null,
-            }
-          );
+            },
+          });
         }
 
         // Log the access control update if enabled
         if (await shouldLog('accessControlUpdate')) {
           try {
             const logsTableId = process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!;
-            await tablesDB.createRow(
-              dbId,
-              logsTableId,
-              ID.unique(),
-              {
+            await tablesDB.createRow({
+              databaseId: dbId,
+              tableId: logsTableId,
+              rowId: ID.unique(),
+              data: {
                 userId: req.user?.$id || 'unknown',
                 action: isCreate ? 'create' : 'update',
                 details: JSON.stringify({
@@ -235,8 +235,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
                     validUntil: existingValidUntil,
                   } : null,
                 }),
-              }
-            );
+              },
+            });
           } catch (logError) {
             console.error('[Access Control API] Error creating audit log:', logError);
             // Continue even if logging fails

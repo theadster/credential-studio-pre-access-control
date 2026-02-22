@@ -15,7 +15,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const eventSettingsTableId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID!;
 
     // Get first event settings
-    const eventSettingsList = await tablesDB.listRows(dbId, eventSettingsTableId, [Query.limit(1)]);
+    const eventSettingsList = await tablesDB.listRows({ databaseId: dbId, tableId: eventSettingsTableId, queries: [Query.limit(1)] });
     
     if (eventSettingsList.rows.length === 0) {
       return res.status(400).json({ error: 'Event settings not configured' });
