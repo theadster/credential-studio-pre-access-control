@@ -36,6 +36,7 @@ const TABLES = {
   LOG_SETTINGS: 'log_settings',
   REPORTS: 'reports',
   PDF_JOBS: 'pdf_jobs',
+  SCAN_LOGS: 'scan_logs',
 };
 
 /**
@@ -545,6 +546,57 @@ async function createReportsTable(databaseId: string) {
  *
  * Requirements: 1.1
  */
+async function createScanLogsTable(databaseId: string) {
+  try {
+    console.log('\nCreating scan_logs table...');
+    await tablesDB.createTable({
+      databaseId,
+      tableId: TABLES.SCAN_LOGS,
+      name: 'Scan Logs',
+      permissions: [
+        Permission.read(Role.users()),
+        Permission.create(Role.users()),
+        Permission.update(Role.users()),
+        Permission.delete(Role.users()),
+      ],
+      columns: [
+        { key: 'localId', type: 'varchar', size: 255, required: true },
+        { key: 'deviceId', type: 'varchar', size: 255, required: true },
+        { key: 'attendeeId', type: 'varchar', size: 255, required: false },
+        { key: 'barcodeScanned', type: 'varchar', size: 255, required: true },
+        { key: 'result', type: 'varchar', size: 50, required: true },
+        { key: 'denialReason', type: 'varchar', size: 500, required: false },
+        { key: 'profileId', type: 'varchar', size: 255, required: false },
+        { key: 'profileVersion', type: 'integer', required: false },
+        { key: 'operatorId', type: 'varchar', size: 255, required: true },
+        { key: 'scannedAt', type: 'datetime', required: true },
+        { key: 'uploadedAt', type: 'datetime', required: false },
+        // Snapshot fields — preserve attendee name/photo at time of scan
+        { key: 'attendeeFirstName', type: 'varchar', size: 255, required: false },
+        { key: 'attendeeLastName', type: 'varchar', size: 255, required: false },
+        { key: 'attendeePhotoUrl', type: 'varchar', size: 2048, required: false },
+      ],
+      indexes: [
+        // Composite index for deduplication queries (deviceId + localId)
+        { key: 'device_local_idx', type: 'unique', attributes: ['deviceId', 'localId'] },
+        { key: 'deviceId_idx', type: 'key', attributes: ['deviceId'] },
+        { key: 'operatorId_idx', type: 'key', attributes: ['operatorId'] },
+        { key: 'attendeeId_idx', type: 'key', attributes: ['attendeeId'] },
+        { key: 'scannedAt_idx', type: 'key', attributes: ['scannedAt'] },
+        { key: 'result_idx', type: 'key', attributes: ['result'] },
+      ],
+    });
+
+    console.log('✓ Scan logs table created');
+  } catch (error: any) {
+    if (error.code === 409) {
+      console.log('✓ Scan logs table already exists');
+    } else {
+      throw error;
+    }
+  }
+}
+
 async function createPdfJobsTable(databaseId: string) {
   try {
     console.log('\nCreating pdf_jobs table...');
@@ -630,6 +682,7 @@ NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID=${TABLES.LOGS}
 NEXT_PUBLIC_APPWRITE_LOG_SETTINGS_TABLE_ID=${TABLES.LOG_SETTINGS}
 NEXT_PUBLIC_APPWRITE_REPORTS_TABLE_ID=${TABLES.REPORTS}
 NEXT_PUBLIC_APPWRITE_PDF_JOBS_TABLE_ID=${TABLES.PDF_JOBS}
+NEXT_PUBLIC_APPWRITE_SCAN_LOGS_TABLE_ID=${TABLES.SCAN_LOGS}
   `);
   console.log('='.repeat(80));
 }
@@ -670,6 +723,7 @@ async function main() {
     await createLogSettingsTable(databaseId);
     await createReportsTable(databaseId);
     await createPdfJobsTable(databaseId);
+    await createScanLogsTable(databaseId);
 
     // Print environment variables
     await printEnvironmentVariables(databaseId);

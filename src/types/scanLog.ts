@@ -43,6 +43,12 @@ export interface ScanLog {
   uploadedAt: string | null;
   /** Unique ID generated on device for deduplication */
   localId: string;
+  /** Snapshot: attendee first name at time of scan */
+  attendeeFirstName: string | null;
+  /** Snapshot: attendee last name at time of scan */
+  attendeeLastName: string | null;
+  /** Snapshot: attendee photo URL at time of scan */
+  attendeePhotoUrl: string | null;
   /** Document creation timestamp */
   $createdAt: string;
   /** Document last update timestamp */
@@ -71,6 +77,12 @@ export interface ScanLogInput {
   deviceId: string;
   /** ISO datetime when scan occurred on device */
   scannedAt: string;
+  /** Snapshot: attendee first name at time of scan */
+  attendeeFirstName: string | null;
+  /** Snapshot: attendee last name at time of scan */
+  attendeeLastName: string | null;
+  /** Snapshot: attendee photo URL at time of scan */
+  attendeePhotoUrl: string | null;
 }
 
 /**
@@ -97,6 +109,9 @@ export const scanLogInputSchema = z.object({
   profileVersion: z.number().nullable(),
   deviceId: z.string().min(1, 'Device ID is required'),
   scannedAt: isoDatetimeSchema,
+  attendeeFirstName: z.string().nullable().optional(),
+  attendeeLastName: z.string().nullable().optional(),
+  attendeePhotoUrl: z.string().nullable().optional(),
 }).refine(
   (data) => {
     // Per Requirement 8.1-8.5: denied scans must have a denial reason

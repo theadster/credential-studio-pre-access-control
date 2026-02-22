@@ -69,31 +69,43 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     /**
      * DEDUPLICATION CHECK
      * 
-     * PERFORMANCE: Uses batch fetching (100 localIds per query) instead of
-     * individual queries to avoid N+1 query problem.
+     * Uses composite key (deviceId + localId) to prevent cross-device collisions.
+     * Device A and Device B both have localId=1 in their local SQLite DBs, so
+     * deduplicating on localId alone would incorrectly drop Device B's records.
      * 
-     * Checks for existing logs with the same localIds to prevent duplicates.
+     * PERFORMANCE: Batches queries (100 per request) to avoid N+1 problem.
      */
-    const localIds = logs.map(log => log.localId);
-    const existingLocalIds = new Set<string>();
-    
-    // Fetch existing logs in batches (Appwrite limit for 'in' queries is 100)
-    // This prevents N+1 query problem and dramatically improves performance
+    const compositeKeys = new Set<string>();
+    const makeCompositeKey = (deviceId: string, localId: string) => `${deviceId}::${localId}`;
+
+    // Group logs by deviceId to query per-device in batches
+    const logsByDevice = logs.reduce<Record<string, typeof logs>>((acc, log) => {
+      if (!acc[log.deviceId]) acc[log.deviceId] = [];
+      acc[log.deviceId].push(log);
+      return acc;
+    }, {});
+
     const chunkSize = 100;
-    for (let i = 0; i < localIds.length; i += chunkSize) {
-      const chunk = localIds.slice(i, i + chunkSize);
-      try {
-        const existingLogs = await tablesDB.listRows(
-          dbId,
-          scanLogsTableId,
-          [Query.equal('localId', chunk), Query.limit(chunkSize)]
-        );
-        existingLogs.rows.forEach((doc: any) => {
-          existingLocalIds.add(doc.localId);
-        });
-      } catch (error) {
-        // If collection doesn't exist or query fails, continue without deduplication
-        console.warn('[Scan Logs Upload] Deduplication check failed:', error);
+    for (const [deviceId, deviceLogs] of Object.entries(logsByDevice)) {
+      const localIds = deviceLogs.map(l => l.localId);
+      for (let i = 0; i < localIds.length; i += chunkSize) {
+        const chunk = localIds.slice(i, i + chunkSize);
+        try {
+          const existingLogs = await tablesDB.listRows({
+            databaseId: dbId,
+            tableId: scanLogsTableId,
+            queries: [
+              Query.equal('deviceId', deviceId),
+              Query.equal('localId', chunk),
+              Query.limit(chunkSize),
+            ],
+          });
+          existingLogs.rows.forEach((row: any) => {
+            compositeKeys.add(makeCompositeKey(row.deviceId, row.localId));
+          });
+        } catch (error) {
+          console.warn('[Scan Logs Upload] Deduplication check failed:', error);
+        }
       }
     }
 
@@ -104,35 +116,39 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
     for (let i = 0; i < logs.length; i++) {
       const log = logs[i];
-      
-      // Skip duplicates
-      if (existingLocalIds.has(log.localId)) {
+      const compositeKey = makeCompositeKey(log.deviceId, log.localId);
+
+      // Skip duplicates (composite deviceId + localId)
+      if (compositeKeys.has(compositeKey)) {
         duplicates++;
         continue;
       }
 
       try {
-        await tablesDB.createRow(
-          dbId,
-          scanLogsTableId,
-          ID.unique(),
-          {
+        await tablesDB.createRow({
+          databaseId: dbId,
+          tableId: scanLogsTableId,
+          rowId: ID.unique(),
+          data: {
             localId: log.localId,
-            attendeeId: log.attendeeId,
+            attendeeId: log.attendeeId ?? null,
             barcodeScanned: log.barcodeScanned,
             result: log.result,
-            denialReason: log.denialReason,
-            profileId: log.profileId,
-            profileVersion: log.profileVersion,
+            denialReason: log.denialReason ?? null,
+            profileId: log.profileId ?? null,
+            profileVersion: log.profileVersion ?? null,
             deviceId: log.deviceId,
             operatorId: operatorId,
             scannedAt: log.scannedAt,
             uploadedAt: uploadedAt,
-          }
-        );
+            attendeeFirstName: log.attendeeFirstName ?? null,
+            attendeeLastName: log.attendeeLastName ?? null,
+            attendeePhotoUrl: log.attendeePhotoUrl ?? null,
+          },
+        });
         received++;
-        // Add to existing set to prevent duplicates within same batch
-        existingLocalIds.add(log.localId);
+        // Track within-batch duplicates
+        compositeKeys.add(compositeKey);
       } catch (error: any) {
         errors.push({
           index: i,
