@@ -3,9 +3,9 @@ title: "SweetAlert2 Customization Guide"
 type: canonical
 status: active
 owner: "@team"
-last_verified: 2025-12-31
+last_verified: 2026-02-22
 review_interval_days: 90
-related_code: ["src/lib/sweetAlertUtils.ts"]
+related_code: ["src/styles/sweetalert-custom.css", "src/lib/sweetalert-config.ts"]
 ---
 
 # SweetAlert2 Customization Guide
@@ -92,40 +92,39 @@ module.exports = {
 
 ### Custom CSS Overrides
 
-For more control, you can override styles in `src/styles/sweetalert-custom.css`:
+For more control, you can override styles in `src/styles/sweetalert-custom.css`.
+
+The project overrides SweetAlert2's default pastel icon colors with vibrant, design-system-aligned colors. These are defined in the "Vibrant Icon Colors" section of `sweetalert-custom.css`:
+
+| Icon Type | Light Mode | Dark Mode | Design Token |
+|-----------|-----------|-----------|--------------|
+| Success | `#16a34a` | `#22c55e` | `--success` |
+| Error | `#ef4444` | `#f87171` | `--destructive` |
+| Warning | `#f59e0b` | `#fbbf24` | `--warning` |
+| Info | `#0ea5e9` | `#38bdf8` | `--info` |
+| Question | `#6366f1` | `#818cf8` | indigo |
+
+To adjust these colors, edit the "Vibrant Icon Colors" section in `src/styles/sweetalert-custom.css`. Each icon type has overrides for:
+- `border-color` (the circle outline)
+- `color` (the inner symbol)
+- `background-color` on line elements (checkmark, X-mark)
+- `border-color` on the success ring glow
+
+Both modal and toast variants are covered, with separate dark mode rules using slightly brighter values for contrast.
 
 ```css
-/* Custom success icon color */
-.swal2-icon.swal2-success [class^='swal2-success-line'] {
-  background-color: hsl(var(--success));
+/* Example: changing success icon to a custom color */
+div:where(.swal2-icon).swal2-success {
+  border-color: #10b981 !important;
+  color: #10b981 !important;
 }
 
-.swal2-icon.swal2-success .swal2-success-ring {
-  border-color: hsl(var(--success));
+div:where(.swal2-icon).swal2-success [class^=swal2-success-line] {
+  background-color: #10b981 !important;
 }
 
-/* Custom error icon color */
-.swal2-icon.swal2-error {
-  border-color: hsl(var(--destructive));
-  color: hsl(var(--destructive));
-}
-
-/* Custom popup background */
-.swal2-popup {
-  background-color: hsl(var(--card));
-  color: hsl(var(--card-foreground));
-  border: 1px solid hsl(var(--border));
-}
-
-/* Custom button styles */
-.swal2-styled.swal2-confirm {
-  background-color: hsl(var(--primary));
-  color: hsl(var(--primary-foreground));
-}
-
-.swal2-styled.swal2-cancel {
-  background-color: hsl(var(--secondary));
-  color: hsl(var(--secondary-foreground));
+div:where(.swal2-icon).swal2-success .swal2-success-ring {
+  border-color: rgba(16, 185, 129, 0.3) !important;
 }
 ```
 
@@ -658,12 +657,10 @@ Swal.fire({
     title: 'text-white font-bold text-2xl',
     htmlContainer: 'text-blue-100',
     icon: 'border-0',
+    confirmButton: 'bg-white text-blue-600 px-6 py-3 rounded-lg font-semibold hover:bg-blue-50',
   },
   buttonsStyling: false,
   confirmButtonText: 'Get Started',
-  customClass: {
-    confirmButton: 'bg-white text-blue-600 px-6 py-3 rounded-lg font-semibold hover:bg-blue-50',
-  },
 });
 ```
 

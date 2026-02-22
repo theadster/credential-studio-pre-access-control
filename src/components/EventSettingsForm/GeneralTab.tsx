@@ -30,7 +30,7 @@ export const GeneralTab = memo(function GeneralTab({ formData, onInputChange }: 
               <Label htmlFor="eventName">Event Name *</Label>
               <Input
                 id="eventName"
-                value={formData.eventName}
+                value={formData.eventName || ""}
                 onChange={(e) => onInputChange("eventName", e.target.value)}
                 placeholder="Enter event name"
                 required
@@ -43,7 +43,7 @@ export const GeneralTab = memo(function GeneralTab({ formData, onInputChange }: 
               <Input
                 id="eventDate"
                 type="date"
-                value={formData.eventDate}
+                value={formData.eventDate || ""}
                 onChange={(e) => onInputChange("eventDate", e.target.value)}
                 required
                 autoComplete="off"
@@ -68,10 +68,10 @@ export const GeneralTab = memo(function GeneralTab({ formData, onInputChange }: 
             <div>
               <Label htmlFor="timeZone">Time Zone</Label>
               <Select
-                value={formData.timeZone}
+                value={formData.timeZone || ""}
                 onValueChange={(value) => onInputChange("timeZone", value)}
               >
-                <SelectTrigger>
+                <SelectTrigger id="timeZone">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -89,7 +89,7 @@ export const GeneralTab = memo(function GeneralTab({ formData, onInputChange }: 
             <Label htmlFor="eventLocation">Event Location *</Label>
             <Input
               id="eventLocation"
-              value={formData.eventLocation}
+              value={formData.eventLocation || ""}
               onChange={(e) => onInputChange("eventLocation", e.target.value)}
               placeholder="Enter event location"
               required
@@ -108,6 +108,9 @@ export const GeneralTab = memo(function GeneralTab({ formData, onInputChange }: 
               autoComplete="off"
               data-form-type="other"
             />
+            <p className="text-xs text-muted-foreground mt-1">
+              Displayed in the sidebar navigation. Recommended size: <span className="font-medium">1200×300px (4:1 aspect ratio)</span>. The same image can be used for both banners.
+            </p>
           </div>
 
           <div>
@@ -120,6 +123,9 @@ export const GeneralTab = memo(function GeneralTab({ formData, onInputChange }: 
               autoComplete="off"
               data-form-type="other"
             />
+            <p className="text-xs text-muted-foreground mt-1">
+              Displayed above the login form. You can use the same image as the banner above — a wide landscape image (4:1) works best for both.
+            </p>
           </div>
         </CardContent>
       </Card>

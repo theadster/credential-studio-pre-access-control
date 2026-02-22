@@ -120,7 +120,7 @@ import type { AdvancedSearchFilters } from "@/lib/filterUtils";
 import { hasActiveFilters as checkHasActiveFilters, createEmptyFilters, filtersToChips, type FilterChip } from "@/lib/filterUtils";
 import { hasPermission, canAccessTab, canManageUser } from "@/lib/permissions";
 import { CLEAR_SENTINEL } from "@/lib/constants";
-import { buildPageWindow } from "@/lib/utils";
+import { buildPageWindow, escapeHtml } from "@/lib/utils";
 
 /**
  * NotesTooltip component with overflow indicator
@@ -290,6 +290,7 @@ export default function Dashboard() {
   const [roles, setRoles] = useState<Role[]>([]);
   const [attendees, setAttendees] = useState<Attendee[]>([]);
   const [eventSettings, setEventSettings] = useState<DashboardEventSettings | null>(null);
+
   const [logs, setLogs] = useState<Log[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
   const [aggregateMetrics, setAggregateMetrics] = useState({
@@ -1548,7 +1549,9 @@ export default function Dashboard() {
 
   // Most common action in logs (from aggregate metrics)
   // This is now computed server-side from ALL logs, not just the current page
-  const mostCommonAction = aggregateMetrics.totalMostCommonAction;
+  const mostCommonAction = aggregateMetrics.totalMostCommonAction
+    ? formatActionName(aggregateMetrics.totalMostCommonAction)
+    : aggregateMetrics.totalMostCommonAction;
 
   // Logs pagination pages
   const logsPaginationPages = useMemo(() => {
@@ -2523,9 +2526,9 @@ export default function Dashboard() {
         title: 'Credential Generation Failed',
         html: `
           <div style="text-align: left;">
-            <p style="margin-bottom: 12px;"><strong>Attendee:</strong> ${attendeeName}</p>
+            <p style="margin-bottom: 12px;"><strong>Attendee:</strong> ${escapeHtml(attendeeName)}</p>
             <p style="margin-bottom: 12px;"><strong>Error Details:</strong></p>
-            <pre style="color: #ef4444; font-family: monospace; font-size: 0.85em; background: #fee; padding: 12px; border-radius: 6px; word-break: break-word; white-space: pre-wrap; max-height: 400px; overflow-y: auto; margin: 0;">${err.message || 'Failed to generate credential'}</pre>
+            <pre style="color: #ef4444; font-family: monospace; font-size: 0.85em; background: #fee; padding: 12px; border-radius: 6px; word-break: break-word; white-space: pre-wrap; max-height: 400px; overflow-y: auto; margin: 0;">${escapeHtml(err.message || 'Failed to generate credential')}</pre>
             <p style="margin-top: 12px; font-size: 0.9em; color: #6b7280;">
               <strong>Tip:</strong> Check your integration settings in Event Settings > Integrations if this error persists.
             </p>
@@ -3437,7 +3440,7 @@ export default function Dashboard() {
       } else if (successCount > 0 && errorCount > 0) {
         // Partial success - show detailed error modal
         const errorListHtml = errors.slice(0, 5).map(err =>
-          `<li style="margin-bottom: 10px; color: #ef4444; font-size: 0.9em; word-break: break-word;">${err}</li>`
+          `<li style="margin-bottom: 10px; color: #ef4444; font-size: 0.9em; word-break: break-word;">${escapeHtml(err)}</li>`
         ).join('');
         const moreErrors = errors.length > 5 ? `<li style="margin-top: 8px; color: #6b7280; font-style: italic;">...and ${errors.length - 5} more errors</li>` : '';
 
@@ -3469,7 +3472,7 @@ export default function Dashboard() {
       } else {
         // Complete failure - show detailed error modal
         const errorListHtml = errors.slice(0, 5).map(err =>
-          `<li style="margin-bottom: 10px; color: #ef4444; font-size: 0.9em; word-break: break-word;">${err}</li>`
+          `<li style="margin-bottom: 10px; color: #ef4444; font-size: 0.9em; word-break: break-word;">${escapeHtml(err)}</li>`
         ).join('');
         const moreErrors = errors.length > 5 ? `<li style="margin-top: 8px; color: #6b7280; font-style: italic;">...and ${errors.length - 5} more errors</li>` : '';
 
@@ -3601,7 +3604,7 @@ export default function Dashboard() {
       } else if (successCount > 0 && errorCount > 0) {
         // Partial success - show detailed error modal
         const errorListHtml = errors.slice(0, 5).map(err =>
-          `<li style="margin-bottom: 8px; color: #ef4444; font-size: 0.9em; word-break: break-word;">${err}</li>`
+          `<li style="margin-bottom: 8px; color: #ef4444; font-size: 0.9em; word-break: break-word;">${escapeHtml(err)}</li>`
         ).join('');
         const moreErrors = errors.length > 5 ? `<li style="margin-top: 8px; color: #6b7280;">...and ${errors.length - 5} more errors</li>` : '';
 
@@ -3630,7 +3633,7 @@ export default function Dashboard() {
       } else {
         // Complete failure - show detailed error modal
         const errorListHtml = errors.slice(0, 5).map(err =>
-          `<li style="margin-bottom: 8px; color: #ef4444;">${err}</li>`
+          `<li style="margin-bottom: 8px; color: #ef4444;">${escapeHtml(err)}</li>`
         ).join('');
         const moreErrors = errors.length > 5 ? `<li style="margin-top: 8px; color: #6b7280;">...and ${errors.length - 5} more errors</li>` : '';
 
@@ -3820,13 +3823,12 @@ export default function Dashboard() {
         />
       )}
       {/* Sidebar */}
-      <aside className="w-64 border-r glass-effect flex flex-col h-screen bg-gradient-to-br from-background via-surface to-surface-variant">
-        <div className="flex-1 overflow-y-auto">
-          <div className="p-6">
-            <div className="flex items-center space-x-2 mb-3">
-              <IdCard className="h-8 w-8 text-primary" />
-              <span className="text-xl font-bold">credential.studio</span>
-            </div>
+      <aside className="w-64 border-r glass-effect bg-gradient-to-br from-background via-surface to-surface-variant self-start">
+        <div className="p-6">
+          <div className="flex items-center space-x-2 mb-3">
+            <IdCard className="h-8 w-8 text-primary" />
+            <span className="text-xl font-bold">credential.studio</span>
+          </div>
 
             {/* Event Banner */}
             {eventSettings?.bannerImageUrl && (
@@ -3834,7 +3836,7 @@ export default function Dashboard() {
                 <img
                   src={eventSettings.bannerImageUrl}
                   alt={eventSettings.eventName}
-                  className="w-full h-24 object-cover rounded-lg"
+                  className="w-full h-24 object-contain rounded-lg bg-muted/30"
                 />
                 <div className="mt-3 text-center">
                   <h3 className="font-bold text-lg leading-tight break-words hyphens-auto"
@@ -3876,7 +3878,7 @@ export default function Dashboard() {
                   className="w-full justify-start text-base"
                   onClick={() => setActiveTab("attendees")}
                 >
-                  <Users className="mr-2 h-4 w-4" />
+                  <Users className={`mr-2 h-4 w-4 ${activeTab !== "attendees" ? "text-primary" : ""}`} />
                   Attendees
                 </Button>
               )}
@@ -3887,7 +3889,7 @@ export default function Dashboard() {
                   className="w-full justify-start text-base"
                   onClick={() => setActiveTab("settings")}
                 >
-                  <Settings className="mr-2 h-4 w-4" />
+                  <Settings className={`mr-2 h-4 w-4 ${activeTab !== "settings" ? "text-primary" : ""}`} />
                   Event Settings
                 </Button>
               )}
@@ -3898,7 +3900,7 @@ export default function Dashboard() {
                   className="w-full justify-start text-base"
                   onClick={() => setActiveTab("users")}
                 >
-                  <UsersRound className="mr-2 h-4 w-4" />
+                  <UsersRound className={`mr-2 h-4 w-4 ${activeTab !== "users" ? "text-primary" : ""}`} />
                   User Management
                 </Button>
               )}
@@ -3909,7 +3911,7 @@ export default function Dashboard() {
                   className="w-full justify-start text-base"
                   onClick={() => setActiveTab("roles")}
                 >
-                  <Shield className="mr-2 h-4 w-4" />
+                  <Shield className={`mr-2 h-4 w-4 ${activeTab !== "roles" ? "text-primary" : ""}`} />
                   Roles
                 </Button>
               )}
@@ -3920,7 +3922,7 @@ export default function Dashboard() {
                   className="w-full justify-start text-base"
                   onClick={() => setActiveTab("logs")}
                 >
-                  <Activity className="mr-2 h-4 w-4" />
+                  <Activity className={`mr-2 h-4 w-4 ${activeTab !== "logs" ? "text-primary" : ""}`} />
                   Activity Logs
                 </Button>
               )}
@@ -3931,7 +3933,7 @@ export default function Dashboard() {
                   className="w-full justify-start text-base"
                   onClick={() => setActiveTab("monitoring")}
                 >
-                  <BarChart3 className="mr-2 h-4 w-4" />
+                  <BarChart3 className={`mr-2 h-4 w-4 ${activeTab !== "monitoring" ? "text-primary" : ""}`} />
                   Operator Monitoring
                 </Button>
               )}
@@ -3942,7 +3944,7 @@ export default function Dashboard() {
                   className="w-full justify-start text-base"
                   onClick={() => setActiveTab("accessControl")}
                 >
-                  <QrCode className="mr-2 h-4 w-4" />
+                  <QrCode className={`mr-2 h-4 w-4 ${activeTab !== "accessControl" ? "text-primary" : ""}`} />
                   Access Control
                 </Button>
               )}
@@ -3952,24 +3954,23 @@ export default function Dashboard() {
                 className="w-full justify-start text-base"
                 onClick={() => setActiveTab("exports")}
               >
-                <FileDown className="mr-2 h-4 w-4" />
+                <FileDown className={`mr-2 h-4 w-4 ${activeTab !== "exports" ? "text-primary" : ""}`} />
                 Exports
               </Button>
               <Button
                 type="button"
                 variant="ghost"
                 className="w-full justify-start text-base"
-                onClick={() => window.open('https://help.credential.studio', '_blank')}
+                onClick={() => window.open('https://help.credential.studio', '_blank', 'noopener,noreferrer')}
               >
-                <HelpCircle className="mr-2 h-4 w-4" />
+                <HelpCircle className="mr-2 h-4 w-4 text-primary" />
                 Help Center
               </Button>
             </nav>
           </div>
-        </div>
 
-        {/* User Profile - Fixed at bottom of sidebar */}
-        <div className="flex-shrink-0 p-6 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        {/* User Profile — directly below tabs */}
+        <div className="p-6 border-t bg-background">
           <div className="flex items-center space-x-3 mb-3">
             <Avatar className="h-8 w-8">
               <AvatarFallback>
@@ -4001,7 +4002,7 @@ export default function Dashboard() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto" style={{ backgroundColor: '#F1F5F9' }}>
+      <main className="flex-1 min-w-0" style={{ backgroundColor: '#F1F5F9' }}>
         <div className="p-8">
           {/* Header */}
           <div className="flex items-center justify-between mb-8">

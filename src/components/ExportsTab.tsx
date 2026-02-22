@@ -51,28 +51,28 @@ function StatusBadge({ status }: { status: PdfJob['status'] }) {
   switch (status) {
     case 'completed':
       return (
-        <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-700 gap-1.5">
+        <Badge variant="outline" className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-700 dark:hover:bg-emerald-900/60 gap-1.5">
           <CheckCircle2 className="h-3 w-3" />
           Completed
         </Badge>
       );
     case 'failed':
       return (
-        <Badge className="bg-red-100 text-red-700 border-red-200 dark:bg-red-900/40 dark:text-red-300 dark:border-red-700 gap-1.5">
+        <Badge variant="outline" className="bg-red-100 text-red-700 border-red-200 hover:bg-red-200 dark:bg-red-900/40 dark:text-red-300 dark:border-red-700 dark:hover:bg-red-900/60 gap-1.5">
           <XCircle className="h-3 w-3" />
           Failed
         </Badge>
       );
     case 'processing':
       return (
-        <Badge className="bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-700 gap-1.5">
+        <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-700 dark:hover:bg-blue-900/60 gap-1.5">
           <Loader2 className="h-3 w-3 animate-spin" />
           Processing
         </Badge>
       );
     default:
       return (
-        <Badge className="bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-700 gap-1.5">
+        <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-700 dark:hover:bg-amber-900/60 gap-1.5">
           <Clock className="h-3 w-3" />
           Pending
         </Badge>

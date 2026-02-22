@@ -238,3 +238,12 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   filter: invert(0.2) sepia(0.5) hue-rotate(250deg) saturate(1.5);
   cursor: pointer;
 }
+
+/* Hide scrollbar but allow scrolling */
+@utility scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
