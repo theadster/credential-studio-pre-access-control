@@ -192,11 +192,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
     // Get custom fields for mapping
     const customFieldsTableId = process.env.NEXT_PUBLIC_APPWRITE_CUSTOM_FIELDS_TABLE_ID!;
-    const customFieldsDocs = await tablesDB.listRows(
-      dbId,
-      customFieldsTableId,
-      [Query.limit(100)]
-    );
+    const customFieldsDocs = await tablesDB.listRows({
+      databaseId: dbId,
+      tableId: customFieldsTableId,
+      queries: [Query.limit(100)]
+    });
     const customFieldsMap = new Map(customFieldsDocs.rows.map(cf => [cf.$id, cf]));
 
     // Generate individual record HTML for each attendee using the record template
@@ -356,7 +356,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       pdfUrl = responseText.trim();
       
       // Basic URL validation
-      if (!pdfUrl || (!pdfUrl.startsWith('http://') && !pdfUrl.startsWith('https://'))) {
+      const normalized = pdfUrl.toLowerCase();
+      if (!pdfUrl || (!normalized.startsWith('http://') && !normalized.startsWith('https://'))) {
         console.error('OneSimpleAPI response is not a valid URL:', pdfUrl);
         return res.status(500).json({ 
           error: 'OneSimpleAPI response is not a valid URL',

@@ -4,10 +4,7 @@
   "description": "Before writing any file, checks that the code uses the new Appwrite TablesDB named-parameter API and never reverts to the old Databases API (collectionId, documentId, databases.createDocument, etc.)",
   "version": "1",
   "when": {
-    "type": "preToolUse",
-    "toolTypes": [
-      "write"
-    ]
+    "type": "promptSubmit"
   },
   "then": {
     "type": "askAgent",

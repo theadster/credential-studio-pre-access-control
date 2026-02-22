@@ -72,6 +72,7 @@ import {
   ChevronDown,
   FileText,
   FileUp,
+  FileDown,
   UsersRound,
   CheckCircle,
   Circle,
@@ -110,6 +111,8 @@ import LogsExportDialog from "@/components/LogsExportDialog";
 import LogsDeleteDialog from "@/components/LogsDeleteDialog";
 import LogSettingsDialog from "@/components/LogSettingsDialog";
 import ApprovalProfileManager from "@/components/ApprovalProfileManager";
+import { ExportsTab } from "@/components/ExportsTab";
+import { PdfGenerationToast, type PdfJobStatus } from "@/components/PdfGenerationToast";
 import ScanLogsViewer from "@/components/ScanLogsViewer";
 import OperatorMonitoringDashboard from "@/components/OperatorMonitoringDashboard";
 import { AdvancedFiltersDialog } from "@/components/AdvancedFiltersDialog";
@@ -370,6 +373,12 @@ export default function Dashboard() {
   const [dropdownStates, setDropdownStates] = useState<{ [key: string]: boolean }>({});
   const [selectedAttendees, setSelectedAttendees] = useState<string[]>([]);
   const [exportingPdfs, setExportingPdfs] = useState(false);
+  const [pdfToast, setPdfToast] = useState<{
+    status: PdfJobStatus;
+    attendeeCount: number;
+    pdfUrl?: string;
+    errorMessage?: string;
+  } | null>(null);
   const [bulkGeneratingCredentials, setBulkGeneratingCredentials] = useState(false);
   const [bulkClearingCredentials, setBulkClearingCredentials] = useState(false);
   const [isDark, setIsDark] = useState(false);
@@ -635,6 +644,7 @@ export default function Dashboard() {
     if (canAccessTab(currentUser?.role, 'logs')) tabs.push('logs');
     if (canAccessTab(currentUser?.role, 'monitoring')) tabs.push('monitoring');
     if (canAccessTab(currentUser?.role, 'accessControl')) tabs.push('accessControl');
+    tabs.push('exports');
     return tabs;
   };
 
@@ -2987,6 +2997,19 @@ export default function Dashboard() {
     }
   };
 
+  // Ref to hold the PDF polling interval so it can be cleared from anywhere
+  const pdfPollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopPdfPolling = () => {
+    if (pdfPollingIntervalRef.current !== null) {
+      clearInterval(pdfPollingIntervalRef.current);
+      pdfPollingIntervalRef.current = null;
+    }
+  };
+
+  // Clear the polling interval when the component unmounts
+  useEffect(() => () => stopPdfPolling(), []);
+
   const handleBulkExportPdf = async () => {
     if (selectedAttendees.length === 0) {
       error("No Selection", "Please select attendees to export PDFs for.");
@@ -3060,30 +3083,25 @@ export default function Dashboard() {
 
     setExportingPdfs(true);
 
-    // Show SweetAlert2 progress modal
-    const updateProgress = showProgressModal(isDark);
-    updateProgress({
-      title: 'Exporting PDFs',
-      text: `Generating PDF for ${attendeesWithCredentials.length} attendee${attendeesWithCredentials.length === 1 ? '' : 's'}...`,
-      current: 1,
-      total: 1,
-    });
+    // Show the toast immediately so the user gets instant feedback
+    // while the start request (validation + job creation + function trigger) completes
+    const optimisticCount = attendeesWithCredentials.length;
+    setPdfToast({ status: "generating", attendeeCount: optimisticCount });
 
     try {
-      const response = await fetch('/api/attendees/bulk-export-pdf', {
+      // Step 1: POST to Start Endpoint to create the async job
+      const startResponse = await fetch('/api/attendees/bulk-export-pdf-start', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           attendeeIds: attendeesWithCredentials.map(a => a.id),
         }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
+      if (!startResponse.ok) {
+        const errorData = await startResponse.json();
 
-        // Handle missing credentials error specifically
+        // Handle missing credentials error
         if (errorData.errorType === 'missing_credentials') {
           const missingAttendees = errorData.attendeesWithoutCredentials || [];
           const attendeeList = missingAttendees
@@ -3116,10 +3134,12 @@ export default function Dashboard() {
             icon: 'error',
             confirmButtonText: 'OK, I Understand'
           });
+          setPdfToast(null);
+          setExportingPdfs(false);
           return;
         }
 
-        // Handle outdated credentials error specifically
+        // Handle outdated credentials error
         if (errorData.errorType === 'outdated_credentials') {
           const outdatedAttendees = errorData.attendeesWithOutdatedCredentials || [];
           const attendeeList = outdatedAttendees
@@ -3152,32 +3172,93 @@ export default function Dashboard() {
             icon: 'warning',
             confirmButtonText: 'OK, I Understand'
           });
+          setPdfToast(null);
+          setExportingPdfs(false);
           return;
         }
 
-        throw new Error(errorData.error || 'Failed to generate PDF');
+        throw new Error(errorData.details ? `${errorData.error}: ${errorData.details}` : (errorData.error || 'Failed to start PDF generation'));
       }
 
-      const result = await response.json();
+      const { jobId } = await startResponse.json();
+      const attendeeCount = attendeesWithCredentials.length;
 
-      // Close progress modal
-      closeProgressModal();
+      // Step 2: Show non-blocking toast notification
+      setPdfToast({ status: "generating", attendeeCount });
 
-      if (result.success && result.url) {
-        // Open the PDF URL in a new tab
-        window.open(result.url, '_blank');
+      // Track polling start time for 10-minute timeout
+      const pollStartTime = Date.now();
+      const POLL_INTERVAL_MS = 3000;
+      const TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
-        success("Success", `PDF generated successfully for ${attendeesWithCredentials.length} attendees.`);
-      } else {
-        throw new Error('Invalid response from PDF generation service');
-      }
+      // Step 3: Poll the Status Endpoint every 3 seconds
+      pdfPollingIntervalRef.current = setInterval(async () => {
+        // Step 7: Timeout after 10 minutes
+        if (Date.now() - pollStartTime >= TIMEOUT_MS) {
+          stopPdfPolling();
+          setExportingPdfs(false);
+          setPdfToast({ status: "timeout", attendeeCount });
+          return;
+        }
+
+        try {
+          const statusResponse = await fetch(
+            `/api/attendees/pdf-job-status?jobId=${encodeURIComponent(jobId)}`
+          );
+
+          if (!statusResponse.ok) {
+            // Terminal statuses — stop polling and surface the error immediately
+            if (statusResponse.status === 403 || statusResponse.status === 404) {
+              stopPdfPolling();
+              setExportingPdfs(false);
+              const msg = statusResponse.status === 403
+                ? 'Access denied. You do not have permission to view this export.'
+                : 'Export job not found. It may have been deleted.';
+              setPdfToast({ status: "failed", attendeeCount, errorMessage: msg });
+              return;
+            }
+            // Other non-OK statuses — transient, keep polling
+            console.warn('PDF status poll returned non-OK:', statusResponse.status);
+            return;
+          }
+
+          const statusData = await statusResponse.json();
+
+          // Step 4: Completed — update toast (no auto-open, user clicks the link)
+          if (statusData.status === 'completed' && statusData.pdfUrl) {
+            stopPdfPolling();
+            setExportingPdfs(false);
+            const pdfUrl = statusData.pdfUrl;
+            const count = statusData.attendeeCount ?? attendeeCount;
+            setPdfToast({ status: "completed", attendeeCount: count, pdfUrl });
+            return;
+          }
+
+          // Step 5: Failed — show error in toast
+          if (statusData.status === 'failed') {
+            stopPdfPolling();
+            setExportingPdfs(false);
+            setPdfToast({
+              status: "failed",
+              attendeeCount,
+              errorMessage: statusData.error || 'PDF generation failed. Please try again.',
+            });
+            return;
+          }
+
+          // Still pending or processing — keep polling
+        } catch (pollErr: any) {
+          console.error('Error polling PDF job status:', pollErr);
+          // Keep polling on transient network errors
+        }
+      }, POLL_INTERVAL_MS);
 
     } catch (err: any) {
-      console.error('Error generating bulk PDF:', err);
-      closeProgressModal();
-      error("Export Error", err.message || "Failed to generate PDF");
-    } finally {
+      console.error('Error starting bulk PDF export:', err);
+      stopPdfPolling();
+      setPdfToast(null);
       setExportingPdfs(false);
+      error("Export Error", err.message || "Failed to start PDF generation");
     }
   };
 
@@ -3728,6 +3809,16 @@ export default function Dashboard() {
 
   return (
     <div className="flex min-h-screen">
+      {/* PDF Generation Toast — non-blocking bottom-right notification */}
+      {pdfToast && (
+        <PdfGenerationToast
+          status={pdfToast.status}
+          attendeeCount={pdfToast.attendeeCount}
+          pdfUrl={pdfToast.pdfUrl}
+          errorMessage={pdfToast.errorMessage}
+          onDismiss={() => setPdfToast(null)}
+        />
+      )}
       {/* Sidebar */}
       <aside className="w-64 border-r glass-effect flex flex-col h-screen bg-gradient-to-br from-background via-surface to-surface-variant">
         <div className="flex-1 overflow-y-auto">
@@ -3857,6 +3948,15 @@ export default function Dashboard() {
               )}
               <Button
                 type="button"
+                variant={activeTab === "exports" ? "default" : "ghost"}
+                className="w-full justify-start text-base"
+                onClick={() => setActiveTab("exports")}
+              >
+                <FileDown className="mr-2 h-4 w-4" />
+                Exports
+              </Button>
+              <Button
+                type="button"
                 variant="ghost"
                 className="w-full justify-start text-base"
                 onClick={() => window.open('https://help.credential.studio', '_blank')}
@@ -3914,6 +4014,7 @@ export default function Dashboard() {
                 {activeTab === "logs" && "Activity Logs"}
                 {activeTab === "monitoring" && "Operator Monitoring"}
                 {activeTab === "accessControl" && "Access Control"}
+                {activeTab === "exports" && "Exports"}
               </h1>
               <p className="text-muted-foreground">
                 {activeTab === "attendees" && "Manage event attendees and their credentials"}
@@ -3923,6 +4024,7 @@ export default function Dashboard() {
                 {activeTab === "logs" && "View system activity and audit trail"}
                 {activeTab === "monitoring" && "Monitor database operator performance and manage feature flags"}
                 {activeTab === "accessControl" && "Manage approval profiles and view scan logs"}
+                {activeTab === "exports" && "View and download your PDF credential exports"}
               </p>
             </div>
             <div className="flex items-center space-x-4">
@@ -3933,10 +4035,10 @@ export default function Dashboard() {
               />
               
               {activeTab === "attendees" && hasPermission(currentUser?.role, 'attendees', 'create') && (
-                <Button onClick={async () => {
-                  await refreshEventSettings();
+                <Button onClick={() => {
                   setEditingAttendee(null);
                   setShowAttendeeForm(true);
+                  refreshEventSettings().catch(err => console.error('Failed to refresh event settings:', err));
                 }}>
                   <Plus className="mr-2 h-4 w-4" />
                   Add Attendee
@@ -6182,6 +6284,10 @@ export default function Dashboard() {
               <ApprovalProfileManager />
               <ScanLogsViewer />
             </div>
+          )}
+
+          {activeTab === "exports" && (
+            <ExportsTab eventSettingsId={eventSettings?.id} />
           )}
         </div>
       </main>

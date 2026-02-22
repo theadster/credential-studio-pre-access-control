@@ -1,5 +1,32 @@
 /* SweetAlert2 Custom Styling */
 
+/* ============================================================================
+ * SweetAlert2 Theme Integration via CSS Variables
+ * ============================================================================
+ * 
+ * CRITICAL: We set SweetAlert2's own CSS variables (--swal2-background, etc.)
+ * instead of applying Tailwind utility classes (bg-card, text-foreground) to
+ * the popup element.
+ *
+ * WHY: SweetAlert2's success icon uses masking elements (circular-line-left,
+ * circular-line-right, success-fix) that must have the SAME background color
+ * as the popup. SweetAlert2's JS reads getComputedStyle(popup).backgroundColor
+ * and applies it to these masking elements. When Tailwind v4 utility classes
+ * set the background via CSS custom properties, getComputedStyle may return
+ * unexpected formats that break the masking. By setting --swal2-background
+ * directly, SweetAlert2's own CSS applies a simple color that its JS can read.
+ * ============================================================================
+ */
+:root {
+  --swal2-background: hsl(0 0% 100%);
+  --swal2-color: hsl(224 71.4% 4.1%);
+}
+
+.dark {
+  --swal2-background: hsl(224 71.4% 4.1%);
+  --swal2-color: hsl(210 20% 98%);
+}
+
 /* Z-Index Layer System
  * Centralized z-index values for maintainable layering:
  * - Dialog: 50 (shadcn default)
@@ -50,8 +77,8 @@
 .swal2-container {
   z-index: var(--z-index-sweetalert-container) !important;
   background: none !important;
-  /* CRITICAL: Prevents backdrop flash on toasts */
-  /* Note: pointer-events is set per container type below */
+  /* Default: allow pointer events — toasts override this below */
+  pointer-events: auto !important;
 }
 
 .swal2-container.swal2-backdrop-show {
@@ -62,53 +89,33 @@
  * Modal Dialog Backdrop (Centered Dialogs Only)
  * ============================================================================
  * 
- * IMPORTANT: Only apply backdrop to CENTERED modal dialogs
- * 
- * Modal dialogs use .swal2-center positioning
+ * Modal dialogs use .swal2-center positioning.
  * Toast notifications use .swal2-top-end, .swal2-bottom-end, etc.
- * 
- * By targeting .swal2-center specifically, we ensure:
- * - Modal dialogs (confirm, alert) get their backdrop ✓
- * - Toast notifications never get a backdrop ✓
- * - No timing issues with class application ✓
- * 
- * DO NOT change .swal2-center to a broader selector like :not(.swal2-toast)
- * This will reintroduce the backdrop flash bug on toasts.
  * ============================================================================
  */
 
 /* Ensure backdrop blocks clicks to elements underneath */
-/* Only apply backdrop to modal dialogs (centered, not positioned at corners) */
 .swal2-container.swal2-center:not(.swal2-toast) {
   background-color: rgba(0, 0, 0, 0.4) !important;
-  pointer-events: auto !important; /* Modal backdrop should block clicks */
 }
 
 .dark .swal2-container.swal2-center:not(.swal2-toast) {
   background-color: rgba(0, 0, 0, 0.6) !important;
-  pointer-events: auto !important; /* Modal backdrop should block clicks */
 }
 
 /* ============================================================================
  * Toast Container Styling
  * ============================================================================
  * 
- * Toast containers should:
- * - Not block clicks to page content (pointer-events: none on container)
- * - Allow clicks on the toast itself (pointer-events: auto on popup)
- * - Never have a background (background: none)
- * 
- * The explicit background: none here is defensive - the base container rule
- * already sets this, but we keep it for clarity and as a safety net.
+ * Toast containers should NOT block clicks on page content.
+ * pointer-events: none on the container, auto on the popup itself.
  * ============================================================================
  */
 
-/* Toast container styling */
+/* Toast container: don't block page clicks */
 .swal2-container.swal2-toast {
   pointer-events: none !important;
   background: none !important;
-  /* Defensive: ensures no backdrop on toasts */
-  /* Fix: Prevent container from blocking clicks - only take up space needed for popup */
   width: auto !important;
   height: auto !important;
 }
@@ -117,7 +124,7 @@
   pointer-events: auto !important;
 }
 
-/* Ensure popup is clickable */
+/* Ensure popup is always clickable */
 .swal2-popup {
   pointer-events: auto !important;
   position: relative !important;
@@ -138,46 +145,12 @@
   max-width: 400px;
 }
 
-/* Icon styling - let SweetAlert2 handle the icon rendering */
-.swal2-icon {
-  flex-shrink: 0;
-}
-
 /* Toast icons - inline with text */
 .swal2-popup.swal2-toast .swal2-icon {
   margin: 0 1rem 0 0;
-}
-
-/* Customize icon colors to match theme */
-.swal2-icon.swal2-error {
-  border-color: var(--destructive, #ef4444);
-  color: var(--destructive, #ef4444);
-}
-
-.swal2-icon.swal2-error [class^='swal2-x-mark-line'] {
-  background-color: var(--destructive, #ef4444);
-}
-
-.swal2-icon.swal2-warning {
-  border-color: var(--warning, #f59e0b);
-  color: var(--warning, #f59e0b);
-}
-
-.swal2-icon.swal2-success {
-  border-color: var(--success, #16a34a);
-}
-
-.swal2-icon.swal2-success [class^='swal2-success-line'] {
-  background-color: var(--success, #16a34a);
-}
-
-.swal2-icon.swal2-success .swal2-success-ring {
-  border-color: var(--success, #16a34a);
-}
-
-.swal2-icon.swal2-info {
-  border-color: var(--info, #0ea5e9);
-  color: var(--info, #0ea5e9);
+  width: 2em;
+  height: 2em;
+  min-width: 2em;
 }
 
 /* Center icon and title in modal dialogs */
@@ -192,9 +165,10 @@
 
 .swal2-popup:not(.swal2-toast) .swal2-icon {
   margin: 0 auto 1rem auto !important;
-  position: static !important;
-  left: auto !important;
-  right: auto !important;
+  /* Do NOT set position:static — the icon's child masking elements use
+   * position:absolute with negative offsets relative to the icon itself.
+   * Setting static here causes them to escape to the nearest positioned
+   * ancestor (the popup), rendering at wrong scale and blocking clicks. */
   transform: none !important;
 }
 
@@ -257,14 +231,61 @@
 .swal2-popup:not(.swal2-toast) {
   padding: 1.5rem;
   border-radius: var(--radius);
+  border: 1px solid var(--border);
+  /* overflow:hidden clips masking elements that extend beyond popup bounds */
+  overflow: hidden;
 }
 
-/* GPU-Accelerated Animations */
+/* ============================================================================
+ * Success Icon Fix — Tailwind v4 Preflight Conflict
+ * ============================================================================
+ * 
+ * Tailwind v4 preflight applies box-sizing: border-box to all elements.
+ * SweetAlert2's success icon geometry relies on box-sizing: content-box
+ * for its ring and circular-line elements. Without this fix, the icon
+ * dimensions are miscalculated and the masking elements appear as gray shapes.
+ *
+ * The masking elements (circular-line-left, circular-line-right, success-fix)
+ * must also have:
+ * - background-color matching the popup background (set via --swal2-background)
+ * - border: none (Tailwind's global border-color rule would otherwise color them)
+ * ============================================================================
+ */
+
+/* Restore content-box sizing for icon internals */
+.swal2-icon,
+.swal2-icon *,
+.swal2-icon *::before,
+.swal2-icon *::after {
+  box-sizing: content-box !important;
+}
+
+/* Fix masking elements — must match popup background and have no border */
+.swal2-success-circular-line-left,
+.swal2-success-circular-line-right,
+.swal2-success-fix {
+  background-color: var(--swal2-background) !important;
+  border: none !important;
+}
+
+.dark .swal2-success-circular-line-left,
+.dark .swal2-success-circular-line-right,
+.dark .swal2-success-fix {
+  background-color: var(--swal2-background) !important;
+}
+
+/* Title and text colors using theme variables */
+.swal2-popup .swal2-title {
+  color: var(--foreground);
+}
+
+.swal2-popup .swal2-html-container {
+  color: var(--muted-foreground);
+}
+
+/* Popup rendering — avoid 3D transforms that can break icon masking elements */
 .swal2-popup {
   will-change: transform, opacity;
-  transform: translateZ(0);
-  backface-visibility: hidden;
-  perspective: 1000px;
 }
 
 /* Smooth entrance animation with elastic bounce */
@@ -399,27 +420,9 @@
   animation: none !important;
 }
 
-/* Icon animations */
-.swal2-icon {
-  animation: swal2-icon-show 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-@keyframes swal2-icon-show {
-  0% {
-    transform: scale(0) rotate(-45deg) translateZ(0);
-    opacity: 0;
-  }
-
-  50% {
-    transform: scale(1.2) rotate(10deg) translateZ(0);
-    opacity: 1;
-  }
-
-  100% {
-    transform: scale(1) rotate(0deg) translateZ(0);
-    opacity: 1;
-  }
-}
+/* Icon entrance — use SweetAlert2's native icon animations.
+ * Do NOT add custom rotate transforms here — they break the
+ * success checkmark positioning which relies on precise rotation angles. */
 
 /* Progress bar animation */
 .swal2-timer-progress-bar {

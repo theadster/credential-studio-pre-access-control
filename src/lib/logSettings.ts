@@ -1,7 +1,12 @@
 import { createAdminClient } from '@/lib/appwrite';
 import { Query, ID } from 'appwrite';
 
-// Cache for log settings to avoid repeated database queries
+// Cache for log settings to avoid repeated database queries.
+// Serverless note: this cache is instance-local. Cold starts always fetch fresh
+// data; warm instances may serve values up to CACHE_DURATION ms stale. Updates
+// won't propagate instantly across instances — this is acceptable eventual
+// consistency for logging. Set CACHE_DURATION to 0 to disable caching, or call
+// clearLogSettingsCache() to force a refresh on the current instance.
 let logSettingsCache: any = null;
 let lastCacheUpdate = 0;
 const CACHE_DURATION = 60000; // 1 minute cache
@@ -19,20 +24,20 @@ export async function getLogSettings() {
     const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
     const logSettingsTableId = process.env.NEXT_PUBLIC_APPWRITE_LOG_SETTINGS_TABLE_ID!;
 
-    const logSettingsResult = await tablesDB.listRows(
-      dbId,
-      logSettingsTableId,
-      [Query.limit(1)]
-    );
+    const logSettingsResult = await tablesDB.listRows({
+      databaseId: dbId,
+      tableId: logSettingsTableId,
+      queries: [Query.limit(1)],
+    });
     
     let logSettings;
     if (logSettingsResult.rows.length === 0) {
       // Create default log settings if none exist
-      logSettings = await tablesDB.createRow(
-        dbId,
-        logSettingsTableId,
-        ID.unique(),
-        {
+      logSettings = await tablesDB.createRow({
+        databaseId: dbId,
+        tableId: logSettingsTableId,
+        rowId: ID.unique(),
+        data: {
           attendeeCreate: true,
           attendeeUpdate: true,
           attendeeDelete: true,
@@ -70,9 +75,12 @@ export async function getLogSettings() {
           approvalProfileCreate: true,
           approvalProfileUpdate: true,
           approvalProfileDelete: true,
-          scanLogsExport: true
-        }
-      );
+          scanLogsExport: true,
+          // PDF export logging settings
+          pdfExportCreate: true,
+          pdfExportDelete: true,
+        },
+      });
     } else {
       logSettings = logSettingsResult.rows[0];
     }
@@ -123,7 +131,10 @@ export async function getLogSettings() {
       approvalProfileCreate: true,
       approvalProfileUpdate: true,
       approvalProfileDelete: true,
-      scanLogsExport: true
+      scanLogsExport: true,
+      // PDF export logging settings
+      pdfExportCreate: true,
+      pdfExportDelete: true,
     };
   }
 }

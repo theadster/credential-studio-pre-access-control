@@ -119,6 +119,12 @@ export const useSweetAlert = () => {
     const customClass = getSweetAlertTheme(isDark);
 
     const result: SweetAlertResult = await Swal.fire({
+      // Explicitly force modal mode — do NOT inherit toast:true / position:'top-end' from any defaults
+      toast: false,
+      position: 'center',
+      showConfirmButton: true,
+      timer: undefined,
+      timerProgressBar: false,
       title: options.title,
       text: options.text,
       icon: options.icon || 'warning',
@@ -134,14 +140,6 @@ export const useSweetAlert = () => {
       backdrop: true,
       allowOutsideClick: false,
       allowEscapeKey: true,
-      showClass: {
-        popup: 'animate-in fade-in-0 zoom-in-95 duration-200',
-        backdrop: 'swal2-backdrop-show',
-      },
-      hideClass: {
-        popup: 'animate-out fade-out-0 zoom-out-95 duration-150',
-        backdrop: 'swal2-backdrop-hide',
-      },
     });
 
     return result.isConfirmed;
@@ -169,6 +167,12 @@ export const useSweetAlert = () => {
     const customClass = getSweetAlertTheme(isDark);
 
     await Swal.fire({
+      // Explicitly force modal mode — do NOT inherit toast:true / position:'top-end' from any defaults
+      toast: false,
+      position: 'center',
+      showConfirmButton: true,
+      timer: undefined,
+      timerProgressBar: false,
       title: options.title,
       text: options.text,
       html: options.html,
@@ -179,14 +183,9 @@ export const useSweetAlert = () => {
         confirmButton: 'bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded-md',
       },
       buttonsStyling: false,
+      backdrop: true,
       allowOutsideClick: false,
       allowEscapeKey: false,
-      showClass: {
-        popup: 'animate-in fade-in-0 zoom-in-95 duration-200',
-      },
-      hideClass: {
-        popup: 'animate-out fade-out-0 zoom-out-95 duration-150',
-      },
     });
   }, [isDark]);
 

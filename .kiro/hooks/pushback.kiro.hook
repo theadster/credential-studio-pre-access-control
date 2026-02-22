@@ -1,0 +1,13 @@
+{
+  "version": "1.0.0",
+  "enabled": true,
+  "name": "Pushback after Spec Creation",
+  "description": "When you finish a spec, there are edge cases you didn't consider, security issues, ambiguous items, and so on. The following manual hook can help resolve them.",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "The requirements.md file has just been edited. Please analyze it for:\n\n1. Obvious omissions - missing requirements that should \n   be included based on the context of this project \n2. Ambiguous requirements - requirements that need\n   clarification or are unclear\n3. Contradictory requirements\n4. Security concerns - any requirement that might \n    present a security issue\n5. Any requirements not in EARS format\n\nIf you find issues:\n\n- Ask the user ONE question at a time\n- Present specific options, from best to worst, with your\n  recommendation for fixing the issue, along with a short\n  explanation\n- Wait for their answer before asking the next question\n- After all questions are answered, update the requirements.md\n  file with the clarifications and additions based on the\n  user's responses\n\nIf no issues are found, inform the user that the requirements\nlook complete and clear."
+  }
+}

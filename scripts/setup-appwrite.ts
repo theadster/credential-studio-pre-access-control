@@ -14,7 +14,7 @@
  * npx tsx scripts/setup-appwrite.ts
  */
 
-import { Client, TablesDB, ID, Permission, Role, IndexType } from 'node-appwrite';
+import { Client, TablesDB, Permission, Role, IndexType } from 'node-appwrite';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
@@ -35,6 +35,7 @@ const TABLES = {
   LOGS: 'logs',
   LOG_SETTINGS: 'log_settings',
   REPORTS: 'reports',
+  PDF_JOBS: 'pdf_jobs',
 };
 
 /**
@@ -538,6 +539,81 @@ async function createReportsTable(databaseId: string) {
   }
 }
 
+
+/**
+ * Create pdf_jobs table for tracking async PDF generation jobs
+ *
+ * Requirements: 1.1
+ */
+async function createPdfJobsTable(databaseId: string) {
+  try {
+    console.log('\nCreating pdf_jobs table...');
+    let tableExists = false;
+
+    try {
+      await tablesDB.createTable({
+        databaseId,
+        tableId: TABLES.PDF_JOBS,
+        name: 'PDF Jobs',
+        permissions: [
+          Permission.read(Role.users()),
+          Permission.create(Role.users()),
+          // Update and delete are server-side only (worker uses API key)
+        ],
+      });
+    } catch (error: any) {
+      if (error.code === 409) {
+        console.log('✓ PDF jobs table already exists');
+        tableExists = true;
+      } else {
+        throw error;
+      }
+    }
+
+    // Get existing columns if table exists
+    let existingColumns: string[] = [];
+    if (tableExists) {
+      try {
+        const table = await tablesDB.getTable({ databaseId, tableId: TABLES.PDF_JOBS });
+        existingColumns = (table as any).columns?.map((col: any) => col.key) ?? [];
+        console.log(`  Found ${existingColumns.length} existing columns`);
+      } catch (error) {
+        console.log('  Could not fetch existing columns, will attempt to create all');
+      }
+    }
+
+    await createColumnIfMissing(databaseId, TABLES.PDF_JOBS, 'status', existingColumns, () =>
+      tablesDB.createVarcharColumn({ databaseId, tableId: TABLES.PDF_JOBS, key: 'status', size: 20, required: true, xdefault: 'pending' }),
+    );
+    await createColumnIfMissing(databaseId, TABLES.PDF_JOBS, 'pdfUrl', existingColumns, () =>
+      tablesDB.createVarcharColumn({ databaseId, tableId: TABLES.PDF_JOBS, key: 'pdfUrl', size: 2048, required: false }),
+    );
+    await createColumnIfMissing(databaseId, TABLES.PDF_JOBS, 'error', existingColumns, () =>
+      tablesDB.createVarcharColumn({ databaseId, tableId: TABLES.PDF_JOBS, key: 'error', size: 2048, required: false }),
+    );
+    await createColumnIfMissing(databaseId, TABLES.PDF_JOBS, 'attendeeIds', existingColumns, () =>
+      tablesDB.createVarcharColumn({ databaseId, tableId: TABLES.PDF_JOBS, key: 'attendeeIds', size: 65535, required: true }),
+    );
+    await createColumnIfMissing(databaseId, TABLES.PDF_JOBS, 'attendeeCount', existingColumns, () =>
+      tablesDB.createIntegerColumn({ databaseId, tableId: TABLES.PDF_JOBS, key: 'attendeeCount', required: true, xdefault: 0 }),
+    );
+    await createColumnIfMissing(databaseId, TABLES.PDF_JOBS, 'requestedBy', existingColumns, () =>
+      tablesDB.createVarcharColumn({ databaseId, tableId: TABLES.PDF_JOBS, key: 'requestedBy', size: 255, required: true }),
+    );
+    await createColumnIfMissing(databaseId, TABLES.PDF_JOBS, 'eventSettingsId', existingColumns, () =>
+      tablesDB.createVarcharColumn({ databaseId, tableId: TABLES.PDF_JOBS, key: 'eventSettingsId', size: 255, required: true }),
+    );
+    await createColumnIfMissing(databaseId, TABLES.PDF_JOBS, 'attendeeNames', existingColumns, () =>
+      tablesDB.createVarcharColumn({ databaseId, tableId: TABLES.PDF_JOBS, key: 'attendeeNames', size: 4096, required: false }),
+    );
+
+    console.log('✓ PDF jobs table setup complete');
+  } catch (error: any) {
+    console.error('✗ Error setting up pdf_jobs table:', error);
+    throw error;
+  }
+}
+
 async function printEnvironmentVariables(databaseId: string) {
   console.log('\n' + '='.repeat(80));
   console.log('SETUP COMPLETE! Add these environment variables to your .env.local:');
@@ -553,6 +629,7 @@ NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID=${TABLES.EVENT_SETTINGS}
 NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID=${TABLES.LOGS}
 NEXT_PUBLIC_APPWRITE_LOG_SETTINGS_TABLE_ID=${TABLES.LOG_SETTINGS}
 NEXT_PUBLIC_APPWRITE_REPORTS_TABLE_ID=${TABLES.REPORTS}
+NEXT_PUBLIC_APPWRITE_PDF_JOBS_TABLE_ID=${TABLES.PDF_JOBS}
   `);
   console.log('='.repeat(80));
 }
@@ -592,6 +669,7 @@ async function main() {
     await createLogsTable(databaseId);
     await createLogSettingsTable(databaseId);
     await createReportsTable(databaseId);
+    await createPdfJobsTable(databaseId);
 
     // Print environment variables
     await printEnvironmentVariables(databaseId);

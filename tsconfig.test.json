@@ -10,7 +10,9 @@
     "src/__tests__/**/*.ts",
     "src/__tests__/**/*.tsx",
     "src/test/**/*.ts",
-    "src/lib/**/*.ts"
+    "src/lib/**/*.ts",
+    "src/pages/**/*.ts",
+    "src/pages/**/*.tsx"
   ],
   "exclude": []
 }

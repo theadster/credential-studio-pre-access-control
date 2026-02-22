@@ -80,10 +80,28 @@ const handler = async (req: AuthenticatedRequest, res: NextApiResponse) => {
       });
     }
 
+    // Security: Validate file path is within temp directory to prevent path traversal attacks
+    const path = require('path');
+    const uploadDir = form.uploadDir || '/tmp';
+    const resolvedFilePath = path.resolve(file.filepath);
+    const resolvedUploadDir = path.resolve(uploadDir);
+
+    if (!resolvedFilePath.startsWith(resolvedUploadDir)) {
+      return res.status(400).json({
+        error: 'Validation error',
+        message: 'Invalid file path. File must be uploaded through the form.',
+        retryable: false,
+        type: 'VALIDATION',
+        details: {
+          suggestion: 'Upload a file using the form and try again.'
+        }
+      });
+    }
+
     // Wrap CSV parsing in a Promise to properly handle async response
     await new Promise<void>((resolve, reject) => {
       const results: any[] = [];
-      fs.createReadStream(file.filepath)
+      fs.createReadStream(resolvedFilePath)
         .pipe(csv())
         .on('data', (data) => results.push(data))
         .on('end', async () => {
@@ -479,12 +497,12 @@ const handler = async (req: AuthenticatedRequest, res: NextApiResponse) => {
           reject(error);
         } finally {
           // Clean up the uploaded file
-          fs.unlinkSync(file.filepath);
+          fs.unlinkSync(resolvedFilePath);
         }
       })
       .on('error', (error) => {
         console.error('Error reading CSV file:', error);
-        fs.unlinkSync(file.filepath);
+        fs.unlinkSync(resolvedFilePath);
         res.status(400).json({ 
           error: 'Validation error',
           message: 'Failed to read CSV file. The file may be corrupted or in an invalid format.',

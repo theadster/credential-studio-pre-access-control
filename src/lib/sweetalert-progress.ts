@@ -44,44 +44,65 @@ export const showProgressModal = (isDark: boolean) => {
     allowEscapeKey: false,
     showConfirmButton: false,
     buttonsStyling: false,
-    showClass: {
-      popup: 'animate-in fade-in-0 zoom-in-95 duration-200',
-    },
-    hideClass: {
-      popup: 'animate-out fade-out-0 zoom-out-95 duration-150',
-    },
+    // Do NOT override showClass/hideClass with Tailwind animation classes.
+    // SweetAlert2 reuses its DOM container between calls. Custom hideClass
+    // classes (animate-out, fade-out-0, zoom-out-95) set animation-fill-mode:forwards
+    // which locks the popup at opacity:0 after close. The next Swal.fire() then
+    // inherits this stuck state — broken icon, invisible popup, unclickable buttons.
+    // See: src/lib/sweetalert-config.ts for the same reasoning.
   });
 
   // Return update function
   return (options: ProgressOptions) => {
-    const percentage = options.total > 0 ? Math.round((options.current / options.total) * 100) : 0;
-    
+    const isIndeterminate = !options.total || !Number.isFinite(options.total) || options.total <= 0;
+    const percentage = !isIndeterminate ? Math.min(100, Math.max(0, Math.round((options.current / options.total) * 100))) : 0;
+
+    // Scope all DOM queries to the SweetAlert popup to avoid touching unrelated elements
+    const popup = Swal.getPopup();
+
+    // Hide the initial loader spinner on first update
+    const loader = popup?.querySelector<HTMLElement>('.swal2-loader');
+    if (loader) {
+      loader.style.display = 'none';
+    }
+
     // Update title
     const titleElement = Swal.getTitle();
     if (titleElement) {
       titleElement.textContent = options.title;
     }
-    
-    // Update progress bar
-    const progressBar = document.getElementById('swal-progress-bar');
+
+    // Hide progress bar and count when total is unknown (indeterminate mode)
+    const progressBar = popup?.querySelector<HTMLElement>('#swal-progress-bar');
+    const progressBarTrack = progressBar?.parentElement;
+    if (progressBarTrack) {
+      progressBarTrack.style.display = isIndeterminate ? 'none' : 'block';
+    }
+
+    const progressFooter = popup?.querySelector<HTMLElement>('#swal-progress-text')?.parentElement;
+    if (progressFooter) {
+      progressFooter.style.display = isIndeterminate ? 'none' : 'flex';
+    }
+
+    // Update progress bar width
     if (progressBar) {
       progressBar.style.width = `${percentage}%`;
     }
-    
+
     // Update percentage text
-    const progressText = document.getElementById('swal-progress-text');
+    const progressText = popup?.querySelector<HTMLElement>('#swal-progress-text');
     if (progressText) {
       progressText.textContent = `${percentage}%`;
     }
-    
+
     // Update count
-    const progressCount = document.getElementById('swal-progress-count');
+    const progressCount = popup?.querySelector<HTMLElement>('#swal-progress-count');
     if (progressCount) {
       progressCount.textContent = `${options.current} of ${options.total}`;
     }
-    
+
     // Update current item name
-    const currentItem = document.getElementById('swal-current-item');
+    const currentItem = popup?.querySelector<HTMLElement>('#swal-current-item');
     if (currentItem) {
       if (options.currentItemName) {
         currentItem.textContent = `Currently processing: ${options.currentItemName}`;
@@ -90,7 +111,7 @@ export const showProgressModal = (isDark: boolean) => {
         currentItem.style.display = 'none';
       }
     }
-    
+
     // Update description text if provided
     if (options.text) {
       const container = Swal.getHtmlContainer();

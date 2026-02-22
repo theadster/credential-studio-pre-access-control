@@ -8,14 +8,10 @@ export default defineConfig({
     environment: 'happy-dom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
-    // Test files are located in src/__tests__/ directory (primary)
-    // Also supports co-located tests in src/**/__tests__/ directories
-    // This mirrors the source structure and prevents Next.js from treating tests as routes
     include: [
       'src/__tests__/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       'src/**/__tests__/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
     ],
-    // Exclude tests from pages directory to prevent Next.js route conflicts
     exclude: [
       'src/pages/**/__tests__/**',
       '**/node_modules/**',
@@ -36,8 +32,20 @@ export default defineConfig({
     },
   },
   resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src'),
-    },
+    alias: [
+      { find: '@', replacement: path.resolve(__dirname, './src') },
+      {
+        find: path.resolve(__dirname, 'functions/pdf-worker/src/lib/pdfTemplateBuilder'),
+        replacement: path.resolve(__dirname, 'src/lib/pdfTemplateBuilder'),
+      },
+      {
+        find: path.resolve(__dirname, 'functions/pdf-worker/node_modules/node-appwrite/dist/index.mjs'),
+        replacement: path.resolve(__dirname, 'node_modules/node-appwrite/dist/index.mjs'),
+      },
+      {
+        find: path.resolve(__dirname, 'functions/pdf-worker/node_modules/node-appwrite/dist/index.js'),
+        replacement: path.resolve(__dirname, 'node_modules/node-appwrite/dist/index.js'),
+      },
+    ],
   },
 });

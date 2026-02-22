@@ -1,4 +1,14 @@
-@import "tailwindcss";
+/* Layer order: vendor CSS loads first, then Tailwind layers override as needed.
+ * SweetAlert2 CSS is imported into a vendor layer so Tailwind's preflight
+ * (border: 0 solid, margin: 0, box-sizing: border-box on *, ::before, ::after)
+ * does not destroy SweetAlert2's icon internals which rely on borders and margins.
+ * See: https://github.com/tailwindlabs/tailwindcss/discussions/15870 */
+@layer vendor, theme, base, components, utilities;
+
+@import "sweetalert2/dist/sweetalert2.css" layer(vendor);
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/preflight.css" layer(base);
+@import "tailwindcss/utilities.css" layer(utilities);
 @import "tw-animate-css";
 @import "./sweetalert-custom.css";
 
@@ -138,7 +148,7 @@
 
 /* Base styles */
 @layer base {
-  * {
+  *:not(.swal2-container, .swal2-container *) {
     @apply border-border;
   }
   body {
