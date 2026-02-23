@@ -133,7 +133,7 @@ export default function ScanLogsViewer() {
           return;
         }
         const data = await response.json();
-        const profileList = (data.data || []).map((p: any) => ({ id: p.$id, name: p.name }));
+        const profileList = (data.data || []).map((p: any) => ({ id: p.id, name: p.name }));
         setProfiles(profileList);
         // Create profile map for quick lookup
         const map: Record<string, string> = {};
@@ -527,7 +527,7 @@ export default function ScanLogsViewer() {
                       </TableCell>
                       <TableCell className="text-center">
                         {log.result === 'approved' ? (
-                          <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                          <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800 dark:hover:bg-emerald-900/60">
                             <CheckCircle className="h-3 w-3 mr-1" />
                             Approved
                           </Badge>

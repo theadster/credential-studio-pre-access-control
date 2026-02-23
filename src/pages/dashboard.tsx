@@ -4953,7 +4953,7 @@ export default function Dashboard() {
                                     <div className="flex justify-center">
                                       {attendee.accessEnabled !== false ? (
                                         <Badge 
-                                          className="bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-200 hover:border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800 dark:hover:bg-emerald-900/40 dark:hover:border-emerald-700 font-semibold px-3 py-1 transition-colors"
+                                          className="bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800 dark:hover:bg-emerald-900/60 font-semibold px-3 py-1 transition-colors"
                                           role="status"
                                           aria-label="Access status: Active"
                                         >
@@ -4962,7 +4962,7 @@ export default function Dashboard() {
                                         </Badge>
                                       ) : (
                                         <Badge 
-                                          className="bg-red-100 text-red-800 border-red-200 hover:bg-red-200 hover:border-red-300 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800 dark:hover:bg-red-900/40 dark:hover:border-red-700 font-semibold px-3 py-1 transition-colors"
+                                          className="bg-red-100 text-red-800 border-red-200 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800 dark:hover:bg-red-900/60 font-semibold px-3 py-1 transition-colors"
                                           role="status"
                                           aria-label="Access status: Inactive"
                                         >
