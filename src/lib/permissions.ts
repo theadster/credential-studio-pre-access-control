@@ -1,10 +1,11 @@
 import { isAccessControlFeatureEnabled } from './accessControlFeature';
 
-interface Permission {
+export interface Permission {
   create?: boolean;
   read?: boolean;
   update?: boolean;
   delete?: boolean;
+  duplicate?: boolean;
   print?: boolean;
   export?: boolean;
   import?: boolean;
@@ -18,7 +19,7 @@ interface Permission {
   write?: boolean;
 }
 
-interface UserPermissions {
+export interface UserPermissions {
   attendees?: Permission;
   users?: Permission;
   roles?: Permission;

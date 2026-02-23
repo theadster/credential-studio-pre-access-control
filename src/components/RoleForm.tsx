@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Shield, Users, Settings, Activity, Plus, AlertTriangle } from "lucide-react";
+import type { Permission, UserPermissions } from "@/lib/permissions";
 
 interface Role {
   id: string;
@@ -25,44 +26,13 @@ interface RoleFormProps {
   role?: Role | null;
 }
 
-interface Permission {
-  create?: boolean;
-  read?: boolean;
-  update?: boolean;
-  delete?: boolean;
-  print?: boolean;
-  export?: boolean;
-  import?: boolean;
-  bulkEdit?: boolean;
-  bulkDelete?: boolean;
-  bulkGenerateCredentials?: boolean;
-  bulkGeneratePDFs?: boolean;
-  configure?: boolean;
-  backup?: boolean;
-  restore?: boolean;
-  write?: boolean;
-}
-
-interface UserPermissions {
-  attendees?: Permission;
-  users?: Permission;
-  roles?: Permission;
-  eventSettings?: Permission;
-  customFields?: Permission;
-  logs?: Permission;
-  system?: Permission;
-  monitoring?: Permission;
-  accessControl?: Permission;
-  approvalProfiles?: Permission;
-  scanLogs?: Permission;
-}
-
 const defaultPermissions: UserPermissions = {
   attendees: {
     create: false,
     read: false,
     update: false,
     delete: false,
+    duplicate: false,
     print: false,
     export: false,
     import: false,
@@ -137,6 +107,7 @@ const permissionLabels = {
       read: "View attendee list and details",
       update: "Edit attendee information",
       delete: "Delete attendees",
+      duplicate: "Duplicate attendee records",
       print: "Print credentials",
       export: "Export attendee data",
       import: "Import attendee data",

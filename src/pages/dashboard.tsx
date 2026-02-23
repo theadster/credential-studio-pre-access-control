@@ -51,6 +51,7 @@ import {
   Eye,
   Edit,
   Trash2,
+  Copy,
   UserPlus,
   Wand2,
   Calendar,
@@ -357,6 +358,8 @@ export default function Dashboard() {
   const [editingAttendee, setEditingAttendee] = useState<Attendee | null>(null);
   const [printingAttendee, setPrintingAttendee] = useState<string | null>(null);
   const [generatingCredential, setGeneratingCredential] = useState<string | null>(null);
+  const [duplicatingAttendee, setDuplicatingAttendee] = useState<string | null>(null);
+  const duplicatingAttendeeRef = useRef<string | null>(null);
   const [showUserForm, setShowUserForm] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -425,6 +428,13 @@ export default function Dashboard() {
     try {
       const usersResponse = await fetch('/api/users');
       if (usersResponse.ok) {
+        // Guard against empty 200 responses
+        const contentLength = usersResponse.headers.get('content-length');
+        if (contentLength === '0') {
+          setUsers([]);
+          usersFreshnessRef.current?.markFresh();
+          return;
+        }
         const usersData = await usersResponse.json();
         // API returns { users: [...], pagination: {...} }
         setUsers(usersData.users || []);
@@ -442,8 +452,22 @@ export default function Dashboard() {
     try {
       const rolesResponse = await fetch('/api/roles');
       if (rolesResponse.ok) {
+        // Handle 204 No Content responses
+        if (rolesResponse.status === 204) {
+          setRoles([]);
+          rolesFreshnessRef.current?.markFresh();
+          return;
+        }
+        // Guard against empty 200 responses
+        const contentLength = rolesResponse.headers.get('content-length');
+        if (contentLength === '0') {
+          setRoles([]);
+          rolesFreshnessRef.current?.markFresh();
+          return;
+        }
         const rolesData = await rolesResponse.json();
-        setRoles(Array.isArray(rolesData) ? rolesData : []);
+        const rolesArray = Array.isArray(rolesData) ? rolesData : (Array.isArray(rolesData?.roles) ? rolesData.roles : []);
+        setRoles(rolesArray);
         // Mark freshness only after successful fetch
         rolesFreshnessRef.current?.markFresh();
       } else {
@@ -458,6 +482,19 @@ export default function Dashboard() {
     try {
       const settingsResponse = await fetch('/api/event-settings');
       if (settingsResponse.ok) {
+        // Handle 204 No Content responses
+        if (settingsResponse.status === 204) {
+          setEventSettings(null);
+          settingsFreshnessRef.current?.markFresh();
+          return;
+        }
+        // Guard against empty 200 responses
+        const contentLength = settingsResponse.headers.get('content-length');
+        if (contentLength === '0') {
+          setEventSettings(null);
+          settingsFreshnessRef.current?.markFresh();
+          return;
+        }
         const settingsData = await settingsResponse.json();
         
         // Parse accessControlDefaults if it's a string
@@ -2446,6 +2483,110 @@ export default function Dashboard() {
     }
   };
 
+  /**
+   * Generate a cryptographically secure unique barcode for duplication.
+   * Mirrors the logic in useAttendeeForm.ts.
+   */
+  const generateUniqueBarcode = async (): Promise<string | null> => {
+    const barcodeType = (eventSettings?.barcodeType === 'numerical') ? 'numerical' : 'alphanumeric';
+    const barcodeLength = eventSettings?.barcodeLength || 8;
+    const charset = barcodeType === 'numerical' ? '0123456789' : 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    const maxAttempts = 10;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const randomBytes = new Uint8Array(barcodeLength * 2);
+      window.crypto.getRandomValues(randomBytes);
+      let barcode = '';
+      let byteIndex = 0;
+      for (let i = 0; i < barcodeLength; i++) {
+        let val;
+        do {
+          if (byteIndex >= randomBytes.length) {
+            window.crypto.getRandomValues(randomBytes);
+            byteIndex = 0;
+          }
+          val = randomBytes[byteIndex++];
+        } while (val >= 256 - (256 % charset.length));
+        barcode += charset.charAt(val % charset.length);
+      }
+
+      try {
+        const res = await fetch(`/api/attendees/check-barcode?barcode=${encodeURIComponent(barcode)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (!data.exists) return barcode;
+        }
+      } catch {
+        // ignore and retry
+      }
+    }
+    return null;
+  };
+
+  const handleDuplicateAttendee = async (sourceAttendee: any) => {
+    // Guard against reentrancy using ref for synchronous check
+    if (duplicatingAttendeeRef.current) return;
+    
+    duplicatingAttendeeRef.current = sourceAttendee.id;
+    setDuplicatingAttendee(sourceAttendee.id);
+    const attendeeName = `${sourceAttendee.firstName} ${sourceAttendee.lastName}`;
+
+    try {
+      const newBarcode = await generateUniqueBarcode();
+      if (!newBarcode) {
+        error("Error", "Could not generate a unique barcode. Please try again.");
+        return;
+      }
+
+      const response = await fetch('/api/attendees/duplicate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          attendeeId: sourceAttendee.id,
+          newBarcodeNumber: newBarcode,
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Failed to duplicate attendee');
+      }
+
+      // Handle 204 No Content responses
+      if (response.status === 204) {
+        error("Error", "Server returned empty response. Please try again.");
+        return;
+      }
+
+      const newAttendee = await response.json();
+
+      // Refresh the attendee list
+      await refreshAttendees();
+
+      // Open the edit form for the new duplicate so user can add photo
+      await refreshEventSettings();
+      try {
+        const fullRes = await fetch(`/api/attendees/${newAttendee.id}`);
+        if (fullRes.ok) {
+          const fullAttendee = await fullRes.json();
+          setEditingAttendee(fullAttendee);
+        } else {
+          setEditingAttendee({ ...newAttendee, id: newAttendee.id });
+        }
+      } catch {
+        setEditingAttendee({ ...newAttendee, id: newAttendee.id });
+      }
+      setShowAttendeeForm(true);
+
+      success("Duplicated", `Copy of ${attendeeName} created. Please add a photo and review the details.`);
+    } catch (err: any) {
+      error("Error", err.message || "Failed to duplicate attendee");
+    } finally {
+      duplicatingAttendeeRef.current = null;
+      setDuplicatingAttendee(null);
+    }
+  };
+
   const handleGenerateCredential = async (attendeeId: string) => {
     // Find the attendee name for the loading modal
     const attendee = attendees.find(a => a.id === attendeeId);
@@ -2624,13 +2765,23 @@ export default function Dashboard() {
         throw new Error(error.error || 'Failed to initialize roles');
       }
 
-      const result = await response.json();
+      // Handle 204 No Content responses
+      if (response.status !== 204) {
+        const result = await response.json();
+      }
 
       // Reload roles data
       const rolesResponse = await fetch('/api/roles');
       if (rolesResponse.ok) {
-        const rolesData = await rolesResponse.json();
-        setRoles(Array.isArray(rolesData) ? rolesData : []);
+        // Handle 204 No Content responses
+        if (rolesResponse.status !== 204) {
+          const rolesData = await rolesResponse.json();
+          setRoles(Array.isArray(rolesData) ? rolesData : (Array.isArray(rolesData?.roles) ? rolesData.roles : []));
+        } else {
+          setRoles([]);
+        }
+      } else {
+        throw new Error('Failed to reload roles after initialization');
       }
 
       success("Success", "Roles initialized successfully!");
@@ -5027,6 +5178,21 @@ export default function Dashboard() {
                                         >
                                           <Trash2 className="mr-2 h-4 w-4" />
                                           Clear Credential
+                                        </DropdownMenuItem>
+                                      )}
+                                      {hasPermission(currentUser?.role, 'attendees', 'duplicate') && (
+                                        <DropdownMenuItem
+                                          disabled={!!duplicatingAttendee}
+                                          onSelect={() => {
+                                            setDropdownStates(prev => ({
+                                              ...prev,
+                                              [attendee.id]: false
+                                            }));
+                                            handleDuplicateAttendee(attendee);
+                                          }}
+                                        >
+                                          <Copy className="mr-2 h-4 w-4" />
+                                          Duplicate
                                         </DropdownMenuItem>
                                       )}
                                       {hasPermission(currentUser?.role, 'attendees', 'update') && (

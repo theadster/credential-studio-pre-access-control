@@ -39,6 +39,7 @@ export async function getLogSettings() {
         rowId: ID.unique(),
         data: {
           attendeeCreate: true,
+          attendeeDuplicate: true,
           attendeeUpdate: true,
           attendeeDelete: true,
           attendeeView: false,
@@ -95,6 +96,7 @@ export async function getLogSettings() {
     // Return default settings if database query fails
     return {
       attendeeCreate: true,
+      attendeeDuplicate: true,
       attendeeUpdate: true,
       attendeeDelete: true,
       attendeeView: false,
