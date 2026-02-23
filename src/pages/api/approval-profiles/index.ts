@@ -10,6 +10,7 @@ import {
 import { ID } from 'appwrite';
 import { shouldLog } from '@/lib/logSettings';
 import { isConfigError } from '@/lib/apiErrorHandler';
+import { withAuth, AuthenticatedRequest } from '@/lib/apiMiddleware';
 
 const databaseId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
 const tableId = process.env.NEXT_PUBLIC_APPWRITE_APPROVAL_PROFILES_TABLE_ID!;
@@ -18,10 +19,7 @@ const tableId = process.env.NEXT_PUBLIC_APPWRITE_APPROVAL_PROFILES_TABLE_ID!;
  * GET /api/approval-profiles - List all approval profiles
  * POST /api/approval-profiles - Create a new approval profile
  */
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
+export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
   if (req.method === 'GET') {
     return handleGet(req, res);
   } else if (req.method === 'POST') {
@@ -32,20 +30,34 @@ export default async function handler(
     success: false,
     error: 'Method not allowed',
   });
-}
+});
 
 /**
  * GET - List all approval profiles (excluding soft-deleted)
  */
-async function handleGet(req: NextApiRequest, res: NextApiResponse) {
+async function handleGet(req: AuthenticatedRequest, res: NextApiResponse) {
   try {
+    const { userProfile } = req;
     const { tablesDB } = createSessionClient(req);
+
+    // Check permissions - need approval profiles read permission
+    const permissions = userProfile.role ? userProfile.role.permissions : {};
+    const hasReadPermission = permissions?.approvalProfiles?.read === true || permissions?.all === true;
+
+    if (!hasReadPermission) {
+      return res.status(403).json({
+        success: false,
+        error: 'Unauthorized - insufficient permissions to view approval profiles',
+      });
+    }
 
     if (!databaseId || !tableId) {
       return res.status(500).json({
         success: false,
-        errorCode: 'CONFIG_ERROR',
-        error: 'Approval profiles table is not configured. Check NEXT_PUBLIC_APPWRITE_APPROVAL_PROFILES_TABLE_ID.',
+        error: {
+          code: 'CONFIG_ERROR',
+          message: 'Approval profiles table is not configured. Check NEXT_PUBLIC_APPWRITE_APPROVAL_PROFILES_TABLE_ID.',
+        },
       });
     }
 
@@ -71,8 +83,14 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse) {
         }
       }
       return {
-        ...profile,
+        id: profile.$id,
+        name: profile.name,
+        description: profile.description,
+        version: profile.version,
         rules: parsedRules,
+        isDeleted: profile.isDeleted,
+        createdAt: profile.$createdAt,
+        updatedAt: profile.$updatedAt,
       };
     });
 
@@ -85,13 +103,18 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse) {
     if (isConfigError(error)) {
       return res.status(500).json({
         success: false,
-        errorCode: 'CONFIG_ERROR',
-        error: 'Approval profiles table is not configured or does not exist. Check your Appwrite setup.',
+        error: {
+          code: 'CONFIG_ERROR',
+          message: 'Approval profiles table is not configured or does not exist. Check your Appwrite setup.',
+        },
       });
     }
     return res.status(500).json({
       success: false,
-      error: 'Failed to list approval profiles',
+      error: {
+        code: 'SERVER_ERROR',
+        message: 'Failed to list approval profiles',
+      },
     });
   }
 }
@@ -99,9 +122,21 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse) {
 /**
  * POST - Create a new approval profile
  */
-async function handlePost(req: NextApiRequest, res: NextApiResponse) {
+async function handlePost(req: AuthenticatedRequest, res: NextApiResponse) {
   try {
+    const { userProfile } = req;
     const { tablesDB } = createSessionClient(req);
+
+    // Check permissions - need approval profiles create permission
+    const permissions = userProfile.role ? userProfile.role.permissions : {};
+    const hasCreatePermission = permissions?.approvalProfiles?.create === true || permissions?.all === true;
+
+    if (!hasCreatePermission) {
+      return res.status(403).json({
+        success: false,
+        error: 'Unauthorized - insufficient permissions to create approval profiles',
+      });
+    }
     
     // Validate request body
     const validation = CreateApprovalProfileSchema.safeParse(req.body);
@@ -165,11 +200,11 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse) {
           // Session not available, use unknown
         }
         
-        await tablesDB.createRow(
+        await tablesDB.createRow({
           databaseId,
-          logsTableId,
-          ID.unique(),
-          {
+          tableId: logsTableId,
+          rowId: ID.unique(),
+          data: {
             userId,
             action: 'create',
             details: JSON.stringify({
@@ -179,8 +214,8 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse) {
               description: input.description || null,
               ruleCount: input.rules?.conditions?.length || 0,
             }),
-          }
-        );
+          },
+        });
       } catch (logError) {
         console.error('[Approval Profiles API] Error creating audit log:', logError);
         // Continue even if logging fails

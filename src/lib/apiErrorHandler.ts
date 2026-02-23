@@ -48,9 +48,9 @@ export function isConfigError(error: any): boolean {
     (error.type === 'collection_not_found' ||
       error.type === 'database_not_found' ||
       error.type === 'document_not_found' ||
-      error.message?.toLowerCase().includes('collection') ||
-      error.message?.toLowerCase().includes('table') ||
-      error.message?.toLowerCase().includes('database'))
+      (error.message ?? '').toLowerCase().includes('collection') ||
+      (error.message ?? '').toLowerCase().includes('table') ||
+      (error.message ?? '').toLowerCase().includes('database'))
   ) {
     return true;
   }
@@ -77,7 +77,7 @@ export function isUnauthorizedTeamError(error: any): boolean {
   }
 
   // Secondary check: Error message indicating authorization failure
-  const message = error.message?.toLowerCase() || '';
+  const message = (error.message ?? '').toLowerCase();
   if (message.includes('not authorized to perform the requested action')) {
     return true;
   }
@@ -109,7 +109,7 @@ export function isTokenExpiredError(error: any): boolean {
 
   // user_unauthorized could be token OR team access - check message
   if (error.type === 'user_unauthorized') {
-    const message = error.message?.toLowerCase() || '';
+    const message = (error.message ?? '').toLowerCase();
     // If it's team access specific, don't treat as token error
     // (already handled by isUnauthorizedTeamError check above, but being explicit)
     if (message.includes('not authorized to perform the requested action')) {
@@ -121,7 +121,7 @@ export function isTokenExpiredError(error: any): boolean {
   // Check error code (but be careful - 401 can mean many things)
   if (error.code === 401) {
     // Only treat as token error if it has token-related keywords
-    const message = error.message?.toLowerCase() || '';
+    const message = (error.message ?? '').toLowerCase();
     const tokenKeywords = [
       'jwt',
       'token',
@@ -134,7 +134,7 @@ export function isTokenExpiredError(error: any): boolean {
   }
 
   // Check error message for JWT-related keywords
-  const message = error.message?.toLowerCase() || '';
+  const message = (error.message ?? '').toLowerCase();
   const tokenKeywords = [
     'jwt',
     'token',

@@ -131,7 +131,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     });
 
     // Map logs to response format - includes snapshot fields to avoid N+1 attendee lookups
-    const logs = logsResult.rows.map((doc: any) => ({
+    const logs = (logsResult.rows ?? []).map((doc: any) => ({
       id: doc.$id,
       localId: doc.localId,
       attendeeId: doc.attendeeId,

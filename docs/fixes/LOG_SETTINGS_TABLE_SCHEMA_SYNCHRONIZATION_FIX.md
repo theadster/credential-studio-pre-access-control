@@ -14,7 +14,7 @@ related_code:
 
 ## Overview
 
-Fixed critical schema discrepancy in the `log_settings` table where the setup script was defining only 6 columns while the actual database had 38 columns. The setup script now correctly creates all 34 boolean columns required by the application.
+Fixed critical schema discrepancy in the `log_settings` table where the setup script was defining only 6 columns while the actual database had 38 columns. The setup script now correctly creates all 32 boolean columns required by the application.
 
 ## Problem
 
@@ -26,7 +26,7 @@ The `createLogSettingsTable()` function in `scripts/setup-appwrite.ts` was only 
 - `logAttendeeDelete`
 - `logCredentialGenerate`
 
-However, the actual database had 38 columns, and the API code (`src/pages/api/log-settings/index.ts`) expected 34 boolean columns matching the `DEFAULT_LOG_SETTINGS` object.
+However, the actual database had 38 columns, and the API code (`src/pages/api/log-settings/index.ts`) expected 32 boolean columns matching the `DEFAULT_LOG_SETTINGS` object.
 
 ## Root Cause
 
@@ -34,9 +34,9 @@ The setup script was incomplete and didn't reflect the full set of logging confi
 
 ## Solution
 
-Updated `createLogSettingsTable()` to create all 34 boolean columns with appropriate default values:
+Updated `createLogSettingsTable()` to create all 32 boolean columns with appropriate default values:
 
-### Columns Added (34 total)
+### Columns Added (32 total)
 
 **Attendee Events (7 columns)**
 - `attendeeCreate` (default: true)
@@ -122,7 +122,7 @@ await tablesDB.updateRow({ databaseId: dbId, tableId: logSettingsTableId, rowId,
 
 ## Validation
 
-Setup script executed successfully with all 34 columns confirmed:
+Setup script executed successfully with all 32 columns confirmed:
 ```
 Creating log_settings table...
 ✓ Log settings table already exists

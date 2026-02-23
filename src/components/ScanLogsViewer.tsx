@@ -11,7 +11,7 @@
  * @see Requirements 10.3, 10.4
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -121,6 +121,7 @@ export default function ScanLogsViewer() {
   const [profiles, setProfiles] = useState<{ id: string; name: string }[]>([]);
   const [profileMap, setProfileMap] = useState<Record<string, string>>({});
   const [userMap, setUserMap] = useState<Record<string, string>>({});
+  const requestIdRef = useRef(0);
 
   // Load profiles and users for filter dropdown and name mapping
   useEffect(() => {
@@ -177,6 +178,7 @@ export default function ScanLogsViewer() {
 
   // Load scan logs
   const loadLogs = useCallback(async (offset = 0, currentFilters: Filters = DEFAULT_FILTERS) => {
+    const requestId = ++requestIdRef.current;
     setLoading(true);
     setConfigError(null);
     try {
@@ -192,6 +194,7 @@ export default function ScanLogsViewer() {
       if (currentFilters.dateTo) params.set('dateTo', currentFilters.dateTo);
 
       const response = await fetch(`/api/scan-logs?${params}`);
+      if (requestId !== requestIdRef.current) return; // Ignore if newer request exists
       if (response.ok) {
         const data = await response.json();
         setLogs(data.data?.logs || []);
@@ -208,7 +211,9 @@ export default function ScanLogsViewer() {
       console.error('Error loading scan logs:', err);
       showError('Error', 'Failed to load scan logs');
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
   }, [showError]);
 
@@ -497,10 +502,16 @@ export default function ScanLogsViewer() {
                     <TableRow key={log.id}>
                       <TableCell>
                         <div className="text-sm">
-                          <div>{new Date(log.scannedAt).toLocaleDateString()}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {new Date(log.scannedAt).toLocaleTimeString()}
-                          </div>
+                          {log.scannedAt ? (
+                            <>
+                              <div>{new Date(log.scannedAt).toLocaleDateString()}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {new Date(log.scannedAt).toLocaleTimeString()}
+                              </div>
+                            </>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell 

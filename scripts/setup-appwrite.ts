@@ -98,6 +98,7 @@ async function createColumnIfMissing(
       console.log(`  ✓ Column '${key}' already exists`);
     } else {
       console.error(`  ✗ Error creating column '${key}':`, error.message);
+      throw error;
     }
   }
 }
@@ -493,9 +494,7 @@ async function createEventSettingsTable(databaseId: string) {
         name: 'Event Settings',
         permissions: [
           Permission.read(Role.any()),
-          Permission.create(Role.users()),
-          Permission.update(Role.users()),
-          Permission.delete(Role.users()),
+          // Create/update/delete restricted to API layer (role-based checks enforced there)
         ],
       });
     } catch (error: any) {
@@ -686,9 +685,7 @@ async function createLogSettingsTable(databaseId: string) {
         name: 'Log Settings',
         permissions: [
           Permission.read(Role.any()),
-          Permission.create(Role.users()),
-          Permission.update(Role.users()),
-          Permission.delete(Role.users()),
+          // Create/update/delete restricted to API layer (role-based checks enforced there)
         ],
       });
     } catch (error: any) {
@@ -1146,9 +1143,7 @@ async function createAccessControlTable(databaseId: string) {
         name: 'Access Control',
         permissions: [
           Permission.read(Role.users()),
-          Permission.create(Role.users()),
-          Permission.update(Role.users()),
-          Permission.delete(Role.users()),
+          // Create/update/delete restricted to API layer (role-based checks enforced there)
         ],
       });
     } catch (error: any) {
@@ -1210,9 +1205,7 @@ async function createApprovalProfilesTable(databaseId: string) {
         name: 'Approval Profiles',
         permissions: [
           Permission.read(Role.users()),
-          Permission.create(Role.users()),
-          Permission.update(Role.users()),
-          Permission.delete(Role.users()),
+          // Create/update/delete restricted to API layer (role-based checks enforced there)
         ],
       });
     } catch (error: any) {
@@ -1335,12 +1328,11 @@ async function createCloudinaryTable(databaseId: string) {
       tablesDB.createVarcharColumn({ databaseId, tableId: TABLES.CLOUDINARY, key: 'cropAspectRatio', size: 50, required: false }),
     );
 
-    if (!tableExists) {
-      try {
-        await tablesDB.createIndex({ databaseId, tableId: TABLES.CLOUDINARY, key: 'eventSettingsId_idx', type: IndexType.Unique, columns: ['eventSettingsId'] });
-      } catch (error: any) {
-        if (error.code !== 409) console.error('  ✗ Error creating eventSettingsId index:', error.message);
-      }
+    // Create index (will be skipped if it already exists)
+    try {
+      await tablesDB.createIndex({ databaseId, tableId: TABLES.CLOUDINARY, key: 'eventSettingsId_idx', type: IndexType.Unique, columns: ['eventSettingsId'] });
+    } catch (error: any) {
+      if (error.code !== 409) console.error('  ✗ Error creating eventSettingsId index:', error.message);
     }
 
     console.log('✓ Cloudinary table setup complete');
@@ -1412,12 +1404,11 @@ async function createSwitchboardTable(databaseId: string) {
       tablesDB.createMediumtextColumn({ databaseId, tableId: TABLES.SWITCHBOARD, key: 'fieldMappings', required: false }),
     );
 
-    if (!tableExists) {
-      try {
-        await tablesDB.createIndex({ databaseId, tableId: TABLES.SWITCHBOARD, key: 'eventSettingsId_idx', type: IndexType.Unique, columns: ['eventSettingsId'] });
-      } catch (error: any) {
-        if (error.code !== 409) console.error('  ✗ Error creating eventSettingsId index:', error.message);
-      }
+    // Create index (will be skipped if it already exists)
+    try {
+      await tablesDB.createIndex({ databaseId, tableId: TABLES.SWITCHBOARD, key: 'eventSettingsId_idx', type: IndexType.Unique, columns: ['eventSettingsId'] });
+    } catch (error: any) {
+      if (error.code !== 409) console.error('  ✗ Error creating eventSettingsId index:', error.message);
     }
 
     console.log('✓ Switchboard table setup complete');

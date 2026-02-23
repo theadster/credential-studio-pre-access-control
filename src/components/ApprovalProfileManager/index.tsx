@@ -12,7 +12,7 @@
  * @see Requirements 3.1, 3.2, 3.3, 3.4, 3.5
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -66,20 +66,23 @@ export default function ApprovalProfileManager({ onProfileChange }: ApprovalProf
   const [editingProfile, setEditingProfile] = useState<ApprovalProfile | null>(null);
   const [deleteProfile, setDeleteProfile] = useState<ApprovalProfile | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const requestIdRef = useRef(0);
 
   // Load profiles
   const loadProfiles = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
     setLoading(true);
     setConfigError(null);
     try {
       const response = await fetch('/api/approval-profiles');
+      if (requestId !== requestIdRef.current) return; // Ignore if newer request exists
       if (response.ok) {
         const data = await response.json();
         setProfiles(data.data || []);
       } else {
         const data = await response.json();
-        if (data.errorCode === 'CONFIG_ERROR') {
-          setConfigError(data.error || 'Approval profiles table is not configured.');
+        if (data.error?.code === 'CONFIG_ERROR') {
+          setConfigError(data.error.message || 'Approval profiles table is not configured.');
         } else {
           showError('Error', 'Failed to load approval profiles');
         }
@@ -88,7 +91,9 @@ export default function ApprovalProfileManager({ onProfileChange }: ApprovalProf
       console.error('Error loading profiles:', err);
       showError('Error', 'Failed to load approval profiles');
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
   }, [showError]);
 

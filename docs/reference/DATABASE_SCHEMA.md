@@ -3,7 +3,7 @@ title: Database Schema Reference
 type: canonical
 status: active
 owner: "@team"
-last_verified: 2026-02-22
+last_verified: 2026-02-23
 review_interval_days: 90
 related_code:
   - scripts/setup-appwrite.ts
@@ -143,7 +143,7 @@ Defines the custom fields configured for an event. Each row is one field definit
 
 Single-row table (one row per event deployment) holding all global event configuration.
 
-**Permissions:** read(any), create(users), update(users), delete(users)
+**Permissions:** read(any) — Create/update/delete restricted to API layer (role-based checks enforced)
 
 | Column | Type | Required | Default | Size | Description |
 |--------|------|----------|---------|------|-------------|
@@ -195,7 +195,7 @@ Append-only audit log. Every significant user or system action writes a row here
 
 One row per event. Boolean toggles that control which action types are written to the `logs` table. All default to `true` (log everything).
 
-**Permissions:** read(any), create(users), update(users), delete(users)
+**Permissions:** read(any) — Create/update/delete restricted to API layer (role-based checks enforced)
 
 #### Attendee Events
 
@@ -356,7 +356,7 @@ Job queue for async credential PDF generation. Rows are created by the client an
 
 One row per attendee. Stores whether the attendee has access enabled and optional validity window dates. Created lazily when access control settings are first applied to an attendee.
 
-**Permissions:** read(users), create(users), update(users), delete(users)
+**Permissions:** read(users) — Create/update/delete restricted to API layer (role-based checks enforced)
 
 | Column | Type | Required | Default | Size | Description |
 |--------|------|----------|---------|------|-------------|
@@ -374,7 +374,7 @@ One row per attendee. Stores whether the attendee has access enabled and optiona
 
 Named rule sets used by the mobile scanning app to determine whether a scan should be approved or denied. Soft-deleted via `isDeleted`.
 
-**Permissions:** read(users), create(users), update(users), delete(users)
+**Permissions:** read(users) — Create/update/delete restricted to API layer (role-based checks enforced)
 
 | Column | Type | Required | Default | Size | Description |
 |--------|------|----------|---------|------|-------------|
