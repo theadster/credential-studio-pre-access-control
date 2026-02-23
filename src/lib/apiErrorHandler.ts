@@ -22,6 +22,43 @@ export interface ErrorHandlerOptions {
 }
 
 /**
+ * Detect Appwrite errors that indicate a misconfigured or missing table/database,
+ * or a missing environment variable. These are "setup" errors, not runtime errors,
+ * and should be surfaced to the user rather than silently showing empty state.
+ *
+ * Appwrite throws code 404 with type "collection_not_found" or "database_not_found"
+ * when a table/database ID is wrong or the resource doesn't exist.
+ */
+export function isConfigError(error: any): boolean {
+  if (!error) return false;
+
+  // Missing or empty env var — the tableId/databaseId will be undefined/empty
+  if (
+    error.message?.includes('Invalid `tableId` param') ||
+    error.message?.includes('Invalid `databaseId` param') ||
+    error.message?.includes('Value must be a valid') ||
+    error.message?.includes('missing required')
+  ) {
+    return true;
+  }
+
+  // Appwrite 404 for missing table or database
+  if (
+    error.code === 404 &&
+    (error.type === 'collection_not_found' ||
+      error.type === 'database_not_found' ||
+      error.type === 'document_not_found' ||
+      error.message?.toLowerCase().includes('collection') ||
+      error.message?.toLowerCase().includes('table') ||
+      error.message?.toLowerCase().includes('database'))
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Check if an error is related to team membership/authorization
  * (user is authenticated but not authorized for this event)
  * 

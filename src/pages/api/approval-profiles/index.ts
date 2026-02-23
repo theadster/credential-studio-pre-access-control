@@ -9,6 +9,7 @@ import {
 } from '@/types/approvalProfile';
 import { ID } from 'appwrite';
 import { shouldLog } from '@/lib/logSettings';
+import { isConfigError } from '@/lib/apiErrorHandler';
 
 const databaseId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!;
 const tableId = process.env.NEXT_PUBLIC_APPWRITE_APPROVAL_PROFILES_TABLE_ID!;
@@ -39,14 +40,23 @@ export default async function handler(
 async function handleGet(req: NextApiRequest, res: NextApiResponse) {
   try {
     const { tablesDB } = createSessionClient(req);
-    const response = await tablesDB.listRows(
+
+    if (!databaseId || !tableId) {
+      return res.status(500).json({
+        success: false,
+        errorCode: 'CONFIG_ERROR',
+        error: 'Approval profiles table is not configured. Check NEXT_PUBLIC_APPWRITE_APPROVAL_PROFILES_TABLE_ID.',
+      });
+    }
+
+    const response = await tablesDB.listRows({
       databaseId,
       tableId,
-      [
+      queries: [
         Query.equal('isDeleted', false),
         Query.orderDesc('$createdAt'),
-      ]
-    );
+      ],
+    });
 
     // Parse rules JSON strings to objects for consistent API response
     const profilesWithParsedRules = response.rows.map((profile: any) => {
@@ -72,6 +82,13 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse) {
     });
   } catch (error: any) {
     console.error('Error listing approval profiles:', error);
+    if (isConfigError(error)) {
+      return res.status(500).json({
+        success: false,
+        errorCode: 'CONFIG_ERROR',
+        error: 'Approval profiles table is not configured or does not exist. Check your Appwrite setup.',
+      });
+    }
     return res.status(500).json({
       success: false,
       error: 'Failed to list approval profiles',
@@ -100,14 +117,14 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse) {
     const input: CreateApprovalProfileInput = validation.data;
 
     // Check for duplicate name
-    const existingProfiles = await tablesDB.listRows(
+    const existingProfiles = await tablesDB.listRows({
       databaseId,
       tableId,
-      [
+      queries: [
         Query.equal('name', input.name),
         Query.equal('isDeleted', false),
-      ]
-    );
+      ],
+    });
 
     if (existingProfiles.rows.length > 0) {
       return res.status(409).json({
@@ -121,18 +138,18 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse) {
     const rulesJson = JSON.stringify(input.rules);
 
     // Create the profile
-    const profile = await tablesDB.createRow(
+    const profile = await tablesDB.createRow({
       databaseId,
       tableId,
-      ID.unique(),
-      {
+      rowId: ID.unique(),
+      data: {
         name: input.name,
         description: input.description || null,
         version: 1,
         rules: rulesJson as any, // Stored as JSON string in DB, parsed on retrieval
         isDeleted: false,
-      }
-    );
+      },
+    });
 
     // Log the profile creation if enabled
     if (await shouldLog('approvalProfileCreate')) {

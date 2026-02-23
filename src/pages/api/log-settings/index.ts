@@ -9,7 +9,7 @@ const DEFAULT_LOG_SETTINGS = {
   attendeeCreate: true,
   attendeeUpdate: true,
   attendeeDelete: true,
-  attendeeView: false,
+  attendeeView: true,
   attendeeBulkDelete: true,
   attendeeImport: true,
   attendeeExport: true,
@@ -18,12 +18,12 @@ const DEFAULT_LOG_SETTINGS = {
   userCreate: true,
   userUpdate: true,
   userDelete: true,
-  userView: false,
+  userView: true,
   userInvite: true,
   roleCreate: true,
   roleUpdate: true,
   roleDelete: true,
-  roleView: false,
+  roleView: true,
   eventSettingsUpdate: true,
   customFieldCreate: true,
   customFieldUpdate: true,
@@ -33,11 +33,11 @@ const DEFAULT_LOG_SETTINGS = {
   authLogout: true,
   logsDelete: true,
   logsExport: true,
-  logsView: false,
-  systemViewEventSettings: false,
-  systemViewAttendeeList: false,
-  systemViewRolesList: false,
-  systemViewUsersList: false
+  logsView: true,
+  systemViewEventSettings: true,
+  systemViewAttendeeList: true,
+  systemViewRolesList: true,
+  systemViewUsersList: true
 } as const;
 
 export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
@@ -62,21 +62,21 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         }
 
         // Get or create log settings (there should only be one record)
-        const logSettingsResult = await tablesDB.listRows(
-          dbId,
-          logSettingsTableId,
-          [Query.limit(1)]
-        );
+        const logSettingsResult = await tablesDB.listRows({
+          databaseId: dbId,
+          tableId: logSettingsTableId,
+          queries: [Query.limit(1)]
+        });
 
         let logSettings;
         if (logSettingsResult.rows.length === 0) {
           // Create default log settings if none exist
-          logSettings = await tablesDB.createRow(
-            dbId,
-            logSettingsTableId,
-            ID.unique(),
-            DEFAULT_LOG_SETTINGS
-          );
+          logSettings = await tablesDB.createRow({
+            databaseId: dbId,
+            tableId: logSettingsTableId,
+            rowId: ID.unique(),
+            data: DEFAULT_LOG_SETTINGS
+          });
         } else {
           logSettings = logSettingsResult.rows[0];
         }
@@ -125,11 +125,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         } = req.body;
 
         // Get existing settings or create new ones
-        const existingSettingsResult = await tablesDB.listRows(
-          dbId,
-          logSettingsTableId,
-          [Query.limit(1)]
-        );
+        const existingSettingsResult = await tablesDB.listRows({
+          databaseId: dbId,
+          tableId: logSettingsTableId,
+          queries: [Query.limit(1)]
+        });
 
         // Prepare update data - only include fields that are defined
         const fields = [
@@ -160,19 +160,19 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         let updatedSettings;
         if (existingSettingsResult.rows.length > 0) {
           // Update existing settings
-          updatedSettings = await tablesDB.updateRow(
-            dbId,
-            logSettingsTableId,
-            existingSettingsResult.rows[0].$id,
-            updateData
-          );
+          updatedSettings = await tablesDB.updateRow({
+            databaseId: dbId,
+            tableId: logSettingsTableId,
+            rowId: existingSettingsResult.rows[0].$id,
+            data: updateData
+          });
         } else {
           // Create new settings with provided values, using defaults for undefined fields
-          updatedSettings = await tablesDB.createRow(
-            dbId,
-            logSettingsTableId,
-            ID.unique(),
-            {
+          updatedSettings = await tablesDB.createRow({
+            databaseId: dbId,
+            tableId: logSettingsTableId,
+            rowId: ID.unique(),
+            data: {
               attendeeCreate: attendeeCreate ?? DEFAULT_LOG_SETTINGS.attendeeCreate,
               attendeeUpdate: attendeeUpdate ?? DEFAULT_LOG_SETTINGS.attendeeUpdate,
               attendeeDelete: attendeeDelete ?? DEFAULT_LOG_SETTINGS.attendeeDelete,
@@ -206,7 +206,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
               systemViewRolesList: systemViewRolesList ?? DEFAULT_LOG_SETTINGS.systemViewRolesList,
               systemViewUsersList: systemViewUsersList ?? DEFAULT_LOG_SETTINGS.systemViewUsersList
             }
-          );
+          });
         }
 
         // Clear the cache so new settings take effect immediately
@@ -230,11 +230,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         if (Object.keys(changes).length > 0) {
           try {
             const { createSettingsLogDetails } = await import('@/lib/logFormatting');
-            await tablesDB.createRow(
-              dbId,
-              logsTableId,
-              ID.unique(),
-              {
+            await tablesDB.createRow({
+              databaseId: dbId,
+              tableId: logsTableId,
+              rowId: ID.unique(),
+              data: {
                 userId: user.$id,
                 action: 'update',
                 details: JSON.stringify(
@@ -244,7 +244,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
                   })
                 )
               }
-            );
+            });
           } catch (logError) {
             console.error('Failed to write log settings audit log:', logError);
           }

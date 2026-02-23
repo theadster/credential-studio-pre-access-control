@@ -55,6 +55,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { useSweetAlert } from '@/hooks/useSweetAlert';
+import { ConfigErrorBanner } from '@/components/ui/ConfigErrorBanner';
 import ScanLogsDeleteDialog from '@/components/ScanLogsDeleteDialog';
 
 interface ScanLog {
@@ -71,6 +72,10 @@ interface ScanLog {
   scannedAt: string;
   uploadedAt: string | null;
   createdAt: string;
+  // Snapshot fields - stored at scan time to avoid N+1 attendee lookups
+  attendeeFirstName: string | null;
+  attendeeLastName: string | null;
+  attendeePhotoUrl: string | null;
 }
 
 interface Pagination {
@@ -104,6 +109,7 @@ export default function ScanLogsViewer() {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [logs, setLogs] = useState<ScanLog[]>([]);
+  const [configError, setConfigError] = useState<string | null>(null);
   const [pagination, setPagination] = useState<Pagination>({
     total: 0,
     limit: 50,
@@ -115,7 +121,6 @@ export default function ScanLogsViewer() {
   const [profiles, setProfiles] = useState<{ id: string; name: string }[]>([]);
   const [profileMap, setProfileMap] = useState<Record<string, string>>({});
   const [userMap, setUserMap] = useState<Record<string, string>>({});
-  const [attendeeMap, setAttendeeMap] = useState<Record<string, { firstName: string; lastName: string }>>({});
 
   // Load profiles and users for filter dropdown and name mapping
   useEffect(() => {
@@ -170,54 +175,13 @@ export default function ScanLogsViewer() {
     loadUsers();
   }, []);
 
-  // Load attendee names for a list of attendee IDs
-  const loadAttendeeNames = useCallback(async (attendeeIds: string[]) => {
-    // Filter out nulls, already loaded attendees, and deduplicate
-    const idsToLoad = Array.from(new Set(attendeeIds.filter(id => id && !attendeeMap[id])));
-    if (idsToLoad.length === 0) return;
-
-    try {
-      // Fetch attendees in batches to avoid too large requests
-      const batchSize = 25;
-      const newMap: Record<string, { firstName: string; lastName: string }> = {};
-      
-      for (let i = 0; i < idsToLoad.length; i += batchSize) {
-        const batch = idsToLoad.slice(i, i + batchSize);
-        const promises = batch.map(async (id) => {
-          try {
-            const response = await fetch(`/api/attendees/${id}`);
-            if (response.ok) {
-              const data = await response.json();
-              return { id, firstName: data.firstName || '', lastName: data.lastName || '' };
-            }
-          } catch {
-            // Ignore individual fetch errors
-          }
-          return null;
-        });
-        
-        const results = await Promise.all(promises);
-        results.forEach(result => {
-          if (result) {
-            newMap[result.id] = { firstName: result.firstName, lastName: result.lastName };
-          }
-        });
-      }
-      
-      if (Object.keys(newMap).length > 0) {
-        setAttendeeMap(prev => ({ ...prev, ...newMap }));
-      }
-    } catch (err) {
-      console.error('Error loading attendee names:', err);
-    }
-  }, [attendeeMap]);
-
   // Load scan logs
   const loadLogs = useCallback(async (offset = 0, currentFilters: Filters = DEFAULT_FILTERS) => {
     setLoading(true);
+    setConfigError(null);
     try {
       const params = new URLSearchParams();
-      params.set('limit', String(pagination.limit));
+      params.set('limit', '50');
       params.set('offset', String(offset));
       
       if (currentFilters.deviceId) params.set('deviceId', currentFilters.deviceId);
@@ -230,20 +194,15 @@ export default function ScanLogsViewer() {
       const response = await fetch(`/api/scan-logs?${params}`);
       if (response.ok) {
         const data = await response.json();
-        const fetchedLogs = data.data?.logs || [];
-        setLogs(fetchedLogs);
+        setLogs(data.data?.logs || []);
         setPagination(data.data?.pagination || { total: 0, limit: 50, offset: 0, hasMore: false });
-        
-        // Load attendee names for logs that have attendeeId
-        const attendeeIds = fetchedLogs
-          .map((log: ScanLog) => log.attendeeId)
-          .filter((id: string | null): id is string => id !== null);
-        if (attendeeIds.length > 0) {
-          loadAttendeeNames(attendeeIds);
-        }
       } else {
         const errorData = await response.json();
-        showError('Error', errorData.error?.message || 'Failed to load scan logs');
+        if (errorData.error?.code === 'CONFIG_ERROR') {
+          setConfigError(errorData.error.message || 'Scan logs table is not configured.');
+        } else {
+          showError('Error', errorData.error?.message || 'Failed to load scan logs');
+        }
       }
     } catch (err) {
       console.error('Error loading scan logs:', err);
@@ -251,7 +210,7 @@ export default function ScanLogsViewer() {
     } finally {
       setLoading(false);
     }
-  }, [pagination.limit, showError, loadAttendeeNames]);
+  }, [showError]);
 
   useEffect(() => {
     loadLogs(0, filters);
@@ -358,6 +317,12 @@ export default function ScanLogsViewer() {
         </div>
       </CardHeader>
       <CardContent>
+        {configError && (
+          <ConfigErrorBanner
+            title="Scan Logs Unavailable"
+            message={configError}
+          />
+        )}
         {/* Filters */}
         <Collapsible open={showFilters} onOpenChange={setShowFilters} className="mb-4">
           <div className="flex items-center justify-between">
@@ -524,9 +489,8 @@ export default function ScanLogsViewer() {
               </TableHeader>
               <TableBody>
                 {logs.map((log) => {
-                  const attendee = log.attendeeId ? attendeeMap[log.attendeeId] : null;
-                  const attendeeName = attendee 
-                    ? `${attendee.firstName} ${attendee.lastName}`.trim() 
+                  const attendeeName = log.attendeeFirstName || log.attendeeLastName
+                    ? `${log.attendeeFirstName ?? ''} ${log.attendeeLastName ?? ''}`.trim()
                     : null;
                   
                   return (

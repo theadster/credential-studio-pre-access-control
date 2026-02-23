@@ -124,13 +124,13 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     queries.push(Query.orderDesc('scannedAt'));
 
     // Fetch scan logs
-    const logsResult = await tablesDB.listRows(
-      dbId,
-      scanLogsTableId,
-      queries
-    );
+    const logsResult = await tablesDB.listRows({
+      databaseId: dbId,
+      tableId: scanLogsTableId,
+      queries,
+    });
 
-    // Map logs to response format
+    // Map logs to response format - includes snapshot fields to avoid N+1 attendee lookups
     const logs = logsResult.rows.map((doc: any) => ({
       id: doc.$id,
       localId: doc.localId,
@@ -145,6 +145,9 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       scannedAt: doc.scannedAt,
       uploadedAt: doc.uploadedAt,
       createdAt: doc.$createdAt,
+      attendeeFirstName: doc.attendeeFirstName ?? null,
+      attendeeLastName: doc.attendeeLastName ?? null,
+      attendeePhotoUrl: doc.attendeePhotoUrl ?? null,
     }));
 
     // Calculate pagination metadata
@@ -165,6 +168,28 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
   } catch (error: any) {
     console.error('[Scan Logs List] Error:', error);
+
+    if (!process.env.NEXT_PUBLIC_APPWRITE_SCAN_LOGS_TABLE_ID) {
+      return res.status(500).json({
+        success: false,
+        error: {
+          code: 'CONFIG_ERROR',
+          message: 'Scan logs table is not configured. Check NEXT_PUBLIC_APPWRITE_SCAN_LOGS_TABLE_ID.',
+        },
+      });
+    }
+
+    // Detect misconfigured/missing table
+    const { isConfigError } = await import('@/lib/apiErrorHandler');
+    if (isConfigError(error)) {
+      return res.status(500).json({
+        success: false,
+        error: {
+          code: 'CONFIG_ERROR',
+          message: 'Scan logs table is not configured or does not exist. Check your Appwrite setup.',
+        },
+      });
+    }
     
     return res.status(500).json({
       success: false,

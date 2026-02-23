@@ -48,6 +48,7 @@ import {
 import { useSweetAlert } from '@/hooks/useSweetAlert';
 import { ApprovalProfile, RuleGroup } from '@/types/approvalProfile';
 import ProfileEditorDialog from './ProfileEditorDialog';
+import { ConfigErrorBanner } from '@/components/ui/ConfigErrorBanner';
 
 interface ApprovalProfileManagerProps {
   /** Optional callback when a profile is created/updated/deleted */
@@ -59,6 +60,7 @@ export default function ApprovalProfileManager({ onProfileChange }: ApprovalProf
   
   const [loading, setLoading] = useState(true);
   const [profiles, setProfiles] = useState<ApprovalProfile[]>([]);
+  const [configError, setConfigError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [showEditor, setShowEditor] = useState(false);
   const [editingProfile, setEditingProfile] = useState<ApprovalProfile | null>(null);
@@ -68,13 +70,19 @@ export default function ApprovalProfileManager({ onProfileChange }: ApprovalProf
   // Load profiles
   const loadProfiles = useCallback(async () => {
     setLoading(true);
+    setConfigError(null);
     try {
       const response = await fetch('/api/approval-profiles');
       if (response.ok) {
         const data = await response.json();
         setProfiles(data.data || []);
       } else {
-        showError('Error', 'Failed to load approval profiles');
+        const data = await response.json();
+        if (data.errorCode === 'CONFIG_ERROR') {
+          setConfigError(data.error || 'Approval profiles table is not configured.');
+        } else {
+          showError('Error', 'Failed to load approval profiles');
+        }
       }
     } catch (err) {
       console.error('Error loading profiles:', err);
@@ -192,6 +200,13 @@ export default function ApprovalProfileManager({ onProfileChange }: ApprovalProf
           </div>
         </CardHeader>
         <CardContent>
+          {configError ? (
+            <ConfigErrorBanner
+              title="Approval Profiles Unavailable"
+              message={configError}
+            />
+          ) : (
+            <>
           {/* Search */}
           <div className="mb-4">
             <div className="relative w-64">
@@ -278,6 +293,8 @@ export default function ApprovalProfileManager({ onProfileChange }: ApprovalProf
                 ))}
               </TableBody>
             </Table>
+          )}
+            </>
           )}
         </CardContent>
       </Card>
