@@ -113,20 +113,26 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       throw createError;
     }
 
-    // Create access control record with defaults (not copied from source)
-    // Security: Access control is reset to defaults to prevent unintentionally
-    // granting the same access rights to the duplicate attendee
+    // Copy access control from source attendee
     if (accessControlTableId) {
       try {
+        // Fetch source attendee's access control record
+        const sourceAcResult = await tablesDB.listRows({
+          databaseId: dbId,
+          tableId: accessControlTableId,
+          queries: [Query.equal('attendeeId', attendeeId), Query.limit(1)],
+        });
+
+        const sourceAc = sourceAcResult.rows[0];
         await tablesDB.createRow({
           databaseId: dbId,
           tableId: accessControlTableId,
           rowId: ID.unique(),
           data: {
             attendeeId: newRow.$id,
-            accessEnabled: false,
-            validFrom: null,
-            validUntil: null,
+            accessEnabled: sourceAc?.accessEnabled ?? true,
+            validFrom: sourceAc?.validFrom ?? null,
+            validUntil: sourceAc?.validUntil ?? null,
           },
         });
       } catch (acError) {
@@ -145,7 +151,6 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           data: {
             action: 'attendee_duplicated',
             userId: user.$id,
-            userEmail: user.email,
             details: JSON.stringify({
               sourceAttendeeId: attendeeId,
               newAttendeeId: newRow.$id,
