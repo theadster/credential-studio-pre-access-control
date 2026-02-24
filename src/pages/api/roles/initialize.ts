@@ -37,7 +37,8 @@ const DEFAULT_ROLES = [
       system: { configure: true, backup: true, restore: true },
       accessControl: { read: true, write: true },
       approvalProfiles: { read: true, write: true, delete: true },
-      scanLogs: { read: true, export: true }
+      scanLogs: { read: true, export: true },
+      reports: { create: true, read: true, update: true, delete: true }
     }
   },
   {
@@ -53,7 +54,8 @@ const DEFAULT_ROLES = [
       system: { configure: false, backup: false, restore: false },
       accessControl: { read: true, write: true },
       approvalProfiles: { read: true, write: true, delete: true },
-      scanLogs: { read: true, export: true }
+      scanLogs: { read: true, export: true },
+      reports: { create: true, read: true, update: true, delete: true }
     }
   },
   {
@@ -69,7 +71,8 @@ const DEFAULT_ROLES = [
       system: { configure: false, backup: false, restore: false },
       accessControl: { read: true, write: true },
       approvalProfiles: { read: true, write: false, delete: false },
-      scanLogs: { read: true, export: false }
+      scanLogs: { read: true, export: false },
+      reports: { create: true, read: true, update: true, delete: false }
     }
   },
   {
@@ -85,7 +88,8 @@ const DEFAULT_ROLES = [
       system: { configure: false, backup: false, restore: false },
       accessControl: { read: true, write: false },
       approvalProfiles: { read: true, write: false, delete: false },
-      scanLogs: { read: true, export: false }
+      scanLogs: { read: true, export: false },
+      reports: { create: false, read: true, update: false, delete: false }
     }
   }
 ];
@@ -105,32 +109,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const user = await account.get();
 
     // Check if user is authorized to initialize roles
-    const userDocs = await tablesDB.listRows(
-      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-      process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID!,
-      [Query.equal('userId', user.$id)]
-    );
+    const userDocs = await tablesDB.listRows({
+      databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+      tableId: process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID!,
+      queries: [Query.equal('userId', user.$id)]
+    });
 
     if (userDocs.rows.length === 0 || !userDocs.rows[0].roleId) {
       return res.status(403).json({ error: 'Unauthorized' });
     }
 
-    const userRole = await tablesDB.getRow(
-      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-      process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
-      userDocs.rows[0].roleId
-    );
+    const userRole = await tablesDB.getRow({
+      databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+      tableId: process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
+      rowId: userDocs.rows[0].roleId
+    });
 
     if (userRole.name !== 'Super Administrator') {
       return res.status(403).json({ error: 'Only Super Administrators can initialize roles' });
     }
 
     // Check if roles already exist
-    const existingRoles = await tablesDB.listRows(
-      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-      process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
-      [Query.limit(1)]
-    );
+    const existingRoles = await tablesDB.listRows({
+      databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+      tableId: process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
+      queries: [Query.limit(1)]
+    });
 
     if (existingRoles.total > 0) {
       return res.status(400).json({ error: 'Roles already initialized' });
@@ -142,16 +146,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     for (const roleData of DEFAULT_ROLES) {
       try {
-        const role = await tablesDB.createRow(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
-          ID.unique(),
-          {
+        const role = await tablesDB.createRow({
+          databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          tableId: process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
+          rowId: ID.unique(),
+          data: {
             name: roleData.name,
             description: roleData.description,
             permissions: JSON.stringify(roleData.permissions)
           }
-        );
+        });
         createdRoles.push(role as unknown as CreatedRoleResult);
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -169,11 +173,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Log the initialization action
     try {
-      await tablesDB.createRow(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
-        ID.unique(),
-        {
+      await tablesDB.createRow({
+        databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
+        rowId: ID.unique(),
+        data: {
           userId: user.$id,
           action: 'create',
           details: JSON.stringify({
@@ -181,7 +185,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             rolesCreated: createdRoles.map((r) => r.name)
           })
         }
-      );
+      });
     } catch (logError: unknown) {
       const errorMessage = logError instanceof Error ? logError.message : 'Unknown error';
       console.error('Error creating log:', errorMessage);

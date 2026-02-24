@@ -68,6 +68,7 @@ import { SaveReportDialog } from './components/SaveReportDialog';
 import { LoadReportDialog } from './components/LoadReportDialog';
 import { ReportCorrectionDialog } from './components/ReportCorrectionDialog';
 import type { SavedReport, ReportValidationResult } from '@/types/reports';
+import { useAuth } from '@/contexts/AuthContext';
 
 /**
  * Section configuration for accordion
@@ -139,11 +140,13 @@ export function AdvancedFiltersDialog({
   onOpenChange,
 }: AdvancedFiltersDialogProps) {
   const { error: showError, success } = useSweetAlert();
+  const { user } = useAuth();
 
   // Track expanded sections - Basic Information expanded by default (Requirement 1.10)
   const [expandedSections, setExpandedSections] = React.useState<string[]>(['basic']);
 
   // Reports integration state (Requirements 7.1, 7.2)
+  // Pass `open` so reports re-fetch each time the dialog opens, picking up fresh permissions
   const {
     reports,
     isLoading: isLoadingReports,
@@ -154,7 +157,7 @@ export function AdvancedFiltersDialog({
     deleteReport,
     loadReport,
     refreshReports,
-  } = useReports();
+  } = useReports(open);
 
   // Dialog states for Save/Load/Correction dialogs
   const [saveDialogOpen, setSaveDialogOpen] = React.useState(false);
@@ -346,32 +349,38 @@ export function AdvancedFiltersDialog({
    * Requirements: 1.1, 1.2, 7.6
    */
   const handleSaveReport = React.useCallback(
-    async (name: string, description?: string) => {
+    async (name: string, description?: string, isGlobal?: boolean) => {
       setIsSavingReport(true);
       setSaveError(null);
       
-      // Clean the filter configuration to remove empty custom fields
-      // This prevents stale parameter errors when loading the report
-      const cleanedFilters = cleanFilterConfigurationForSaving(filters);
-      
-      const result = await createReport({
-        name,
-        description,
-        filterConfiguration: cleanedFilters,
-      });
-      
-      setIsSavingReport(false);
-      
-      if (result.success) {
-        setSaveDialogOpen(false);
-        success('Report Saved', `"${name}" has been saved successfully.`);
-      } else {
-        // Handle specific error codes
-        if (result.errorCode === 'DUPLICATE_NAME') {
-          setSaveError(`A report named "${name}" already exists. Please choose a different name.`);
+      try {
+        // Clean the filter configuration to remove empty custom fields
+        // This prevents stale parameter errors when loading the report
+        const cleanedFilters = cleanFilterConfigurationForSaving(filters);
+        
+        const result = await createReport({
+          name,
+          description,
+          filterConfiguration: cleanedFilters,
+          isGlobal: isGlobal === true,
+        });
+        
+        if (result.success) {
+          setSaveDialogOpen(false);
+          success('Report Saved', `"${name}" has been saved successfully.`);
         } else {
-          showError('Save Failed', result.errorMessage || 'Failed to save report');
+          // Handle specific error codes
+          if (result.errorCode === 'DUPLICATE_NAME') {
+            setSaveError(`A report named "${name}" already exists. Please choose a different name.`);
+          } else {
+            showError('Save Failed', result.errorMessage || 'Failed to save report');
+          }
         }
+      } catch (error) {
+        console.error('[AdvancedFiltersDialog] Error saving report:', error);
+        showError('Save Failed', 'An unexpected error occurred while saving the report.');
+      } finally {
+        setIsSavingReport(false);
       }
     },
     [filters, createReport, success, showError]
@@ -415,9 +424,9 @@ export function AdvancedFiltersDialog({
    * Requirements: 3.2
    */
   const handleEditReport = React.useCallback(
-    async (id: string, name: string, description?: string) => {
+    async (id: string, name: string, description?: string, isGlobal?: boolean) => {
       try {
-        await updateReport(id, { name, description });
+        await updateReport(id, { name, description, isGlobal });
         success('Report Updated', `"${name}" has been updated.`);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to update report';
@@ -636,7 +645,7 @@ export function AdvancedFiltersDialog({
                     data-testid="load-report-btn"
                   >
                     <FolderOpen className="h-4 w-4 mr-2" />
-                    Load Report
+                    View Reports
                   </Button>
                   <Button
                     type="button"
@@ -647,7 +656,7 @@ export function AdvancedFiltersDialog({
                     data-testid="save-report-btn"
                   >
                     <Save className="h-4 w-4 mr-2" />
-                    Save Report
+                    Save This Report
                   </Button>
                 </>
               )}
@@ -686,6 +695,7 @@ export function AdvancedFiltersDialog({
         reports={reports}
         isLoading={isLoadingReports}
         error={reportsError}
+        currentUserId={user?.$id}
         onLoad={handleLoadReport}
         onEdit={handleEditReport}
         onDelete={handleDeleteReport}

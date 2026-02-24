@@ -902,6 +902,9 @@ async function createReportsTable(databaseId: string) {
     await createColumnIfMissing(databaseId, TABLES.REPORTS, 'lastAccessedAt', existingColumns, () =>
       tablesDB.createDatetimeColumn({ databaseId, tableId: TABLES.REPORTS, key: 'lastAccessedAt', required: false }),
     );
+    await createColumnIfMissing(databaseId, TABLES.REPORTS, 'isGlobal', existingColumns, () =>
+      tablesDB.createBooleanColumn({ databaseId, tableId: TABLES.REPORTS, key: 'isGlobal', required: false, xdefault: false }),
+    );
 
     // Create indexes if table was just created
     if (!tableExists) {
@@ -920,6 +923,11 @@ async function createReportsTable(databaseId: string) {
         await tablesDB.createIndex({ databaseId, tableId: TABLES.REPORTS, key: 'createdAt_idx', type: IndexType.Key, columns: ['createdAt'] });
       } catch (error: any) {
         if (error.code !== 409) console.error('  ✗ Error creating createdAt index:', error.message);
+      }
+      try {
+        await tablesDB.createIndex({ databaseId, tableId: TABLES.REPORTS, key: 'isGlobal_idx', type: IndexType.Key, columns: ['isGlobal'] });
+      } catch (error: any) {
+        if (error.code !== 409) console.error('  ✗ Error creating isGlobal index:', error.message);
       }
     }
 

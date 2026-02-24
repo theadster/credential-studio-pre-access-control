@@ -32,8 +32,8 @@ export interface UseReportsReturn {
   isLoading: boolean;
   /** Error state */
   error: Error | null;
-  /** Whether user has permission to access reports */
-  hasPermission: boolean;
+  /** Whether user has permission to access reports (null = not yet checked) */
+  hasPermission: boolean | null;
 
   // CRUD operations
   /** Create a new report - returns result object instead of throwing */
@@ -130,13 +130,15 @@ export class ReportError extends Error {
  * Provides CRUD operations for saved reports with loading states,
  * error handling, and validation result handling.
  *
+ * @param open - Optional: when provided, re-fetches reports each time this transitions to true
+ *
  * Requirements: 1.2, 2.2, 3.4, 3.5
  */
-export function useReports(): UseReportsReturn {
+export function useReports(open?: boolean): UseReportsReturn {
   const [reports, setReports] = useState<SavedReport[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-  const [hasPermission, setHasPermission] = useState(true);
+  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
 
   /**
    * Fetch reports list from API
@@ -155,9 +157,32 @@ export function useReports(): UseReportsReturn {
         signal,
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
+        // Check if response is JSON before parsing
+        const contentType = response.headers.get('content-type');
+        let data: any;
+        
+        if (contentType?.includes('application/json')) {
+          try {
+            data = await response.json();
+          } catch {
+            // JSON parsing failed, treat as text error
+            throw new ReportError(
+              'PARSE_ERROR',
+              `Server error: ${response.statusText || 'Unknown error'}`,
+              { status: response.status }
+            );
+          }
+        } else {
+          // Non-JSON response, get text
+          const text = await response.text();
+          throw new ReportError(
+            'HTTP_ERROR',
+            `Server error (${response.status}): ${text || response.statusText || 'Unknown error'}`,
+            { status: response.status }
+          );
+        }
+        
         if (isErrorResponse(data)) {
           // If it's a permission error, silently handle it - don't show error
           if (data.code === 'PERMISSION_DENIED') {
@@ -171,12 +196,14 @@ export function useReports(): UseReportsReturn {
         throw new Error('Failed to fetch reports');
       }
 
+      const data = await response.json();
+
       setHasPermission(true);
       const listResponse = data as ListReportsResponse;
       setReports(listResponse.reports);
     } catch (err) {
       // Ignore abort errors - request was cancelled intentionally
-      if (err instanceof DOMException && err.name === 'AbortError') {
+      if (err instanceof Error && err.name === 'AbortError') {
         return;
       }
       const error = err instanceof Error ? err : new Error('Unknown error');
@@ -400,15 +427,18 @@ export function useReports(): UseReportsReturn {
     }
   }, []);
 
-  // Fetch reports on mount with proper cleanup
+  // Fetch reports on mount and whenever the dialog opens
   useEffect(() => {
+    // Only fetch when open is undefined (always fetch) or when open becomes true
+    if (open === false) return;
+
     const controller = new AbortController();
     fetchReports(controller.signal);
 
     return () => {
       controller.abort();
     };
-  }, [fetchReports]);
+  }, [fetchReports, open]);
 
   return {
     reports,

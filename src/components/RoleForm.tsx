@@ -94,6 +94,12 @@ const defaultPermissions: UserPermissions = {
   scanLogs: {
     read: false,
     export: false
+  },
+  reports: {
+    create: false,
+    read: false,
+    update: false,
+    delete: false
   }
 };
 
@@ -219,6 +225,17 @@ const permissionLabels = {
     actions: {
       read: "View scan logs",
       export: "Export scan logs"
+    }
+  },
+  reports: {
+    title: "Filter Reports",
+    description: "Save and load filter configurations in Advanced Filters",
+    icon: Activity,
+    actions: {
+      create: "Save new filter reports",
+      read: "View and load saved reports",
+      update: "Edit saved reports",
+      delete: "Delete saved reports"
     }
   }
 };

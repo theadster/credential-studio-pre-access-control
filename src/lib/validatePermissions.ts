@@ -25,6 +25,7 @@ const ALLOWED_PERMISSION_KEYS = [
   'accessControl',
   'approvalProfiles',
   'scanLogs',
+  'reports',
   'all'
 ];
 

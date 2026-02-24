@@ -30,6 +30,10 @@ export interface SavedReport {
   userId: string;
   /** JSON-serialized AdvancedSearchFilters configuration */
   filterConfiguration: string;
+  /** Whether this report is visible to all users (only the creator can edit/delete) */
+  isGlobal: boolean;
+  /** Display name of the report owner (populated for global reports from other users) */
+  ownerName?: string;
   /** ISO timestamp of report creation */
   createdAt: string;
   /** ISO timestamp of last update */
@@ -54,6 +58,8 @@ export interface CreateReportPayload {
   description?: string;
   /** Filter configuration to save (will be JSON-serialized) */
   filterConfiguration: AdvancedSearchFilters;
+  /** Whether this report should be visible to all users */
+  isGlobal?: boolean;
 }
 
 /**
@@ -70,6 +76,8 @@ export interface UpdateReportPayload {
   description?: string;
   /** Updated filter configuration (will be JSON-serialized) */
   filterConfiguration?: AdvancedSearchFilters;
+  /** Updated global visibility flag */
+  isGlobal?: boolean;
 }
 
 /**

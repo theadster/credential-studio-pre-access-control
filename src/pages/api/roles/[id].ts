@@ -18,11 +18,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const user = await account.get();
 
     // Get user profile with role
-    const userDocs = await tablesDB.listRows(
-      process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-      process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID!,
-      [Query.equal('userId', user.$id)]
-    );
+    const userDocs = await tablesDB.listRows({
+      databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+      tableId: process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID!,
+      queries: [Query.equal('userId', user.$id)]
+    });
 
     if (userDocs.rows.length === 0) {
       return res.status(404).json({ error: 'User profile not found' });
@@ -33,12 +33,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Get role if exists
     let currentUserRole = null;
     if (userProfile.roleId) {
-      currentUserRole = await tablesDB.getRow(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
-        userProfile.roleId
-      );
-      // Parse permissions JSON
+      currentUserRole = await tablesDB.getRow({
+        databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+        tableId: process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
+        rowId: userProfile.roleId
+      });
       // Parse permissions JSON
       if (currentUserRole.permissions) {
         try {
@@ -66,11 +65,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // Get the role
         let role;
         try {
-          role = await tablesDB.getRow(
-            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-            process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
-            id
-          );
+          role = await tablesDB.getRow({
+            databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            tableId: process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
+            rowId: id
+          });
         } catch (error: any) {
           if (error.code === 404) {
             return res.status(404).json({ error: 'Role not found' });
@@ -96,11 +95,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         // Log the view action
         try {
-          await tablesDB.createRow(
-            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-            process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
-            ID.unique(),
-            {
+          await tablesDB.createRow({
+            databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            tableId: process.env.NEXT_PUBLIC_APPWRITE_LOGS_TABLE_ID!,
+            rowId: ID.unique(),
+            data: {
               userId: user.$id,
               action: 'view',
               details: JSON.stringify((await import('@/lib/logFormatting')).createRoleLogDetails('view', {
@@ -108,7 +107,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 id: role.$id
               }))
             }
-          );
+          });
         } catch (logError) {
           console.error('Error creating log:', logError);
         }
@@ -144,11 +143,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // Check if role exists
         let existingRole;
         try {
-          existingRole = await tablesDB.getRow(
-            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-            process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
-            id
-          );
+          existingRole = await tablesDB.getRow({
+            databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            tableId: process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
+            rowId: id
+          });
         } catch (error: any) {
           if (error.code === 404) {
             return res.status(404).json({ error: 'Role not found' });
@@ -158,11 +157,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         // Check if new name conflicts with another role
         if (name !== existingRole.name) {
-          const nameConflictDocs = await tablesDB.listRows(
-            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-            process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
-            [Query.equal('name', name)]
-          );
+          const nameConflictDocs = await tablesDB.listRows({
+            databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            tableId: process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
+            queries: [Query.equal('name', name)]
+          });
 
           if (nameConflictDocs.rows.length > 0) {
             return res.status(400).json({ error: 'Role name already exists' });
@@ -225,11 +224,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         userProfileCache.invalidateByRole(id);
 
         // Get updated role and user count
-        const updatedRole = await tablesDB.getRow(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
-          id
-        );
+        const updatedRole = await tablesDB.getRow({
+          databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+          tableId: process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
+          rowId: id
+        });
 
         const updatedUserCount = await getRoleUserCount(tablesDB, updatedRole.$id);
 
@@ -257,11 +256,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // Get the role to delete
         let roleToDelete;
         try {
-          roleToDelete = await tablesDB.getRow(
-            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-            process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
-            id
-          );
+          roleToDelete = await tablesDB.getRow({
+            databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            tableId: process.env.NEXT_PUBLIC_APPWRITE_ROLES_TABLE_ID!,
+            rowId: id
+          });
         } catch (error: any) {
           if (error.code === 404) {
             return res.status(404).json({ error: 'Role not found' });

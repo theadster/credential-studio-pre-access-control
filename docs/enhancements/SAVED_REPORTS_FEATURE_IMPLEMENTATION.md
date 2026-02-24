@@ -3,7 +3,7 @@ title: Saved Reports Feature Implementation
 type: canonical
 status: active
 owner: "@team"
-last_verified: 2026-01-28
+last_verified: 2026-02-23
 review_interval_days: 90
 related_code:
   - src/types/reports.ts
@@ -30,8 +30,10 @@ The Saved Reports feature enables users to persist, recall, and manage complex s
 ### Core Functionality
 
 - **Save Filter Configurations**: Users can save their current filter setup with a name and optional description
+- **Global Report Sharing**: Reports can be marked as global, making them visible and runnable by all users — only the creator can edit or delete them. Global reports show an "All Users" badge and display the owner's name so users know who to contact if there's an issue.
+- **Edit Global Flag**: After saving a report, owners can toggle the "Share with all users" setting via the edit dialog at any time.
 - **Load Saved Reports**: Quickly recall and apply previously saved filter configurations
-- **Manage Reports**: Edit, delete, or view details of saved reports
+- **Manage Reports**: Edit, delete, or view details of saved reports (edit/delete restricted to report owner for global reports)
 - **Stale Parameter Detection**: Automatically detects when saved reports reference deleted custom fields or values
 - **Error Correction**: Provides an intuitive interface to fix reports with stale parameters
 - **Export Integration**: Seamlessly integrates with the existing Export dialog for filtered data exports
@@ -57,6 +59,8 @@ interface SavedReport {
   description?: string;           // Optional description
   userId: string;                 // Owner's user ID
   filterConfiguration: string;    // JSON-serialized AdvancedSearchFilters
+  isGlobal: boolean;              // Whether visible to all users (default: false)
+  ownerName?: string;             // Display name of owner (populated for global reports from others)
   createdAt: string;              // ISO timestamp
   updatedAt: string;              // ISO timestamp
   lastAccessedAt?: string;        // ISO timestamp of last load
@@ -103,8 +107,9 @@ Reports integrate with the existing role-based permissions system:
 | `reports.delete` | Delete reports |
 
 **Access Control:**
-- Non-admin users: Can only view and manage their own reports
-- Admin users: Can view and manage all reports across all users
+- Non-admin users: Can view and run their own reports plus any global reports; can only edit/delete their own reports
+- Admin users: Can view, run, edit, and delete all reports (including global reports created by other users)
+- Global reports: Visible to all users, but only the creator or an admin can edit or delete them
 
 ### Error Handling
 
@@ -222,8 +227,7 @@ This adds the following permissions:
 
 Potential improvements for future iterations:
 
-1. **Report Sharing**: Allow users to share reports with team members
-2. **Report Scheduling**: Automatically run reports on a schedule
+1. **Report Scheduling**: Automatically run reports on a schedule
 3. **Report Templates**: Pre-built report templates for common use cases
 4. **Report Analytics**: Track which reports are used most frequently
 5. **Report Versioning**: Maintain history of report changes

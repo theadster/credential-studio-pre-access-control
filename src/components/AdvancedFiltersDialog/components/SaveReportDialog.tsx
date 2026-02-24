@@ -12,7 +12,7 @@
  */
 
 import * as React from 'react';
-import { FileText, Save } from 'lucide-react';
+import { FileText, Save, Globe } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -25,14 +25,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 
 export interface SaveReportDialogProps {
   /** Whether the dialog is open */
   open: boolean;
   /** Callback to control dialog open state */
   onOpenChange: (open: boolean) => void;
-  /** Callback when save is confirmed with name and optional description */
-  onSave: (name: string, description?: string) => Promise<void>;
+  /** Callback when save is confirmed with name, optional description, and isGlobal flag */
+  onSave: (name: string, description?: string, isGlobal?: boolean) => Promise<void>;
   /** Whether a save operation is in progress */
   isSaving?: boolean;
   /** Optional error message to display */
@@ -42,15 +43,16 @@ export interface SaveReportDialogProps {
 }
 
 /**
- * Validates a report name
+ * Validates and cleans a report name
  * Returns an error message if invalid, or null if valid
+ * Also returns the cleaned name for use in persistence
  *
  * Requirements: 1.3 - Empty name validation
  */
-export function validateReportName(name: string): string | null {
+export function validateReportName(name: string): { error: string | null; cleanedName: string } {
   // Type guard: ensure name is a string
   if (typeof name !== 'string') {
-    return 'Report name must be a string';
+    return { error: 'Report name must be a string', cleanedName: '' };
   }
   
   // Trim the name and remove invisible Unicode characters
@@ -58,10 +60,10 @@ export function validateReportName(name: string): string | null {
   const cleanedName = name.trim().replace(/[\p{Z}\p{C}]/gu, '');
   
   if (cleanedName.length === 0) {
-    return 'Report name is required';
+    return { error: 'Report name is required', cleanedName: '' };
   }
   
-  return null;
+  return { error: null, cleanedName };
 }
 
 /**
@@ -80,6 +82,7 @@ export function SaveReportDialog({
 }: SaveReportDialogProps) {
   const [name, setName] = React.useState('');
   const [description, setDescription] = React.useState('');
+  const [isGlobal, setIsGlobal] = React.useState(false);
   const [nameError, setNameError] = React.useState<string | null>(null);
 
   // Reset form when dialog opens/closes
@@ -87,6 +90,7 @@ export function SaveReportDialog({
     if (open) {
       setName('');
       setDescription('');
+      setIsGlobal(false);
       setNameError(null);
     }
   }, [open]);
@@ -109,17 +113,21 @@ export function SaveReportDialog({
   const handleSubmit = React.useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validate name
-    const validationError = validateReportName(name);
+    // Validate and clean name
+    const { error: validationError, cleanedName } = validateReportName(name);
     if (validationError) {
       setNameError(validationError);
       return;
     }
     
-    // Call onSave with trimmed values
-    // Errors are handled by parent component via error prop
-    await onSave(name.trim(), description.trim() || undefined);
-  }, [name, description, onSave]);
+    // Call onSave with cleaned name and trimmed description
+    try {
+      await onSave(cleanedName, description.trim() || undefined, isGlobal);
+    } catch (error) {
+      // Error is handled by parent component via error prop
+      console.error('Failed to save report:', error);
+    }
+  }, [name, description, isGlobal, onSave]);
 
   // Handle cancel
   const handleCancel = React.useCallback(() => {
@@ -133,7 +141,7 @@ export function SaveReportDialog({
           <DialogHeader className="border-b border-slate-200 dark:border-slate-700 pb-4 mb-0 bg-[#F1F5F9] dark:bg-slate-800 px-6 pt-6">
             <DialogTitle className="text-2xl font-bold text-primary flex items-center gap-2">
               <Save className="h-6 w-6" />
-              Save Report
+              Save This Report
             </DialogTitle>
             <DialogDescription className="text-slate-600 dark:text-slate-400 mt-2">
               Save your current filter configuration as a report for quick access later.
@@ -189,6 +197,26 @@ export function SaveReportDialog({
               />
             </div>
 
+            {/* Global visibility toggle */}
+            <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+              <div className="flex items-start gap-2">
+                <Globe className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-medium">Share globally</p>
+                  <p className="text-xs text-muted-foreground">
+                    All users can run this report. Only you can edit or delete it.
+                  </p>
+                </div>
+              </div>
+              <Switch
+                id="report-global"
+                checked={isGlobal}
+                onCheckedChange={setIsGlobal}
+                disabled={isSaving}
+                aria-label="Share report globally"
+              />
+            </div>
+
             {/* Info text */}
             <div className="flex items-start gap-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
               <FileText className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
@@ -219,7 +247,7 @@ export function SaveReportDialog({
               ) : (
                 <>
                   <Save className="h-4 w-4 mr-2" />
-                  Save Report
+                  Save This Report
                 </>
               )}
             </Button>

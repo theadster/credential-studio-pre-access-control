@@ -84,17 +84,30 @@ function isAdminUser(role: { name: string } | null): boolean {
 }
 
 /**
- * Check if user can access a specific report
- * Requirements: 5.7 - Users can only access their own reports unless admin
+ * Check if user can read a specific report
+ * Users can read their own reports, global reports, or any report if admin
  */
-function canAccessReport(
+function canReadReport(
+  userId: string,
+  reportUserId: string,
+  isGlobal: boolean,
+  role: { name: string } | null
+): boolean {
+  if (isAdminUser(role)) return true;
+  if (userId === reportUserId) return true;
+  return isGlobal === true;
+}
+
+/**
+ * Check if user can modify (edit/delete) a specific report
+ * Only the creator or admin can modify a report
+ */
+function canModifyReport(
   userId: string,
   reportUserId: string,
   role: { name: string } | null
 ): boolean {
-  if (isAdminUser(role)) {
-    return true;
-  }
+  if (isAdminUser(role)) return true;
   return userId === reportUserId;
 }
 
@@ -171,9 +184,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           throw error;
         }
 
-        // Check if user can access this report
-        // Requirements: 5.7 - Users can only access their own reports unless admin
-        if (!canAccessReport(user.$id, reportDoc.userId, role)) {
+        // Check if user can read this report (own reports + global reports)
+        if (!canReadReport(user.$id, reportDoc.userId, reportDoc.isGlobal ?? false, role)) {
           return res.status(403).json({
             code: 'PERMISSION_DENIED',
             message: 'You do not have permission to view this report',
@@ -304,6 +316,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           description: reportDoc.description || undefined,
           userId: reportDoc.userId,
           filterConfiguration: reportDoc.filterConfiguration,
+          isGlobal: reportDoc.isGlobal ?? false,
           createdAt: reportDoc.createdAt,
           updatedAt: reportDoc.updatedAt,
           lastAccessedAt: now,
@@ -353,8 +366,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           throw error;
         }
 
-        // Check if user can access this report
-        if (!canAccessReport(user.$id, reportDoc.userId, role)) {
+        // Check if user can modify this report (only creator or admin)
+        if (!canModifyReport(user.$id, reportDoc.userId, role)) {
           return res.status(403).json({
             code: 'PERMISSION_DENIED',
             message: 'You do not have permission to update this report',
@@ -413,6 +426,17 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           updateData.filterConfiguration = JSON.stringify(body.filterConfiguration);
         }
 
+        // Update isGlobal flag (only the owner can change this)
+        if (body.isGlobal !== undefined) {
+          if (reportDoc.userId !== user.$id && !isAdminUser(role)) {
+            return res.status(403).json({
+              code: 'PERMISSION_DENIED',
+              message: 'Only the report creator can change its global visibility',
+            } as ReportErrorResponse);
+          }
+          updateData.isGlobal = body.isGlobal === true;
+        }
+
         // Update timestamp
         // Requirements: 3.5 - Update modification timestamp
         updateData.updatedAt = new Date().toISOString();
@@ -431,6 +455,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           description: updatedDoc.description || undefined,
           userId: updatedDoc.userId,
           filterConfiguration: updatedDoc.filterConfiguration,
+          isGlobal: updatedDoc.isGlobal ?? false,
           createdAt: updatedDoc.createdAt,
           updatedAt: updatedDoc.updatedAt,
           lastAccessedAt: updatedDoc.lastAccessedAt || undefined,
@@ -475,8 +500,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           throw error;
         }
 
-        // Check if user can access this report
-        if (!canAccessReport(user.$id, reportDoc.userId, role)) {
+        // Check if user can modify this report (only creator or admin)
+        if (!canModifyReport(user.$id, reportDoc.userId, role)) {
           return res.status(403).json({
             code: 'PERMISSION_DENIED',
             message: 'You do not have permission to delete this report',

@@ -107,20 +107,52 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
       try {
         // Build query based on user role
-        // Requirements: 5.7 - Non-admin users only see their own reports
-        // Requirements: 5.8 - Admin users see all reports
-        const queries = [Query.orderDesc('createdAt')];
-        
-        if (!isAdminUser(role)) {
-          // Non-admin: filter by userId
-          queries.push(Query.equal('userId', user.$id));
-        }
+        // Non-admin users see their own reports + all global reports
+        // Admin users see all reports
+        let reportsResponse;
 
-        const reportsResponse = await tablesDB.listRows({
-          databaseId,
-          tableId: reportsTableId,
-          queries
-        });
+        if (isAdminUser(role)) {
+          reportsResponse = await tablesDB.listRows({
+            databaseId,
+            tableId: reportsTableId,
+            queries: [Query.orderDesc('createdAt')],
+          });
+        } else {
+          // Fetch own reports and global reports separately, then merge
+          const [ownResponse, globalResponse] = await Promise.all([
+            tablesDB.listRows({
+              databaseId,
+              tableId: reportsTableId,
+              queries: [
+                Query.equal('userId', user.$id),
+                Query.orderDesc('createdAt'),
+              ],
+            }),
+            tablesDB.listRows({
+              databaseId,
+              tableId: reportsTableId,
+              queries: [
+                Query.equal('isGlobal', true),
+                Query.notEqual('userId', user.$id),
+                Query.orderDesc('createdAt'),
+              ],
+            }),
+          ]);
+
+          // Merge: combine own and global reports, then sort by creation time (newest first)
+          const mergedRows = [...ownResponse.rows, ...globalResponse.rows].sort(
+            (a, b) => {
+              const dateA = new Date(a.createdAt).getTime();
+              const dateB = new Date(b.createdAt).getTime();
+              return dateB - dateA; // Descending order (newest first)
+            }
+          );
+          
+          reportsResponse = {
+            rows: mergedRows,
+            total: ownResponse.total + globalResponse.total,
+          };
+        }
 
         // Transform documents to SavedReport format
         // Skip reports with malformed filterConfiguration to ensure type safety
@@ -147,10 +179,41 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
             description: doc.description || undefined,
             userId: doc.userId,
             filterConfiguration: filterConfig,
+            isGlobal: doc.isGlobal ?? false,
             createdAt: doc.createdAt,
             updatedAt: doc.updatedAt,
             lastAccessedAt: doc.lastAccessedAt || undefined,
+            // ownerName resolved below for global reports from other users
           });
+        }
+
+        // Resolve ownerName for global reports from other users
+        const usersTableId = process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID;
+        if (usersTableId) {
+          const globalFromOthers = reports.filter(
+            (r) => r.isGlobal && r.userId !== user.$id
+          );
+          if (globalFromOthers.length > 0) {
+            const ownerIds = [...new Set(globalFromOthers.map((r) => r.userId))];
+            try {
+              const ownerDocs = await tablesDB.listRows({
+                databaseId,
+                tableId: usersTableId,
+                queries: [Query.equal('userId', ownerIds), Query.limit(ownerIds.length)],
+              });
+              const ownerMap = new Map<string, string>();
+              for (const doc of ownerDocs.rows) {
+                ownerMap.set(doc.userId, (doc.name as string | null) || (doc.email as string) || doc.userId);
+              }
+              for (const report of reports) {
+                if (report.isGlobal && report.userId !== user.$id) {
+                  report.ownerName = ownerMap.get(report.userId);
+                }
+              }
+            } catch (err) {
+              console.warn('[Reports API] Failed to resolve owner names:', err);
+            }
+          }
         }
 
         return res.status(200).json({
@@ -199,14 +262,14 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
       try {
         // Check for duplicate name for this user
-        const existingReports = await tablesDB.listRows(
+        const existingReports = await tablesDB.listRows({
           databaseId,
-          reportsTableId,
-          [
+          tableId: reportsTableId,
+          queries: [
             Query.equal('userId', user.$id),
             Query.equal('name', body.name.trim()),
           ]
-        );
+        });
 
         if (existingReports.rows.length > 0) {
           return res.status(409).json({
@@ -222,19 +285,20 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         const now = new Date().toISOString();
         const reportId = ID.unique();
 
-        const newReport = await tablesDB.createRow(
+        const newReport = await tablesDB.createRow({
           databaseId,
-          reportsTableId,
-          reportId,
-          {
+          tableId: reportsTableId,
+          rowId: reportId,
+          data: {
             name: body.name.trim(),
             description: body.description?.trim() || null,
             userId: user.$id,
             filterConfiguration: JSON.stringify(body.filterConfiguration),
+            isGlobal: body.isGlobal === true,
             createdAt: now,
             updatedAt: now,
           }
-        );
+        });
 
         const savedReport: SavedReport = {
           $id: newReport.$id,
@@ -242,6 +306,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
           description: newReport.description || undefined,
           userId: newReport.userId,
           filterConfiguration: newReport.filterConfiguration,
+          isGlobal: newReport.isGlobal ?? false,
           createdAt: newReport.createdAt,
           updatedAt: newReport.updatedAt,
           lastAccessedAt: newReport.lastAccessedAt || undefined,

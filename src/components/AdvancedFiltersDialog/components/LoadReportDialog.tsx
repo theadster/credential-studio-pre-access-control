@@ -12,7 +12,7 @@
  */
 
 import * as React from 'react';
-import { FolderOpen, Pencil, Trash2, Calendar, Clock, FileText, Search, AlertCircle } from 'lucide-react';
+import { FolderOpen, Pencil, Trash2, Calendar, Clock, FileText, Search, AlertCircle, Globe, User } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -36,6 +36,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import type { SavedReport } from '@/types/reports';
 
 export interface LoadReportDialogProps {
@@ -49,10 +51,12 @@ export interface LoadReportDialogProps {
   isLoading?: boolean;
   /** Error loading reports */
   error?: Error | null;
+  /** Current user's ID — used to determine edit/delete visibility */
+  currentUserId?: string;
   /** Callback when a report is selected for loading */
   onLoad: (report: SavedReport) => void;
   /** Callback when a report is edited */
-  onEdit: (id: string, name: string, description?: string) => Promise<void>;
+  onEdit: (id: string, name: string, description?: string, isGlobal?: boolean) => Promise<void>;
   /** Callback when a report is deleted */
   onDelete: (id: string) => Promise<void>;
 }
@@ -102,17 +106,17 @@ function formatDateTime(dateString: string | undefined): string {
  */
 interface ReportItemProps {
   report: SavedReport;
+  isOwner: boolean;
   onSelect: () => void;
   onEdit: () => void;
   onDelete: () => void;
 }
 
-function ReportItem({ report, onSelect, onEdit, onDelete }: ReportItemProps) {
+function ReportItem({ report, isOwner, onSelect, onEdit, onDelete }: ReportItemProps) {
   return (
     <div
       className="group p-4 border border-slate-200 dark:border-slate-700 rounded-lg hover:border-primary/50 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
       onClick={onSelect}
-      role="button"
       tabIndex={0}
       onKeyDown={(e) => {
         // Only trigger onSelect if the focused element is the report item itself
@@ -125,13 +129,26 @@ function ReportItem({ report, onSelect, onEdit, onDelete }: ReportItemProps) {
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          {/* Report Name */}
-          <h4 
-            className="font-medium text-foreground truncate"
-            data-testid={`report-name-${report.$id}`}
-          >
-            {report.name}
-          </h4>
+          {/* Report Name + Global badge */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <h4
+              className="font-medium text-foreground truncate"
+              data-testid={`report-name-${report.$id}`}
+            >
+              {report.name}
+            </h4>
+            {report.isGlobal ? (
+              <Badge className="flex items-center gap-1 text-xs shrink-0 bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-400 dark:border-emerald-800 hover:bg-emerald-100">
+                <Globe className="h-3 w-3" />
+                All Users
+              </Badge>
+            ) : (
+              <Badge className="flex items-center gap-1 text-xs shrink-0 bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/40 dark:text-amber-400 dark:border-amber-800 hover:bg-amber-100">
+                <User className="h-3 w-3" />
+                Only You
+              </Badge>
+            )}
+          </div>
           
           {/* Description */}
           {report.description && (
@@ -161,45 +178,52 @@ function ReportItem({ report, onSelect, onEdit, onDelete }: ReportItemProps) {
                 Last used {formatDateTime(report.lastAccessedAt)}
               </span>
             )}
+            {report.isGlobal && !isOwner && report.ownerName && (
+              <span className="flex items-center gap-1 text-muted-foreground">
+                <User className="h-3 w-3" />
+                {report.ownerName}
+              </span>
+            )}
           </div>
         </div>
         
-        {/* Action Buttons */}
-        <div 
-          className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0"
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit();
-            }}
-            title="Edit report"
-            data-testid={`report-edit-${report.$id}`}
+        {/* Action Buttons — only shown to the report owner */}
+        {isOwner && (
+          <div 
+            className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto"
           >
-            <Pencil className="h-4 w-4" />
-            <span className="sr-only">Edit</span>
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete();
-            }}
-            title="Delete report"
-            data-testid={`report-delete-${report.$id}`}
-          >
-            <Trash2 className="h-4 w-4" />
-            <span className="sr-only">Delete</span>
-          </Button>
-        </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit();
+              }}
+              title="Edit report"
+              data-testid={`report-edit-${report.$id}`}
+            >
+              <Pencil className="h-4 w-4" />
+              <span className="sr-only">Edit</span>
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
+              title="Delete report"
+              data-testid={`report-delete-${report.$id}`}
+            >
+              <Trash2 className="h-4 w-4" />
+              <span className="sr-only">Delete</span>
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -212,21 +236,32 @@ interface EditReportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   report: SavedReport | null;
-  onSave: (name: string, description?: string) => Promise<void>;
+  onSave: (name: string, description?: string, isGlobal?: boolean) => Promise<void>;
   isSaving: boolean;
 }
 
-function EditReportDialog({ open, onOpenChange, report, onSave, isSaving }: EditReportDialogProps) {
+const EditReportDialog = React.forwardRef<HTMLDivElement, EditReportDialogProps>(
+  function EditReportDialog({ open, onOpenChange, report, onSave, isSaving }, ref) {
   const [name, setName] = React.useState('');
   const [description, setDescription] = React.useState('');
+  const [isGlobal, setIsGlobal] = React.useState(false);
   const [nameError, setNameError] = React.useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const isMountedRef = React.useRef(true);
+
+  // Track mount/unmount
+  React.useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // Reset form when dialog opens with report data
   React.useEffect(() => {
     if (open && report) {
       setName(report.name);
       setDescription(report.description || '');
+      setIsGlobal(report.isGlobal ?? false);
       setNameError(null);
       setIsSubmitting(false);
     }
@@ -234,6 +269,12 @@ function EditReportDialog({ open, onOpenChange, report, onSave, isSaving }: Edit
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Guard: ensure report exists
+    if (!report) {
+      setNameError('Report data is missing');
+      return;
+    }
     
     // Guard against duplicate submissions using both local and parent state
     if (isSubmitting || isSaving) return;
@@ -246,13 +287,17 @@ function EditReportDialog({ open, onOpenChange, report, onSave, isSaving }: Edit
     
     setIsSubmitting(true);
     try {
-      await onSave(trimmedName, description.trim() || undefined);
+      await onSave(trimmedName, description.trim() || undefined, isGlobal);
     } catch (error) {
       console.error('Failed to save report:', error);
-      // Display generic message to user, log actual error for debugging
-      setNameError('Failed to save report. Please try again.');
+      if (isMountedRef.current) {
+        setNameError('Failed to save report. Please try again.');
+      }
     } finally {
-      setIsSubmitting(false);
+      // Only update state if component is still mounted
+      if (isMountedRef.current) {
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -307,6 +352,26 @@ function EditReportDialog({ open, onOpenChange, report, onSave, isSaving }: Edit
                 className="resize-none"
               />
             </div>
+
+            {/* Global visibility toggle */}
+            <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+              <div className="flex items-start gap-2">
+                <Globe className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-medium">Share with all users</p>
+                  <p className="text-xs text-muted-foreground">
+                    All users can run this report. Only you can edit or delete it.
+                  </p>
+                </div>
+              </div>
+              <Switch
+                id="edit-report-global"
+                checked={isGlobal}
+                onCheckedChange={setIsGlobal}
+                disabled={isSaving}
+                aria-label="Share report with all users"
+              />
+            </div>
           </div>
 
           <DialogFooter className="px-6 pb-6 pt-4 border-t border-slate-200 dark:border-slate-700 bg-[#F1F5F9] dark:bg-slate-800">
@@ -333,6 +398,7 @@ function EditReportDialog({ open, onOpenChange, report, onSave, isSaving }: Edit
     </Dialog>
   );
 }
+);
 
 /**
  * LoadReportDialog displays a list of saved reports and allows
@@ -346,6 +412,7 @@ export function LoadReportDialog({
   reports,
   isLoading = false,
   error,
+  currentUserId,
   onLoad,
   onEdit,
   onDelete,
@@ -382,16 +449,15 @@ export function LoadReportDialog({
   // Handle report selection
   const handleSelectReport = React.useCallback((report: SavedReport) => {
     onLoad(report);
-    onOpenChange(false);
-  }, [onLoad, onOpenChange]);
+  }, [onLoad]);
 
   // Handle edit save
-  const handleEditSave = React.useCallback(async (name: string, description?: string) => {
+  const handleEditSave = React.useCallback(async (name: string, description?: string, isGlobal?: boolean) => {
     if (!editingReport) return;
     
     setIsEditSaving(true);
     try {
-      await onEdit(editingReport.$id, name, description);
+      await onEdit(editingReport.$id, name, description, isGlobal);
       setEditingReport(null);
     } finally {
       setIsEditSaving(false);
@@ -423,7 +489,7 @@ export function LoadReportDialog({
           <DialogHeader className="border-b border-slate-200 dark:border-slate-700 pb-4 mb-0 bg-[#F1F5F9] dark:bg-slate-800 px-6 pt-6">
             <DialogTitle className="text-2xl font-bold text-primary flex items-center gap-2">
               <FolderOpen className="h-6 w-6" />
-              Load Report
+              View Reports
             </DialogTitle>
             <DialogDescription className="text-slate-600 dark:text-slate-400 mt-2">
               Select a saved report to load its filter configuration.
@@ -478,6 +544,7 @@ export function LoadReportDialog({
                     <ReportItem
                       key={report.$id}
                       report={report}
+                      isOwner={currentUserId !== undefined && report.userId === currentUserId}
                       onSelect={() => handleSelectReport(report)}
                       onEdit={() => setEditingReport(report)}
                       onDelete={() => setDeletingReport(report)}

@@ -288,6 +288,7 @@ Stores user-saved report/filter configurations. Each row is a named saved filter
 | `description` | varchar | no | — | 1000 | Optional description |
 | `userId` | varchar | yes | — | 255 | FK → Appwrite Auth user ID (owner) |
 | `filterConfiguration` | varchar | yes | — | 12000 | JSON-serialized filter state |
+| `isGlobal` | boolean | no | `false` | — | Whether the report is visible to all users (only creator can edit/delete) |
 | `createdAt` | datetime | yes | — | — | Creation timestamp |
 | `updatedAt` | datetime | yes | — | — | Last update timestamp |
 | `lastAccessedAt` | datetime | no | — | — | Last time the report was loaded/run |
@@ -296,6 +297,7 @@ Stores user-saved report/filter configurations. Each row is a named saved filter
 - `userId_idx` — Key on `userId`
 - `name_idx` — Key on `name`
 - `createdAt_idx` — Key on `createdAt`
+- `isGlobal_idx` — Key on `isGlobal`
 
 ---
 
