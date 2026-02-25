@@ -3,7 +3,7 @@ title: "Mobile API Reference"
 type: canonical
 status: active
 owner: "@team"
-last_verified: 2025-12-31
+last_verified: 2026-02-24
 review_interval_days: 90
 related_code: ["src/pages/api/mobile/", "src/components/MobileApp/"]
 ---
@@ -93,6 +93,9 @@ The mobile API suite provides endpoints for mobile scanning applications to:
         "lastName": "string",
         "barcodeNumber": "string",
         "photoUrl": "string | null",
+        "credentialUrl": "string | null",
+        "credentialGeneratedAt": "string | null",
+        "lastSignificantUpdate": "string | null",
         "customFieldValues": "object",
         "customFieldValuesByName": "object",
         "accessControl": {
@@ -123,6 +126,9 @@ The mobile API suite provides endpoints for mobile scanning applications to:
 | `lastName` | string | Last name |
 | `barcodeNumber` | string | Barcode/badge number |
 | `photoUrl` | string \| null | URL to attendee photo |
+| `credentialUrl` | string \| null | URL to the generated credential image (null if not yet generated) |
+| `credentialGeneratedAt` | string \| null | ISO 8601 timestamp of when the credential was last generated |
+| `lastSignificantUpdate` | string \| null | ISO 8601 timestamp of when printable data was last changed |
 | `customFieldValues` | object | Custom field values keyed by internal field names (for backward compatibility) |
 | `customFieldValuesByName` | object | Custom field values keyed by display field names (recommended for UI display) |
 | `accessControl` | object | Access control settings |
@@ -132,6 +138,52 @@ The mobile API suite provides endpoints for mobile scanning applications to:
 | `updatedAt` | string | Last update timestamp |
 
 **Use Case:** Cache attendee data for offline scanning
+
+---
+
+### Credential Status (Outdated Detection)
+
+When an attendee's printable data changes after their credential was generated, the credential is considered **outdated** — it no longer reflects the current data and should be reprinted.
+
+**How to determine if a credential is outdated:**
+
+```typescript
+function isCredentialOutdated(attendee: Attendee): boolean {
+  // No credential generated yet — nothing to show as outdated
+  if (!attendee.credentialUrl || !attendee.credentialGeneratedAt) {
+    return false;
+  }
+
+  const generatedAt = new Date(attendee.credentialGeneratedAt).getTime();
+
+  if (attendee.lastSignificantUpdate) {
+    const significantUpdate = new Date(attendee.lastSignificantUpdate).getTime();
+    // Allow a 5-second tolerance for race conditions between generation and update timestamps
+    const timeDiff = generatedAt - significantUpdate;
+    return !(timeDiff >= -5000 && timeDiff <= 0) && generatedAt < significantUpdate;
+  }
+
+  // Fallback for legacy records without lastSignificantUpdate
+  const updatedAt = new Date(attendee.updatedAt).getTime();
+  const timeDiff = generatedAt - updatedAt;
+  return !(timeDiff >= -5000 && timeDiff <= 0) && generatedAt < updatedAt;
+}
+```
+
+**Logic summary:**
+
+| Condition | Status |
+|-----------|--------|
+| `credentialUrl` is null | No credential — not applicable |
+| `credentialGeneratedAt` is null | No credential — not applicable |
+| `credentialGeneratedAt >= lastSignificantUpdate` | Current |
+| `credentialGeneratedAt < lastSignificantUpdate` | **Outdated** |
+| `lastSignificantUpdate` is null (legacy) | Compare against `updatedAt` instead |
+
+**Recommended UI behaviour:**
+- Show an "Outdated" badge or warning when `isCredentialOutdated()` returns `true`
+- The credential image at `credentialUrl` is still valid to display, but flag it visually so staff know it needs reprinting
+- Do not block scanning — outdated is informational only
 
 ---
 
@@ -394,7 +446,11 @@ IANA timezone identifiers:
 
 ## Version History
 
-### v1.0 (Current)
+### v1.1 (Current)
+- Sync Attendees response now includes `credentialUrl`, `credentialGeneratedAt`, and `lastSignificantUpdate` fields
+- Added Credential Status (Outdated Detection) section with logic and UI guidance
+
+### v1.0
 - Event Info API
 - Sync Attendees API
 - Sync Profiles API
