@@ -105,11 +105,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     }
 
     // Requirement 1.1: Query attendees collection by barcode number
-    const attendeesResult = await tablesDB.listRows(
-      dbId,
-      attendeesTableId,
-      [Query.equal('barcodeNumber', decodedBarcode), Query.limit(1)]
-    );
+    const attendeesResult = await tablesDB.listRows({
+      databaseId: dbId,
+      tableId: attendeesTableId,
+      queries: [Query.equal('barcodeNumber', decodedBarcode), Query.limit(1)]
+    });
 
     // Requirement 1.5: Handle case where attendee is not found (404 response)
     if (attendeesResult.rows.length === 0) {
@@ -140,11 +140,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     };
 
     try {
-      const accessControlResult = await tablesDB.listRows(
-        dbId,
-        accessControlTableId,
-        [Query.equal('attendeeId', attendee.$id), Query.limit(1)]
-      );
+      const accessControlResult = await tablesDB.listRows({
+        databaseId: dbId,
+        tableId: accessControlTableId,
+        queries: [Query.equal('attendeeId', attendee.$id), Query.limit(1)]
+      });
 
       if (accessControlResult.rows.length > 0) {
         const ac = accessControlResult.rows[0];
@@ -165,11 +165,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
     try {
       // Fetch custom field definitions for field name mapping
-      const customFieldsResult = await tablesDB.listRows(
-        dbId,
-        customFieldsTableId,
-        [Query.limit(1000)]
-      );
+      const customFieldsResult = await tablesDB.listRows({
+        databaseId: dbId,
+        tableId: customFieldsTableId,
+        queries: [Query.limit(1000)]
+      });
 
       const fieldNameMap = new Map<string, string>();
       const fieldInternalMap = new Map<string, string>();

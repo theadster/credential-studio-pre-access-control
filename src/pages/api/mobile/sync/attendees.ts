@@ -128,11 +128,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     let customFieldMap = new Map<string, string>(); // Maps fieldId -> fieldName
     let customFieldInternalMap = new Map<string, string>(); // Maps fieldId -> internalFieldName
     try {
-      const customFieldsResult = await tablesDB.listRows(
-        dbId,
-        customFieldsTableId,
-        [Query.limit(1000)] // Reasonable limit for custom fields
-      );
+      const customFieldsResult = await tablesDB.listRows({
+        databaseId: dbId,
+        tableId: customFieldsTableId,
+        queries: [Query.limit(1000)] // Reasonable limit for custom fields
+      });
       
       // Build mappings from field IDs to display names and internal names
       // Custom field values are stored with field ID as key, not internalFieldName
@@ -150,11 +150,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
     }
 
     // Fetch attendees
-    let attendeesResult = await tablesDB.listRows(
-      dbId,
-      attendeesTableId,
+    let attendeesResult = await tablesDB.listRows({
+      databaseId: dbId,
+      tableId: attendeesTableId,
       queries
-    );
+    });
 
     // DELTA SYNC FIX: If we have additional attendee IDs from updated access control records,
     // fetch those attendees separately and merge them with the main result

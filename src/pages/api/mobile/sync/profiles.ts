@@ -96,11 +96,11 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
       Query.limit(100) // Reasonable limit for approval profiles
     ];
 
-    const profilesResult = await tablesDB.listRows(
-      dbId,
-      approvalProfilesTableId,
+    const profilesResult = await tablesDB.listRows({
+      databaseId: dbId,
+      tableId: approvalProfilesTableId,
       queries
-    );
+    });
 
     // Filter profiles based on version comparison
     // Include profiles that:
