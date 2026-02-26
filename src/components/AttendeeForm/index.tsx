@@ -292,13 +292,22 @@ const AttendeeForm = React.memo(({
       if (confirmed) {
         resetForm();
         setHasUnsavedChanges(false);
+        isClosingRef.current = false;
         onClose();
+      } else {
+        // Delay resetting the guard to let Safari flush any spurious outside-interaction
+        // events that fire when SweetAlert2 removes its backdrop from the DOM.
+        // Without this delay, Safari on iPad (private browsing) re-triggers onOpenChange
+        // immediately after the confirm dialog closes, causing an infinite loop.
+        setTimeout(() => {
+          isClosingRef.current = false;
+        }, 100);
       }
-      // Reset flag after confirmation dialog closes
-      isClosingRef.current = false;
     }).catch(() => {
       // Reset flag on error
-      isClosingRef.current = false;
+      setTimeout(() => {
+        isClosingRef.current = false;
+      }, 100);
     });
   };
 
