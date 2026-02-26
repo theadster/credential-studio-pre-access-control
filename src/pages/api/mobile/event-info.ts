@@ -43,6 +43,8 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
   // Validate required environment variables
   const dbId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
   const eventSettingsTableId = process.env.NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID;
+  const attendeesTableId = process.env.NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID;
+  const profilesTableId = process.env.NEXT_PUBLIC_APPWRITE_APPROVAL_PROFILES_TABLE_ID;
 
   const missingEnvVars: string[] = [];
   if (!dbId || dbId.trim() === '') {
@@ -50,6 +52,12 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
   }
   if (!eventSettingsTableId || eventSettingsTableId.trim() === '') {
     missingEnvVars.push('NEXT_PUBLIC_APPWRITE_EVENT_SETTINGS_TABLE_ID');
+  }
+  if (!attendeesTableId || attendeesTableId.trim() === '') {
+    missingEnvVars.push('NEXT_PUBLIC_APPWRITE_ATTENDEES_TABLE_ID');
+  }
+  if (!profilesTableId || profilesTableId.trim() === '') {
+    missingEnvVars.push('NEXT_PUBLIC_APPWRITE_APPROVAL_PROFILES_TABLE_ID');
   }
 
   if (missingEnvVars.length > 0) {
@@ -64,16 +72,16 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
   }
 
   try {
-    // At this point, both values are guaranteed to be non-empty strings
+    // At this point, all values are guaranteed to be non-empty strings
     const validatedDbId = dbId as string;
     const validatedEventSettingsTableId = eventSettingsTableId as string;
 
     // Fetch event settings - there should only be one document
-    const eventSettingsResult = await tablesDB.listRows(
-      validatedDbId,
-      validatedEventSettingsTableId,
-      []
-    );
+    const eventSettingsResult = await tablesDB.listRows({
+      databaseId: validatedDbId,
+      tableId: validatedEventSettingsTableId,
+      queries: []
+    });
 
     if (eventSettingsResult.rows.length === 0) {
       return res.status(404).json({
@@ -84,7 +92,7 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
 
     const eventSettings = eventSettingsResult.rows[0];
 
-    // Return minimal event info for mobile app
+    // Return minimal event info for mobile app, including Appwrite IDs for Realtime subscriptions
     return res.status(200).json({
       success: true,
       data: {
@@ -94,7 +102,10 @@ export default withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) 
         eventTime: eventSettings.eventTime || null,
         timeZone: eventSettings.timeZone || null,
         mobileSettingsPasscode: eventSettings.mobileSettingsPasscode || null,
-        updatedAt: eventSettings.$updatedAt
+        updatedAt: eventSettings.$updatedAt,
+        appwriteDatabaseId: validatedDbId,
+        appwriteAttendeesTableId: attendeesTableId as string,
+        appwriteProfilesTableId: profilesTableId as string
       }
     });
 

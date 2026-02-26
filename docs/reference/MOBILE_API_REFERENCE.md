@@ -3,7 +3,7 @@ title: "Mobile API Reference"
 type: canonical
 status: active
 owner: "@team"
-last_verified: 2026-02-24
+last_verified: 2026-02-25
 review_interval_days: 90
 related_code: ["src/pages/api/mobile/", "src/components/MobileApp/"]
 ---
@@ -43,7 +43,10 @@ The mobile API suite provides endpoints for mobile scanning applications to:
     "eventTime": "string | null",
     "timeZone": "string | null",
     "mobileSettingsPasscode": "string | null",
-    "updatedAt": "string"
+    "updatedAt": "string",
+    "appwriteDatabaseId": "string",
+    "appwriteAttendeesTableId": "string",
+    "appwriteProfilesTableId": "string"
   }
 }
 ```
@@ -59,10 +62,14 @@ The mobile API suite provides endpoints for mobile scanning applications to:
 | `timeZone` | string \| null | IANA timezone identifier |
 | `mobileSettingsPasscode` | string \| null | 4-digit passcode for settings menu protection (null if disabled) |
 | `updatedAt` | string | Last update timestamp |
+| `appwriteDatabaseId` | string | Appwrite database ID — use for Realtime subscription setup |
+| `appwriteAttendeesTableId` | string | Appwrite attendees table ID — use for Realtime subscription setup |
+| `appwriteProfilesTableId` | string | Appwrite profiles table ID — use for Realtime subscription setup |
 
 **Use Cases:** 
 - Display event name and details in the scanning app header
 - Enforce passcode protection on mobile app settings menu
+- Bootstrap Appwrite Realtime subscriptions for live attendee/profile sync
 
 ---
 
@@ -446,7 +453,10 @@ IANA timezone identifiers:
 
 ## Version History
 
-### v1.1 (Current)
+### v1.2 (Current)
+- Event Info response now includes `appwriteDatabaseId`, `appwriteAttendeesTableId`, and `appwriteProfilesTableId` fields to support Appwrite Realtime subscription setup in the mobile app
+
+### v1.1
 - Sync Attendees response now includes `credentialUrl`, `credentialGeneratedAt`, and `lastSignificantUpdate` fields
 - Added Credential Status (Outdated Detection) section with logic and UI guidance
 
