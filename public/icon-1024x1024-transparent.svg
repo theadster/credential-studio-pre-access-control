@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- IdCard icon (Lucide) scaled from 24x24 to 640x640, centered in 1024x1024, transparent background -->
+  <!-- scale: 640/24 = 26.667, translate: (1024-640)/2 = 192 -->
+  <g transform="translate(192, 192) scale(26.667)" fill="none" stroke="#8b5cf6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="2" y="5" width="20" height="14" rx="2"/>
+    <path d="M16 10h2"/>
+    <path d="M16 14h2"/>
+    <path d="M6.17 15a3 3 0 0 1 5.66 0"/>
+    <circle cx="9" cy="11" r="2"/>
+  </g>
+</svg>
