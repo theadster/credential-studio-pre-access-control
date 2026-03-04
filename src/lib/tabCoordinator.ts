@@ -39,6 +39,11 @@ export interface TabCoordinator {
   onRefreshComplete(callback: (success: boolean) => void): void;
   
   /**
+   * Remove a refresh complete callback
+   */
+  offRefreshComplete(callback: (success: boolean) => void): void;
+  
+  /**
    * Cleanup resources
    */
   cleanup(): void;
@@ -53,6 +58,7 @@ class TabCoordinatorImpl implements TabCoordinator {
   private config: TabCoordinatorConfig;
   private storageListener: ((event: StorageEvent) => void) | null = null;
   private heartbeatTimer: NodeJS.Timeout | null = null;
+  private ephemeralListeners: Set<{ listener: any; type: 'broadcast' | 'storage' }> = new Set();
   
   constructor(config?: Partial<TabCoordinatorConfig>) {
     this.config = {
@@ -184,16 +190,59 @@ class TabCoordinatorImpl implements TabCoordinator {
   async requestRefresh(): Promise<boolean> {
     return new Promise((resolve) => {
       let denied = false;
+      let timeoutId: NodeJS.Timeout | null = null;
+      let handlerRef: ((event: MessageEvent<TabMessage> | StorageEvent) => void) | null = null;
       
-      const timeout = setTimeout(() => {
-        // No response within timeout, assume we can proceed
+      const cleanup = () => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+        if (handlerRef) {
+          // Remove listener using the stored transport type, not current state
+          // This ensures we remove from the correct target even if transport changed
+          this.ephemeralListeners.forEach(item => {
+            if (item.listener === handlerRef) {
+              try {
+                if (item.type === 'broadcast' && this.channel) {
+                  this.channel.removeEventListener('message', handlerRef as any);
+                } else if (item.type === 'storage' && typeof window !== 'undefined') {
+                  window.removeEventListener('storage', handlerRef as any);
+                }
+              } catch (error) {
+                console.error('[TabCoordinator] Error removing listener:', error);
+              }
+              this.ephemeralListeners.delete(item);
+            }
+          });
+          handlerRef = null;
+        }
+      };
+      
+      timeoutId = setTimeout(() => {
+        // No response within timeout, assume we can proceed (only if not already denied)
         if (!denied) {
-          this.isRefreshLeader = true;
-          resolve(true);
+          denied = true; // Mark as resolved to prevent handler from also resolving
+          // Atomically check and set leader flag to prevent race condition
+          if (!this.isRefreshLeader) {
+            this.isRefreshLeader = true;
+            // Announce leadership to other tabs so they don't also become leader
+            this.postMessage({
+              type: 'refresh-leader-elected',
+              tabId: this.tabId,
+              timestamp: Date.now()
+            });
+            cleanup();
+            resolve(true);
+          } else {
+            // Another tab already became leader, don't proceed
+            cleanup();
+            resolve(false);
+          }
         }
       }, this.config.requestTimeout);
       
-      const handler = (event: MessageEvent<TabMessage> | StorageEvent) => {
+      handlerRef = (event: MessageEvent<TabMessage> | StorageEvent) => {
         let message: TabMessage | null = null;
         
         if ('data' in event) {
@@ -208,25 +257,24 @@ class TabCoordinatorImpl implements TabCoordinator {
           }
         }
         
-        if (message && message.type === 'refresh-denied' && message.tabId !== this.tabId) {
-          denied = true;
-          clearTimeout(timeout);
-          
-          if (this.useBroadcastChannel && this.channel) {
-            this.channel.removeEventListener('message', handler as any);
-          } else if (typeof window !== 'undefined') {
-            window.removeEventListener('storage', handler as any);
+        // Only process if we haven't already resolved
+        if (!denied && message) {
+          // Treat 'refresh-denied', 'refresh-complete', and 'refresh-leader-elected' as cancellation conditions
+          if ((message.type === 'refresh-denied' || message.type === 'refresh-complete' || message.type === 'refresh-leader-elected') && message.tabId !== this.tabId) {
+            denied = true;
+            cleanup();
+            resolve(false);
           }
-          
-          resolve(false);
         }
       };
       
-      // Listen for denial messages
+      // Listen for denial messages and track ephemeral listener
       if (this.useBroadcastChannel && this.channel) {
-        this.channel.addEventListener('message', handler as any);
+        this.channel.addEventListener('message', handlerRef as any);
+        this.ephemeralListeners.add({ listener: handlerRef, type: 'broadcast' });
       } else if (typeof window !== 'undefined') {
-        window.addEventListener('storage', handler as any);
+        window.addEventListener('storage', handlerRef as any);
+        this.ephemeralListeners.add({ listener: handlerRef, type: 'storage' });
       }
       
       // Broadcast refresh request
@@ -254,6 +302,10 @@ class TabCoordinatorImpl implements TabCoordinator {
     this.callbacks.push(callback);
   }
   
+  offRefreshComplete(callback: (success: boolean) => void): void {
+    this.callbacks = this.callbacks.filter((cb) => cb !== callback);
+  }
+  
   cleanup(): void {
     // Stop heartbeat
     if (this.heartbeatTimer) {
@@ -261,15 +313,42 @@ class TabCoordinatorImpl implements TabCoordinator {
       this.heartbeatTimer = null;
     }
     
-    // Close BroadcastChannel
+    // Remove ephemeral listeners from requestRefresh (with error handling)
+    // Only clear listeners that were successfully removed
+    const failedListeners: typeof this.ephemeralListeners = new Set();
+    this.ephemeralListeners.forEach(item => {
+      try {
+        if (item.type === 'broadcast' && this.channel) {
+          this.channel.removeEventListener('message', item.listener as any);
+        } else if (item.type === 'storage' && typeof window !== 'undefined') {
+          window.removeEventListener('storage', item.listener as any);
+        }
+      } catch (error) {
+        console.error('[TabCoordinator] Error removing ephemeral listener:', error);
+        // Keep listener in set for retry on next cleanup
+        failedListeners.add(item);
+      }
+    });
+    // Only clear successfully removed listeners
+    this.ephemeralListeners = failedListeners;
+    
+    // Close BroadcastChannel (with error handling)
     if (this.channel) {
-      this.channel.close();
+      try {
+        this.channel.close();
+      } catch (error) {
+        console.error('[TabCoordinator] Error closing BroadcastChannel:', error);
+      }
       this.channel = null;
     }
     
-    // Remove localStorage listener
+    // Remove localStorage listener (with error handling)
     if (this.storageListener && typeof window !== 'undefined') {
-      window.removeEventListener('storage', this.storageListener);
+      try {
+        window.removeEventListener('storage', this.storageListener);
+      } catch (error) {
+        console.error('[TabCoordinator] Error removing storage listener:', error);
+      }
       this.storageListener = null;
     }
     

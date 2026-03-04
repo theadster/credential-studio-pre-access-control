@@ -1,4 +1,4 @@
-import React, { createContext, useState, ReactNode, useContext, useEffect } from 'react';
+import React, { createContext, useState, ReactNode, useContext, useEffect, useRef } from 'react';
 import { createBrowserClient } from '@/lib/appwrite';
 import { Models, OAuthProvider, ID, Query } from 'appwrite';
 import { useSweetAlert } from "@/hooks/useSweetAlert";
@@ -58,16 +58,50 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const { account, tablesDB } = createBrowserClient();
   const { toast, alert: showAlert } = useSweetAlert();
 
+  // Track if we've already shown a session expiration notification
+  // This prevents spam from multiple failed API calls
+  const [hasShownExpirationNotification, setHasShownExpirationNotification] = useState(false);
+  const hasShownExpirationNotificationRef = useRef(false);
+  const notificationChannelRef = useRef<BroadcastChannel | null>(null);
+
   // Initialize TokenRefreshManager and TabCoordinator
   const [tokenRefreshManager] = useState(() => new TokenRefreshManager());
   const [tabCoordinator] = useState<TabCoordinator>(() => createTabCoordinator());
 
-  // Track if we've already shown a session expiration notification
-  // This prevents spam from multiple failed API calls
-  const [hasShownExpirationNotification, setHasShownExpirationNotification] = useState(false);
+
 
   // Setup token refresh callbacks and cleanup
   useEffect(() => {
+    // Initialize cross-tab notification channel (once)
+    if (!notificationChannelRef.current && typeof BroadcastChannel !== 'undefined') {
+      try {
+        notificationChannelRef.current = new BroadcastChannel('auth-notifications');
+        notificationChannelRef.current.onmessage = (event) => {
+          try {
+            // Validate event.data is an object before accessing properties
+            if (!event.data || typeof event.data !== 'object') {
+              console.warn('[AuthContext] Invalid notification message format:', event.data);
+              return;
+            }
+            
+            if (event.data.type === 'session-warning-shown') {
+              // Another tab showed the notification, mark it as shown here too
+              hasShownExpirationNotificationRef.current = true;
+              setHasShownExpirationNotification(true);
+            } else if (event.data.type === 'session-warning-reset') {
+              // Another tab reset the notification flag (successful refresh)
+              hasShownExpirationNotificationRef.current = false;
+              setHasShownExpirationNotification(false);
+            }
+          } catch (error) {
+            console.error('[AuthContext] Error handling notification message:', error);
+          }
+        };
+      } catch (error) {
+        console.warn('[AuthContext] Failed to create notification channel:', error);
+      }
+    }
+
     // Handle token refresh success/failure
     const handleRefreshResult = (success: boolean, error?: Error) => {
       if (!success) {
@@ -84,7 +118,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (isSessionExpired) {
           // Don't show session expired message if we're already on the login page
           // This prevents false "session expired" messages during failed login attempts
-          const isOnLoginPage = router.pathname === '/login' || router.pathname === '/signup' || router.pathname === '/forgot-password';
+          const currentPathOnExpiry = router.pathname;
+          const isOnLoginPage = currentPathOnExpiry === '/login' || currentPathOnExpiry === '/signup' || currentPathOnExpiry === '/forgot-password' || currentPathOnExpiry === '/reset-password';
 
           if (isOnLoginPage) {
             console.log('[AuthContext] Session expired but already on auth page, skipping notification');
@@ -106,10 +141,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           // Clear session cookie
           document.cookie = 'appwrite-session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
 
-          // Show notification and redirect to login
-          if (!hasShownExpirationNotification) {
+          // Show notification and redirect to login (only if not already shown in any tab)
+          if (!hasShownExpirationNotificationRef.current) {
+            hasShownExpirationNotificationRef.current = true;
             setHasShownExpirationNotification(true);
-
+            // Notify other tabs that we're showing the notification (with error handling)
+            if (notificationChannelRef.current) {
+              try {
+                notificationChannelRef.current.postMessage({ type: 'session-warning-shown' });
+              } catch (error) {
+                console.error('[AuthContext] Error posting session-warning-shown message:', error);
+              }
+            }
             toast({
               variant: "destructive",
               title: "Session Expired",
@@ -119,9 +162,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           }
 
           // Preserve current URL for post-login redirect
-          const currentPath = router.pathname;
+          const currentPathForRedirect = router.pathname;
           const protectedPaths = ['/dashboard', '/private', '/profile'];
-          const isProtectedPath = protectedPaths.some(path => currentPath.startsWith(path));
+          const isProtectedPath = protectedPaths.some(path => currentPathForRedirect.startsWith(path));
 
           if (isProtectedPath) {
             sessionStorage.setItem('returnUrl', router.asPath);
@@ -130,9 +173,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           router.push('/login');
         } else {
           // Network or temporary error - show warning but don't logout
-          if (!hasShownExpirationNotification) {
+          if (!hasShownExpirationNotificationRef.current) {
+            hasShownExpirationNotificationRef.current = true;
             setHasShownExpirationNotification(true);
-
+            // Notify other tabs that we're showing the notification (with error handling)
+            if (notificationChannelRef.current) {
+              try {
+                notificationChannelRef.current.postMessage({ type: 'session-warning-shown' });
+              } catch (error) {
+                console.error('[AuthContext] Error posting session-warning-shown message:', error);
+              }
+            }
             toast({
               variant: "destructive",
               title: "Session Warning",
@@ -146,7 +197,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       } else {
         console.log('[AuthContext] Token refresh successful');
         // Reset notification flag on successful refresh
+        hasShownExpirationNotificationRef.current = false;
         setHasShownExpirationNotification(false);
+        // Notify other tabs to reset their notification flag (with error handling)
+        if (notificationChannelRef.current) {
+          try {
+            notificationChannelRef.current.postMessage({ type: 'session-warning-reset' });
+          } catch (error) {
+            console.error('[AuthContext] Error posting session-warning-reset message:', error);
+          }
+        }
       }
     };
 
@@ -155,10 +215,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (!success) {
         console.error('[AuthContext] Token refresh failed in another tab');
 
-        // Only show notification if we haven't already shown one
-        if (!hasShownExpirationNotification) {
-          setHasShownExpirationNotification(true);
+        // Check current pathname to avoid stale closure
+        // Don't show session warning if we're already on the login page
+        // This prevents confusing notifications during normal auth flows
+        const currentPath = router.pathname;
+        const isOnLoginPage = currentPath === '/login' || currentPath === '/signup' || currentPath === '/forgot-password' || currentPath === '/reset-password';
 
+        if (!isOnLoginPage && !hasShownExpirationNotificationRef.current) {
+          hasShownExpirationNotificationRef.current = true;
+          setHasShownExpirationNotification(true);
+          // Notify other tabs that we're showing the notification (with error handling)
+          if (notificationChannelRef.current) {
+            try {
+              notificationChannelRef.current.postMessage({ type: 'session-warning-shown' });
+            } catch (error) {
+              console.error('[AuthContext] Error posting session-warning-shown message:', error);
+              // Continue even if postMessage fails
+            }
+          }
           toast({
             variant: "destructive",
             title: "Session Warning",
@@ -173,7 +247,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       } else {
         console.log('[AuthContext] Token refresh successful in another tab');
         // Reset notification flag on successful refresh
+        hasShownExpirationNotificationRef.current = false;
         setHasShownExpirationNotification(false);
+        // Notify other tabs to reset their notification flag (with error handling)
+        if (notificationChannelRef.current) {
+          try {
+            notificationChannelRef.current.postMessage({ type: 'session-warning-reset' });
+          } catch (error) {
+            console.error('[AuthContext] Error posting session-warning-reset message:', error);
+            // Continue even if postMessage fails
+          }
+        }
       }
     };
 
@@ -181,28 +265,51 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     tokenRefreshManager.onRefresh(handleRefreshResult);
     tabCoordinator.onRefreshComplete(handleTabRefreshComplete);
 
-    // Cleanup on unmount
+    // Cleanup on unmount only
     return () => {
       console.log('[AuthContext] Cleaning up token refresh and tab coordination');
+      // Unsubscribe callbacks before stopping to prevent stale handlers
+      tokenRefreshManager.offRefresh(handleRefreshResult);
+      tabCoordinator.offRefreshComplete(handleTabRefreshComplete);
       tokenRefreshManager.stop();
       tabCoordinator.cleanup();
+      // Close notification channel
+      if (notificationChannelRef.current) {
+        notificationChannelRef.current.close();
+        notificationChannelRef.current = null;
+      }
     };
-  }, [hasShownExpirationNotification]);
+  }, []); // Empty dependency array - register once on mount, cleanup on unmount only
 
   // Fetch user profile from database
   const fetchUserProfile = async (userId: string): Promise<UserProfile | null> => {
     try {
+      // Validate environment variables
+      const databaseId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
+      const tableId = process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID;
+
+      if (!databaseId || !tableId) {
+        console.error('[AuthContext] Database configuration is missing', {
+          userId,
+          hasDatabaseId: !!databaseId,
+          hasTableId: !!tableId,
+        });
+        // Return null instead of throwing - missing config is not a fatal error
+        // Session restoration can continue without profile data
+        return null;
+      }
+
       console.log('[AuthContext] Fetching user profile', {
         userId,
-        databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-        tableId: process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID,
+        databaseId,
+        tableId,
       });
 
-      const response = await tablesDB.listRows(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-        process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID!,
-        [Query.equal('userId', userId)]
-      );
+      const response = await tablesDB.listRows({
+        databaseId,
+        tableId,
+        queries: [Query.equal('userId', userId)]
+      });
 
       console.log('[AuthContext] User profile query result', {
         userId,
@@ -235,12 +342,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         throw error; // Re-throw to be caught by signIn's error handler
       }
 
-      console.error('[AuthContext] Error fetching user profile:', {
+      // Distinguish between "not found" and transient errors
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorType = (error as any)?.type || 'unknown';
+      const errorCode = (error as any)?.code;
+
+      // Only return null for 404 (not found) errors
+      if (errorCode === 404 || errorType === 'document_not_found') {
+        console.warn('[AuthContext] User profile not found (404)', { userId });
+        return null;
+      }
+
+      // For transient errors (network, timeout, etc), re-throw so caller can handle
+      console.error('[AuthContext] Transient error fetching user profile:', {
         userId,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        errorType: (error as any)?.type,
+        error: errorMessage,
+        errorType,
+        errorCode,
       });
-      return null;
+      throw error;
     }
   };
 
@@ -377,7 +497,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           sessionStorage.setItem('returnUrl', router.asPath);
 
           // Only show notification if we haven't already shown one
-          if (!hasShownExpirationNotification) {
+          // Use ref instead of state to avoid stale closure capture
+          if (!hasShownExpirationNotificationRef.current) {
+            hasShownExpirationNotificationRef.current = true;
             setHasShownExpirationNotification(true);
 
             // Redirect to login with a message
@@ -517,35 +639,64 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const createUserProfile = async (userId: string, email: string, name?: string) => {
     try {
+      // Validate email is defined and is a string
+      if (!email || typeof email !== 'string') {
+        throw new Error('Email is required and must be a string');
+      }
+
       console.log('[AuthContext] Checking for existing user profile', {
         timestamp: new Date().toISOString(),
         userId,
         email,
       });
 
-      // Check if user profile already exists
+      // Check if user profile already exists to prevent race condition duplicates
       const existingProfile = await fetchUserProfile(userId);
 
       if (!existingProfile) {
+        // Extract username from email safely
+        const defaultName = email.includes('@') ? email.split('@')[0] : email;
+
         console.log('[AuthContext] Creating new user profile', {
           timestamp: new Date().toISOString(),
           userId,
           email,
-          name: name || email.split('@')[0] || null,
+          name: name || defaultName || null,
         });
 
-        // Create user profile in database
-        await tablesDB.createRow(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-          process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID!,
-          ID.unique(),
-          {
-            userId,
-            email,
-            name: name || email.split('@')[0] || null,
-            isInvited: false,
+        // Validate environment variables
+        const databaseId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
+        const tableId = process.env.NEXT_PUBLIC_APPWRITE_USERS_TABLE_ID;
+
+        if (!databaseId || !tableId) {
+          throw new Error('Database configuration is missing. Please check environment variables.');
+        }
+
+        try {
+          // Create user profile in database
+          await tablesDB.createRow({
+            databaseId,
+            tableId,
+            rowId: ID.unique(),
+            data: {
+              userId,
+              email,
+              name: name || defaultName || null,
+              isInvited: false,
+            }
+          });
+        } catch (createError: any) {
+          // Check if this is a duplicate key error (race condition)
+          // If another request already created the profile, that's OK
+          if (createError.code === 409 || createError.type === 'duplicate') {
+            console.log('[AuthContext] User profile already exists (created by concurrent request)', {
+              timestamp: new Date().toISOString(),
+              userId,
+            });
+            return;
           }
-        );
+          throw createError;
+        }
 
         console.log('[AuthContext] ✓ User profile created successfully', {
           timestamp: new Date().toISOString(),
@@ -825,7 +976,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       let errorTitle = "Login Failed";
       let errorMessage = error.message || "Failed to sign in";
 
-      if (error.type === 'invalid_email' || (error.message && error.message.toLowerCase().includes('valid email'))) {
+      // Safely access error.message with fallback
+      const errorMsg = (error && typeof error.message === 'string') ? error.message : '';
+      const errorMsgLower = errorMsg.toLowerCase();
+
+      if (error.type === 'invalid_email' || errorMsgLower.includes('valid email')) {
         errorTitle = "Invalid Email";
         errorMessage = "Please enter a valid email address (e.g., user@example.com)";
       } else if (error.code === 401 || error.type === 'user_invalid_credentials') {
@@ -836,10 +991,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       } else if (error.type === 'user_blocked') {
         errorTitle = "Account Blocked";
         errorMessage = "Your account has been blocked. Please contact support for assistance.";
-      } else if (error.message && error.message.includes('network')) {
+      } else if (errorMsg.includes('network')) {
         errorTitle = "Connection Error";
         errorMessage = "Unable to connect. Please check your internet connection and try again.";
-      } else if (error.message && error.message.toLowerCase().includes('rate limit')) {
+      } else if (errorMsgLower.includes('rate limit')) {
         errorTitle = "Too Many Attempts";
         errorMessage = "You've made too many login attempts. Please wait 5-10 minutes before trying again.";
       }
@@ -963,12 +1118,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         userId: currentUser?.$id || 'unknown',
       });
 
-      // Stop token refresh timer
+      // Stop token refresh timer FIRST (before any async operations)
       tokenRefreshManager.stop();
       tokenRefreshManager.clearUserContext();
 
-      // Reset notification flag
+      // Reset notification flags (both state and ref, for cross-tab coordination)
+      hasShownExpirationNotificationRef.current = false;
       setHasShownExpirationNotification(false);
+      // Notify other tabs to reset their notification flags (with error handling)
+      if (notificationChannelRef.current) {
+        try {
+          notificationChannelRef.current.postMessage({ type: 'session-warning-reset' });
+        } catch (error) {
+          console.error('[AuthContext] Error posting session-warning-reset message:', error);
+        }
+      }
+
+      // Clear state BEFORE calling deleteSession (so if it fails, we're already signed out locally)
+      setUser(null);
+      setUserProfile(null);
 
       // Log the logout event before signing out
       if (currentUser) {
@@ -979,18 +1147,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           });
         } catch (logError) {
           console.error('[AuthContext] Failed to log logout event:', logError);
+          // Continue with sign out even if logging fails
         }
       }
 
-      // Delete current session in Appwrite
-      await account.deleteSession('current');
+      // Delete current session in Appwrite (server-side session invalidation)
+      // This is critical for security - it invalidates the session server-side
+      // and clears any HttpOnly cookies set by the server
+      try {
+        await account.deleteSession('current');
+      } catch (deleteError) {
+        console.error('[AuthContext] Failed to delete session on server:', deleteError);
+        // Continue with client-side cleanup even if server deletion fails
+      }
 
-      // Clear our custom session cookie
+      // Clear our custom session cookie (client-side only)
+      // Note: This cannot clear HttpOnly cookies set by the server
+      // The server-side deleteSession() call above handles that
       document.cookie = 'appwrite-session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-
-      // Clear state
-      setUser(null);
-      setUserProfile(null);
 
       console.log('[AuthContext] ✓ Sign out successful', {
         timestamp: new Date().toISOString(),

@@ -8,9 +8,9 @@ import { jwtDecode } from 'jwt-decode';
 export interface TokenRefreshConfig {
   /** Milliseconds before expiry to refresh (default: 5 minutes) */
   refreshBeforeExpiry: number;
-  /** Number of retry attempts (default: 3) */
+  /** Number of retry attempts (default: 5) */
   retryAttempts: number;
-  /** Base delay between retries in ms (default: 1000) */
+  /** Base delay between retries in ms (default: 2000) */
   retryDelay: number;
 }
 
@@ -29,20 +29,48 @@ export type TokenRefreshCallback = (success: boolean, error?: Error) => void;
 export class TokenRefreshManager {
   private refreshTimer: NodeJS.Timeout | null = null;
   private isRefreshingFlag: boolean = false;
+  private isStopped: boolean = false;
   private config: TokenRefreshConfig;
   private callbacks: TokenRefreshCallback[] = [];
   private currentExpiryTime: number | null = null;
   private consecutiveFailures: number = 0;
   private userId: string | null = null;
   private sessionId: string | null = null;
+  private visibilityHandler: (() => void) | null = null;
 
   constructor(config?: Partial<TokenRefreshConfig>) {
-    this.config = {
+    // Defaults
+    const defaults = {
       refreshBeforeExpiry: 5 * 60 * 1000, // 5 minutes
-      retryAttempts: 5, // Increased from 3 to 5 for better reliability
-      retryDelay: 2000, // Increased from 1000ms to 2000ms for better network recovery
-      ...config,
+      retryAttempts: 5,
+      retryDelay: 2000,
     };
+
+    // Only use provided values if they are not null/undefined
+    const coercedConfig = config ? {
+      refreshBeforeExpiry: config.refreshBeforeExpiry != null ? Number(config.refreshBeforeExpiry) : defaults.refreshBeforeExpiry,
+      retryAttempts: config.retryAttempts != null ? Number(config.retryAttempts) : defaults.retryAttempts,
+      retryDelay: config.retryDelay != null ? Number(config.retryDelay) : defaults.retryDelay,
+    } : defaults;
+
+    this.config = coercedConfig as TokenRefreshConfig;
+
+    // Validate config values
+    if (!Number.isFinite(this.config.refreshBeforeExpiry) || this.config.refreshBeforeExpiry <= 0) {
+      throw new Error(`Invalid refreshBeforeExpiry: expected positive number, got ${this.config.refreshBeforeExpiry}`);
+    }
+    if (!Number.isInteger(this.config.retryAttempts) || this.config.retryAttempts <= 0) {
+      throw new Error(`Invalid retryAttempts: expected positive integer, got ${this.config.retryAttempts}`);
+    }
+    // Cap retryAttempts to prevent DoS (max 50 attempts)
+    const MAX_RETRY_ATTEMPTS = 50;
+    if (this.config.retryAttempts > MAX_RETRY_ATTEMPTS) {
+      console.warn(`[TokenRefresh] retryAttempts capped at ${MAX_RETRY_ATTEMPTS} (was ${this.config.retryAttempts})`);
+      this.config.retryAttempts = MAX_RETRY_ATTEMPTS;
+    }
+    if (!Number.isFinite(this.config.retryDelay) || this.config.retryDelay <= 0) {
+      throw new Error(`Invalid retryDelay: expected positive number, got ${this.config.retryDelay}`);
+    }
   }
 
   /**
@@ -65,20 +93,92 @@ export class TokenRefreshManager {
 
   /**
    * Start the automatic refresh timer
+   * Also registers a visibilitychange listener so that when the tab comes back
+   * into focus after being backgrounded (where timers are throttled), we
+   * immediately check whether the token needs refreshing.
    * @param jwtExpiry - JWT expiration time in seconds (Unix timestamp)
    */
   start(jwtExpiry: number): void {
+    // Validate jwtExpiry parameter
+    if (!Number.isFinite(jwtExpiry) || jwtExpiry <= 0) {
+      throw new Error(`Invalid jwtExpiry: expected a positive number, got ${jwtExpiry}`);
+    }
+
+    // Reset stopped flag when starting
+    this.isStopped = false;
+
     // Clear any existing timer first
     if (this.refreshTimer) {
       clearTimeout(this.refreshTimer);
       this.refreshTimer = null;
     }
 
+    // Register visibility change handler (once) to handle browser tab throttling.
+    // When a tab is backgrounded, setTimeout timers can be delayed by minutes.
+    // On tab focus, we check if the token is due for refresh and trigger immediately.
+    if (!this.visibilityHandler && typeof document !== 'undefined') {
+      this.visibilityHandler = () => {
+        if (document.hidden) return;
+        if (!this.currentExpiryTime) return;
+
+        const now = Date.now();
+        const refreshTime = this.currentExpiryTime - this.config.refreshBeforeExpiry;
+
+        // Only refresh if token is actually overdue (now > refreshTime, not >=)
+        // Prevents immediate refresh when refreshBeforeExpiry >= token expiry
+        if (now > refreshTime) {
+          console.log('[TokenRefresh] Tab became visible, token refresh overdue — refreshing now', {
+            timestamp: new Date().toISOString(),
+            userId: this.userId || 'unknown',
+            overdueMs: now - refreshTime,
+          });
+          // Clear the stale timer
+          if (this.refreshTimer) {
+            clearTimeout(this.refreshTimer);
+            this.refreshTimer = null;
+          }
+          
+          // If refresh is already in progress, don't reschedule — wait for it to complete
+          if (this.isRefreshingFlag) {
+            console.log('[TokenRefresh] Refresh already in progress, skipping visibility handler', {
+              timestamp: new Date().toISOString(),
+              userId: this.userId || 'unknown',
+            });
+            return;
+          }
+          
+          // Handle promise rejection to prevent unhandled rejection errors
+          this.refresh().catch((error) => {
+            console.error('[TokenRefresh] Visibility handler refresh failed', {
+              timestamp: new Date().toISOString(),
+              userId: this.userId || 'unknown',
+              error: error instanceof Error ? error.message : 'Unknown error',
+            });
+          });
+        }
+      };
+      document.addEventListener('visibilitychange', this.visibilityHandler);
+    }
+
     // Calculate when to refresh (5 minutes before expiry)
     const now = Date.now();
     const expiryTime = jwtExpiry * 1000; // Convert to milliseconds
     const refreshTime = expiryTime - this.config.refreshBeforeExpiry;
-    const delay = Math.max(0, refreshTime - now);
+    let delay = Math.max(0, refreshTime - now);
+
+    // Cap delay to prevent exceeding JS timer limit (2^31-1 ms ≈ 24.8 days)
+    // If delay exceeds limit, schedule refresh at max timeout and reschedule on completion
+    const MAX_TIMEOUT = 2147483647; // 2^31 - 1 milliseconds
+    if (delay > MAX_TIMEOUT) {
+      console.warn('[TokenRefresh] Delay exceeds max timeout, capping to max value', {
+        timestamp: new Date().toISOString(),
+        userId: this.userId || 'unknown',
+        originalDelayMs: delay,
+        cappedDelayMs: MAX_TIMEOUT,
+        cappedDelayDays: Math.round(MAX_TIMEOUT / (1000 * 60 * 60 * 24)),
+      });
+      delay = MAX_TIMEOUT;
+    }
 
     this.currentExpiryTime = expiryTime;
 
@@ -104,9 +204,15 @@ export class TokenRefreshManager {
   }
 
   /**
-   * Stop the refresh timer
+   * Stop the refresh timer and remove the visibility change listener
+   * Prevents any in-flight refresh from re-establishing authentication
    */
   stop(): void {
+    // Set flag to prevent in-flight refresh from completing
+    this.isStopped = true;
+    // Do NOT clear isRefreshingFlag here — let in-flight refresh complete naturally
+    // Clearing it would allow a concurrent refresh to start, causing race conditions
+
     if (this.refreshTimer) {
       clearTimeout(this.refreshTimer);
       this.refreshTimer = null;
@@ -116,9 +222,33 @@ export class TokenRefreshManager {
         sessionId: this.sessionId || 'unknown',
       });
     }
+    // Remove visibility change listener
+    if (this.visibilityHandler && typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', this.visibilityHandler);
+      this.visibilityHandler = null;
+    }
     this.currentExpiryTime = null;
     // Reset consecutive failures when stopping
     this.consecutiveFailures = 0;
+
+    // Clear authentication cookie using js-cookie to properly handle all cookie attributes
+    // This ensures removal even when cookie was set with SameSite=None, Secure, or domain attributes
+    if (typeof window !== 'undefined') {
+      try {
+        // Use js-cookie to remove the cookie (handles all attributes)
+        Cookies.remove('appwrite-session', { path: '/' });
+        // Also try removing without path in case it was set differently
+        Cookies.remove('appwrite-session');
+        // Try removing with domain attribute (common for cross-domain cookies)
+        Cookies.remove('appwrite-session', { domain: window.location.hostname });
+        console.log('[TokenRefresh] Authentication cookie cleared');
+      } catch (error) {
+        console.error('[TokenRefresh] Error clearing authentication cookie:', error);
+        // Fallback to direct document.cookie assignment with multiple variations
+        document.cookie = 'appwrite-session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+        document.cookie = 'appwrite-session=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+      }
+    }
   }
 
   /**
@@ -208,23 +338,42 @@ export class TokenRefreshManager {
           jwtExpiry = Math.floor(Date.now() / 1000) + (15 * 60);
         }
 
-        // Update cookie with new JWT using js-cookie for safe handling
-        const isSecure = window.location.protocol === 'https:';
-        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-        
-        // Use most permissive settings for localhost to work in all contexts
-        if (isLocalhost) {
-          // For localhost, don't set SameSite to maximize compatibility
-          Cookies.set('appwrite-session', jwt.jwt, {
-            path: '/',
-            expires: 7,
+        // Check if stop() was called while refresh was in-flight
+        if (this.isStopped) {
+          console.log('[TokenRefresh] Refresh completed but stop() was called, discarding result', {
+            timestamp: new Date().toISOString(),
+            userId: this.userId || 'unknown',
           });
+          this.isRefreshingFlag = false;
+          return false;
+        }
+
+        // Update cookie with new JWT using js-cookie for safe handling
+        // Only proceed if window exists (browser context) and stop() hasn't been called
+        if (typeof window !== 'undefined' && window.location && !this.isStopped) {
+          const isSecure = window.location.protocol === 'https:';
+          const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+          
+          // Use most permissive settings for localhost to work in all contexts
+          if (isLocalhost) {
+            // For localhost, don't set SameSite to maximize compatibility
+            Cookies.set('appwrite-session', jwt.jwt, {
+              path: '/',
+              expires: 7,
+            });
+          } else {
+            Cookies.set('appwrite-session', jwt.jwt, {
+              path: '/',
+              expires: 7,
+              sameSite: isSecure ? 'none' : 'lax',
+              secure: isSecure,
+            });
+          }
         } else {
-          Cookies.set('appwrite-session', jwt.jwt, {
-            path: '/',
-            expires: 7,
-            sameSite: isSecure ? 'none' : 'lax',
-            secure: isSecure,
+          console.warn('[TokenRefresh] Not in browser context or stop() called, skipping cookie update', {
+            timestamp: new Date().toISOString(),
+            userId: this.userId || 'unknown',
+            isStopped: this.isStopped,
           });
         }
 
@@ -240,8 +389,10 @@ export class TokenRefreshManager {
           timeUntilExpiry: Math.round((jwtExpiry * 1000 - Date.now()) / 60000) + ' minutes',
         });
 
-        // Restart timer with new expiry
-        this.start(jwtExpiry);
+        // Restart timer with new expiry (only if not stopped)
+        if (!this.isStopped) {
+          this.start(jwtExpiry);
+        }
 
         // Notify callbacks of success
         this.notifyCallbacks(true);

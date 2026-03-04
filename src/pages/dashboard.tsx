@@ -394,33 +394,92 @@ export default function Dashboard() {
   const [advancedFiltersDialogOpen, setAdvancedFiltersDialogOpen] = useState(false);
   const [isPollingActive, setIsPollingActive] = useState(false);
 
+  // Track in-flight requests to prevent race conditions from out-of-order responses
+  const attendeesRequestRef = useRef<{ id: number; controller: AbortController } | null>(null);
+  let attendeesRequestCounter = useRef(0);
+
   const refreshAttendees = useCallback(async () => {
+    let requestId: number = 0;
     try {
-      const attendeesResponse = await fetch('/api/attendees');
+      // Abort any previous in-flight request before starting new one
+      if (attendeesRequestRef.current?.controller) {
+        attendeesRequestRef.current.controller.abort();
+        console.log('[Dashboard] Aborting previous attendees request');
+      }
+
+      // Increment request counter and create abort controller for this request
+      requestId = ++attendeesRequestCounter.current;
+      const controller = new AbortController();
+      attendeesRequestRef.current = { id: requestId, controller };
+
+      const attendeesResponse = await fetch('/api/attendees', { signal: controller.signal });
+
+      // Ignore response if a newer request has been made
+      if (attendeesRequestRef.current?.id !== requestId) {
+        console.log('[Dashboard] Ignoring stale attendees response', { requestId, currentId: attendeesRequestRef.current?.id });
+        return;
+      }
+
       if (attendeesResponse.ok) {
-        // Check if response has content before parsing JSON
-        const contentLength = attendeesResponse.headers.get('content-length');
-        if (contentLength === '0' || attendeesResponse.status === 204) {
-          setAttendees([]);
+        // Read response body once to check if it's empty
+        const responseText = await attendeesResponse.text();
+        
+        // Double-check this is still the current request before updating state
+        if (attendeesRequestRef.current?.id !== requestId) {
           return;
         }
         
-        const attendeesData = await attendeesResponse.json();
+        if (responseText === '' || attendeesResponse.status === 204) {
+          setAttendees([]);
+          attendeesFreshnessRef.current?.markFresh();
+          return;
+        }
+        
+        // Parse the text to JSON with error handling
+        let attendeesData;
+        try {
+          attendeesData = JSON.parse(responseText);
+        } catch (parseError) {
+          console.error('[Dashboard] refreshAttendees: JSON parse error', {
+            error: parseError instanceof Error ? parseError.message : 'Unknown error',
+            responseLength: responseText.length,
+            responsePreview: responseText.substring(0, 100),
+          });
+          // Preserve existing attendees on parse error
+          return;
+        }
         if (Array.isArray(attendeesData)) {
           setAttendees(attendeesData);
+          attendeesFreshnessRef.current?.markFresh();
         } else if (attendeesData && typeof attendeesData === 'object' && Array.isArray(attendeesData.attendees)) {
           setAttendees(attendeesData.attendees);
+          attendeesFreshnessRef.current?.markFresh();
         } else {
-          setAttendees([]);
+          // Unexpected payload shape — preserve existing attendees and don't mark fresh
+          console.warn('[Dashboard] refreshAttendees: unexpected JSON shape', {
+            type: typeof attendeesData,
+            isArray: Array.isArray(attendeesData),
+            hasAttendees: attendeesData?.attendees !== undefined,
+            payload: attendeesData,
+          });
         }
-        // Mark freshness only after successful fetch
-        attendeesFreshnessRef.current?.markFresh();
+      } else if (attendeesResponse.status === 401) {
+        // Auth error — preserve existing attendees so the UI doesn't show 0
+        // The session has expired; don't wipe data, just log and let AuthContext handle re-auth
+        console.warn('[Dashboard] refreshAttendees: 401 Unauthorized — session may have expired, preserving existing data');
+        // Do NOT call setAttendees([]) or markFresh() — stale data is better than empty
       } else {
-        setAttendees([]);
+        // Other server errors — preserve existing data rather than showing 0
+        console.warn('[Dashboard] refreshAttendees: non-ok response', attendeesResponse.status);
       }
     } catch (error) {
+      // Ignore abort errors (expected when newer request supersedes older one)
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('[Dashboard] refreshAttendees: request cancelled by newer request');
+        return;
+      }
       console.error('Error refreshing attendees:', error);
-      setAttendees([]);
+      // Network error — preserve existing data
     }
   }, []);
 
