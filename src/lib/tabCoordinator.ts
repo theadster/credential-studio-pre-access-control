@@ -6,7 +6,7 @@
  * tokens at a time, preventing redundant API calls.
  */
 
-type MessageType = 'refresh-request' | 'refresh-denied' | 'refresh-complete' | 'heartbeat';
+type MessageType = 'refresh-request' | 'refresh-denied' | 'refresh-complete' | 'refresh-leader-elected' | 'heartbeat';
 
 interface TabMessage {
   type: MessageType;
@@ -141,6 +141,11 @@ class TabCoordinatorImpl implements TabCoordinator {
       case 'refresh-complete':
         // Another tab completed the refresh
         this.callbacks.forEach(cb => cb(message.success ?? false));
+        break;
+        
+      case 'refresh-leader-elected':
+        // Another tab has been elected as leader
+        // This is handled in requestRefresh() promise
         break;
         
       case 'heartbeat':
